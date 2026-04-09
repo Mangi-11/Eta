@@ -14,3 +14,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+/.analysis/
+/.tmp/
+/.idea/deploymentTargetSelector.xml
