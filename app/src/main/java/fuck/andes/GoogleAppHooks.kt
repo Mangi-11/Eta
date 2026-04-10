@@ -3,7 +3,6 @@ package fuck.andes
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.os.SystemClock
 import android.view.View
 import io.github.libxposed.api.XposedModule
 import java.io.File
@@ -16,17 +15,11 @@ internal object GoogleAppHooks {
     private const val PRO_MODE_ID = "e6fa609c3fa255c0"
     private const val FULLSCREEN_ZERO_STATE_MODE_FILE = "FullscreenZeroStateModeDataStore.pb"
     private const val ROBIN_MODE_FILE = "RobinModeDataStore.pb"
-    private const val DEFAULT_MODE_OVERRIDE_WINDOW_MS = 1_000L
-    private const val DEFAULT_MODE_OVERRIDE_BUDGET = 1
     private const val TEMP_CHAT_TOGGLE_CLICK_LISTENER = "asfs"
     private const val IN_CHAT_NEW_CHAT_CLICK_LISTENER = "awmv"
     private const val IN_CHAT_NEW_CHAT_CLICK_CASE = 0
     private val proModePayload = byteArrayOf(0x0A, 0x10) + PRO_MODE_ID.toByteArray(StandardCharsets.US_ASCII)
     private val robinModeOrder = listOf(PRO_MODE_ID, THINKING_MODE_ID, FAST_MODE_ID)
-    @Volatile
-    private var defaultModeOverrideDeadlineMs = 0L
-    @Volatile
-    private var defaultModeOverrideBudget = 0
 
     private val mainChatEntryActivityNames = listOf(
         "com.google.android.apps.search.assistant.surfaces.voice.deeplinks.handlers.gateway.impl.GeminiGatewayActivity",
@@ -87,7 +80,6 @@ internal object GoogleAppHooks {
         HookSupport.hookMethod(module, logger, method, description) { chain ->
             val currentClassName = chain.getThisObject()?.javaClass?.name
             if (currentClassName == className) {
-                armDefaultModeOverrideWindow()
                 patchMainChatDefaultMode(logger)
             }
             chain.proceed()
@@ -136,7 +128,6 @@ internal object GoogleAppHooks {
         HookSupport.hookMethod(module, logger, onClick, description) { chain ->
             val shouldPatch = shouldPrime(chain.getThisObject())
             if (shouldPatch) {
-                armDefaultModeOverrideWindow()
                 patchMainChatDefaultMode(logger)
             }
             val result = chain.proceed()
@@ -168,7 +159,7 @@ internal object GoogleAppHooks {
             ?.let { HookSupport.findDeclaredMethod(it, "b", bardModeIdClass, continuationClass) }
             ?.let { method ->
                 HookSupport.hookMethod(module, logger, method, "ajex.b(BardModeId)") { chain ->
-                    val overriddenArgs = buildOverriddenModeArgs(chain, bardModeIdClass)
+                    val overriddenArgs = buildForcedModeArgs(chain, bardModeIdClass)
                     if (overriddenArgs != null) {
                         chain.proceed(overriddenArgs)
                     } else {
@@ -178,14 +169,11 @@ internal object GoogleAppHooks {
             }
     }
 
-    private fun buildOverriddenModeArgs(
+    private fun buildForcedModeArgs(
         chain: io.github.libxposed.api.XposedInterface.Chain,
         bardModeIdClass: Class<*>
     ): Array<Any?>? {
-        val requestedMode = chain.getArg(0)
-        val requestedModeId = extractModeId(requestedMode) ?: return null
-        if (!shouldOverrideDefaultMode(requestedModeId)) return null
-
+        if (extractModeId(chain.getArg(0)) == PRO_MODE_ID) return null
         val overriddenMode = createBardModeId(bardModeIdClass, PRO_MODE_ID) ?: return null
         val args = chain.getArgs().toTypedArray()
         args[0] = overriddenMode
@@ -201,22 +189,6 @@ internal object GoogleAppHooks {
                 .apply { isAccessible = true }
                 .newInstance(modeId)
         }.getOrNull()
-
-    @Synchronized
-    private fun armDefaultModeOverrideWindow() {
-        defaultModeOverrideDeadlineMs = SystemClock.elapsedRealtime() + DEFAULT_MODE_OVERRIDE_WINDOW_MS
-        defaultModeOverrideBudget = DEFAULT_MODE_OVERRIDE_BUDGET
-    }
-
-    @Synchronized
-    private fun shouldOverrideDefaultMode(requestedModeId: String): Boolean {
-        if (requestedModeId == PRO_MODE_ID) return false
-        if (requestedModeId != FAST_MODE_ID) return false
-        if (defaultModeOverrideBudget <= 0) return false
-        if (SystemClock.elapsedRealtime() > defaultModeOverrideDeadlineMs) return false
-        defaultModeOverrideBudget -= 1
-        return true
-    }
 
     private fun patchMainChatDefaultMode(logger: ModuleLogger) {
         resolveGoogleAccountsDirs().forEach { accountsDir ->
