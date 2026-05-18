@@ -107,11 +107,6 @@ internal object PowerHooks {
             return LaunchResult.NOT_HANDLED
         }
 
-        if (!HookSupport.isPackageInstalled(context, ModuleConfig.GOOGLE_PACKAGE)) {
-            logger.warnThrottled("${source}_google_missing", "$source: Google App 未安装，回退原逻辑")
-            return LaunchResult.NOT_HANDLED
-        }
-
         val now = SystemClock.uptimeMillis()
         if (now - lastInterceptUptime <= ModuleConfig.INTERCEPT_DEDUP_WINDOW_MS) {
             logger.debug("$source: 命中去重窗口，直接吞掉重复触发")
@@ -210,8 +205,9 @@ internal object PowerHooks {
         now: Long,
         action: String
     ): Boolean {
+        val currentAssistantPkg = readCurrentAssistantPackage(context)
         val intent = Intent(action).apply {
-            setPackage(ModuleConfig.GOOGLE_PACKAGE)
+            if (currentAssistantPkg != null) setPackage(currentAssistantPkg)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         if (!HookSupport.resolvesActivity(context, intent)) {
@@ -369,4 +365,19 @@ internal object PowerHooks {
         }
         return null
     }
+
+    private fun readCurrentAssistantPackage(context: android.content.Context): String? {
+        val component = runCatching {
+            android.provider.Settings.Secure.getString(
+                context.contentResolver,
+                ModuleConfig.SECURE_ASSISTANT
+            ) ?: android.provider.Settings.Secure.getString(
+                context.contentResolver,
+                ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE
+            )
+        }.getOrNull() ?: return null
+        val pkg = component.substringBefore('/', missingDelimiterValue = "")
+        return pkg.takeIf { it.isNotEmpty() }
+    }
+
 }
