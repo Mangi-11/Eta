@@ -39,6 +39,7 @@ internal object ModuleConfig {
     const val COLOR_DIRECT_DOUBLE_FINGER_COUNT = 2
     const val OP_LUS_ASSIST_MESSAGE_WHAT = 0x3F3
     const val INTERCEPT_DEDUP_WINDOW_MS = 1_000L
+    const val GLOBAL_NEED_DISABLE_ASSISTANT_ALIVE = "need_disable_assistant_alive"
 
     const val SPOOF_MANUFACTURER = "samsung"
     const val SPOOF_BRAND = "samsung"

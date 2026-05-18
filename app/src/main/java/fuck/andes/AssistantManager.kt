@@ -266,6 +266,10 @@ internal object AssistantManager {
         logger: ModuleLogger,
         forceRefresh: Boolean = false
     ): Boolean {
+        // 不再强写 secure.assistant / voice_interaction_service / RoleManager.ASSISTANT
+        // 用户在设置里选什么数字助理就用什么；模块只负责：
+        //   1) 把 ColorOS 在小布冻结时设的 need_disable_assistant_alive=1 改回 0，恢复 dispatch
+        //   2) rebuild VIS 让当前选定的助手正确绑定
         val now = SystemClock.uptimeMillis()
         if (!forceRefresh &&
             userId == lastVerifiedUserId &&
@@ -274,50 +278,40 @@ internal object AssistantManager {
             return true
         }
 
-        val roleOk = hasGoogleAssistantRole(context, userId)
-        val settingsOk = hasGoogleAssistantSettings(context, userId)
-        if (!forceRefresh && roleOk && settingsOk) {
-            markVerified(userId, now)
-            return true
-        }
+        ensureColorOsAssistDispatchAllowed(context, logger)
+        rebuildVoiceInteractionImplementation(
+            logger = logger,
+            userId = userId,
+            force = forceRefresh,
+            logFailures = false
+        )
 
-        if (forceRefresh && now - lastForcedRefreshUptime < REFRESH_COOLDOWN_MS) {
-            return roleOk && settingsOk
-        }
-        if (forceRefresh) {
-            lastForcedRefreshUptime = now
-        }
+        markVerified(userId, now)
+        return true
+    }
 
-        val roleChanged = if (forceRefresh) {
-            refreshGoogleAssistantRole(context, userId, logger)
-        } else {
-            ensureGoogleAssistantRole(context, userId, logger)
-        }
-        val settingsChanged = updateGoogleAssistantSettings(context, userId, forceRefresh, logger)
-        val verified = hasGoogleAssistantRole(context, userId) && hasGoogleAssistantSettings(context, userId)
-
-        if (verified) {
-            markVerified(userId, now)
-            if (roleChanged || settingsChanged || forceRefresh) {
-                rebuildVoiceInteractionImplementation(
-                    logger = logger,
-                    userId = userId,
-                    force = forceRefresh || roleChanged || settingsChanged,
-                    logFailures = false
+    private fun ensureColorOsAssistDispatchAllowed(context: Context, logger: ModuleLogger) {
+        runCatching {
+            val resolver = context.contentResolver
+            val current = android.provider.Settings.Global.getInt(
+                resolver,
+                ModuleConfig.GLOBAL_NEED_DISABLE_ASSISTANT_ALIVE,
+                0
+            )
+            if (current != 0) {
+                android.provider.Settings.Global.putInt(
+                    resolver,
+                    ModuleConfig.GLOBAL_NEED_DISABLE_ASSISTANT_ALIVE,
+                    0
                 )
-                logger.debug(
-                    if (forceRefresh) {
-                        "AssistantManager: 已刷新 Google 默认助理绑定"
-                    } else {
-                        "AssistantManager: 已校正 Google 默认助理绑定"
-                    }
-                )
+                logger.debug("AssistantManager: 已重置 need_disable_assistant_alive=0 (was $current)")
             }
-        } else {
-            invalidateVerificationCache()
+        }.onFailure { t ->
+            logger.warnThrottled(
+                "assistant_global_setting_failed",
+                "AssistantManager: 写 need_disable_assistant_alive 失败: ${t.message}"
+            )
         }
-
-        return verified
     }
 
     private fun resolveVoiceInteractionService(
