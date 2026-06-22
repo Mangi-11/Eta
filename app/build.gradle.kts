@@ -17,8 +17,8 @@ android {
         applicationId = "fuck.andes"
         minSdk = 36
         targetSdk = 36
-        versionCode = 140
-        versionName = "1.4.0"
+        versionCode = 150
+        versionName = "1.5.0"
     }
 
     buildTypes {
