@@ -12,8 +12,11 @@ internal data class RootProbeResult(
     val exitCode: Int,
     val output: String,
 ) {
-    val isAvailable: Boolean
-        get() = exitCode == 0 && output.isNotBlank()
+    val isKernelSu: Boolean
+        get() = exitCode == 0 && output.contains("KernelSU", ignoreCase = true)
+
+    val isMagisk: Boolean
+        get() = exitCode == 0 && output.contains("Magisk", ignoreCase = true)
 }
 
 internal enum class RootManager {
@@ -24,7 +27,7 @@ internal enum class RootManager {
 
 internal enum class InstallPreflight {
     READY,
-    KERNEL_SU_OVERLAY_MISSING,
+    KERNEL_SU_METAMODULE_MISSING,
     UNSUPPORTED_ROOT_MANAGER,
 }
 
@@ -32,7 +35,8 @@ internal sealed interface SystemizerInstallResult {
     data object AlreadySystemized : SystemizerInstallResult
     data object GoogleAppMissing : SystemizerInstallResult
     data object UnsupportedRootManager : SystemizerInstallResult
-    data object KernelSuOverlayMissing : SystemizerInstallResult
+    data object KernelSuMetamoduleMissing : SystemizerInstallResult
+    data class RootPermissionUnavailable(val rootManager: RootManager) : SystemizerInstallResult
     data class InstalledRebootRequired(val rootManager: RootManager) : SystemizerInstallResult
     data class Failed(val message: String, val commandOutput: String = "") : SystemizerInstallResult
 }
@@ -50,10 +54,17 @@ internal class GoogleAppSystemizerInstaller(
         }
 
         val rootManager = detectRootManager()
-        val kernelSuOverlayReady = rootManager != RootManager.KERNEL_SU || hasKernelSuOverlaySupportOnDevice()
-        return when (preflight(rootManager, kernelSuOverlayReady)) {
+        if (rootManager == RootManager.UNSUPPORTED) {
+            return SystemizerInstallResult.UnsupportedRootManager
+        }
+        if (!canRunRootCommands()) {
+            return SystemizerInstallResult.RootPermissionUnavailable(rootManager)
+        }
+
+        val kernelSuMetamoduleReady = rootManager != RootManager.KERNEL_SU || hasKernelSuMetamoduleSupportOnDevice()
+        return when (preflight(rootManager, kernelSuMetamoduleReady)) {
             InstallPreflight.UNSUPPORTED_ROOT_MANAGER -> SystemizerInstallResult.UnsupportedRootManager
-            InstallPreflight.KERNEL_SU_OVERLAY_MISSING -> SystemizerInstallResult.KernelSuOverlayMissing
+            InstallPreflight.KERNEL_SU_METAMODULE_MISSING -> SystemizerInstallResult.KernelSuMetamoduleMissing
             InstallPreflight.READY -> installModule(rootManager)
         }
     }
@@ -87,14 +98,16 @@ internal class GoogleAppSystemizerInstaller(
 
     private fun detectRootManager(): RootManager =
         detectRootManager(
-            ksudProbe = runSu(buildKernelSuProbeCommand(), timeoutSeconds = 8).toRootProbeResult(),
-            magiskProbe = runSu("magisk -V", timeoutSeconds = 8).toRootProbeResult(),
+            suVersionProbe = runProcess(timeoutSeconds = 8, "su", "-v").toRootProbeResult(),
         )
 
-    private fun hasKernelSuOverlaySupportOnDevice(): Boolean {
-        val condition = kernelSuOverlayPaths.joinToString(separator = " || ") {
-            "[ -e '${it.escapeForSingleQuotedShell()}' ]"
-        }
+    private fun canRunRootCommands(): Boolean {
+        val result = runSu("id -u", timeoutSeconds = 8)
+        return result.exitCode == 0 && result.output.lineSequence().any { it.trim() == "0" }
+    }
+
+    private fun hasKernelSuMetamoduleSupportOnDevice(): Boolean {
+        val condition = "[ -e '${KERNEL_SU_METAMODULE_PATH.escapeForSingleQuotedShell()}' ]"
         val result = runSu("if $condition; then echo yes; fi", timeoutSeconds = 8)
         return result.exitCode == 0 && result.output.lineSequence().any { it.trim() == "yes" }
     }
@@ -119,8 +132,12 @@ internal class GoogleAppSystemizerInstaller(
         }.getOrNull()
 
     private fun runSu(command: String, timeoutSeconds: Long): RootCommandResult {
+        return runProcess(timeoutSeconds, "su", "-c", command)
+    }
+
+    private fun runProcess(timeoutSeconds: Long, vararg command: String): RootCommandResult {
         val process = runCatching {
-            ProcessBuilder("su", "-c", command)
+            ProcessBuilder(*command)
                 .redirectErrorStream(true)
                 .start()
         }.getOrElse {
@@ -151,20 +168,13 @@ internal class GoogleAppSystemizerInstaller(
         private const val TAG = "FuckAndesSystemizer"
         private const val GOOGLE_PACKAGE = "com.google.android.googlequicksearchbox"
         private const val MODULE_ASSET_NAME = "googlequicksearchbox-systemizer.zip"
-        private const val KERNEL_SU_FALLBACK_BIN = "/data/adb/ksu/bin/ksud"
-
-        private val KERNEL_SU_OVERLAY_PATHS = setOf(
-            "/data/adb/metamodule",
-            "/data/adb/modules/meta-overlayfs/module.prop",
-            "/data/adb/modules/meta-overlay/module.prop",
-        )
+        private const val KERNEL_SU_METAMODULE_PATH = "/data/adb/metamodule"
 
         fun detectRootManager(
-            ksudProbe: RootProbeResult,
-            magiskProbe: RootProbeResult,
+            suVersionProbe: RootProbeResult = RootProbeResult(exitCode = -1, output = ""),
         ): RootManager = when {
-            ksudProbe.isAvailable -> RootManager.KERNEL_SU
-            magiskProbe.isAvailable -> RootManager.MAGISK
+            suVersionProbe.isKernelSu -> RootManager.KERNEL_SU
+            suVersionProbe.isMagisk -> RootManager.MAGISK
             else -> RootManager.UNSUPPORTED
         }
 
@@ -175,33 +185,25 @@ internal class GoogleAppSystemizerInstaller(
                 RootManager.UNSUPPORTED -> ""
             }
 
-        fun buildKernelSuProbeCommand(): String =
-            "if command -v ksud >/dev/null 2>&1; then ksud -V; " +
-                "elif [ -x '$KERNEL_SU_FALLBACK_BIN' ]; then '$KERNEL_SU_FALLBACK_BIN' -V; fi"
+        private fun buildKernelSuInstallCommand(zipPath: String): String =
+            "ksud module install '${zipPath.escapeForSingleQuotedShell()}'"
 
-        private fun buildKernelSuInstallCommand(zipPath: String): String {
-            val escapedZipPath = zipPath.escapeForSingleQuotedShell()
-            return "if command -v ksud >/dev/null 2>&1; then " +
-                "ksud module install '$escapedZipPath'; " +
-                "else '$KERNEL_SU_FALLBACK_BIN' module install '$escapedZipPath'; fi"
-        }
-
-        fun hasKernelSuOverlaySupport(existingPaths: Set<String>): Boolean =
-            KERNEL_SU_OVERLAY_PATHS.any(existingPaths::contains)
+        fun hasKernelSuMetamoduleSupport(existingPaths: Set<String>): Boolean =
+            KERNEL_SU_METAMODULE_PATH in existingPaths
 
         fun preflight(
             rootManager: RootManager,
-            hasKernelSuOverlaySupport: Boolean,
+            hasKernelSuMetamoduleSupport: Boolean,
         ): InstallPreflight =
             when {
                 rootManager == RootManager.UNSUPPORTED -> InstallPreflight.UNSUPPORTED_ROOT_MANAGER
-                rootManager == RootManager.KERNEL_SU && !hasKernelSuOverlaySupport ->
-                    InstallPreflight.KERNEL_SU_OVERLAY_MISSING
+                rootManager == RootManager.KERNEL_SU && !hasKernelSuMetamoduleSupport ->
+                    InstallPreflight.KERNEL_SU_METAMODULE_MISSING
                 else -> InstallPreflight.READY
             }
 
-        internal val kernelSuOverlayPaths: Set<String>
-            get() = KERNEL_SU_OVERLAY_PATHS
+        internal val kernelSuMetamodulePath: String
+            get() = KERNEL_SU_METAMODULE_PATH
     }
 }
 

@@ -8,23 +8,30 @@ import org.junit.Test
 class GoogleAppSystemizerInstallerTest {
 
     @Test
-    fun detectRootManagerPrefersKernelSuWhenBothToolsRespond() {
+    fun detectRootManagerUsesSuVersionForKernelSu() {
         val manager = GoogleAppSystemizerInstaller.detectRootManager(
-            ksudProbe = RootProbeResult(exitCode = 0, output = "KernelSU version 12345"),
-            magiskProbe = RootProbeResult(exitCode = 0, output = "30700"),
+            suVersionProbe = RootProbeResult(exitCode = 0, output = "v3.1.0:KernelSU"),
         )
 
         assertEquals(RootManager.KERNEL_SU, manager)
     }
 
     @Test
-    fun detectRootManagerFallsBackToMagiskWhenKsudIsUnavailable() {
+    fun detectRootManagerUsesSuVersionForMagisk() {
         val manager = GoogleAppSystemizerInstaller.detectRootManager(
-            ksudProbe = RootProbeResult(exitCode = 127, output = ""),
-            magiskProbe = RootProbeResult(exitCode = 0, output = "30700"),
+            suVersionProbe = RootProbeResult(exitCode = 0, output = "30.7:MAGISKSU"),
         )
 
         assertEquals(RootManager.MAGISK, manager)
+    }
+
+    @Test
+    fun detectRootManagerReturnsUnsupportedForUnknownSuVersion() {
+        val manager = GoogleAppSystemizerInstaller.detectRootManager(
+            suVersionProbe = RootProbeResult(exitCode = 0, output = "unknown"),
+        )
+
+        assertEquals(RootManager.UNSUPPORTED, manager)
     }
 
     @Test
@@ -35,54 +42,42 @@ class GoogleAppSystemizerInstallerTest {
             "magisk --install-module '$zipPath'",
             GoogleAppSystemizerInstaller.buildInstallCommand(RootManager.MAGISK, zipPath),
         )
-        val kernelSuCommand = GoogleAppSystemizerInstaller.buildInstallCommand(RootManager.KERNEL_SU, zipPath)
-        assertTrue(kernelSuCommand.contains("ksud module install '$zipPath'"))
-        assertTrue(kernelSuCommand.contains("/data/adb/ksu/bin/ksud' module install '$zipPath'"))
+        assertEquals(
+            "ksud module install '$zipPath'",
+            GoogleAppSystemizerInstaller.buildInstallCommand(RootManager.KERNEL_SU, zipPath),
+        )
     }
 
     @Test
-    fun buildKernelSuProbeCommandFallsBackToOfficialDataPath() {
-        val command = GoogleAppSystemizerInstaller.buildKernelSuProbeCommand()
-
-        assertTrue(command.contains("ksud -V"))
-        assertTrue(command.contains("/data/adb/ksu/bin/ksud"))
-    }
-
-    @Test
-    fun kernelSuOverlaySupportAcceptsMetamoduleOrKnownOverlayModule() {
+    fun kernelSuMetamoduleSupportRequiresMetamodulePath() {
         assertTrue(
-            GoogleAppSystemizerInstaller.hasKernelSuOverlaySupport(
+            GoogleAppSystemizerInstaller.hasKernelSuMetamoduleSupport(
                 existingPaths = setOf("/data/adb/metamodule"),
             )
         )
-        assertTrue(
-            GoogleAppSystemizerInstaller.hasKernelSuOverlaySupport(
-                existingPaths = setOf("/data/adb/modules/meta-overlayfs/module.prop"),
-            )
-        )
-        assertTrue(
-            GoogleAppSystemizerInstaller.hasKernelSuOverlaySupport(
-                existingPaths = setOf("/data/adb/modules/meta-overlay/module.prop"),
-            )
+        assertFalse(
+            GoogleAppSystemizerInstaller.hasKernelSuMetamoduleSupport(existingPaths = emptySet())
         )
         assertFalse(
-            GoogleAppSystemizerInstaller.hasKernelSuOverlaySupport(existingPaths = emptySet())
+            GoogleAppSystemizerInstaller.hasKernelSuMetamoduleSupport(
+                existingPaths = setOf("/data/adb/metamodule/metamount.sh"),
+            )
         )
     }
 
     @Test
-    fun preflightBlocksKernelSuWithoutOverlaySupport() {
+    fun preflightBlocksKernelSuWithoutMetamoduleSupport() {
         assertEquals(
-            InstallPreflight.KERNEL_SU_OVERLAY_MISSING,
-            GoogleAppSystemizerInstaller.preflight(RootManager.KERNEL_SU, hasKernelSuOverlaySupport = false),
+            InstallPreflight.KERNEL_SU_METAMODULE_MISSING,
+            GoogleAppSystemizerInstaller.preflight(RootManager.KERNEL_SU, hasKernelSuMetamoduleSupport = false),
         )
         assertEquals(
             InstallPreflight.READY,
-            GoogleAppSystemizerInstaller.preflight(RootManager.KERNEL_SU, hasKernelSuOverlaySupport = true),
+            GoogleAppSystemizerInstaller.preflight(RootManager.KERNEL_SU, hasKernelSuMetamoduleSupport = true),
         )
         assertEquals(
             InstallPreflight.READY,
-            GoogleAppSystemizerInstaller.preflight(RootManager.MAGISK, hasKernelSuOverlaySupport = false),
+            GoogleAppSystemizerInstaller.preflight(RootManager.MAGISK, hasKernelSuMetamoduleSupport = false),
         )
     }
 }

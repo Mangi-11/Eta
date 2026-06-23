@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import fuck.andes.FuckAndesApp
 import fuck.andes.config.Prefs
 import fuck.andes.systemizer.GoogleAppSystemizerInstaller
+import fuck.andes.systemizer.RootManager
 import fuck.andes.systemizer.SystemizerInstallResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -389,7 +390,12 @@ private fun SystemizerInstallResult.toToastMessage(): String =
         SystemizerInstallResult.AlreadySystemized -> "Google App 已是系统 priv-app"
         SystemizerInstallResult.GoogleAppMissing -> "未安装 Google App"
         SystemizerInstallResult.UnsupportedRootManager -> "未检测到 Magisk 或 KernelSU"
-        SystemizerInstallResult.KernelSuOverlayMissing -> "KernelSU 需先安装 meta-overlayfs 模块"
+        SystemizerInstallResult.KernelSuMetamoduleMissing -> "KernelSU 需先启用 metamodule 支持"
+        is SystemizerInstallResult.RootPermissionUnavailable -> when (rootManager) {
+            RootManager.KERNEL_SU -> "请在 KernelSU 中授予 FuckAndes root 权限"
+            RootManager.MAGISK -> "请在 Magisk 中授予 FuckAndes root 权限"
+            RootManager.UNSUPPORTED -> "未获得 root 权限"
+        }
         is SystemizerInstallResult.InstalledRebootRequired -> "安装完成，重启后生效"
         is SystemizerInstallResult.Failed -> commandOutput
             .lineSequence()
