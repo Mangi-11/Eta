@@ -10,17 +10,16 @@ import android.os.SystemClock
 import fuck.andes.config.Prefs
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Field
+import java.util.WeakHashMap
 
 internal object GoogleAppHooks {
     private const val FLOATY_ACTIVITY_CLASS =
         "com.google.android.apps.search.assistant.surfaces.voice.robin.ui.floaty.activity.FloatyActivity"
     private const val VOICE_COMMAND_DELAY_MS = 350L
-    private const val VOICE_COMMAND_COOLDOWN_MS = 6_000L
+    private const val VOICE_COMMAND_ACTIVITY_DEDUP_MS = 6_000L
 
-    @Volatile
-    private var lastVoiceCommandUptime = 0L
-
-    private val voiceCommandCooldownLock = Any()
+    private val voiceCommandAttemptLock = Any()
+    private val voiceCommandAttempts = WeakHashMap<Activity, Long>()
 
     @Suppress("UNUSED_PARAMETER")
     fun install(module: XposedModule, logger: ModuleLogger, classLoader: ClassLoader) {
@@ -93,25 +92,25 @@ internal object GoogleAppHooks {
             Prefs.Keys.SCREEN_ON_VOICE_COMMAND
         }
         if (!Prefs.isEnabled(prefKey)) return
-        // 冷却只在通过延迟复查并准备补发时消耗：若排队后因状态变化放弃，不占用冷却窗口，
-        // 避免吞掉紧随其来的另一路（锁屏↔亮屏）补偿。
-        if (isVoiceCommandCoolingDown()) {
+        // 只去重同一个 FloatyActivity 实例的重复 onResume；关闭后立刻新开浮窗不受影响。
+        if (!markVoiceCommandAttempt(activity)) {
             return
         }
 
         val scenario = if (fromKeyguard) "锁屏" else "亮屏"
         Handler(Looper.getMainLooper()).postDelayed({
             // 即时关闭：开关在延迟任务排队期间可能已被用户关闭。
-            if (!Prefs.isEnabled(prefKey)) return@postDelayed
+            if (!Prefs.isEnabled(prefKey)) {
+                clearVoiceCommandAttempt(activity)
+                return@postDelayed
+            }
             if (activity.isFinishing || activity.isDestroyed) {
+                clearVoiceCommandAttempt(activity)
                 return@postDelayed
             }
             // 延迟期间锁屏状态发生变化则放弃：锁屏分支复查应仍锁屏，亮屏分支复查应仍解锁。
             if (activity.isKeyguardLocked() != fromKeyguard) {
-                return@postDelayed
-            }
-            // 补发前原子消耗冷却：延迟窗口内另一路可能已进入补发路径。
-            if (!tryConsumeVoiceCommandCooldown()) {
+                clearVoiceCommandAttempt(activity)
                 return@postDelayed
             }
             runCatching {
@@ -123,6 +122,7 @@ internal object GoogleAppHooks {
                 )
                 logger.debug("GSA: 已为${scenario} Gemini 浮窗补发 ACTION_VOICE_COMMAND")
             }.onFailure { throwable ->
+                clearVoiceCommandAttempt(activity)
                 logger.warnThrottled(
                     "gsa_floaty_voice_command_failed",
                     "GSA: ${scenario} Gemini 浮窗补发 ACTION_VOICE_COMMAND 失败: ${throwable.message}"
@@ -131,21 +131,23 @@ internal object GoogleAppHooks {
         }, VOICE_COMMAND_DELAY_MS)
     }
 
-    private fun isVoiceCommandCoolingDown(now: Long = SystemClock.uptimeMillis()): Boolean {
-        val last = lastVoiceCommandUptime
-        return last != 0L && now - last < VOICE_COMMAND_COOLDOWN_MS
-    }
-
-    private fun tryConsumeVoiceCommandCooldown(): Boolean =
-        synchronized(voiceCommandCooldownLock) {
+    private fun markVoiceCommandAttempt(activity: Activity): Boolean =
+        synchronized(voiceCommandAttemptLock) {
             val now = SystemClock.uptimeMillis()
-            if (isVoiceCommandCoolingDown(now)) {
+            val previous = voiceCommandAttempts[activity]
+            if (previous != null && now - previous < VOICE_COMMAND_ACTIVITY_DEDUP_MS) {
                 false
             } else {
-                lastVoiceCommandUptime = now
+                voiceCommandAttempts[activity] = now
                 true
             }
         }
+
+    private fun clearVoiceCommandAttempt(activity: Activity) {
+        synchronized(voiceCommandAttemptLock) {
+            voiceCommandAttempts.remove(activity)
+        }
+    }
 
     private fun Activity.isKeyguardLocked(): Boolean =
         runCatching {
