@@ -1,4 +1,4 @@
-package fuck.andes
+package fuck.andes.core
 
 internal object ModuleConfig {
     const val TAG = "FuckAndes"
@@ -6,6 +6,7 @@ internal object ModuleConfig {
     const val HOT_PATH_LOG_WINDOW_MS = 60_000L
 
     const val GOOGLE_PACKAGE = "com.google.android.googlequicksearchbox"
+    const val BREENO_PACKAGE = "com.heytap.speechassist"
     const val GOOGLE_ASSISTANT_COMPONENT =
         "com.google.android.googlequicksearchbox/com.google.android.voiceinteraction.GsaVoiceInteractionService"
     const val ASSISTANT_ROLE = "android.app.role.ASSISTANT"

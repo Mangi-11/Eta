@@ -5,6 +5,14 @@ import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import io.github.libxposed.api.XposedModuleInterface.SystemServerStartingParam
 import fuck.andes.config.Prefs
+import fuck.andes.core.ModuleConfig
+import fuck.andes.core.ModuleLogger
+import fuck.andes.hook.breeno.BreenoHooks
+import fuck.andes.hook.colordirect.ColorDirectHooks
+import fuck.andes.hook.google.GoogleAppHooks
+import fuck.andes.hook.google.GoogleEligibilityHooks
+import fuck.andes.hook.system.SystemServerHooks
+import fuck.andes.hook.system.SystemUiHooks
 
 class ModuleMain : XposedModule() {
 
@@ -13,6 +21,7 @@ class ModuleMain : XposedModule() {
     private var systemUiInstalled = false
     private var googleInstalled = false
     private var colorDirectInstalled = false
+    private var breenoInstalled = false
     private var currentProcessName: String? = null
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
@@ -59,6 +68,13 @@ class ModuleMain : XposedModule() {
                     ColorDirectHooks.install(this, logger, param.classLoader)
                 }
             }
+
+            ModuleConfig.BREENO_PACKAGE -> {
+                if (!breenoInstalled && isCurrentPackageProcess(ModuleConfig.BREENO_PACKAGE)) {
+                    breenoInstalled = true
+                    BreenoHooks.install(this, logger, param.classLoader)
+                }
+            }
         }
     }
 
@@ -72,7 +88,8 @@ class ModuleMain : XposedModule() {
         val processName = param.processName
         return processName == ModuleConfig.SYSTEM_UI_PACKAGE ||
             isPackageProcess(processName, ModuleConfig.GOOGLE_PACKAGE) ||
-            isPackageProcess(processName, ModuleConfig.COLOR_DIRECT_PACKAGE)
+            isPackageProcess(processName, ModuleConfig.COLOR_DIRECT_PACKAGE) ||
+            isPackageProcess(processName, ModuleConfig.BREENO_PACKAGE)
     }
 
     private fun isPackageProcess(processName: String, packageName: String): Boolean =

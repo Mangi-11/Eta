@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -22,6 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import fuck.andes.FuckAndesApp
 import fuck.andes.config.Prefs
@@ -41,6 +45,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ConvertFile
@@ -77,6 +82,8 @@ internal fun SettingsScreen(context: Context) {
     val coroutineScope = rememberCoroutineScope()
     var showSystemizerDialog by remember { mutableStateOf(false) }
     var installingSystemizer by remember { mutableStateOf(false) }
+    var editingTextPref by remember { mutableStateOf<TextPrefSpec?>(null) }
+    var prefRevision by remember { mutableStateOf(0) }
 
     // prefs 绑定到 XposedService：service 到达时切换到 RemotePreferences（跨进程提交到
     // LSPosed 数据库）；未就绪时保持 null，UI 禁止修改。
@@ -190,6 +197,81 @@ internal fun SettingsScreen(context: Context) {
                 }
             }
 
+            // ── 小布模型 ────────────────────────────────────────────────
+            item(key = "section_breeno_model") {
+                SmallTitle("小布模型")
+                Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
+                    SwitchPref(
+                        context = context,
+                        prefs = prefs,
+                        title = "启用小布自定义模型",
+                        key = Prefs.Keys.BREENO_CUSTOM_MODEL,
+                        icon = MiuixIcons.Tune,
+                        iconTint = IconTintGreen,
+                    )
+                    PrefDivider()
+                    SwitchPref(
+                        context = context,
+                        prefs = prefs,
+                        title = "仅 /agent 前缀接管",
+                        key = Prefs.Keys.BREENO_REQUIRE_PREFIX,
+                        icon = MiuixIcons.Lock,
+                        iconTint = IconTintGreen,
+                    )
+                    PrefDivider()
+                    SwitchPref(
+                        context = context,
+                        prefs = prefs,
+                        title = "启用终端/文件工具",
+                        key = Prefs.Keys.BREENO_TERMINAL_TOOLS,
+                        icon = MiuixIcons.ConvertFile,
+                        iconTint = IconTintPurple,
+                    )
+                    PrefDivider()
+                    TextPref(
+                        prefs = prefs,
+                        title = "API 地址",
+                        key = Prefs.Keys.BREENO_BASE_URL,
+                        icon = MiuixIcons.Link,
+                        iconTint = IconTintGreen,
+                        revision = prefRevision,
+                        onClick = { editingTextPref = it },
+                    )
+                    PrefDivider()
+                    TextPref(
+                        prefs = prefs,
+                        title = "API Key",
+                        key = Prefs.Keys.BREENO_API_KEY,
+                        icon = MiuixIcons.Lock,
+                        iconTint = IconTintGreen,
+                        sensitive = true,
+                        revision = prefRevision,
+                        onClick = { editingTextPref = it },
+                    )
+                    PrefDivider()
+                    TextPref(
+                        prefs = prefs,
+                        title = "模型名",
+                        key = Prefs.Keys.BREENO_MODEL,
+                        icon = MiuixIcons.Mic,
+                        iconTint = IconTintGreen,
+                        revision = prefRevision,
+                        onClick = { editingTextPref = it },
+                    )
+                    PrefDivider()
+                    TextPref(
+                        prefs = prefs,
+                        title = "系统提示词",
+                        key = Prefs.Keys.BREENO_SYSTEM_PROMPT,
+                        icon = MiuixIcons.ConvertFile,
+                        iconTint = IconTintGreen,
+                        singleLine = false,
+                        revision = prefRevision,
+                        onClick = { editingTextPref = it },
+                    )
+                }
+            }
+
             // ── 高级 ────────────────────────────────────────────────────
             item(key = "section_systemizer") {
                 SmallTitle("高级")
@@ -261,6 +343,16 @@ internal fun SettingsScreen(context: Context) {
                         Toast.LENGTH_LONG,
                     ).show()
                 }
+            },
+        )
+        TextPrefDialog(
+            context = context,
+            prefs = prefs,
+            spec = editingTextPref,
+            onDismissRequest = { editingTextPref = null },
+            onSaved = {
+                prefs = Prefs.remotePreferencesForUi(FuckAndesApp.serviceInstance)
+                prefRevision++
             },
         )
     }
@@ -361,7 +453,10 @@ private fun SwitchPref(
     iconTint: Color,
 ) {
     val enabled = prefs != null
-    var checked by remember(prefs, key) { mutableStateOf(prefs?.getBoolean(key, true) ?: true) }
+    val default = Prefs.Keys.BOOLEAN_DEFAULTS[key] ?: true
+    var checked by remember(prefs, key) {
+        mutableStateOf(prefs?.getBoolean(key, default) ?: default)
+    }
     SwitchPreference(
         title = title,
         checked = checked,
@@ -382,6 +477,110 @@ private fun SwitchPref(
     )
 }
 
+@Composable
+private fun TextPref(
+    prefs: SharedPreferences?,
+    title: String,
+    key: String,
+    icon: ImageVector,
+    iconTint: Color,
+    sensitive: Boolean = false,
+    singleLine: Boolean = true,
+    revision: Int,
+    onClick: (TextPrefSpec) -> Unit,
+) {
+    val enabled = prefs != null
+    val default = Prefs.Keys.STRING_DEFAULTS[key].orEmpty()
+    val value = remember(prefs, key, revision) {
+        prefs?.getString(key, default) ?: default
+    }
+    ArrowPreference(
+        title = title,
+        startAction = {
+            TintedIcon(icon = icon, tint = iconTint)
+        },
+        endActions = {
+            Text(
+                text = summarizeTextPref(value, sensitive),
+                fontSize = MiuixTheme.textStyles.body2.fontSize,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            )
+        },
+        enabled = enabled,
+        onClick = {
+            onClick(
+                TextPrefSpec(
+                    title = title,
+                    key = key,
+                    value = value,
+                    sensitive = sensitive,
+                    singleLine = singleLine,
+                )
+            )
+        },
+    )
+}
+
+@Composable
+private fun TextPrefDialog(
+    context: Context,
+    prefs: SharedPreferences?,
+    spec: TextPrefSpec?,
+    onDismissRequest: () -> Unit,
+    onSaved: () -> Unit,
+) {
+    if (spec == null) return
+    var value by remember(spec.key, spec.value) { mutableStateOf(spec.value) }
+    OverlayDialog(
+        show = true,
+        title = spec.title,
+        onDismissRequest = onDismissRequest,
+    ) {
+        TextField(
+            value = value,
+            onValueChange = { value = it },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            singleLine = spec.singleLine,
+            maxLines = if (spec.singleLine) 1 else 5,
+            visualTransformation = if (spec.sensitive) {
+                PasswordVisualTransformation()
+            } else {
+                VisualTransformation.None
+            },
+            keyboardOptions = if (spec.sensitive) {
+                KeyboardOptions(keyboardType = KeyboardType.Password)
+            } else {
+                KeyboardOptions.Default
+            },
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            TextButton(
+                text = "取消",
+                onClick = onDismissRequest,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                text = "保存",
+                onClick = {
+                    val targetPrefs = prefs ?: return@TextButton
+                    if (putStringSync(targetPrefs, spec.key, value.trim())) {
+                        onSaved()
+                        Toast.makeText(context.applicationContext, "已保存", Toast.LENGTH_SHORT).show()
+                        onDismissRequest()
+                    } else {
+                        Toast.makeText(context.applicationContext, "配置写入失败", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+            )
+        }
+    }
+}
+
 /**
  * 同步写入布尔值。RemotePreferences 的 [commit] 先更新本进程 map 再同步等待 binder 提交，
  * 失败（binder RemoteException）返回 false 但本进程 map 已被改写——此时 hook 进程收不到新值。
@@ -393,6 +592,29 @@ private fun putBooleanSync(
     value: Boolean
 ): Boolean =
     runCatching { prefs.edit().putBoolean(key, value).commit() }.getOrDefault(false)
+
+private fun putStringSync(
+    prefs: SharedPreferences,
+    key: String,
+    value: String
+): Boolean =
+    runCatching { prefs.edit().putString(key, value).commit() }.getOrDefault(false)
+
+private fun summarizeTextPref(value: String, sensitive: Boolean): String =
+    when {
+        value.isBlank() -> "未配置"
+        sensitive -> "已配置"
+        value.length > 18 -> value.take(18) + "..."
+        else -> value
+    }
+
+private data class TextPrefSpec(
+    val title: String,
+    val key: String,
+    val value: String,
+    val sensitive: Boolean,
+    val singleLine: Boolean,
+)
 
 private fun SystemizerInstallResult.toToastMessage(): String =
     when (this) {

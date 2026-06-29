@@ -1,4 +1,4 @@
-package fuck.andes
+package fuck.andes.core
 
 import android.os.SystemClock
 import android.util.Log

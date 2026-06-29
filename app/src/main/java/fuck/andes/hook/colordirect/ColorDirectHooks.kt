@@ -1,4 +1,9 @@
-package fuck.andes
+package fuck.andes.hook.colordirect
+
+import fuck.andes.core.HookSupport
+import fuck.andes.core.ModuleConfig
+import fuck.andes.core.ModuleLogger
+import fuck.andes.hook.system.CircleToSearchInvoker
 
 import android.app.Activity
 import android.content.Context

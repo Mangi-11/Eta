@@ -21,7 +21,7 @@ internal object Prefs {
     /** 远程配置组名，UI 写入与 Hook 读取必须一致。 */
     const val GROUP = "fuck_andes_prefs"
 
-    /** 所有功能开关 key。默认值统一为 true，保持与历史硬编码行为一致。 */
+    /** 所有功能开关 key。默认值按功能风险独立定义。 */
     object Keys {
         const val POWER_KEY_TAKEOVER = "power_key_takeover"
         const val ASSISTANT_AUTO_CONFIG = "assistant_auto_config"
@@ -30,6 +30,13 @@ internal object Prefs {
         const val DOUBLE_FINGER_CIRCLE_TO_SEARCH = "double_finger_circle_to_search"
         const val LOCKSCREEN_VOICE_COMMAND = "lockscreen_voice_command"
         const val SCREEN_ON_VOICE_COMMAND = "screen_on_voice_command"
+        const val BREENO_CUSTOM_MODEL = "breeno_custom_model"
+        const val BREENO_REQUIRE_PREFIX = "breeno_require_prefix"
+        const val BREENO_BASE_URL = "breeno_base_url"
+        const val BREENO_API_KEY = "breeno_api_key"
+        const val BREENO_MODEL = "breeno_model"
+        const val BREENO_SYSTEM_PROMPT = "breeno_system_prompt"
+        const val BREENO_TERMINAL_TOOLS = "breeno_terminal_tools"
 
         /** 全部布尔开关及其默认值。 */
         val BOOLEAN_DEFAULTS: Map<String, Boolean> = mapOf(
@@ -39,7 +46,18 @@ internal object Prefs {
             GESTURE_BAR_CIRCLE_TO_SEARCH to true,
             DOUBLE_FINGER_CIRCLE_TO_SEARCH to true,
             LOCKSCREEN_VOICE_COMMAND to true,
-            SCREEN_ON_VOICE_COMMAND to true
+            SCREEN_ON_VOICE_COMMAND to true,
+            BREENO_CUSTOM_MODEL to false,
+            BREENO_REQUIRE_PREFIX to true,
+            BREENO_TERMINAL_TOOLS to false
+        )
+
+        /** 文本配置默认值。 */
+        val STRING_DEFAULTS: Map<String, String> = mapOf(
+            BREENO_BASE_URL to "https://api.openai.com/v1",
+            BREENO_API_KEY to "",
+            BREENO_MODEL to "gpt-4.1-mini",
+            BREENO_SYSTEM_PROMPT to "你正在通过 ColorOS 小布助手回答用户。回答要简洁、直接，并保留必要的操作上下文。"
         )
     }
 
@@ -59,6 +77,11 @@ internal object Prefs {
     fun isEnabled(key: String): Boolean {
         val default = Keys.BOOLEAN_DEFAULTS[key] ?: true
         return remote?.getBoolean(key, default) ?: default
+    }
+
+    fun getString(key: String): String {
+        val default = Keys.STRING_DEFAULTS[key].orEmpty()
+        return remote?.getString(key, default) ?: default
     }
 
     /**

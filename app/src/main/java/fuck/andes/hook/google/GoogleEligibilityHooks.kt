@@ -1,4 +1,8 @@
-package fuck.andes
+package fuck.andes.hook.google
+
+import fuck.andes.core.HookSupport
+import fuck.andes.core.ModuleConfig
+import fuck.andes.core.ModuleLogger
 
 import io.github.libxposed.api.XposedModule
 
