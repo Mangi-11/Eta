@@ -2,6 +2,8 @@ package fuck.andes.hook.breeno
 
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.runtime.AgentAppContext
+import fuck.andes.agent.runtime.AgentEvent
+import fuck.andes.agent.runtime.AgentRunController
 import fuck.andes.agent.tool.AgentLocalTools
 import fuck.andes.core.HookSupport
 import fuck.andes.core.ModuleLogger
@@ -194,6 +196,7 @@ internal object BreenoHooks {
 
         return runCatching {
             BreenoExecutionOverlay.show("小布 Agent", "收到指令，准备调用模型")
+            val runController = AgentRunController()
             modelExecutor.execute {
                 val modelResponse = runCatching {
                     val config = AgentModelClient.loadConfig()
@@ -204,12 +207,16 @@ internal object BreenoHooks {
                         config,
                         prompt,
                         AgentLocalTools(logger),
-                        images = request.images
+                        images = request.images,
+                        runController = runController
                     ) { event ->
-                        logger.info("Agent model trace: $event")
+                        logger.info("Agent event: ${event.toLogLine()}")
                         BreenoExecutionOverlay.update("小布 Agent", event.toOverlayStatus())
                     }
                 }.getOrElse { throwable ->
+                    val event = AgentEvent.RunFailed(throwable.message ?: throwable.javaClass.simpleName)
+                    logger.info("Agent event: ${event.toLogLine()}")
+                    BreenoExecutionOverlay.update("小布 Agent", event.toOverlayStatus())
                     BreenoExecutionOverlay.finish("调用失败：${throwable.message ?: throwable.javaClass.simpleName}")
                     AgentModelClient.ModelResponse.Text(
                         "小布自定义模型调用失败：${throwable.message ?: throwable.javaClass.simpleName}"
@@ -548,24 +555,23 @@ internal object BreenoHooks {
             else -> null
         }
 
-    private fun String.toOverlayStatus(): String {
-        Regex("""round=(\d+) send""").find(this)?.let {
-            return "第 ${it.groupValues[1]} 轮思考"
+    private fun AgentEvent.toOverlayStatus(): String =
+        when (this) {
+            is AgentEvent.RunStarted -> "准备工具：$toolCount 个"
+            is AgentEvent.RoundStarted -> "第 $round 轮思考"
+            is AgentEvent.ProviderRequestStarted -> "正在请求模型"
+            is AgentEvent.ProviderResponseStarted -> "模型已响应：HTTP $httpCode"
+            is AgentEvent.AssistantTextDelta -> "正在生成回答"
+            is AgentEvent.ProviderToolCallDelta -> "正在生成工具参数"
+            is AgentEvent.AssistantReceived -> {
+                if (toolNames.isEmpty()) "正在整理回答" else "计划执行：${toolNames.joinToString("、") { it.toToolLabel() }}"
+            }
+            is AgentEvent.ToolStarted -> "执行工具：${name.toToolLabel()}"
+            is AgentEvent.ToolFinished -> "工具完成：${name.toToolLabel()}"
+            is AgentEvent.ToolImagesAttached -> "已读取图片：$imageCount 张"
+            is AgentEvent.RunFinished -> "正在返回结果"
+            is AgentEvent.RunFailed -> "调用失败"
         }
-        Regex("""tool_call name=([^,]+)""").find(this)?.let {
-            return "执行工具：${it.groupValues[1].toToolLabel()}"
-        }
-        Regex("""tool_result name=([^,]+)""").find(this)?.let {
-            return "工具完成：${it.groupValues[1].toToolLabel()}"
-        }
-        Regex("""attached_images=(\d+)""").find(this)?.let {
-            return "已读取屏幕截图：${it.groupValues[1]} 张"
-        }
-        Regex("""final content_chars=(\d+)""").find(this)?.let {
-            return "正在返回结果"
-        }
-        return compact()
-    }
 
     private fun String.toToolLabel(): String =
         when (this) {

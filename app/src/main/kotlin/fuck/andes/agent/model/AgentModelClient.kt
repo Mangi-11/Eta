@@ -1,18 +1,12 @@
 package fuck.andes.agent.model
 
 import fuck.andes.config.Prefs
-import java.io.BufferedReader
-import java.io.InputStream
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
+import fuck.andes.agent.runtime.AgentEvent
+import fuck.andes.agent.runtime.AgentRunController
 import org.json.JSONArray
 import org.json.JSONObject
 
 internal object AgentModelClient {
-    private const val CONNECT_TIMEOUT_MS = 15_000
-    private const val READ_TIMEOUT_MS = 60_000
-    private const val MAX_ERROR_CHARS = 600
     private const val MAX_TRACE_CHARS = 240
 
     fun loadConfig(): ModelConfig =
@@ -29,35 +23,65 @@ internal object AgentModelClient {
         prompt: String,
         toolExecutor: ToolExecutor,
         images: List<ModelImage> = emptyList(),
-        trace: (String) -> Unit = {}
+        provider: AgentProviderClient = OpenAiChatCompletionsProvider,
+        runController: AgentRunController = AgentRunController(),
+        onEvent: (AgentEvent) -> Unit = {}
     ): ModelResponse.Text {
         config.validate()
         val messages = buildInitialMessages(config, prompt, images)
-        if (images.isNotEmpty()) {
-            trace("initial images=${images.size}, bytes=${images.sumOf { it.bytes }}")
-        }
-        trace("tool_registry terminal=${config.terminalTools}, tools=${buildToolsJson(config.terminalTools).length()}")
+        val tools = buildToolsJson(config.terminalTools)
+        onEvent(
+            AgentEvent.RunStarted(
+                initialImages = images.size,
+                initialImageBytes = images.sumOf { it.bytes },
+                toolCount = tools.length(),
+                terminalTools = config.terminalTools
+            )
+        )
         var round = 1
         while (true) {
-            trace("round=$round send messages=${messages.length()}")
-            val assistantMessage = sendChatCompletion(config, messages)
+            runController.throwIfCancelled()
+            onEvent(AgentEvent.RoundStarted(round = round, messageCount = messages.length()))
+            val providerResponse = provider.complete(
+                request = ProviderRequest(
+                    config = config,
+                    messages = messages,
+                    tools = tools
+                ),
+                runController = runController
+            ) { providerEvent ->
+                providerEvent.toAgentEvent(round)?.let(onEvent)
+            }
+            val assistantMessage = providerResponse.assistantMessage
             val toolCalls = parseToolCalls(assistantMessage)
-            trace(
-                "round=$round assistant content_chars=" +
-                    assistantMessage.optString("content").length +
-                    ", tool_calls=${toolCalls.joinToString(prefix = "[", postfix = "]") { it.name }}"
+            onEvent(
+                AgentEvent.AssistantReceived(
+                    round = round,
+                    contentChars = assistantMessage.optString("content").length,
+                    toolNames = toolCalls.map { it.name }
+                )
             )
             if (toolCalls.isNotEmpty()) {
                 messages.put(buildAssistantToolCallMessage(assistantMessage, toolCalls))
                 toolCalls.forEach { toolCall ->
-                    trace(
-                        "round=$round tool_call name=${toolCall.name}, " +
-                            "args=${toolCall.argumentsJson.compactTrace()}"
+                    runController.throwIfCancelled()
+                    onEvent(
+                        AgentEvent.ToolStarted(
+                            round = round,
+                            name = toolCall.name,
+                            argsPreview = toolCall.argumentsJson.compactTrace()
+                        )
                     )
                     val toolResult = toolExecutor.execute(toolCall)
-                    trace(
-                        "round=$round tool_result name=${toolCall.name}, " +
-                            summarizeToolResult(toolResult)
+                    runController.throwIfCancelled()
+                    onEvent(
+                        AgentEvent.ToolFinished(
+                            round = round,
+                            name = toolCall.name,
+                            resultSummary = summarizeToolResult(toolResult),
+                            imageCount = toolResult.images.size,
+                            imageBytes = toolResult.images.sumOf { it.bytes }
+                        )
                     )
                     messages.put(
                         JSONObject()
@@ -66,15 +90,20 @@ internal object AgentModelClient {
                             .put("content", toolResult.content)
                     )
                     if (toolResult.images.isNotEmpty()) {
+                        val imageBytes = toolResult.images.sumOf { it.bytes }
                         messages.put(
                             buildUserMessage(
                                 text = "Observation image(s) returned by tool ${toolCall.name}.",
                                 images = toolResult.images
                             )
                         )
-                        trace(
-                            "round=$round attached_images=${toolResult.images.size}, " +
-                                "bytes=${toolResult.images.sumOf { it.bytes }}"
+                        onEvent(
+                            AgentEvent.ToolImagesAttached(
+                                round = round,
+                                toolName = toolCall.name,
+                                imageCount = toolResult.images.size,
+                                imageBytes = imageBytes
+                            )
                         )
                     }
                 }
@@ -84,38 +113,11 @@ internal object AgentModelClient {
 
             val content = assistantMessage.optString("content").trim()
             if (content.isNotBlank() && content != "null") {
-                trace("round=$round final content_chars=${content.length}")
+                onEvent(AgentEvent.RunFinished(round = round, contentChars = content.length))
                 return ModelResponse.Text(content)
             }
             val finishReason = assistantMessage.optString("finish_reason")
             error("模型接口第 $round 轮返回为空${finishReason.ifBlank { "" }}")
-        }
-    }
-
-    private fun sendChatCompletion(config: ModelConfig, messages: JSONArray): JSONObject {
-        val connection = (URL(config.chatCompletionsUrl()).openConnection() as HttpURLConnection)
-            .apply {
-                requestMethod = "POST"
-                connectTimeout = CONNECT_TIMEOUT_MS
-                readTimeout = READ_TIMEOUT_MS
-                doOutput = true
-                setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                setRequestProperty("Accept", "application/json")
-                setRequestProperty("Authorization", "Bearer ${config.apiKey}")
-            }
-
-        try {
-            val requestBody = buildRequestJson(config, messages).toString().toByteArray(Charsets.UTF_8)
-            connection.outputStream.use { it.write(requestBody) }
-
-            val code = connection.responseCode
-            val response = readResponse(if (code in 200..299) connection.inputStream else connection.errorStream)
-            if (code !in 200..299) {
-                error("模型接口返回 HTTP $code：${response.compactError()}")
-            }
-            return parseAssistantMessage(response)
-        } finally {
-            connection.disconnect()
         }
     }
 
@@ -178,15 +180,6 @@ internal object AgentModelClient {
         return JSONObject()
             .put("role", "user")
             .put("content", content)
-    }
-
-    private fun buildRequestJson(config: ModelConfig, messages: JSONArray): JSONObject {
-        return JSONObject()
-            .put("model", config.model)
-            .put("stream", false)
-            .put("messages", messages)
-            .put("tools", buildToolsJson(config.terminalTools))
-            .put("tool_choice", "auto")
     }
 
     private fun buildToolsJson(terminalTools: Boolean): JSONArray =
@@ -624,23 +617,19 @@ internal object AgentModelClient {
                     .put("parameters", parameters)
             )
 
-    private fun parseAssistantMessage(response: String): JSONObject {
-        val json = JSONObject(response)
-        val choice = json.optJSONArray("choices")?.optJSONObject(0)
-            ?: error("模型接口未返回 choices")
-        val message = choice.optJSONObject("message")
-        if (message != null) {
-            message.put("finish_reason", choice.optString("finish_reason"))
-            return message
+    private fun ProviderEvent.toAgentEvent(round: Int): AgentEvent? =
+        when (this) {
+            ProviderEvent.RequestStarted -> AgentEvent.ProviderRequestStarted(round)
+            is ProviderEvent.ResponseHeaders -> AgentEvent.ProviderResponseStarted(round, httpCode)
+            is ProviderEvent.TextDelta -> AgentEvent.AssistantTextDelta(round, delta.length)
+            is ProviderEvent.ToolCallDelta -> AgentEvent.ProviderToolCallDelta(
+                round = round,
+                index = index,
+                name = name,
+                argumentsChars = argumentsDelta.length
+            )
+            is ProviderEvent.Completed -> null
         }
-        val text = choice.optString("text").trim()
-        if (text.isNotBlank()) {
-            return JSONObject()
-                .put("role", "assistant")
-                .put("content", text)
-        }
-        error("模型接口未返回 assistant message")
-    }
 
     private fun parseToolCalls(message: JSONObject): List<ToolCall> {
         val toolCalls = message.optJSONArray("tool_calls") ?: return emptyList()
@@ -681,18 +670,6 @@ internal object AgentModelClient {
             }
     }
 
-    private fun readResponse(stream: InputStream?): String {
-        if (stream == null) return ""
-        return BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
-            reader.readText()
-        }
-    }
-
-    private fun String.compactError(): String =
-        replace('\n', ' ')
-            .replace('\r', ' ')
-            .let { if (it.length > MAX_ERROR_CHARS) it.take(MAX_ERROR_CHARS) + "..." else it }
-
     private fun String.compactTrace(): String =
         replace('\n', ' ')
             .replace('\r', ' ')
@@ -715,15 +692,6 @@ internal object AgentModelClient {
         }.getOrElse {
             "chars=${result.content.length}, raw=${result.content.compactTrace()}"
         }
-
-    private fun ModelConfig.chatCompletionsUrl(): String {
-        val normalized = baseUrl.trimEnd('/')
-        return if (normalized.endsWith("/chat/completions")) {
-            normalized
-        } else {
-            "$normalized/chat/completions"
-        }
-    }
 
     data class ModelConfig(
         val baseUrl: String,
