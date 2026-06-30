@@ -31,6 +31,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import fuck.andes.FuckAndesApp
+import fuck.andes.agent.accessibility.AgentAccessibilityService
 import fuck.andes.config.Prefs
 import fuck.andes.systemizer.GoogleAppSystemizerInstaller
 import fuck.andes.systemizer.RootManager
@@ -92,11 +93,15 @@ internal fun SettingsScreen(context: Context) {
     var overlayGranted by remember {
         mutableStateOf(android.provider.Settings.canDrawOverlays(context))
     }
+    var accessibilityGranted by remember {
+        mutableStateOf(isAgentAccessibilityEnabled(context))
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 overlayGranted = android.provider.Settings.canDrawOverlays(context)
+                accessibilityGranted = isAgentAccessibilityEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -317,6 +322,35 @@ internal fun SettingsScreen(context: Context) {
                                         ),
                                     )
                                 }
+                            }
+                        },
+                    )
+                    PrefDivider()
+                    ArrowPreference(
+                        title = "无障碍增强工具",
+                        startAction = {
+                            TintedIcon(
+                                icon = MiuixIcons.Scan,
+                                tint = IconTintPurple,
+                            )
+                        },
+                        endActions = {
+                            val enabled = accessibilityGranted || AgentAccessibilityService.isAvailable()
+                            Text(
+                                text = if (enabled) "已启用" else "未启用",
+                                fontSize = MiuixTheme.textStyles.body2.fontSize,
+                                color = if (enabled) {
+                                    MiuixTheme.colorScheme.onSurfaceVariantActions
+                                } else {
+                                    IconTintPurple
+                                },
+                            )
+                        },
+                        onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
+                                )
                             }
                         },
                     )
@@ -658,6 +692,18 @@ private fun summarizeTextPref(value: String, sensitive: Boolean): String =
         value.length > 18 -> value.take(18) + "..."
         else -> value
     }
+
+private fun isAgentAccessibilityEnabled(context: Context): Boolean {
+    val expected = android.content.ComponentName(
+        context,
+        AgentAccessibilityService::class.java
+    ).flattenToString()
+    val enabledServices = android.provider.Settings.Secure.getString(
+        context.contentResolver,
+        android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ).orEmpty()
+    return enabledServices.split(':').any { it.equals(expected, ignoreCase = true) }
+}
 
 private data class TextPrefSpec(
     val title: String,

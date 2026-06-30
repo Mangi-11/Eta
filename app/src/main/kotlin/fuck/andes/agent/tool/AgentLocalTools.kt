@@ -39,10 +39,21 @@ internal class AgentLocalTools(
                 "tap_area" -> textResult(tapArea(args))
                 "tap_element" -> textResult(tapElement(args))
                 "long_press" -> textResult(longPress(args))
+                "long_press_element" -> textResult(longPressElement(args))
                 "swipe" -> textResult(swipe(args))
                 "scroll" -> textResult(deviceController.scroll(args.optString("direction")))
-                "input_text" -> textResult(deviceController.inputText(args.optString("text")))
+                "scroll_element" -> textResult(scrollElement(args))
+                "input_text" -> textResult(inputText(args))
+                "replace_text" -> textResult(replaceText(args))
+                "clear_text" -> textResult(clearText(args))
+                "set_clipboard" -> textResult(setClipboard(args))
+                "get_clipboard" -> textResult(getClipboard())
+                "paste_text" -> textResult(pasteText(args))
                 "press_key" -> textResult(deviceController.pressKey(args.optString("button")))
+                "wait" -> textResult(deviceController.waitMs(args.optInt("duration_ms", 1_000)))
+                "wait_for_text" -> textResult(waitForText(args))
+                "wait_for_package" -> textResult(waitForPackage(args))
+                "open_system_panel" -> textResult(deviceController.openSystemPanel(args.optString("panel")))
                 "terminal" -> textResult(terminalTool { terminal(args) })
                 "run_command" -> textResult(terminalTool { runCommand(args) })
                 "read_file" -> textResult(terminalTool { readFile(args) })
@@ -113,9 +124,18 @@ internal class AgentLocalTools(
 
     private fun tapElement(args: JSONObject): String {
         val index = args.optInt("index", -1)
+        deviceController.tapElement(index).takeIf { it.isOkJson() }?.let { return it }
         val node = lastUiNodes.firstOrNull { it.index == index }
             ?: return errorResult("NO_OBSERVATION", "未找到最近一次 observe_screen 的节点 index=$index")
         return deviceController.tap(node.centerX, node.centerY)
+    }
+
+    private fun longPressElement(args: JSONObject): String {
+        val index = args.optInt("index", -1)
+        deviceController.longPressElement(index).takeIf { it.isOkJson() }?.let { return it }
+        val node = lastUiNodes.firstOrNull { it.index == index }
+            ?: return errorResult("NO_OBSERVATION", "未找到最近一次 observe_screen 的节点 index=$index")
+        return deviceController.longPress(node.centerX, node.centerY, args.optInt("duration_ms", 800))
     }
 
     private fun longPress(args: JSONObject): String {
@@ -146,6 +166,53 @@ internal class AgentLocalTools(
             args.optInt("duration_ms", 500)
         )
     }
+
+    private fun scrollElement(args: JSONObject): String =
+        deviceController.scrollElement(
+            index = args.optInt("index", -1),
+            direction = args.optString("direction", "forward")
+        )
+
+    private fun inputText(args: JSONObject): String {
+        val text = args.optString("text")
+        return when (args.optString("mode", "append").lowercase(Locale.ROOT)) {
+            "replace" -> deviceController.replaceText(text, args.optNullableInt("index"))
+            "paste" -> pasteText(args)
+            else -> deviceController.inputText(text)
+        }
+    }
+
+    private fun replaceText(args: JSONObject): String =
+        deviceController.replaceText(
+            text = args.optString("text"),
+            index = args.optNullableInt("index")
+        )
+
+    private fun clearText(args: JSONObject): String =
+        deviceController.clearText(index = args.optNullableInt("index"))
+
+    private fun setClipboard(args: JSONObject): String =
+        deviceController.clipboardSet(requireContext(), args.optString("text"))
+
+    private fun getClipboard(): String =
+        deviceController.clipboardGet(requireContext())
+
+    private fun pasteText(args: JSONObject): String =
+        deviceController.pasteText(requireContext(), args.optString("text"))
+
+    private fun waitForText(args: JSONObject): String =
+        deviceController.waitForText(
+            text = args.optString("text"),
+            timeoutMs = args.optInt("timeout_ms", 10_000),
+            includeDesc = args.optBoolean("include_desc", true),
+            matchMode = args.optString("match", "contains")
+        )
+
+    private fun waitForPackage(args: JSONObject): String =
+        deviceController.waitForPackage(
+            packageName = args.optString("package_name"),
+            timeoutMs = args.optInt("timeout_ms", 10_000)
+        )
 
     private fun convertPoint(x: Int, y: Int, coordinateSpace: String): ScreenPoint {
         if (coordinateSpace.equals("screen", ignoreCase = true)) return ScreenPoint(x, y)
@@ -362,6 +429,12 @@ internal class AgentLocalTools(
 
     private fun String.normalized(): String =
         trim().lowercase(Locale.ROOT)
+
+    private fun String.isOkJson(): Boolean =
+        runCatching { JSONObject(this).optBoolean("ok", false) }.getOrDefault(false)
+
+    private fun JSONObject.optNullableInt(name: String): Int? =
+        if (has(name) && !isNull(name)) optInt(name) else null
 
     private fun errorResult(code: String, message: String): String =
         JSONObject()

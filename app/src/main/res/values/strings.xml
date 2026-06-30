@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">FuckAndes</string>
     <string name="xposed_description">干掉小布助手，电源键长按唤起 Google Gemini，手势条长按/双指长按触发一圈即搜</string>
+    <string name="agent_accessibility_label">FuckAndes Agent 增强</string>
+    <string name="agent_accessibility_description">为自定义模型提供更稳定的屏幕观察、点击、滑动、文本输入和系统动作。</string>
 </resources>

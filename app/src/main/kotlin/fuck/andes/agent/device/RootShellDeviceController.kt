@@ -1,9 +1,13 @@
 package fuck.andes.agent.device
 
+import fuck.andes.agent.accessibility.AgentAccessibilityService
 import fuck.andes.agent.media.AgentImageCodec
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.core.AgentLogger
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Rect
 import java.io.IOException
 import java.io.StringReader
@@ -54,8 +58,10 @@ internal class RootShellDeviceController(
         val packageName: String,
         val bounds: Rect,
         val clickable: Boolean,
+        val longClickable: Boolean,
         val scrollable: Boolean,
         val focused: Boolean,
+        val editable: Boolean,
         val enabled: Boolean
     ) {
         val centerX: Int get() = bounds.centerX()
@@ -65,7 +71,14 @@ internal class RootShellDeviceController(
     fun observe(includeScreenshot: Boolean, includeUiTree: Boolean, maxNodes: Int): Observation {
         val display = screenSize()
         val focus = focusedWindow()
-        val nodes = if (includeUiTree) dumpUiNodes(maxNodes.coerceIn(1, 120)) else emptyList()
+        val accessibility = AgentAccessibilityService.current()
+        val nodes = if (includeUiTree) {
+            accessibility?.observe(maxNodes.coerceIn(1, 120))?.map { it.toUiNode() }
+                ?.takeIf { it.isNotEmpty() }
+                ?: dumpUiNodes(maxNodes.coerceIn(1, 120))
+        } else {
+            emptyList()
+        }
         val image = if (includeScreenshot) captureScreenshot() else null
         val coordinateSpace = if (image?.width != null && image.height != null) {
             CoordinateSpace(
@@ -81,6 +94,20 @@ internal class RootShellDeviceController(
             .put("ok", true)
             .put("tool", "observe_screen")
             .put("screen", JSONObject().put("width", display.first).put("height", display.second))
+            .put(
+                "accessibility",
+                JSONObject()
+                    .put("available", accessibility != null)
+                    .put("package", accessibility?.currentPackageName().orEmpty())
+                    .put(
+                        "note",
+                        if (accessibility != null) {
+                            "节点来自无障碍服务，支持 tap_element、replace_text、clear_text、scroll_element 等稳定节点动作"
+                        } else {
+                            "无障碍服务未启用，节点来自 uiautomator；坐标工具会回退到 Root Shell"
+                        }
+                    )
+            )
             .put(
                 "coordinate_contract",
                 if (coordinateSpace == null) {
@@ -131,12 +158,24 @@ internal class RootShellDeviceController(
 
     fun tap(x: Int, y: Int): String {
         validatePoint(x, y)
+        AgentAccessibilityService.current()?.let { service ->
+            if (service.gestureTap(x.toFloat(), y.toFloat())) {
+                waitForUiSettle("tap")
+                return okJson("tap", "accessibility")
+            }
+        }
         return inputCommand("input tap $x $y", "tap")
     }
 
     fun longPress(x: Int, y: Int, durationMs: Int): String {
         validatePoint(x, y)
         val duration = durationMs.coerceIn(300, 3_000)
+        AgentAccessibilityService.current()?.let { service ->
+            if (service.gestureTap(x.toFloat(), y.toFloat(), duration.toLong())) {
+                waitForUiSettle("long_press")
+                return okJson("long_press", "accessibility")
+            }
+        }
         return inputCommand("input swipe $x $y $x $y $duration", "long_press")
     }
 
@@ -144,6 +183,12 @@ internal class RootShellDeviceController(
         validatePoint(x1, y1)
         validatePoint(x2, y2)
         val duration = durationMs.coerceIn(100, 2_000)
+        AgentAccessibilityService.current()?.let { service ->
+            if (service.gestureSwipe(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), duration.toLong())) {
+                waitForUiSettle("swipe")
+                return okJson("swipe", "accessibility")
+            }
+        }
         return inputCommand("input swipe $x1 $y1 $x2 $y2 $duration", "swipe")
     }
 
@@ -163,8 +208,14 @@ internal class RootShellDeviceController(
     }
 
     fun inputText(text: String): String {
-        val clipped = text.take(200)
+        val clipped = text.take(1_000)
         if (clipped.isBlank()) return errorJson("INVALID_ARGUMENT", "text 不能为空")
+        AgentAccessibilityService.current()?.let { service ->
+            if (service.inputTextFocused(clipped, append = true)) {
+                waitForUiSettle("input_text")
+                return okJson("input_text", "accessibility")
+            }
+        }
         val encoded = clipped
             .replace("\\", "\\\\")
             .replace(" ", "%s")
@@ -172,15 +223,238 @@ internal class RootShellDeviceController(
         return inputCommand("input text '$encoded'", "input_text")
     }
 
+    fun replaceText(text: String, index: Int?): String {
+        val clipped = text.take(4_000)
+        AgentAccessibilityService.current()?.let { service ->
+            if (service.setTextNode(index, clipped)) {
+                waitForUiSettle("replace_text")
+                return okJson("replace_text", "accessibility")
+            }
+            return errorJson("ACCESSIBILITY_ACTION_FAILED", "未找到可编辑节点或文本替换失败")
+        }
+        return errorJson("ACCESSIBILITY_UNAVAILABLE", "replace_text 需要先启用 FuckAndes Agent 增强无障碍服务")
+    }
+
+    fun clearText(index: Int?): String =
+        replaceText("", index).let { result ->
+            val json = JSONObject(result)
+            if (json.optBoolean("ok")) json.put("tool", "clear_text").toString() else result
+        }
+
+    fun tapElement(index: Int): String {
+        AgentAccessibilityService.current()?.let { service ->
+            if (service.clickNode(index)) {
+                waitForUiSettle("tap")
+                return okJson("tap_element", "accessibility")
+            }
+        }
+        return errorJson("ACCESSIBILITY_ACTION_FAILED", "无障碍点击节点失败")
+    }
+
+    fun longPressElement(index: Int): String {
+        AgentAccessibilityService.current()?.let { service ->
+            if (service.longClickNode(index)) {
+                waitForUiSettle("long_press")
+                return okJson("long_press_element", "accessibility")
+            }
+        }
+        return errorJson("ACCESSIBILITY_ACTION_FAILED", "无障碍长按节点失败")
+    }
+
+    fun scrollElement(index: Int, direction: String): String {
+        val normalized = direction.lowercase()
+        val forward = when (normalized) {
+            "down", "right", "forward" -> true
+            "up", "left", "backward" -> false
+            else -> return errorJson("INVALID_ARGUMENT", "direction 仅支持 up/down/left/right/forward/backward")
+        }
+        AgentAccessibilityService.current()?.let { service ->
+            if (service.scrollNode(index, forward)) {
+                waitForUiSettle("swipe")
+                return okJson("scroll_element", "accessibility")
+            }
+        }
+        return errorJson("ACCESSIBILITY_ACTION_FAILED", "无障碍滚动节点失败")
+    }
+
     fun pressKey(button: String): String {
-        val keyCode = when (button.uppercase()) {
+        val normalized = button.uppercase()
+        AgentAccessibilityService.current()?.let { service ->
+            when (normalized) {
+                "BACK", "HOME", "RECENTS", "NOTIFICATIONS", "QUICK_SETTINGS" -> {
+                    if (service.globalAction(normalized)) {
+                        waitForUiSettle("press_key")
+                        return okJson("press_key", "accessibility").let {
+                            JSONObject(it).put("button", normalized).toString()
+                        }
+                    }
+                }
+                "ENTER" -> {
+                    if (service.imeEnter()) {
+                        waitForUiSettle("press_key")
+                        return okJson("press_key", "accessibility").let {
+                            JSONObject(it).put("button", normalized).toString()
+                        }
+                    }
+                }
+            }
+        }
+        val keyCode = when (normalized) {
             "BACK" -> 4
             "HOME" -> 3
             "ENTER" -> 66
             "RECENTS" -> 187
-            else -> return errorJson("INVALID_ARGUMENT", "button 仅支持 BACK/HOME/ENTER/RECENTS")
+            "PASTE" -> 279
+            else -> return errorJson("INVALID_ARGUMENT", "button 仅支持 BACK/HOME/ENTER/RECENTS/PASTE/NOTIFICATIONS/QUICK_SETTINGS")
         }
         return inputCommand("input keyevent $keyCode", "press_key")
+    }
+
+    fun waitMs(durationMs: Int): String {
+        val duration = durationMs.coerceIn(100, 30_000)
+        Thread.sleep(duration.toLong())
+        return JSONObject()
+            .put("ok", true)
+            .put("tool", "wait")
+            .put("duration_ms", duration)
+            .toString()
+    }
+
+    fun waitForText(text: String, timeoutMs: Int, includeDesc: Boolean, matchMode: String): String {
+        val needle = text.trim()
+        if (needle.isBlank()) return errorJson("INVALID_ARGUMENT", "text 不能为空")
+        val timeout = timeoutMs.coerceIn(500, 60_000)
+        val deadline = System.currentTimeMillis() + timeout
+        var attempts = 0
+        while (System.currentTimeMillis() <= deadline) {
+            attempts++
+            val nodes = AgentAccessibilityService.current()
+                ?.observe(120)
+                ?.map { it.toUiNode() }
+                ?.takeIf { it.isNotEmpty() }
+                ?: dumpUiNodes(120)
+            val match = nodes.firstOrNull { node ->
+                val haystacks = if (includeDesc) listOf(node.text, node.desc) else listOf(node.text)
+                haystacks.any { value -> matches(value, needle, matchMode) }
+            }
+            if (match != null) {
+                return JSONObject()
+                    .put("ok", true)
+                    .put("tool", "wait_for_text")
+                    .put("attempts", attempts)
+                    .put("matched_node", match.toJson())
+                    .toString()
+            }
+            Thread.sleep(350)
+        }
+        return JSONObject()
+            .put("ok", false)
+            .put("tool", "wait_for_text")
+            .put("code", "TIMEOUT")
+            .put("message", "等待文本超时：$needle")
+            .put("attempts", attempts)
+            .toString()
+    }
+
+    fun waitForPackage(packageName: String, timeoutMs: Int): String {
+        val target = packageName.trim()
+        if (target.isBlank()) return errorJson("INVALID_ARGUMENT", "package_name 不能为空")
+        val timeout = timeoutMs.coerceIn(500, 60_000)
+        val deadline = System.currentTimeMillis() + timeout
+        var attempts = 0
+        var lastPackage = ""
+        while (System.currentTimeMillis() <= deadline) {
+            attempts++
+            lastPackage = AgentAccessibilityService.current()?.currentPackageName().orEmpty()
+            if (lastPackage == target) {
+                return JSONObject()
+                    .put("ok", true)
+                    .put("tool", "wait_for_package")
+                    .put("package_name", target)
+                    .put("attempts", attempts)
+                    .toString()
+            }
+            val focus = focusedWindow()
+            if (focus.optString("component").contains(target)) {
+                return JSONObject()
+                    .put("ok", true)
+                    .put("tool", "wait_for_package")
+                    .put("package_name", target)
+                    .put("attempts", attempts)
+                    .put("focus", focus)
+                    .toString()
+            }
+            Thread.sleep(350)
+        }
+        return JSONObject()
+            .put("ok", false)
+            .put("tool", "wait_for_package")
+            .put("code", "TIMEOUT")
+            .put("message", "等待应用前台超时：$target")
+            .put("last_package", lastPackage)
+            .put("attempts", attempts)
+            .toString()
+    }
+
+    fun clipboardSet(context: Context, text: String): String {
+        val clipped = text.take(20_000)
+        val ok = AgentAccessibilityService.current()?.copyToClipboard(clipped) ?: runCatching {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("fuck_andes_agent", clipped))
+            clipboard.hasPrimaryClip()
+        }.getOrDefault(false)
+        return JSONObject()
+            .put("ok", ok)
+            .put("tool", "set_clipboard")
+            .put("chars", clipped.length)
+            .toString()
+    }
+
+    fun clipboardGet(context: Context): String {
+        val text = AgentAccessibilityService.current()?.getClipboardText() ?: runCatching {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
+        }.getOrNull().orEmpty()
+        return JSONObject()
+            .put("ok", text.isNotBlank())
+            .put("tool", "get_clipboard")
+            .put("text", text.take(8_000))
+            .put("truncated", text.length > 8_000)
+            .toString()
+    }
+
+    fun pasteText(context: Context, text: String): String {
+        val setResult = JSONObject(clipboardSet(context, text))
+        if (!setResult.optBoolean("ok")) return setResult.put("tool", "paste_text").toString()
+        AgentAccessibilityService.current()?.let { service ->
+            if (service.pasteFocused()) {
+                waitForUiSettle("input_text")
+                return okJson("paste_text", "accessibility")
+            }
+        }
+        return inputCommand("input keyevent 279", "paste_text")
+    }
+
+    fun openSystemPanel(panel: String): String {
+        val normalized = panel.lowercase()
+        val accessibilityAction = when (normalized) {
+            "notifications", "notification" -> "NOTIFICATIONS"
+            "quick_settings", "quicksettings", "settings" -> "QUICK_SETTINGS"
+            else -> return errorJson("INVALID_ARGUMENT", "panel 仅支持 notifications/quick_settings")
+        }
+        AgentAccessibilityService.current()?.let { service ->
+            if (service.globalAction(accessibilityAction)) {
+                waitForUiSettle("press_key")
+                return okJson("open_system_panel", "accessibility").let {
+                    JSONObject(it).put("panel", normalized).toString()
+                }
+            }
+        }
+        val command = when (accessibilityAction) {
+            "NOTIFICATIONS" -> "cmd statusbar expand-notifications"
+            else -> "cmd statusbar expand-settings"
+        }
+        return inputCommand(command, "open_system_panel")
     }
 
     private fun captureScreenshot(): AgentModelClient.ModelImage? {
@@ -230,8 +504,10 @@ internal class RootShellDeviceController(
                             packageName = parser.attr("package"),
                             bounds = bounds,
                             clickable = clickable,
+                            longClickable = parser.attr("long-clickable").toBoolean(),
                             scrollable = scrollable,
                             focused = focused,
+                            editable = parser.attr("class").contains("EditText", ignoreCase = true),
                             enabled = enabled
                         )
                     }
@@ -292,23 +568,24 @@ internal class RootShellDeviceController(
 
     private fun List<UiNode>.toJsonArray(): JSONArray =
         JSONArray().also { array ->
-            forEach { node ->
-                array.put(
-                    JSONObject()
-                        .put("index", node.index)
-                        .put("text", node.text)
-                        .put("desc", node.desc)
-                        .put("class", node.className)
-                        .put("package", node.packageName)
-                        .put("bounds", node.bounds.toShortString())
-                        .put("center", JSONObject().put("x", node.centerX).put("y", node.centerY))
-                        .put("clickable", node.clickable)
-                        .put("scrollable", node.scrollable)
-                        .put("focused", node.focused)
-                        .put("enabled", node.enabled)
-                )
-            }
+            forEach { node -> array.put(node.toJson()) }
         }
+
+    private fun UiNode.toJson(): JSONObject =
+        JSONObject()
+            .put("index", index)
+            .put("text", text)
+            .put("desc", desc)
+            .put("class", className)
+            .put("package", packageName)
+            .put("bounds", bounds.toShortString())
+            .put("center", JSONObject().put("x", centerX).put("y", centerY))
+            .put("clickable", clickable)
+            .put("long_clickable", longClickable)
+            .put("scrollable", scrollable)
+            .put("focused", focused)
+            .put("editable", editable)
+            .put("enabled", enabled)
 
     private fun XmlPullParser.attr(name: String): String =
         getAttributeValue(null, name).orEmpty()
@@ -376,6 +653,37 @@ internal class RootShellDeviceController(
             .put("code", code)
             .put("message", message.take(240))
             .toString()
+
+    private fun okJson(tool: String, executor: String): String =
+        JSONObject()
+            .put("ok", true)
+            .put("tool", tool)
+            .put("executor", executor)
+            .toString()
+
+    private fun matches(value: String, needle: String, matchMode: String): Boolean =
+        when (matchMode.lowercase()) {
+            "exact" -> value == needle
+            "prefix" -> value.startsWith(needle)
+            "regex" -> runCatching { Regex(needle).containsMatchIn(value) }.getOrDefault(false)
+            else -> value.contains(needle, ignoreCase = true)
+        }
+
+    private fun AgentAccessibilityService.UiNode.toUiNode(): UiNode =
+        UiNode(
+            index = index,
+            text = text,
+            desc = desc,
+            className = className,
+            packageName = packageName,
+            bounds = bounds,
+            clickable = clickable,
+            longClickable = longClickable,
+            scrollable = scrollable,
+            focused = focused,
+            editable = editable,
+            enabled = enabled
+        )
 
     private data class ShellTextResult(val exitCode: Int, val output: String)
     private data class ShellBytesResult(val exitCode: Int, val output: ByteArray, val stderr: String)
