@@ -45,6 +45,15 @@ internal sealed interface AgentEvent {
             "assistant_text_delta round=$round, chars=$deltaChars"
     }
 
+    data class AssistantReasoningDelta(
+        val round: Int,
+        val deltaChars: Int,
+        val delta: String
+    ) : AgentEvent {
+        override fun toLogLine(): String =
+            "assistant_reasoning_delta round=$round, chars=$deltaChars"
+    }
+
     data class ProviderToolCallDelta(
         val round: Int,
         val index: Int,
@@ -58,10 +67,19 @@ internal sealed interface AgentEvent {
     data class AssistantReceived(
         val round: Int,
         val contentChars: Int,
+        val reasoningContent: String,
         val toolNames: List<String>
     ) : AgentEvent {
         override fun toLogLine(): String =
-            "assistant_received round=$round, content_chars=$contentChars, tools=$toolNames"
+            "assistant_received round=$round, content_chars=$contentChars, reasoning_chars=${reasoningContent.length}, tools=$toolNames"
+    }
+
+    data class UsageReceived(
+        val round: Int,
+        val usage: AgentTokenUsage
+    ) : AgentEvent {
+        override fun toLogLine(): String =
+            "usage_received round=$round, ctx=${usage.contextTokens}, in=${usage.inputTokens}, out=${usage.outputTokens}, reasoning=${usage.reasoningTokens}, cache=${usage.cachedTokens}"
     }
 
     data class ToolStarted(

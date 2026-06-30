@@ -73,7 +73,10 @@ dependencies {
     implementation(libs.miuix.navigation3.ui)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.activity.compose)
+    implementation(libs.markdown.renderer)
+    implementation(libs.markdown.renderer.m3)
 
     testImplementation(libs.junit)
     testImplementation(libs.json)
+    testImplementation(libs.robolectric)
 }

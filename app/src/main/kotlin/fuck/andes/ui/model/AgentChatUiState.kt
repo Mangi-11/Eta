@@ -7,6 +7,7 @@ data class AgentChatUiState(
     val messages: List<AgentChatMessageUi>,
     val input: String,
     val isStreaming: Boolean,
+    val thinkingEnabled: Boolean,
 )
 
 @Immutable
@@ -25,6 +26,33 @@ data class AgentMessageUi(
     override val id: String,
     val content: String,
     val isStreaming: Boolean = false,
+    val renderMarkdown: Boolean = true,
+    val usage: TokenUsageUi? = null,
+) : AgentChatMessageUi
+
+@Immutable
+data class TokenUsageUi(
+    val contextTokens: Int? = null,
+    val inputTokens: Int? = null,
+    val outputTokens: Int? = null,
+    val reasoningTokens: Int? = null,
+    val cachedTokens: Int? = null,
+) {
+    val isEmpty: Boolean
+        get() = contextTokens == null &&
+            inputTokens == null &&
+            outputTokens == null &&
+            reasoningTokens == null &&
+            cachedTokens == null
+}
+
+@Immutable
+data class ThinkingMessageUi(
+    override val id: String,
+    val content: String,
+    val isStreaming: Boolean,
+    val elapsedSeconds: Int? = null,
+    val collapsed: Boolean = false,
 ) : AgentChatMessageUi
 
 /**
@@ -50,6 +78,22 @@ data class ToolSummaryMessageUi(
     override val id: String,
     val tools: List<String>,
 ) : AgentChatMessageUi
+
+@Immutable
+data class ToolActivityMessageUi(
+    override val id: String,
+    val toolName: String,
+    val status: ToolActivityStatusUi,
+    val argumentsSummary: String,
+    val resultSummary: String? = null,
+    val imageCount: Int = 0,
+) : AgentChatMessageUi
+
+enum class ToolActivityStatusUi {
+    Running,
+    Success,
+    Failed,
+}
 
 /**
  * 建议语 chip 行。

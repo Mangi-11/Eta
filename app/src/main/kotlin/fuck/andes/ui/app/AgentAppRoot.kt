@@ -109,6 +109,7 @@ fun AgentAppRoot() {
                         onAction = { action ->
                             when (action) {
                                 is AgentHomeAction.InputChanged -> agentState.updateInput(action.text)
+                                is AgentHomeAction.ThinkingToggled -> agentState.updateThinkingEnabled(action.enabled)
                                 AgentHomeAction.SendMessage -> agentState.sendCurrentMessage()
                                 AgentHomeAction.AttachScreenContext -> Unit
                                 AgentHomeAction.OpenAttachment -> Unit
@@ -132,6 +133,7 @@ fun AgentAppRoot() {
                             when (action) {
                                 AgentChatAction.NavigateBack -> popRoute()
                                 is AgentChatAction.InputChanged -> agentState.updateInput(action.text)
+                                is AgentChatAction.ThinkingToggled -> agentState.updateThinkingEnabled(action.enabled)
                                 AgentChatAction.SendMessage -> agentState.sendCurrentMessage()
                                 AgentChatAction.AttachScreenContext -> Unit
                             }

@@ -15,6 +15,7 @@ import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.runtime.AgentEvent
 import fuck.andes.agent.runtime.AgentRuntimeClient
 import fuck.andes.agent.runtime.AgentRuntimeWire
+import fuck.andes.agent.runtime.AgentTokenUsage
 import fuck.andes.config.Prefs
 import fuck.andes.core.AndroidAgentLogger
 import fuck.andes.ui.model.AgentChatHomeUiState
@@ -36,9 +37,12 @@ import fuck.andes.ui.model.RunTimelineItemUi
 import fuck.andes.ui.model.SystemEnhanceItemUi
 import fuck.andes.ui.model.SystemEnhanceSectionUi
 import fuck.andes.ui.model.SystemEnhanceStatusUi
+import fuck.andes.ui.model.ThinkingMessageUi
+import fuck.andes.ui.model.TokenUsageUi
+import fuck.andes.ui.model.ToolActivityMessageUi
+import fuck.andes.ui.model.ToolActivityStatusUi
 import fuck.andes.ui.model.ToolGroupUi
 import fuck.andes.ui.model.ToolItemUi
-import fuck.andes.ui.model.ToolSummaryMessageUi
 import fuck.andes.ui.model.UserMessageUi
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -59,10 +63,12 @@ internal class AgentAppState(
     private val runStarts = mutableMapOf<String, Long>()
     private val runToolCounts = mutableMapOf<String, Int>()
     private val runConversationIds = mutableMapOf<String, String>()
+    private val runThinkingStartedAt = mutableMapOf<String, Long>()
+    private val defaultThinkingEnabled = loadModelConfigForUi().thinkingEnabled
 
     private var selectedConversationId: String = newConversationId()
     private var conversationsById: Map<String, AgentChatHomeUiState> = mapOf(
-        selectedConversationId to emptyChatState(),
+        selectedConversationId to emptyChatState(defaultThinkingEnabled),
     )
     private var conversationTitles: Map<String, String> = mapOf(
         selectedConversationId to "新对话",
@@ -71,7 +77,7 @@ internal class AgentAppState(
         selectedConversationId to System.currentTimeMillis(),
     )
 
-    var homeState by mutableStateOf(emptyChatState())
+    var homeState by mutableStateOf(emptyChatState(defaultThinkingEnabled))
         private set
 
     var conversationPaneState by mutableStateOf(
@@ -107,6 +113,10 @@ internal class AgentAppState(
         updateCurrentConversation(homeState.copy(input = text))
     }
 
+    fun updateThinkingEnabled(enabled: Boolean) {
+        updateCurrentConversation(homeState.copy(thinkingEnabled = enabled))
+    }
+
     fun updateSearchQuery(query: String) {
         conversationPaneState = conversationPaneState.copy(searchQuery = query)
     }
@@ -120,7 +130,7 @@ internal class AgentAppState(
 
     fun createConversation() {
         selectedConversationId = newConversationId()
-        val state = emptyChatState()
+        val state = emptyChatState(loadModelConfigForUi().thinkingEnabled)
         conversationsById = conversationsById + (selectedConversationId to state)
         conversationTitles = conversationTitles + (selectedConversationId to "新对话")
         conversationUpdatedAt = conversationUpdatedAt + (selectedConversationId to System.currentTimeMillis())
@@ -137,10 +147,17 @@ internal class AgentAppState(
         if (prompt.isBlank() || homeState.isStreaming) return
 
         val conversationId = selectedConversationId
+        val history = buildConversationHistory(homeState.messages)
+        val thinkingEnabled = homeState.thinkingEnabled
         val runId = "run-${UUID.randomUUID()}"
         val now = System.currentTimeMillis()
         val userMessage = UserMessageUi(id = "user-$runId", content = prompt)
-        val assistantMessage = AgentMessageUi(id = "assistant-$runId", content = "", isStreaming = true)
+        val assistantMessage = AgentMessageUi(
+            id = "assistant-$runId",
+            content = "",
+            isStreaming = true,
+            renderMarkdown = false,
+        )
 
         val title = conversationTitles[selectedConversationId]
             ?.takeUnless { it == "新对话" }
@@ -190,13 +207,14 @@ internal class AgentAppState(
         refreshConversationSummaries()
 
         scope.launch(Dispatchers.IO) {
-            val config = loadModelConfigForUi()
+            val config = loadModelConfigForUi().copy(thinkingEnabled = thinkingEnabled)
             val result = AgentRuntimeClient(appContext, AndroidAgentLogger).run(
                 request = AgentRuntimeWire.RunRequest(
                     runId = runId,
                     prompt = prompt,
                     config = config,
                     images = emptyList(),
+                    history = history,
                 ),
                 onEvent = { event -> applyRunEvent(runId, event) },
             )
@@ -262,15 +280,25 @@ internal class AgentAppState(
                 appendAssistantDelta(runId, event.delta)
             }
 
+            is AgentEvent.AssistantReasoningDelta -> {
+                appendReasoningDelta(runId, event.delta)
+            }
+
+            is AgentEvent.UsageReceived -> {
+                updateAssistantUsage(runId, event.usage.toUi())
+            }
+
             is AgentEvent.ToolStarted -> {
                 val count = (runToolCounts[runId] ?: 0) + 1
                 runToolCounts[runId] = count
                 updateRunToolCount(runId, count)
                 appendMessageOnce(
                     runId,
-                    ToolSummaryMessageUi(
-                        id = "$runId-tool-${event.round}-${event.name}-$count",
-                        tools = listOf(event.name),
+                    ToolActivityMessageUi(
+                        id = "$runId-tool-$count",
+                        toolName = event.name,
+                        status = ToolActivityStatusUi.Running,
+                        argumentsSummary = event.argsPreview,
                     )
                 )
                 appendTimeline(
@@ -285,6 +313,7 @@ internal class AgentAppState(
             }
 
             is AgentEvent.ToolFinished -> {
+                updateToolActivityFinished(runId, event)
                 appendTimeline(
                     runId,
                     RunTimelineItemUi.ToolResult(
@@ -306,6 +335,8 @@ internal class AgentAppState(
             }
 
             is AgentEvent.RunFailed -> {
+                finalizeThinking(runId)
+                markRunningToolsFailed(runId, event.reason)
                 appendTimeline(
                     runId,
                     RunTimelineItemUi.Error(
@@ -315,10 +346,18 @@ internal class AgentAppState(
                 )
             }
 
+            is AgentEvent.AssistantReceived -> {
+                if (event.reasoningContent.isNotBlank()) {
+                    ensureCompletedThinking(runId, event.reasoningContent)
+                }
+            }
+
+            is AgentEvent.RunFinished -> {
+                finalizeThinking(runId)
+            }
+
             is AgentEvent.RoundStarted,
-            is AgentEvent.ProviderToolCallDelta,
-            is AgentEvent.AssistantReceived,
-            is AgentEvent.RunFinished -> Unit
+            is AgentEvent.ProviderToolCallDelta -> Unit
         }
     }
 
@@ -335,6 +374,7 @@ internal class AgentAppState(
             runId = runId,
             content = content,
             isStreaming = false,
+            renderMarkdown = result.ok,
         )
         setConversationStreaming(runId, false)
         updateRunStatus(runId, status, duration)
@@ -368,8 +408,147 @@ internal class AgentAppState(
             runId = runId,
             content = currentAssistantContent(runId) + delta,
             isStreaming = true,
+            renderMarkdown = false,
         )
         refreshConversationSummaries()
+    }
+
+    private fun appendReasoningDelta(runId: String, delta: String) {
+        if (delta.isEmpty()) return
+        val startedAt = runThinkingStartedAt.getOrPut(runId) { SystemClock.elapsedRealtime() }
+        val elapsedSeconds = ((SystemClock.elapsedRealtime() - startedAt) / 1000).toInt().coerceAtLeast(0)
+        val thinkingId = "$runId-thinking"
+        var updated = false
+        updateMessages(runId) { messages ->
+            val next = messages.map { message ->
+                if (message is ThinkingMessageUi && message.id == thinkingId) {
+                    updated = true
+                    message.copy(
+                        content = message.content + delta,
+                        isStreaming = true,
+                        elapsedSeconds = elapsedSeconds,
+                        collapsed = false,
+                    )
+                } else {
+                    message
+                }
+            }
+            if (updated) {
+                next
+            } else {
+                val assistantIndex = next.indexOfFirst { it is AgentMessageUi && it.id == "assistant-$runId" }
+                val thinkingMessage = ThinkingMessageUi(
+                    id = thinkingId,
+                    content = delta,
+                    isStreaming = true,
+                    elapsedSeconds = elapsedSeconds,
+                    collapsed = false,
+                )
+                if (assistantIndex >= 0) {
+                    next.toMutableList().apply { add(assistantIndex, thinkingMessage) }
+                } else {
+                    next + thinkingMessage
+                }
+            }
+        }
+        refreshConversationSummaries()
+    }
+
+    private fun ensureCompletedThinking(runId: String, content: String) {
+        val thinkingId = "$runId-thinking"
+        if (conversationStateForRun(runId).messages.any { it is ThinkingMessageUi && it.id == thinkingId }) {
+            finalizeThinking(runId)
+            return
+        }
+        val startedAt = runThinkingStartedAt.getOrPut(runId) { SystemClock.elapsedRealtime() }
+        val elapsedSeconds = ((SystemClock.elapsedRealtime() - startedAt) / 1000).toInt().coerceAtLeast(0)
+        updateMessages(runId) { messages ->
+            val assistantIndex = messages.indexOfFirst { it is AgentMessageUi && it.id == "assistant-$runId" }
+            val thinkingMessage = ThinkingMessageUi(
+                id = thinkingId,
+                content = content,
+                isStreaming = false,
+                elapsedSeconds = elapsedSeconds,
+                collapsed = true,
+            )
+            if (assistantIndex >= 0) {
+                messages.toMutableList().apply { add(assistantIndex, thinkingMessage) }
+            } else {
+                messages + thinkingMessage
+            }
+        }
+    }
+
+    private fun finalizeThinking(runId: String) {
+        val startedAt = runThinkingStartedAt[runId]
+        updateMessages(runId) { messages ->
+            messages.map { message ->
+                if (message is ThinkingMessageUi && message.id == "$runId-thinking") {
+                    val elapsedSeconds = startedAt?.let {
+                        ((SystemClock.elapsedRealtime() - it) / 1000).toInt().coerceAtLeast(0)
+                    } ?: message.elapsedSeconds
+                    message.copy(
+                        isStreaming = false,
+                        elapsedSeconds = elapsedSeconds,
+                        collapsed = true,
+                    )
+                } else {
+                    message
+                }
+            }
+        }
+    }
+
+    private fun updateAssistantUsage(runId: String, usage: TokenUsageUi) {
+        if (usage.isEmpty) return
+        replaceAssistantMessage(
+            runId = runId,
+            content = currentAssistantContent(runId),
+            isStreaming = true,
+            usage = usage,
+        )
+    }
+
+    private fun updateToolActivityFinished(runId: String, event: AgentEvent.ToolFinished) {
+        val status = if (event.resultSummary.contains("ok=false", ignoreCase = true)) {
+            ToolActivityStatusUi.Failed
+        } else {
+            ToolActivityStatusUi.Success
+        }
+        updateMessages(runId) { messages ->
+            val targetIndex = messages.indexOfLast {
+                it is ToolActivityMessageUi &&
+                    it.toolName == event.name &&
+                    it.status == ToolActivityStatusUi.Running
+            }
+            if (targetIndex < 0) return@updateMessages messages
+            messages.mapIndexed { index, message ->
+                if (index == targetIndex && message is ToolActivityMessageUi) {
+                    message.copy(
+                        status = status,
+                        resultSummary = event.resultSummary,
+                        imageCount = event.imageCount,
+                    )
+                } else {
+                    message
+                }
+            }
+        }
+    }
+
+    private fun markRunningToolsFailed(runId: String, reason: String) {
+        updateMessages(runId) { messages ->
+            messages.map { message ->
+                if (message is ToolActivityMessageUi && message.status == ToolActivityStatusUi.Running) {
+                    message.copy(
+                        status = ToolActivityStatusUi.Failed,
+                        resultSummary = reason.take(MAX_PREVIEW_CHARS),
+                    )
+                } else {
+                    message
+                }
+            }
+        }
     }
 
     private fun currentAssistantContent(runId: String): String =
@@ -383,11 +562,18 @@ internal class AgentAppState(
         runId: String,
         content: String,
         isStreaming: Boolean,
+        renderMarkdown: Boolean? = null,
+        usage: TokenUsageUi? = null,
     ) {
         updateMessages(runId) { messages ->
             messages.map { message ->
                 if (message is AgentMessageUi && message.id == "assistant-$runId") {
-                    message.copy(content = content, isStreaming = isStreaming)
+                    message.copy(
+                        content = content,
+                        isStreaming = isStreaming,
+                        renderMarkdown = renderMarkdown ?: message.renderMarkdown,
+                        usage = usage ?: message.usage,
+                    )
                 } else {
                     message
                 }
@@ -433,7 +619,7 @@ internal class AgentAppState(
 
     private fun conversationStateForRun(runId: String): AgentChatHomeUiState {
         val conversationId = conversationIdForRun(runId)
-        return conversationsById[conversationId] ?: emptyChatState()
+        return conversationsById[conversationId] ?: emptyChatState(defaultThinkingEnabled)
     }
 
     private fun appendTimeline(runId: String, item: RunTimelineItemUi) {
@@ -481,7 +667,8 @@ internal class AgentAppState(
                     preview = when (lastMessage) {
                         is UserMessageUi -> lastMessage.content
                         is AgentMessageUi -> lastMessage.content.ifBlank { "Agent 正在思考" }
-                        is ToolSummaryMessageUi -> "调用工具：${lastMessage.tools.joinToString()}"
+                        is ThinkingMessageUi -> "Agent 正在思考"
+                        is ToolActivityMessageUi -> "调用工具：${lastMessage.toolName}"
                         else -> "直接输入问题，必要时 Agent 会操作手机"
                     }.take(MAX_PREVIEW_CHARS),
                     timeLabel = if (state.isStreaming) {
@@ -507,6 +694,44 @@ internal class AgentAppState(
         )
     }
 
+    private fun buildConversationHistory(messages: List<AgentChatMessageUi>): List<AgentModelClient.ConversationMessage> {
+        val candidates = messages.mapNotNull { message ->
+            when (message) {
+                is UserMessageUi -> AgentModelClient.ConversationMessage(
+                    role = "user",
+                    content = message.content,
+                )
+
+                is AgentMessageUi -> message.content
+                    .takeIf { it.isNotBlank() && !message.isStreaming }
+                    ?.let { content ->
+                        AgentModelClient.ConversationMessage(
+                            role = "assistant",
+                            content = content,
+                        )
+                    }
+
+                else -> null
+            }
+        }.takeLast(MAX_CONTEXT_MESSAGES)
+
+        val reversed = candidates.asReversed()
+        var remainingChars = MAX_CONTEXT_CHARS
+        val selected = mutableListOf<AgentModelClient.ConversationMessage>()
+        reversed.forEach { message ->
+            val content = message.content.trim()
+            if (content.isBlank() || remainingChars <= 0) return@forEach
+            val clipped = if (content.length > remainingChars) {
+                content.takeLast(remainingChars)
+            } else {
+                content
+            }
+            selected += message.copy(content = clipped)
+            remainingChars -= clipped.length
+        }
+        return selected.asReversed()
+    }
+
     private fun durationLabel(runId: String): String {
         val started = runStarts[runId] ?: return ""
         val seconds = ((SystemClock.elapsedRealtime() - started) / 1000).coerceAtLeast(0)
@@ -516,12 +741,15 @@ internal class AgentAppState(
     private companion object {
         const val MAX_TITLE_CHARS = 24
         const val MAX_PREVIEW_CHARS = 48
+        const val MAX_CONTEXT_MESSAGES = 12
+        const val MAX_CONTEXT_CHARS = 24_000
 
-        fun emptyChatState(): AgentChatHomeUiState =
+        fun emptyChatState(thinkingEnabled: Boolean): AgentChatHomeUiState =
             AgentChatHomeUiState(
                 messages = emptyList(),
                 input = "",
                 isStreaming = false,
+                thinkingEnabled = thinkingEnabled,
             )
 
         fun newConversationId(): String = "conv-${UUID.randomUUID()}"
@@ -637,6 +865,11 @@ private fun loadModelConfigForUi(): AgentModelClient.ModelConfig {
                 Prefs.Keys.AGENT_TERMINAL_TOOLS,
                 Prefs.Keys.BOOLEAN_DEFAULTS[Prefs.Keys.AGENT_TERMINAL_TOOLS] ?: false,
             ),
+            thinkingEnabled = prefs.getBoolean(
+                Prefs.Keys.AGENT_THINKING_ENABLED,
+                Prefs.Keys.BOOLEAN_DEFAULTS[Prefs.Keys.AGENT_THINKING_ENABLED] ?: false,
+            ),
+            extraBodyJson = prefs.getTrimmedString(Prefs.Keys.AGENT_EXTRA_BODY_JSON),
         )
     } else {
         AgentModelClient.loadConfig()
@@ -645,6 +878,15 @@ private fun loadModelConfigForUi(): AgentModelClient.ModelConfig {
 
 private fun SharedPreferences.getTrimmedString(key: String): String =
     getString(key, Prefs.Keys.STRING_DEFAULTS[key].orEmpty()).orEmpty().trim()
+
+private fun AgentTokenUsage.toUi(): TokenUsageUi =
+    TokenUsageUi(
+        contextTokens = contextTokens,
+        inputTokens = inputTokens,
+        outputTokens = outputTokens,
+        reasoningTokens = reasoningTokens,
+        cachedTokens = cachedTokens,
+    )
 
 private fun buildSystemEnhanceState(): AgentSystemEnhanceUiState =
     AgentSystemEnhanceUiState(

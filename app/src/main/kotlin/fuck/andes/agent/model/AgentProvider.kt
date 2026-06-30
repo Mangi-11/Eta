@@ -1,6 +1,7 @@
 package fuck.andes.agent.model
 
 import fuck.andes.agent.runtime.AgentRunController
+import fuck.andes.agent.runtime.AgentTokenUsage
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -51,11 +52,19 @@ internal sealed interface ProviderEvent {
         val delta: String
     ) : ProviderEvent
 
+    data class ReasoningDelta(
+        val delta: String
+    ) : ProviderEvent
+
     data class ToolCallDelta(
         val index: Int,
         val id: String?,
         val name: String?,
         val argumentsDelta: String
+    ) : ProviderEvent
+
+    data class Usage(
+        val usage: AgentTokenUsage
     ) : ProviderEvent
 
     data class Completed(

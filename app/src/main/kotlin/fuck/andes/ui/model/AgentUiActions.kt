@@ -2,6 +2,7 @@ package fuck.andes.ui.model
 
 sealed interface AgentHomeAction {
     data class InputChanged(val text: String) : AgentHomeAction
+    data class ThinkingToggled(val enabled: Boolean) : AgentHomeAction
     data object SendMessage : AgentHomeAction
     data object AttachScreenContext : AgentHomeAction
     data object OpenAttachment : AgentHomeAction
@@ -27,6 +28,7 @@ sealed interface AgentRunDetailAction {
 sealed interface AgentChatAction {
     data object NavigateBack : AgentChatAction
     data class InputChanged(val text: String) : AgentChatAction
+    data class ThinkingToggled(val enabled: Boolean) : AgentChatAction
     data object SendMessage : AgentChatAction
     data object AttachScreenContext : AgentChatAction
 }

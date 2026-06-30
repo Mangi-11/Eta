@@ -179,6 +179,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         prompt = request.prompt,
                         toolExecutor = toolExecutor,
                         images = request.images,
+                        history = request.history,
                         runController = runController
                     ) { event ->
                         if (activeRunController == runController) {

@@ -37,6 +37,8 @@ internal object Prefs {
         const val AGENT_MODEL = "agent_model"
         const val AGENT_SYSTEM_PROMPT = "agent_system_prompt"
         const val AGENT_TERMINAL_TOOLS = "agent_terminal_tools"
+        const val AGENT_THINKING_ENABLED = "agent_thinking_enabled"
+        const val AGENT_EXTRA_BODY_JSON = "agent_extra_body_json"
 
         /** 全部布尔开关及其默认值。 */
         val BOOLEAN_DEFAULTS: Map<String, Boolean> = mapOf(
@@ -49,7 +51,8 @@ internal object Prefs {
             SCREEN_ON_VOICE_COMMAND to true,
             AGENT_CUSTOM_MODEL to false,
             AGENT_REQUIRE_PREFIX to true,
-            AGENT_TERMINAL_TOOLS to false
+            AGENT_TERMINAL_TOOLS to false,
+            AGENT_THINKING_ENABLED to false
         )
 
         /** 文本配置默认值。 */
@@ -57,7 +60,8 @@ internal object Prefs {
             AGENT_BASE_URL to "https://api.openai.com/v1",
             AGENT_API_KEY to "",
             AGENT_MODEL to "gpt-4.1-mini",
-            AGENT_SYSTEM_PROMPT to "你是运行在 Android 设备上的手机 Agent。回答要简洁、直接，并保留必要的操作上下文。"
+            AGENT_SYSTEM_PROMPT to "你是运行在 Android 设备上的手机 Agent。回答要简洁、直接，并保留必要的操作上下文。",
+            AGENT_EXTRA_BODY_JSON to ""
         )
     }
 

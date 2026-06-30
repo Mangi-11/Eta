@@ -1,6 +1,7 @@
 package fuck.andes.agent.model
 
 import fuck.andes.agent.runtime.AgentRunController
+import fuck.andes.agent.runtime.AgentTokenUsage
 import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -75,9 +76,16 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         return JSONObject()
             .put("model", config.model)
             .put("stream", true)
+            .put("stream_options", JSONObject().put("include_usage", true))
             .put("messages", messages)
             .put("tools", tools)
             .put("tool_choice", "auto")
+            .also { request ->
+                if (config.thinkingEnabled) {
+                    request.put("enable_thinking", true)
+                }
+                mergeExtraBody(request, config.extraBodyJson)
+            }
     }
 
     private fun readStreamingAssistantMessage(
@@ -87,7 +95,9 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
     ): JSONObject {
         if (stream == null) error("模型接口未返回响应流")
         val content = StringBuilder()
+        val reasoningContent = StringBuilder()
         val toolCalls = linkedMapOf<Int, StreamingToolCall>()
+        var usage: AgentTokenUsage? = null
         var sawStreamData = false
         var sawDone = false
         var finishReason: String? = null
@@ -105,12 +115,25 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
                     break
                 }
                 val chunk = JSONObject(payload)
-                val choice = chunk.optJSONArray("choices")?.optJSONObject(0) ?: continue
+                parseUsage(chunk)?.let { parsedUsage ->
+                    usage = parsedUsage
+                    onEvent(ProviderEvent.Usage(parsedUsage))
+                }
+                val choices = chunk.optJSONArray("choices")
+                if (choices == null || choices.length() == 0) continue
+                val choice = choices.optJSONObject(0) ?: continue
                 val reason = choice.optString("finish_reason")
                 if (reason.isNotBlank() && reason != "null") {
                     finishReason = reason
                 }
                 val delta = choice.optJSONObject("delta") ?: continue
+                if (delta.has("reasoning_content") && !delta.isNull("reasoning_content")) {
+                    val text = delta.optString("reasoning_content")
+                    if (text.isNotEmpty()) {
+                        reasoningContent.append(text)
+                        onEvent(ProviderEvent.ReasoningDelta(text))
+                    }
+                }
                 if (delta.has("content") && !delta.isNull("content")) {
                     val text = delta.optString("content")
                     if (text.isNotEmpty()) {
@@ -148,7 +171,11 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         return JSONObject()
             .put("role", "assistant")
             .put("content", content.toString())
+            .put("reasoning_content", reasoningContent.toString())
             .put("finish_reason", finishReason.orEmpty())
+            .also { message ->
+                usage?.let { message.put("usage", it.toJson()) }
+            }
             .also { message ->
                 if (toolCalls.isNotEmpty()) {
                     message.put(
@@ -183,6 +210,64 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
                 )
         }
     }
+
+    private fun mergeExtraBody(request: JSONObject, extraBodyJson: String) {
+        if (extraBodyJson.isBlank()) return
+        val extraBody = JSONObject(extraBodyJson)
+        extraBody.keys().forEach { key ->
+            request.put(key, extraBody.get(key))
+        }
+    }
+
+    private fun parseUsage(chunk: JSONObject): AgentTokenUsage? {
+        val usage = chunk.optJSONObject("usage") ?: return null
+        return AgentTokenUsage(
+            contextTokens = usage.firstInt("total_tokens"),
+            inputTokens = usage.firstInt("prompt_tokens", "input_tokens"),
+            outputTokens = usage.firstInt("completion_tokens", "output_tokens"),
+            reasoningTokens = usage.firstNestedInt(
+                "completion_tokens_details",
+                "output_tokens_details",
+                childKey = "reasoning_tokens"
+            ),
+            cachedTokens = usage.firstNestedInt(
+                "prompt_tokens_details",
+                childKey = "cached_tokens"
+            ) ?: usage.firstInt("cache_read_input_tokens")
+        ).takeUnless { it.isEmpty }
+    }
+
+    private fun JSONObject.firstInt(vararg keys: String): Int? {
+        for (key in keys) {
+            if (!has(key) || isNull(key)) continue
+            val raw = opt(key)
+            when (raw) {
+                is Number -> return raw.toInt()
+                is String -> raw.toIntOrNull()?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun JSONObject.firstNestedInt(
+        vararg parentKeys: String,
+        childKey: String
+    ): Int? {
+        for (parentKey in parentKeys) {
+            val parent = optJSONObject(parentKey) ?: continue
+            parent.firstInt(childKey)?.let { return it }
+        }
+        return null
+    }
+
+    private fun AgentTokenUsage.toJson(): JSONObject =
+        JSONObject().also { json ->
+            contextTokens?.let { json.put("total_tokens", it) }
+            inputTokens?.let { json.put("input_tokens", it) }
+            outputTokens?.let { json.put("output_tokens", it) }
+            reasoningTokens?.let { json.put("reasoning_tokens", it) }
+            cachedTokens?.let { json.put("cached_tokens", it) }
+        }
 
     private fun readResponse(stream: InputStream?): String {
         if (stream == null) return ""

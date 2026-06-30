@@ -15,7 +15,9 @@ internal object AgentModelClient {
             apiKey = Prefs.getString(Prefs.Keys.AGENT_API_KEY).trim(),
             model = Prefs.getString(Prefs.Keys.AGENT_MODEL).trim(),
             systemPrompt = Prefs.getString(Prefs.Keys.AGENT_SYSTEM_PROMPT).trim(),
-            terminalTools = Prefs.isEnabled(Prefs.Keys.AGENT_TERMINAL_TOOLS)
+            terminalTools = Prefs.isEnabled(Prefs.Keys.AGENT_TERMINAL_TOOLS),
+            thinkingEnabled = Prefs.isEnabled(Prefs.Keys.AGENT_THINKING_ENABLED),
+            extraBodyJson = Prefs.getString(Prefs.Keys.AGENT_EXTRA_BODY_JSON).trim()
         )
 
     fun complete(
@@ -23,12 +25,13 @@ internal object AgentModelClient {
         prompt: String,
         toolExecutor: ToolExecutor,
         images: List<ModelImage> = emptyList(),
+        history: List<ConversationMessage> = emptyList(),
         provider: AgentProviderClient = OpenAiChatCompletionsProvider,
         runController: AgentRunController = AgentRunController(),
         onEvent: (AgentEvent) -> Unit = {}
     ): ModelResponse.Text {
         config.validate()
-        val messages = buildInitialMessages(config, prompt, images)
+        val messages = buildInitialMessages(config, prompt, images, history)
         val tools = buildToolsJson(config.terminalTools)
         onEvent(
             AgentEvent.RunStarted(
@@ -58,6 +61,7 @@ internal object AgentModelClient {
                 AgentEvent.AssistantReceived(
                     round = round,
                     contentChars = assistantMessage.optString("content").length,
+                    reasoningContent = assistantMessage.optString("reasoning_content"),
                     toolNames = toolCalls.map { it.name }
                 )
             )
@@ -125,12 +129,19 @@ internal object AgentModelClient {
         require(baseUrl.isNotBlank()) { "请先配置 API 地址" }
         require(apiKey.isNotBlank()) { "请先配置 API Key" }
         require(model.isNotBlank()) { "请先配置模型名" }
+        if (extraBodyJson.isNotBlank()) {
+            runCatching { JSONObject(extraBodyJson) }
+                .getOrElse { throwable ->
+                    error("额外请求体 JSON 无效：${throwable.message ?: throwable.javaClass.simpleName}")
+                }
+        }
     }
 
     private fun buildInitialMessages(
         config: ModelConfig,
         prompt: String,
-        images: List<ModelImage>
+        images: List<ModelImage>,
+        history: List<ConversationMessage>
     ): JSONArray {
         val messages = JSONArray()
         if (config.systemPrompt.isNotBlank()) {
@@ -156,7 +167,18 @@ internal object AgentModelClient {
                         "content",
                         "当用户明确要求在手机上执行命令、查看 Linux/Android 系统信息、读取/写入文件、查询包名或使用 shell 时，必须调用 terminal 或 run_command/read_file/write_file/list_directory 工具。用户说“执行命令 xxx”时，首轮必须调用 terminal，action=open_and_exec，identity=root，command=xxx；连续多步 shell 工作先 action=open 获取 session_id，再 action=exec 复用会话；长时间命令使用 async=true 启动后用 read_async_result 轮询，完成后 close；async 后台命令是独立 shell，不要和 session_id 混用。不要调用 search_apps 查询“终端”或“Termux”。不要回答“没有终端应用”或建议用户安装 Termux；这些工具已经在当前 Android 设备上通过内置 Root Shell 可用。"
                     )
-            )
+                )
+        }
+        history.forEach { item ->
+            val role = item.role.trim()
+            val content = item.content.trim()
+            if ((role == "user" || role == "assistant") && content.isNotBlank()) {
+                messages.put(
+                    JSONObject()
+                        .put("role", role)
+                        .put("content", content)
+                )
+            }
         }
         messages.put(buildUserMessage(prompt, images))
         return messages
@@ -906,11 +928,20 @@ internal object AgentModelClient {
                 deltaChars = delta.length,
                 delta = delta
             )
+            is ProviderEvent.ReasoningDelta -> AgentEvent.AssistantReasoningDelta(
+                round = round,
+                deltaChars = delta.length,
+                delta = delta
+            )
             is ProviderEvent.ToolCallDelta -> AgentEvent.ProviderToolCallDelta(
                 round = round,
                 index = index,
                 name = name,
                 argumentsChars = argumentsDelta.length
+            )
+            is ProviderEvent.Usage -> AgentEvent.UsageReceived(
+                round = round,
+                usage = usage
             )
             is ProviderEvent.Completed -> null
         }
@@ -949,6 +980,11 @@ internal object AgentModelClient {
             .put("role", "assistant")
             .put("content", source.opt("content") ?: JSONObject.NULL)
             .put("tool_calls", rawToolCalls)
+            .also { message ->
+                if (source.has("reasoning_content") && !source.isNull("reasoning_content")) {
+                    message.put("reasoning_content", source.optString("reasoning_content"))
+                }
+            }
             .also {
                 require(toolCalls.isNotEmpty()) { "toolCalls must not be empty" }
             }
@@ -982,7 +1018,14 @@ internal object AgentModelClient {
         val apiKey: String,
         val model: String,
         val systemPrompt: String,
-        val terminalTools: Boolean
+        val terminalTools: Boolean,
+        val thinkingEnabled: Boolean = false,
+        val extraBodyJson: String = ""
+    )
+
+    data class ConversationMessage(
+        val role: String,
+        val content: String
     )
 
     fun interface ToolExecutor {

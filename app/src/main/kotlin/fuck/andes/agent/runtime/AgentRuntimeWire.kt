@@ -50,7 +50,11 @@ internal object AgentRuntimeWire {
     private const val KEY_MODEL = "model"
     private const val KEY_SYSTEM_PROMPT = "system_prompt"
     private const val KEY_TERMINAL_TOOLS = "terminal_tools"
+    private const val KEY_THINKING_ENABLED = "thinking_enabled"
+    private const val KEY_EXTRA_BODY_JSON = "extra_body_json"
     private const val KEY_IMAGES = "images"
+    private const val KEY_HISTORY = "history"
+    private const val KEY_ROLE = "role"
     private const val KEY_DATA_URL = "data_url"
     private const val KEY_MIME_TYPE = "mime_type"
     private const val KEY_BYTES = "bytes"
@@ -73,6 +77,7 @@ internal object AgentRuntimeWire {
         val prompt: String,
         val config: AgentModelClient.ModelConfig,
         val images: List<AgentModelClient.ModelImage>,
+        val history: List<AgentModelClient.ConversationMessage> = emptyList(),
         val handoff: EntryHandoff? = null
     )
 
@@ -106,7 +111,18 @@ internal object AgentRuntimeWire {
         putString(KEY_MODEL, request.config.model)
         putString(KEY_SYSTEM_PROMPT, request.config.systemPrompt)
         putBoolean(KEY_TERMINAL_TOOLS, request.config.terminalTools)
+        putBoolean(KEY_THINKING_ENABLED, request.config.thinkingEnabled)
+        putString(KEY_EXTRA_BODY_JSON, request.config.extraBodyJson)
         request.handoff?.let { putBundle(KEY_HANDOFF, toBundle(it)) }
+        putParcelableArrayList(
+            KEY_HISTORY,
+            ArrayList(request.history.map { message ->
+                Bundle().apply {
+                    putString(KEY_ROLE, message.role)
+                    putString(KEY_CONTENT, message.content)
+                }
+            })
+        )
         putParcelableArrayList(
             KEY_IMAGES,
             ArrayList(request.images.map { image ->
@@ -131,8 +147,16 @@ internal object AgentRuntimeWire {
                 apiKey = bundle.getString(KEY_API_KEY).orEmpty(),
                 model = bundle.getString(KEY_MODEL).orEmpty(),
                 systemPrompt = bundle.getString(KEY_SYSTEM_PROMPT).orEmpty(),
-                terminalTools = bundle.getBoolean(KEY_TERMINAL_TOOLS)
+                terminalTools = bundle.getBoolean(KEY_TERMINAL_TOOLS),
+                thinkingEnabled = bundle.getBoolean(KEY_THINKING_ENABLED),
+                extraBodyJson = bundle.getString(KEY_EXTRA_BODY_JSON).orEmpty()
             ),
+            history = bundle.getParcelableArrayList(KEY_HISTORY, Bundle::class.java).orEmpty().map { message ->
+                AgentModelClient.ConversationMessage(
+                    role = message.getString(KEY_ROLE).orEmpty(),
+                    content = message.getString(KEY_CONTENT).orEmpty()
+                )
+            },
             images = bundle.getParcelableArrayList(KEY_IMAGES, Bundle::class.java).orEmpty().map { image ->
                 AgentModelClient.ModelImage(
                     dataUrl = image.getString(KEY_DATA_URL).orEmpty(),
@@ -238,6 +262,13 @@ internal object AgentRuntimeWire {
                 putString("delta", event.delta)
             }
 
+            is AgentEvent.AssistantReasoningDelta -> {
+                putString(KEY_TYPE, "assistant_reasoning_delta")
+                putInt("round", event.round)
+                putInt("delta_chars", event.deltaChars)
+                putString("delta", event.delta)
+            }
+
             is AgentEvent.ProviderToolCallDelta -> {
                 putString(KEY_TYPE, "provider_tool_call_delta")
                 putInt("round", event.round)
@@ -250,7 +281,14 @@ internal object AgentRuntimeWire {
                 putString(KEY_TYPE, "assistant_received")
                 putInt("round", event.round)
                 putInt("content_chars", event.contentChars)
+                putString("reasoning_content", event.reasoningContent)
                 putStringArrayList("tool_names", ArrayList(event.toolNames))
+            }
+
+            is AgentEvent.UsageReceived -> {
+                putString(KEY_TYPE, "usage_received")
+                putInt("round", event.round)
+                putTokenUsage(event.usage)
             }
 
             is AgentEvent.ToolStarted -> {
@@ -319,6 +357,12 @@ internal object AgentRuntimeWire {
             delta = bundle.getString("delta").orEmpty(),
         )
 
+        "assistant_reasoning_delta" -> AgentEvent.AssistantReasoningDelta(
+            round = bundle.getInt("round"),
+            deltaChars = bundle.getInt("delta_chars"),
+            delta = bundle.getString("delta").orEmpty(),
+        )
+
         "provider_tool_call_delta" -> AgentEvent.ProviderToolCallDelta(
             round = bundle.getInt("round"),
             index = bundle.getInt("index"),
@@ -329,7 +373,13 @@ internal object AgentRuntimeWire {
         "assistant_received" -> AgentEvent.AssistantReceived(
             round = bundle.getInt("round"),
             contentChars = bundle.getInt("content_chars"),
+            reasoningContent = bundle.getString("reasoning_content").orEmpty(),
             toolNames = bundle.getStringArrayList("tool_names").orEmpty(),
+        )
+
+        "usage_received" -> AgentEvent.UsageReceived(
+            round = bundle.getInt("round"),
+            usage = bundle.getTokenUsage(),
         )
 
         "tool_started" -> AgentEvent.ToolStarted(
@@ -367,4 +417,21 @@ internal object AgentRuntimeWire {
 
     private fun Bundle.optionalInt(key: String): Int? =
         if (containsKey(key)) getInt(key) else null
+
+    private fun Bundle.putTokenUsage(usage: AgentTokenUsage) {
+        usage.contextTokens?.let { putInt("usage_context", it) }
+        usage.inputTokens?.let { putInt("usage_input", it) }
+        usage.outputTokens?.let { putInt("usage_output", it) }
+        usage.reasoningTokens?.let { putInt("usage_reasoning", it) }
+        usage.cachedTokens?.let { putInt("usage_cache", it) }
+    }
+
+    private fun Bundle.getTokenUsage(): AgentTokenUsage =
+        AgentTokenUsage(
+            contextTokens = optionalInt("usage_context"),
+            inputTokens = optionalInt("usage_input"),
+            outputTokens = optionalInt("usage_output"),
+            reasoningTokens = optionalInt("usage_reasoning"),
+            cachedTokens = optionalInt("usage_cache"),
+        )
 }

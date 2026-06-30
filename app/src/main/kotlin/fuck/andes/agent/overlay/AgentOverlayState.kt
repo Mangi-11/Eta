@@ -54,6 +54,12 @@ internal fun AgentOverlayState.applyEvent(event: AgentEvent): AgentOverlayState 
 
     is AgentEvent.AssistantTextDelta -> appendStreamingText(event)
 
+    is AgentEvent.AssistantReasoningDelta -> copy(
+        phase = AgentOverlayPhase.RUNNING,
+        round = event.round,
+        statusText = "正在思考",
+    )
+
     is AgentEvent.ProviderToolCallDelta -> copy(
         phase = AgentOverlayPhase.RUNNING,
         round = event.round,
@@ -69,6 +75,8 @@ internal fun AgentOverlayState.applyEvent(event: AgentEvent): AgentOverlayState 
             "计划执行：${event.toolNames.joinToString("、") { it.toToolLabel() }}"
         },
     )
+
+    is AgentEvent.UsageReceived -> this
 
     is AgentEvent.ToolStarted -> copy(
         phase = AgentOverlayPhase.RUNNING,

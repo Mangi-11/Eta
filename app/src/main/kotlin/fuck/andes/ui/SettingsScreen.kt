@@ -251,6 +251,15 @@ internal fun SettingsScreen(context: Context) {
                         iconTint = IconTintPurple,
                     )
                     PrefDivider()
+                    SwitchPref(
+                        context = context,
+                        prefs = prefs,
+                        title = "默认启用深度思考",
+                        key = Prefs.Keys.AGENT_THINKING_ENABLED,
+                        icon = MiuixIcons.Tune,
+                        iconTint = IconTintPurple,
+                    )
+                    PrefDivider()
                     TextPref(
                         prefs = prefs,
                         title = "API 地址",
@@ -288,6 +297,17 @@ internal fun SettingsScreen(context: Context) {
                         key = Prefs.Keys.AGENT_SYSTEM_PROMPT,
                         icon = MiuixIcons.ConvertFile,
                         iconTint = IconTintGreen,
+                        singleLine = false,
+                        revision = prefRevision,
+                        onClick = { editingTextPref = it },
+                    )
+                    PrefDivider()
+                    TextPref(
+                        prefs = prefs,
+                        title = "额外请求体 JSON",
+                        key = Prefs.Keys.AGENT_EXTRA_BODY_JSON,
+                        icon = MiuixIcons.ConvertFile,
+                        iconTint = IconTintPurple,
                         singleLine = false,
                         revision = prefRevision,
                         onClick = { editingTextPref = it },

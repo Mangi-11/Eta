@@ -19,9 +19,12 @@ import fuck.andes.ui.model.RunTimelineItemUi
 import fuck.andes.ui.model.SystemEnhanceItemUi
 import fuck.andes.ui.model.SystemEnhanceSectionUi
 import fuck.andes.ui.model.SystemEnhanceStatusUi
+import fuck.andes.ui.model.ThinkingMessageUi
+import fuck.andes.ui.model.TokenUsageUi
+import fuck.andes.ui.model.ToolActivityMessageUi
+import fuck.andes.ui.model.ToolActivityStatusUi
 import fuck.andes.ui.model.ToolGroupUi
 import fuck.andes.ui.model.ToolItemUi
-import fuck.andes.ui.model.ToolSummaryMessageUi
 import fuck.andes.ui.model.UserMessageUi
 import fuck.andes.ui.model.AgentMessageUi
 
@@ -83,6 +86,7 @@ object FakeAgentUiStates {
         messages = emptyList(),
         input = "",
         isStreaming = false,
+        thinkingEnabled = false,
     )
 
     val chat = AgentChatUiState(
@@ -93,15 +97,33 @@ object FakeAgentUiStates {
             ),
             AgentMessageUi(
                 id = "m-02",
-                content = "好的，我会打开系统设置中的电池优化页面。",
+                content = "当前手机屏幕显示的是**主界面**，关键信息如下：\n\n| 项目 | 内容 |\n| --- | --- |\n| 时间 | 09:55 |\n| 网络 | 5G + Wi-Fi |\n| 电量 | 68% |",
+                usage = TokenUsageUi(
+                    contextTokens = 17100,
+                    inputTokens = 9000,
+                    outputTokens = 111,
+                    reasoningTokens = 8200,
+                ),
             ),
-            ToolSummaryMessageUi(
+            ThinkingMessageUi(
+                id = "thinking-01",
+                content = "用户希望我查看当前屏幕，需要先调用 observe_screen 获取屏幕结构，再总结可见信息。",
+                isStreaming = false,
+                elapsedSeconds = 24,
+                collapsed = true,
+            ),
+            ToolActivityMessageUi(
                 id = "tools-01",
-                tools = listOf("open_app", "click_text", "screenshot"),
+                toolName = "observe_screen",
+                status = ToolActivityStatusUi.Success,
+                argumentsSummary = "{\"include_screenshot\":true}",
+                resultSummary = "ok=true, chars=1820, images=1",
+                imageCount = 1,
             ),
         ),
         input = "",
         isStreaming = false,
+        thinkingEnabled = true,
     )
 
     val permissionHealth = PermissionHealthUiState(

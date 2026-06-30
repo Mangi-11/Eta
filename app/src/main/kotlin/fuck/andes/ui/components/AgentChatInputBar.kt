@@ -11,15 +11,19 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.AddCircle
+import top.yukonga.miuix.kmp.icon.extended.Answer
 import top.yukonga.miuix.kmp.icon.extended.Mic
 import top.yukonga.miuix.kmp.icon.extended.ScreenCapture
 import top.yukonga.miuix.kmp.icon.extended.Send
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun AgentChatInputBar(
     input: String,
     isStreaming: Boolean,
+    thinkingEnabled: Boolean,
     onInputChange: (String) -> Unit,
+    onThinkingChange: (Boolean) -> Unit,
     onSend: () -> Unit,
     onAttach: () -> Unit,
     onScreenContext: () -> Unit,
@@ -46,6 +50,20 @@ fun AgentChatInputBar(
         },
         trailingIcon = {
             Row {
+                IconButton(
+                    onClick = { onThinkingChange(!thinkingEnabled) },
+                    enabled = !isStreaming,
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Answer,
+                        contentDescription = if (thinkingEnabled) "关闭思考" else "开启思考",
+                        tint = if (thinkingEnabled) {
+                            MiuixTheme.colorScheme.primary
+                        } else {
+                            MiuixTheme.colorScheme.onSurfaceVariantActions
+                        },
+                    )
+                }
                 IconButton(onClick = onScreenContext) {
                     Icon(
                         imageVector = MiuixIcons.ScreenCapture,
