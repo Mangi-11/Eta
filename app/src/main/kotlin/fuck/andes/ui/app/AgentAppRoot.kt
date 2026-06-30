@@ -1,5 +1,6 @@
 package fuck.andes.ui.app
 
+import android.app.Activity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -61,7 +62,9 @@ fun AgentAppRoot() {
     }
 
     fun popRoute() {
-        navigator.pop()
+        if (!navigator.pop()) {
+            (context as? Activity)?.finish()
+        }
     }
 
     fun selectConversation(conversationId: String) {

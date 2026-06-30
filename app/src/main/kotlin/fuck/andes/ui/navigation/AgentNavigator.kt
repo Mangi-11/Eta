@@ -17,10 +17,10 @@ class AgentNavigator(
         }
     }
 
-    fun pop() {
-        if (backStack.size > 1) {
-            backStack.removeLastOrNull()
-        }
+    fun pop(): Boolean {
+        if (backStack.size <= 1) return false
+        backStack.removeLastOrNull()
+        return true
     }
 
     fun popToHome() {

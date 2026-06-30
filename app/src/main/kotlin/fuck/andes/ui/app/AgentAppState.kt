@@ -65,19 +65,16 @@ internal class AgentAppState(
     private val runConversationIds = mutableMapOf<String, String>()
     private val runThinkingStartedAt = mutableMapOf<String, Long>()
     private val defaultThinkingEnabled = loadModelConfigForUi().thinkingEnabled
+    private val initialConversations = AgentConversationStore.load(appContext, defaultThinkingEnabled)
 
-    private var selectedConversationId: String = newConversationId()
-    private var conversationsById: Map<String, AgentChatHomeUiState> = mapOf(
-        selectedConversationId to emptyChatState(defaultThinkingEnabled),
-    )
-    private var conversationTitles: Map<String, String> = mapOf(
-        selectedConversationId to "新对话",
-    )
-    private var conversationUpdatedAt: Map<String, Long> = mapOf(
-        selectedConversationId to System.currentTimeMillis(),
-    )
+    private var selectedConversationId: String = initialConversations.selectedConversationId
+    private var conversationsById: Map<String, AgentChatHomeUiState> = initialConversations.conversationsById
+    private var conversationTitles: Map<String, String> = initialConversations.titles
+    private var conversationUpdatedAt: Map<String, Long> = initialConversations.updatedAt
 
-    var homeState by mutableStateOf(emptyChatState(defaultThinkingEnabled))
+    var homeState by mutableStateOf(
+        conversationsById[selectedConversationId] ?: emptyChatState(defaultThinkingEnabled)
+    )
         private set
 
     var conversationPaneState by mutableStateOf(
@@ -109,12 +106,17 @@ internal class AgentAppState(
     var systemEnhanceState by mutableStateOf(buildSystemEnhanceState())
         private set
 
+    init {
+        refreshConversationSummaries()
+    }
+
     fun updateInput(text: String) {
         updateCurrentConversation(homeState.copy(input = text))
     }
 
     fun updateThinkingEnabled(enabled: Boolean) {
         updateCurrentConversation(homeState.copy(thinkingEnabled = enabled))
+        persistConversations()
     }
 
     fun updateSearchQuery(query: String) {
@@ -126,6 +128,7 @@ internal class AgentAppState(
         selectedConversationId = conversationId
         homeState = state
         conversationPaneState = conversationPaneState.copy(selectedConversationId = conversationId)
+        persistConversations()
     }
 
     fun createConversation() {
@@ -140,6 +143,7 @@ internal class AgentAppState(
             searchQuery = "",
         )
         refreshConversationSummaries()
+        persistConversations()
     }
 
     fun sendCurrentMessage() {
@@ -205,6 +209,7 @@ internal class AgentAppState(
             ),
         )
         refreshConversationSummaries()
+        persistConversations()
 
         scope.launch(Dispatchers.IO) {
             val config = loadModelConfigForUi().copy(thinkingEnabled = thinkingEnabled)
@@ -400,6 +405,7 @@ internal class AgentAppState(
             )
         }
         refreshConversationSummaries()
+        persistConversations()
     }
 
     private fun appendAssistantDelta(runId: String, delta: String) {
@@ -691,6 +697,16 @@ internal class AgentAppState(
                         it.preview.contains(query, ignoreCase = true)
                 }
             },
+        )
+    }
+
+    private fun persistConversations() {
+        AgentConversationStore.save(
+            context = appContext,
+            selectedConversationId = selectedConversationId,
+            conversationsById = conversationsById,
+            titles = conversationTitles,
+            updatedAt = conversationUpdatedAt,
         )
     }
 
