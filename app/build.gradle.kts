@@ -73,4 +73,5 @@ dependencies {
     implementation(libs.activity.compose)
 
     testImplementation(libs.junit)
+    testImplementation(libs.json)
 }

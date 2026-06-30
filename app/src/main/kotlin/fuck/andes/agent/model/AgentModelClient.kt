@@ -154,7 +154,7 @@ internal object AgentModelClient {
                     .put("role", "system")
                     .put(
                         "content",
-                        "当用户明确要求在手机上执行命令、查看 Linux/Android 系统信息、读取/写入文件、查询包名或使用 shell 时，必须调用 terminal 或 run_command/read_file/write_file/list_directory 工具。用户说“执行命令 xxx”时，首轮必须调用 terminal，action=open_and_exec，identity=root，command=xxx；不要调用 search_apps 查询“终端”或“Termux”。不要回答“没有终端应用”或建议用户安装 Termux；这些工具已经在当前 Android 设备上通过内置 Root Shell 可用。"
+                        "当用户明确要求在手机上执行命令、查看 Linux/Android 系统信息、读取/写入文件、查询包名或使用 shell 时，必须调用 terminal 或 run_command/read_file/write_file/list_directory 工具。用户说“执行命令 xxx”时，首轮必须调用 terminal，action=open_and_exec，identity=root，command=xxx；连续多步 shell 工作先 action=open 获取 session_id，再 action=exec 复用会话；长时间命令使用 async=true 启动后用 read_async_result 轮询，完成后 close；async 后台命令是独立 shell，不要和 session_id 混用。不要调用 search_apps 查询“终端”或“Termux”。不要回答“没有终端应用”或建议用户安装 Termux；这些工具已经在当前 Android 设备上通过内置 Root Shell 可用。"
                     )
             )
         }
@@ -684,7 +684,7 @@ internal object AgentModelClient {
             .put(
                 functionTool(
                     name = "terminal",
-                    description = "Manage Android terminal sessions. For one-shot commands, prefer open_and_exec, e.g. {\"action\":\"open_and_exec\",\"identity\":\"root\",\"command\":\"uname -a\"}. identity can be user or root. Use this when the user asks to execute Android/Linux shell commands, inspect files, query packages, or operate the device through command line. This tool returns stdout, stderr and exit_code.",
+                    description = "Manage Android terminal sessions on the current device. Use open_and_exec for one-shot commands. Use open to create a persistent shell session and exec with session_id for multi-step terminal work. Use async=true without session_id for long-running independent shell commands, then read_async_result with job_id to stream output chunks. Use close to stop jobs or close sessions. identity can be user or root. This tool returns stdout, stderr, exit_code, session_id, and job_id when relevant.",
                     parameters = JSONObject()
                         .put("type", "object")
                         .put(
@@ -694,8 +694,16 @@ internal object AgentModelClient {
                                     "action",
                                     JSONObject()
                                         .put("type", "string")
-                                        .put("enum", JSONArray().put("open_and_exec"))
-                                        .put("description", "Terminal action. Use open_and_exec for one-shot commands.")
+                                        .put(
+                                            "enum",
+                                            JSONArray()
+                                                .put("open")
+                                                .put("exec")
+                                                .put("open_and_exec")
+                                                .put("read_async_result")
+                                                .put("close")
+                                        )
+                                        .put("description", "open creates a session. exec runs command in a session or cwd. open_and_exec runs a one-shot command. read_async_result reads async output by job_id. close closes a session_id or job_id.")
                                 )
                                 .put(
                                     "identity",
@@ -708,7 +716,7 @@ internal object AgentModelClient {
                                     "command",
                                     JSONObject()
                                         .put("type", "string")
-                                        .put("description", "Android shell command to execute.")
+                                        .put("description", "Android shell command to execute. Required for exec/open_and_exec.")
                                 )
                                 .put(
                                     "cwd",
@@ -728,8 +736,44 @@ internal object AgentModelClient {
                                         .put("type", "boolean")
                                         .put("description", "Whether stderr should be appended to stdout in command responses.")
                                 )
+                                .put(
+                                    "session_id",
+                                    JSONObject()
+                                        .put("type", "string")
+                                        .put("description", "Session id returned by action=open. Use with exec or close.")
+                                )
+                                .put(
+                                    "job_id",
+                                    JSONObject()
+                                        .put("type", "string")
+                                        .put("description", "Async job id returned when async=true. Use with read_async_result or close.")
+                                )
+                                .put(
+                                    "async",
+                                    JSONObject()
+                                        .put("type", "boolean")
+                                        .put("description", "Start command in a separate background shell and return immediately with job_id. Do not combine with session_id. Use read_async_result to stream output.")
+                                )
+                                .put(
+                                    "offset_chars",
+                                    JSONObject()
+                                        .put("type", "integer")
+                                        .put("description", "For read_async_result, read stdout from this character offset. Default 0.")
+                                )
+                                .put(
+                                    "max_chars",
+                                    JSONObject()
+                                        .put("type", "integer")
+                                        .put("description", "For read_async_result, maximum stdout characters to return. Default 8000, max 16000.")
+                                )
+                                .put(
+                                    "close_if_done",
+                                    JSONObject()
+                                        .put("type", "boolean")
+                                        .put("description", "For read_async_result, remove the async job when it has completed.")
+                                )
                         )
-                        .put("required", JSONArray().put("action").put("command"))
+                        .put("required", JSONArray().put("action"))
                 )
             )
             .put(
@@ -857,7 +901,11 @@ internal object AgentModelClient {
         when (this) {
             ProviderEvent.RequestStarted -> AgentEvent.ProviderRequestStarted(round)
             is ProviderEvent.ResponseHeaders -> AgentEvent.ProviderResponseStarted(round, httpCode)
-            is ProviderEvent.TextDelta -> AgentEvent.AssistantTextDelta(round, delta.length)
+            is ProviderEvent.TextDelta -> AgentEvent.AssistantTextDelta(
+                round = round,
+                deltaChars = delta.length,
+                delta = delta
+            )
             is ProviderEvent.ToolCallDelta -> AgentEvent.ProviderToolCallDelta(
                 round = round,
                 index = index,

@@ -6,6 +6,7 @@ libxposedService = "102.0.0"
 miuix = "0.9.2"
 activityCompose = "1.13.0"
 junit = "4.13.2"
+json = "20260522"
 
 [libraries]
 libxposed-api = { group = "io.github.libxposed", name = "api", version.ref = "libxposedApi" }
@@ -15,6 +16,7 @@ miuix-preference = { group = "top.yukonga.miuix.kmp", name = "miuix-preference",
 miuix-icons = { group = "top.yukonga.miuix.kmp", name = "miuix-icons", version.ref = "miuix" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+json = { group = "org.json", name = "json", version.ref = "json" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

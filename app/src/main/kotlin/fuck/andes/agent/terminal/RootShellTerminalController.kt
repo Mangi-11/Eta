@@ -5,6 +5,7 @@ import fuck.andes.core.AgentLogger
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import org.json.JSONArray
@@ -12,7 +13,7 @@ import org.json.JSONObject
 
 internal class RootShellTerminalController(
     private val logger: AgentLogger
-) {
+) : AutoCloseable {
     private companion object {
         const val DEFAULT_CWD = "/data/local/tmp/fuck_andes"
         const val USER_STORAGE = "/storage/emulated/0"
@@ -23,7 +24,11 @@ internal class RootShellTerminalController(
         const val MAX_READ_BYTES = 256 * 1024
         const val MAX_WRITE_BYTES = 512 * 1024
         const val MAX_LIST_ENTRIES = 200
+        const val MAX_ASYNC_OUTPUT_CHARS = 64_000
     }
+
+    private val sessions = linkedMapOf<String, TerminalSession>()
+    private val asyncJobs = linkedMapOf<String, AsyncCommand>()
 
     fun runCommand(command: String, cwd: String?, timeoutSeconds: Int): String {
         return runCommand(
@@ -55,6 +60,449 @@ internal class RootShellTerminalController(
         )
     }
 
+    fun terminalAction(
+        action: String,
+        command: String,
+        cwd: String?,
+        timeoutMs: Int,
+        identity: String,
+        mergeStderr: Boolean,
+        sessionId: String?,
+        jobId: String?,
+        async: Boolean,
+        offsetChars: Int,
+        maxChars: Int,
+        closeIfDone: Boolean
+    ): String {
+        return when (action.lowercase()) {
+            "open" -> openSession(identity = identity, cwd = cwd)
+            "exec" -> execInTerminal(
+                command = command,
+                cwd = cwd,
+                timeoutMs = timeoutMs,
+                identity = identity,
+                mergeStderr = mergeStderr,
+                sessionId = sessionId,
+                async = async
+            )
+            "open_and_exec" -> execInTerminal(
+                command = command,
+                cwd = cwd,
+                timeoutMs = timeoutMs,
+                identity = identity,
+                mergeStderr = mergeStderr,
+                sessionId = sessionId,
+                async = async
+            )
+            "read_async_result" -> readAsyncResult(
+                jobId = jobId.orEmpty(),
+                offsetChars = offsetChars,
+                maxChars = maxChars,
+                closeIfDone = closeIfDone
+            )
+            "close" -> closeTerminal(sessionId = sessionId, jobId = jobId)
+            else -> errorJson(
+                "UNSUPPORTED_TERMINAL_ACTION",
+                "terminal action 仅支持 open/exec/open_and_exec/read_async_result/close"
+            )
+        }
+    }
+
+    private fun openSession(identity: String, cwd: String?): String {
+        val normalizedIdentity = normalizeIdentity(identity.ifBlank { "root" })
+        val safeCwd = normalizeCwd(cwd)
+        val id = "term_" + UUID.randomUUID().toString().take(8)
+        val process = startSessionProcess(normalizedIdentity)
+            ?: return errorJson("PROCESS_START_FAILED", "无法启动 $normalizedIdentity terminal session")
+        val stdout = ByteArrayOutputCollector()
+        val stderr = ByteArrayOutputCollector()
+        val session = TerminalSession(
+            id = id,
+            identity = normalizedIdentity,
+            cwd = safeCwd,
+            createdAt = System.currentTimeMillis(),
+            process = process,
+            stdout = stdout,
+            stderr = stderr
+        )
+        session.stdoutThread = thread(name = "agent-terminal-session-stdout-$id", isDaemon = true) {
+            process.inputStream.use { input -> stdout.readFrom(input) }
+        }
+        session.stderrThread = thread(name = "agent-terminal-session-stderr-$id", isDaemon = true) {
+            process.errorStream.use { input -> stderr.readFrom(input) }
+        }
+        synchronized(sessions) {
+            sessions[id] = session
+        }
+
+        val mkdirDefault = if (safeCwd == DEFAULT_CWD) "mkdir -p ${shellQuote(DEFAULT_CWD)} && " else ""
+        val setup = "${mkdirDefault}cd ${shellQuote(safeCwd)} && export TERM=dumb NO_COLOR=1"
+        val setupResult = runSessionCommand(session, setup, timeoutMs = 5_000)
+        if (setupResult.exitCode != 0 || setupResult.timedOut) {
+            closeSession(id)
+            return errorJson("SESSION_OPEN_FAILED", setupResult.stderr.ifBlank { "exit=${setupResult.exitCode}" })
+        }
+        session.cwd = setupResult.cwd ?: safeCwd
+        session.stdout.clear()
+        session.stderr.clear()
+        return JSONObject()
+            .put("ok", true)
+            .put("tool", "terminal")
+            .put("action", "open")
+            .put("session_id", id)
+            .put("identity", normalizedIdentity)
+            .put("cwd", session.cwd)
+            .toString()
+    }
+
+    private fun execInTerminal(
+        command: String,
+        cwd: String?,
+        timeoutMs: Int,
+        identity: String,
+        mergeStderr: Boolean,
+        sessionId: String?,
+        async: Boolean
+    ): String {
+        val session = sessionId?.takeIf { it.isNotBlank() }?.let { id ->
+            synchronized(sessions) { sessions[id] }
+                ?: return errorJson("SESSION_NOT_FOUND", "未找到 terminal session：$id")
+        }
+        val effectiveIdentity = session?.identity ?: normalizeIdentity(identity.ifBlank { "root" })
+        val effectiveCwd = cwd?.takeIf { it.isNotBlank() } ?: session?.cwd
+        if (async) {
+            if (session != null) {
+                return errorJson(
+                    "ASYNC_SESSION_UNSUPPORTED",
+                    "async terminal job 不复用持久 session；请省略 session_id，并用 cwd/identity 启动后台命令"
+                )
+            }
+            return startAsyncCommand(
+                command = command,
+                cwd = effectiveCwd,
+                timeoutMs = timeoutMs,
+                identity = effectiveIdentity,
+                mergeStderr = mergeStderr,
+                sessionId = session?.id
+            )
+        }
+        if (session != null) {
+            return execInSession(
+                session = session,
+                command = command,
+                timeoutMs = timeoutMs,
+                mergeStderr = mergeStderr
+            )
+        }
+        val result = runCommand(
+            command = command,
+            cwd = effectiveCwd,
+            timeoutSeconds = ((timeoutMs.coerceIn(1, MAX_TIMEOUT_SECONDS * 1000) + 999) / 1000)
+                .coerceIn(1, MAX_TIMEOUT_SECONDS),
+            identity = effectiveIdentity,
+            mergeStderr = mergeStderr,
+            toolName = "terminal"
+        )
+        return result
+    }
+
+    private fun startAsyncCommand(
+        command: String,
+        cwd: String?,
+        timeoutMs: Int,
+        identity: String,
+        mergeStderr: Boolean,
+        sessionId: String?
+    ): String {
+        val trimmed = command.trim()
+        if (trimmed.isBlank()) return errorJson("INVALID_ARGUMENT", "command 不能为空")
+        require(trimmed.length <= MAX_COMMAND_CHARS) { "command 过长：${trimmed.length}" }
+        val normalizedIdentity = normalizeIdentity(identity)
+        val safeCwd = normalizeCwd(cwd)
+        val setup = if (safeCwd == DEFAULT_CWD) "mkdir -p ${shellQuote(DEFAULT_CWD)} && " else ""
+        val fullCommand = "${setup}cd ${shellQuote(safeCwd)} && export TERM=dumb NO_COLOR=1 && $trimmed"
+        val process = runCatching {
+            if (normalizedIdentity == "root") {
+                ProcessBuilder("su", "-c", fullCommand).redirectErrorStream(mergeStderr).start()
+            } else {
+                ProcessBuilder("sh", "-c", fullCommand).redirectErrorStream(mergeStderr).start()
+            }
+        }.getOrElse {
+            return errorJson("PROCESS_START_FAILED", it.message ?: it.javaClass.simpleName)
+        }
+        val id = "job_" + UUID.randomUUID().toString().take(8)
+        val stdout = ByteArrayOutputCollector()
+        val stderr = ByteArrayOutputCollector()
+        val job = AsyncCommand(
+            id = id,
+            process = process,
+            stdout = stdout,
+            stderr = stderr,
+            command = trimmed,
+            cwd = safeCwd,
+            identity = normalizedIdentity,
+            mergeStderr = mergeStderr,
+            sessionId = sessionId,
+            startedAt = System.currentTimeMillis(),
+            timeoutMs = timeoutMs.coerceIn(1_000, MAX_TIMEOUT_SECONDS * 1000)
+        )
+        job.stdoutThread = thread(name = "agent-terminal-async-stdout-$id", isDaemon = true) {
+            process.inputStream.use { input -> stdout.readFrom(input, MAX_ASYNC_OUTPUT_CHARS) }
+        }
+        job.stderrThread = thread(name = "agent-terminal-async-stderr-$id", isDaemon = true) {
+            process.errorStream.use { input -> stderr.readFrom(input, MAX_ASYNC_OUTPUT_CHARS) }
+        }
+        job.waiterThread = thread(name = "agent-terminal-async-waiter-$id", isDaemon = true) {
+            val finished = process.waitFor(job.timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+            if (!finished) {
+                job.timedOut = true
+                process.destroyForcibly()
+            }
+            job.exitCode = runCatching { process.exitValue() }.getOrDefault(-2)
+            job.completedAt = System.currentTimeMillis()
+        }
+        synchronized(asyncJobs) { asyncJobs[id] = job }
+        logger.info("Agent terminal async started: id=$id identity=$normalizedIdentity cwd=$safeCwd command=${trimmed.preview()}")
+        return JSONObject()
+            .put("ok", true)
+            .put("tool", "terminal")
+            .put("action", "open_and_exec")
+            .put("async", true)
+            .put("job_id", id)
+            .put("session_id", sessionId ?: JSONObject.NULL)
+            .put("identity", normalizedIdentity)
+            .put("cwd", safeCwd)
+            .put("running", true)
+            .toString()
+    }
+
+    private fun readAsyncResult(
+        jobId: String,
+        offsetChars: Int,
+        maxChars: Int,
+        closeIfDone: Boolean
+    ): String {
+        val job = synchronized(asyncJobs) { asyncJobs[jobId] }
+            ?: return errorJson("JOB_NOT_FOUND", "未找到 async terminal job：$jobId")
+        val stdoutRaw = job.stdout.text()
+        val stderrRaw = job.stderr.text()
+        val merged = stdoutRaw
+        val offset = offsetChars.coerceAtLeast(0).coerceAtMost(merged.length)
+        val limit = maxChars.coerceIn(1, MAX_OUTPUT_CHARS)
+        val slice = merged.substring(offset, (offset + limit).coerceAtMost(merged.length))
+        val done = job.exitCode != null
+        if (done && closeIfDone) {
+            synchronized(asyncJobs) { asyncJobs.remove(jobId) }?.let(::closeJob)
+        }
+        return JSONObject()
+            .put("ok", true)
+            .put("tool", "terminal")
+            .put("action", "read_async_result")
+            .put("job_id", job.id)
+            .put("session_id", job.sessionId ?: JSONObject.NULL)
+            .put("running", !done)
+            .put("exit_code", job.exitCode ?: JSONObject.NULL)
+            .put("timed_out", job.timedOut)
+            .put("stdout", slice)
+            .put("next_offset_chars", offset + slice.length)
+            .put("total_chars", merged.length)
+            .put("retained_chars", merged.length)
+            .put("stdout_total_bytes", job.stdout.totalBytesRead())
+            .put("stderr_total_bytes", job.stderr.totalBytesRead())
+            .put("truncated", offset + slice.length < merged.length)
+            .put("output_truncated", job.stdout.isTruncated() || job.stderr.isTruncated())
+            .put("stderr", if (job.mergeStderr) "" else stderrRaw.truncateForJson())
+            .put("stdout_truncated", job.stdout.isTruncated())
+            .put("stderr_truncated", !job.mergeStderr && job.stderr.isTruncated())
+            .toString()
+    }
+
+    private fun closeTerminal(sessionId: String?, jobId: String?): String {
+        var closedSession = false
+        var closedJob = false
+        sessionId?.takeIf { it.isNotBlank() }?.let { id ->
+            closedSession = closeSession(id)
+        }
+        jobId?.takeIf { it.isNotBlank() }?.let { id ->
+            closedJob = closeJob(id)
+        }
+        return JSONObject()
+            .put("ok", closedSession || closedJob)
+            .put("tool", "terminal")
+            .put("action", "close")
+            .put("closed_session", closedSession)
+            .put("closed_job", closedJob)
+            .toString()
+    }
+
+    override fun close() {
+        closeAll()
+    }
+
+    fun closeAll() {
+        val sessionIds = synchronized(sessions) { sessions.keys.toList() }
+        sessionIds.forEach(::closeSession)
+
+        val jobs = synchronized(asyncJobs) {
+            asyncJobs.values.toList().also { asyncJobs.clear() }
+        }
+        jobs.forEach(::closeJob)
+    }
+
+    private fun closeSession(id: String): Boolean {
+        val session = synchronized(sessions) { sessions.remove(id) } ?: return false
+        session.closed = true
+        runCatching { session.process.outputStream.close() }
+        if (session.process.isAlive) {
+            session.process.destroyForcibly()
+        }
+        runCatching { session.stdoutThread.join(500) }
+        runCatching { session.stderrThread.join(500) }
+        return true
+    }
+
+    private fun closeJob(id: String): Boolean {
+        val job = synchronized(asyncJobs) { asyncJobs.remove(id) } ?: return false
+        closeJob(job)
+        return true
+    }
+
+    private fun closeJob(job: AsyncCommand) {
+        if (job.exitCode == null && job.process.isAlive) {
+            job.process.destroyForcibly()
+        }
+        runCatching { job.stdoutThread.join(500) }
+        runCatching { job.stderrThread.join(500) }
+        runCatching { job.waiterThread.join(500) }
+    }
+
+    private fun execInSession(
+        session: TerminalSession,
+        command: String,
+        timeoutMs: Int,
+        mergeStderr: Boolean
+    ): String {
+        val trimmed = command.trim()
+        if (trimmed.isBlank()) return errorJson("INVALID_ARGUMENT", "command 不能为空")
+        require(trimmed.length <= MAX_COMMAND_CHARS) { "command 过长：${trimmed.length}" }
+        val timeout = timeoutMs.coerceIn(1_000, MAX_TIMEOUT_SECONDS * 1000)
+        logger.info("Agent terminal session exec: id=${session.id}, identity=${session.identity}, timeout=${timeout}ms, command=${trimmed.preview()}")
+        val result = runSessionCommand(session, trimmed, timeout)
+        if (result.cwd != null) session.cwd = result.cwd
+        if (result.timedOut) {
+            closeSession(session.id)
+        }
+        val rawStdout = if (mergeStderr && result.stderr.isNotBlank()) {
+            result.stdout + "\n[stderr]\n" + result.stderr
+        } else {
+            result.stdout
+        }
+        val stdout = rawStdout.truncateForJson()
+        val stderr = if (mergeStderr) "" else result.stderr.truncateForJson()
+        return JSONObject()
+            .put("ok", result.exitCode == 0)
+            .put("tool", "terminal")
+            .put("action", "exec")
+            .put("session_id", session.id)
+            .put("identity", session.identity)
+            .put("cwd", session.cwd)
+            .put("exit_code", result.exitCode)
+            .put("timed_out", result.timedOut)
+            .put("stdout", stdout)
+            .put("stderr", stderr)
+            .put("stdout_truncated", rawStdout.length > stdout.length)
+            .put("stderr_truncated", !mergeStderr && result.stderr.length > stderr.length)
+            .put("session_closed", result.timedOut || session.closed)
+            .toString()
+    }
+
+    private fun runSessionCommand(
+        session: TerminalSession,
+        command: String,
+        timeoutMs: Int
+    ): SessionCommandResult {
+        synchronized(session.lock) {
+            if (session.closed || !session.process.isAlive) {
+                return SessionCommandResult(
+                    exitCode = -1,
+                    stdout = "",
+                    stderr = "terminal session 已关闭",
+                    cwd = session.cwd,
+                    timedOut = false
+                )
+            }
+            val marker = "__ANDES_STATUS_${UUID.randomUUID().toString().replace("-", "")}"
+            val stdoutStart = session.stdout.text().length
+            val stderrStart = session.stderr.text().length
+            val commandBlock = buildString {
+                append(command)
+                append('\n')
+                append("printf '\\n$marker:%s:%s\\n' \"${'$'}?\" \"${'$'}PWD\"")
+                append('\n')
+            }
+            runCatching {
+                session.process.outputStream.write(commandBlock.toByteArray(Charsets.UTF_8))
+                session.process.outputStream.flush()
+            }.getOrElse {
+                session.closed = true
+                return SessionCommandResult(
+                    exitCode = -1,
+                    stdout = session.stdout.text().drop(stdoutStart).trimEnd(),
+                    stderr = it.message ?: it.javaClass.simpleName,
+                    cwd = session.cwd,
+                    timedOut = false
+                )
+            }
+
+            val deadline = System.currentTimeMillis() + timeoutMs.coerceIn(1_000, MAX_TIMEOUT_SECONDS * 1000)
+            while (System.currentTimeMillis() < deadline) {
+                val stdoutDelta = session.stdout.text().drop(stdoutStart)
+                if (session.closed || !session.process.isAlive) {
+                    return SessionCommandResult(
+                        exitCode = -1,
+                        stdout = stdoutDelta.trimEnd(),
+                        stderr = session.stderr.text().drop(stderrStart).ifBlank { "terminal session 已关闭" }.trimEnd(),
+                        cwd = session.cwd,
+                        timedOut = false
+                    )
+                }
+                val statusLine = stdoutDelta.lineSequence().firstOrNull { it.startsWith("$marker:") }
+                if (statusLine != null) {
+                    val status = statusLine.removePrefix("$marker:")
+                    val separator = status.indexOf(':')
+                    val exitCode = if (separator > 0) status.take(separator).toIntOrNull() ?: -1 else -1
+                    val cwd = if (separator > 0) status.drop(separator + 1).ifBlank { session.cwd } else session.cwd
+                    val cleanedStdout = stdoutDelta
+                        .lineSequence()
+                        .filterNot { it.startsWith("$marker:") }
+                        .joinToString("\n")
+                        .trimEnd()
+                    val stderrDelta = session.stderr.text().drop(stderrStart).trimEnd()
+                    session.stdout.clear()
+                    session.stderr.clear()
+                    return SessionCommandResult(
+                        exitCode = exitCode,
+                        stdout = cleanedStdout,
+                        stderr = stderrDelta,
+                        cwd = cwd,
+                        timedOut = false
+                    )
+                }
+                Thread.sleep(50)
+            }
+
+            session.closed = true
+            if (session.process.isAlive) session.process.destroyForcibly()
+            return SessionCommandResult(
+                exitCode = -2,
+                stdout = session.stdout.text().drop(stdoutStart).trimEnd(),
+                stderr = session.stderr.text().drop(stderrStart).ifBlank { "命令执行超时" }.trimEnd(),
+                cwd = session.cwd,
+                timedOut = true
+            )
+        }
+    }
+
     private fun runCommand(
         command: String,
         cwd: String?,
@@ -66,10 +514,7 @@ internal class RootShellTerminalController(
         val trimmed = command.trim()
         if (trimmed.isBlank()) return errorJson("INVALID_ARGUMENT", "command 不能为空")
         require(trimmed.length <= MAX_COMMAND_CHARS) { "command 过长：${trimmed.length}" }
-        val normalizedIdentity = identity.lowercase()
-        require(normalizedIdentity == "root" || normalizedIdentity == "user") {
-            "identity 仅支持 root/user"
-        }
+        val normalizedIdentity = normalizeIdentity(identity)
         val safeCwd = normalizeCwd(cwd)
         val timeout = timeoutSeconds.coerceIn(1, MAX_TIMEOUT_SECONDS)
         val setup = if (safeCwd == DEFAULT_CWD) "mkdir -p ${shellQuote(DEFAULT_CWD)} && " else ""
@@ -163,6 +608,14 @@ internal class RootShellTerminalController(
             .toString()
     }
 
+    private fun normalizeIdentity(identity: String): String {
+        val normalized = identity.ifBlank { "root" }.lowercase()
+        require(normalized == "root" || normalized == "user") {
+            "identity 仅支持 root/user"
+        }
+        return normalized
+    }
+
     private fun normalizeCwd(cwd: String?): String =
         normalizePath(cwd?.trim().orEmpty().ifBlank { DEFAULT_CWD })
 
@@ -179,6 +632,15 @@ internal class RootShellTerminalController(
         require(normalized != "/") { "拒绝直接操作根目录" }
         return normalized
     }
+
+    private fun startSessionProcess(identity: String): Process? =
+        runCatching {
+            if (identity == "root") {
+                ProcessBuilder("su", "-c", "sh").redirectErrorStream(false).start()
+            } else {
+                ProcessBuilder("sh").redirectErrorStream(false).start()
+            }
+        }.getOrNull()
 
     private fun runSuText(command: String, timeoutSeconds: Long): ShellTextResult {
         val result = runProcess(timeoutSeconds, stdin = null, "su", "-c", command)
@@ -273,23 +735,100 @@ internal class RootShellTerminalController(
     private data class ShellTextResult(val exitCode: Int, val output: String, val stderr: String)
     private data class ShellBytesResult(val exitCode: Int, val output: ByteArray, val stderr: String)
     private data class ProcessBytesResult(val exitCode: Int, val output: ByteArray, val stderr: ByteArray)
+    private data class SessionCommandResult(
+        val exitCode: Int,
+        val stdout: String,
+        val stderr: String,
+        val cwd: String?,
+        val timedOut: Boolean
+    )
+
+    private class TerminalSession(
+        val id: String,
+        val identity: String,
+        var cwd: String,
+        val createdAt: Long,
+        val process: Process,
+        val stdout: ByteArrayOutputCollector,
+        val stderr: ByteArrayOutputCollector
+    ) {
+        val lock = Any()
+
+        @Volatile
+        var closed: Boolean = false
+
+        lateinit var stdoutThread: Thread
+        lateinit var stderrThread: Thread
+    }
+
+    private class AsyncCommand(
+        val id: String,
+        val process: Process,
+        val stdout: ByteArrayOutputCollector,
+        val stderr: ByteArrayOutputCollector,
+        val command: String,
+        val cwd: String,
+        val identity: String,
+        val mergeStderr: Boolean,
+        val sessionId: String?,
+        val startedAt: Long,
+        val timeoutMs: Int
+    ) {
+        @Volatile
+        var exitCode: Int? = null
+
+        @Volatile
+        var timedOut: Boolean = false
+
+        @Volatile
+        var completedAt: Long? = null
+
+        lateinit var stdoutThread: Thread
+        lateinit var stderrThread: Thread
+        lateinit var waiterThread: Thread
+    }
 
     private class ByteArrayOutputCollector {
         private val output = ByteArrayOutputStream()
+        private var totalBytesRead = 0L
+        private var truncated = false
 
-        fun readFrom(input: java.io.InputStream) {
+        fun readFrom(input: java.io.InputStream, maxBytes: Int = Int.MAX_VALUE) {
             runCatching {
                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                 while (true) {
                     val read = input.read(buffer)
                     if (read < 0) break
-                    output.write(buffer, 0, read)
+                    synchronized(this) {
+                        totalBytesRead += read.toLong()
+                        val allowed = (maxBytes - output.size()).coerceAtLeast(0)
+                        if (allowed > 0) {
+                            output.write(buffer, 0, read.coerceAtMost(allowed))
+                        }
+                        if (read > allowed) {
+                            truncated = true
+                        }
+                    }
                 }
             }.onFailure { throwable ->
                 if (throwable !is IOException) throw throwable
             }
         }
 
-        fun bytes(): ByteArray = output.toByteArray()
+        fun bytes(): ByteArray = synchronized(this) { output.toByteArray() }
+
+        fun text(): String = bytes().decodeToString()
+
+        fun totalBytesRead(): Long = synchronized(this) { totalBytesRead }
+
+        fun isTruncated(): Boolean = synchronized(this) { truncated }
+
+        fun clear() {
+            synchronized(this) {
+                output.reset()
+                totalBytesRead = 0
+                truncated = false
+            }
+        }
     }
 }

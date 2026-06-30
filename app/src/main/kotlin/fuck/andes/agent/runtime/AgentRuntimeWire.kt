@@ -235,6 +235,7 @@ internal object AgentRuntimeWire {
                 putString(KEY_TYPE, "assistant_text_delta")
                 putInt("round", event.round)
                 putInt("delta_chars", event.deltaChars)
+                putString("delta", event.delta)
             }
 
             is AgentEvent.ProviderToolCallDelta -> {
@@ -315,6 +316,7 @@ internal object AgentRuntimeWire {
         "assistant_text_delta" -> AgentEvent.AssistantTextDelta(
             round = bundle.getInt("round"),
             deltaChars = bundle.getInt("delta_chars"),
+            delta = bundle.getString("delta").orEmpty(),
         )
 
         "provider_tool_call_delta" -> AgentEvent.ProviderToolCallDelta(

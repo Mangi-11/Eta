@@ -31,6 +31,7 @@ internal fun AgentOverlayState.applyEvent(event: AgentEvent): AgentOverlayState 
     is AgentEvent.RunStarted -> copy(
         phase = AgentOverlayPhase.RUNNING,
         statusText = "准备工具：${event.toolCount} 个",
+        detailText = "",
     )
 
     is AgentEvent.RoundStarted -> copy(
@@ -51,11 +52,7 @@ internal fun AgentOverlayState.applyEvent(event: AgentEvent): AgentOverlayState 
         statusText = "模型已响应",
     )
 
-    is AgentEvent.AssistantTextDelta -> copy(
-        phase = AgentOverlayPhase.RUNNING,
-        round = event.round,
-        statusText = "正在生成回答",
-    )
+    is AgentEvent.AssistantTextDelta -> appendStreamingText(event)
 
     is AgentEvent.ProviderToolCallDelta -> copy(
         phase = AgentOverlayPhase.RUNNING,
@@ -136,4 +133,18 @@ private fun String.toToolLabel(): String = when (this) {
     "write_file" -> "写入文件"
     "list_directory" -> "列出目录"
     else -> this
+}
+
+private const val MaxStreamingPreviewChars = 320
+
+private fun AgentOverlayState.appendStreamingText(event: AgentEvent.AssistantTextDelta): AgentOverlayState {
+    val nextPreview = (detailText + event.delta)
+        .trimStart()
+        .takeLast(MaxStreamingPreviewChars)
+    return copy(
+        phase = AgentOverlayPhase.RUNNING,
+        round = event.round,
+        statusText = "正在生成回答",
+        detailText = nextPreview,
+    )
 }

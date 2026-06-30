@@ -55,6 +55,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     private val serviceMessenger = Messenger(IncomingHandler())
 
     private var clientMessenger: Messenger? = null
+    @Volatile
     private var activeRunController: AgentRunController? = null
 
     private var windowManager: WindowManager? = null
@@ -154,66 +155,85 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         ensureOverlayVisible()
 
         thread(name = "agent-runtime") {
-            runCatching {
-                val response = AgentModelClient.complete(
-                    config = request.config,
-                    prompt = request.prompt,
-                    toolExecutor = AgentLocalTools(
-                        logger = AndroidAgentLogger,
-                        terminalToolsEnabled = request.config.terminalTools
-                    ),
-                    images = request.images,
-                    runController = runController
-                ) { event ->
-                    AndroidAgentLogger.info("Agent runtime event: ${event.toLogLine()}")
-                    sendEvent(event)
+            val toolExecutor = AgentLocalTools(
+                logger = AndroidAgentLogger,
+                terminalToolsEnabled = request.config.terminalTools
+            )
+            val toolsBinding = runController.register { toolExecutor.close() }
+            try {
+                runCatching {
+                    val response = AgentModelClient.complete(
+                        config = request.config,
+                        prompt = request.prompt,
+                        toolExecutor = toolExecutor,
+                        images = request.images,
+                        runController = runController
+                    ) { event ->
+                        if (activeRunController == runController) {
+                            AndroidAgentLogger.info("Agent runtime event: ${event.toLogLine()}")
+                            sendEvent(event)
+                            mainHandler.post {
+                                if (activeRunController == runController) {
+                                    state.value = state.value.applyEvent(event)
+                                    ensureOverlayVisible()
+                                }
+                            }
+                        }
+                    }
+                    val result = AgentRuntimeWire.RunResult(
+                        runId = request.runId,
+                        ok = true,
+                        content = response.content
+                    )
+                    persistCompletedRun(request, result)
+                    if (activeRunController == runController) {
+                        sendResult(result)
+                    }
                     mainHandler.post {
-                        state.value = state.value.applyEvent(event)
-                        ensureOverlayVisible()
+                        if (activeRunController != runController) return@post
+                        activeRunController = null
+                        enterFinalState(
+                            state.value.copy(
+                                phase = AgentOverlayPhase.FINISHED,
+                                statusText = "已返回结果"
+                            )
+                        )
+                    }
+                }.getOrElse { throwable ->
+                    val message = if (throwable is AgentRunCancelledException) {
+                        "已停止"
+                    } else {
+                        throwable.message ?: throwable.javaClass.simpleName
+                    }
+                    AndroidAgentLogger.error("Agent runtime failed: $message", throwable)
+                    if (activeRunController == runController) {
+                        sendEvent(AgentEvent.RunFailed(message))
+                    }
+                    val result = AgentRuntimeWire.RunResult(
+                        runId = request.runId,
+                        ok = false,
+                        content = "",
+                        error = message
+                    )
+                    persistCompletedRun(request, result)
+                    if (activeRunController == runController) {
+                        sendResult(result)
+                    }
+                    mainHandler.post {
+                        if (activeRunController != runController) return@post
+                        activeRunController = null
+                        enterFinalState(
+                            AgentOverlayState(
+                                phase = AgentOverlayPhase.FAILED,
+                                statusText = "调用失败",
+                                detailText = message
+                            )
+                        )
                     }
                 }
-                val result = AgentRuntimeWire.RunResult(
-                    runId = request.runId,
-                    ok = true,
-                    content = response.content
-                )
-                persistCompletedRun(request, result)
-                sendResult(result)
-                mainHandler.post {
-                    activeRunController = null
-                    enterFinalState(
-                        state.value.copy(
-                            phase = AgentOverlayPhase.FINISHED,
-                            statusText = "已返回结果"
-                        )
-                    )
-                }
-            }.getOrElse { throwable ->
-                val message = if (throwable is AgentRunCancelledException) {
-                    "已停止"
-                } else {
-                    throwable.message ?: throwable.javaClass.simpleName
-                }
-                AndroidAgentLogger.error("Agent runtime failed: $message", throwable)
-                sendEvent(AgentEvent.RunFailed(message))
-                val result = AgentRuntimeWire.RunResult(
-                    runId = request.runId,
-                    ok = false,
-                    content = "",
-                    error = message
-                )
-                persistCompletedRun(request, result)
-                sendResult(result)
-                mainHandler.post {
-                    activeRunController = null
-                    enterFinalState(
-                        AgentOverlayState(
-                            phase = AgentOverlayPhase.FAILED,
-                            statusText = "调用失败",
-                            detailText = message
-                        )
-                    )
-                }
+            } finally {
+                toolsBinding.close()
+                toolExecutor.close()
             }
         }
     }

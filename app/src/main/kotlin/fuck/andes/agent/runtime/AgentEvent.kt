@@ -38,7 +38,8 @@ internal sealed interface AgentEvent {
 
     data class AssistantTextDelta(
         val round: Int,
-        val deltaChars: Int
+        val deltaChars: Int,
+        val delta: String
     ) : AgentEvent {
         override fun toLogLine(): String =
             "assistant_text_delta round=$round, chars=$deltaChars"

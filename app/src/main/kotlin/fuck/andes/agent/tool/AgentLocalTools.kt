@@ -20,12 +20,16 @@ import org.json.JSONObject
 internal class AgentLocalTools(
     private val logger: AgentLogger,
     private val terminalToolsEnabled: Boolean = Prefs.isEnabled(Prefs.Keys.AGENT_TERMINAL_TOOLS)
-) : AgentModelClient.ToolExecutor {
+) : AgentModelClient.ToolExecutor, AutoCloseable {
 
     private val deviceController = RootShellDeviceController(logger)
     private val terminalController = RootShellTerminalController(logger)
     private var lastUiNodes: List<RootShellDeviceController.UiNode> = emptyList()
     private var lastCoordinateSpace: RootShellDeviceController.CoordinateSpace? = null
+
+    override fun close() {
+        terminalController.closeAll()
+    }
 
     override fun execute(toolCall: AgentModelClient.ToolCall): AgentModelClient.ToolResult =
         runCatching {
@@ -316,19 +320,19 @@ internal class AgentLocalTools(
         )
 
     private fun terminal(args: JSONObject): String {
-        val action = args.optString("action").lowercase()
-        if (action != "open_and_exec") {
-            return errorResult(
-                "UNSUPPORTED_TERMINAL_ACTION",
-                "当前 terminal 工具先支持 open_and_exec；请用 {\"action\":\"open_and_exec\",\"identity\":\"root\",\"command\":\"pwd\"}"
-            )
-        }
-        return terminalController.terminalOpenAndExec(
+        return terminalController.terminalAction(
+            action = args.optString("action", "open_and_exec"),
             command = args.optString("command"),
             cwd = args.optString("cwd").ifBlank { null },
             timeoutMs = args.optInt("timeout_ms", 30_000),
             identity = args.optString("identity", "root"),
-            mergeStderr = args.optBoolean("merge_stderr", false)
+            mergeStderr = args.optBoolean("merge_stderr", false),
+            sessionId = args.optString("session_id").ifBlank { null },
+            jobId = args.optString("job_id").ifBlank { null },
+            async = args.optBoolean("async", false),
+            offsetChars = args.optInt("offset_chars", 0),
+            maxChars = args.optInt("max_chars", 8_000),
+            closeIfDone = args.optBoolean("close_if_done", false)
         )
     }
 
