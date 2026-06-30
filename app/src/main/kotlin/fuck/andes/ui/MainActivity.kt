@@ -4,11 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.runtime.Composable
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.darkColorScheme
-import top.yukonga.miuix.kmp.theme.lightColorScheme
+import fuck.andes.ui.app.AgentAppRoot
+import fuck.andes.ui.app.AgentAppTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -16,15 +13,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AppTheme {
-                SettingsScreen(context = this)
+            AgentAppTheme {
+                AgentAppRoot()
             }
         }
     }
-}
-
-@Composable
-private fun AppTheme(content: @Composable () -> Unit) {
-    val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
-    MiuixTheme(colors = colors, content = content)
 }
