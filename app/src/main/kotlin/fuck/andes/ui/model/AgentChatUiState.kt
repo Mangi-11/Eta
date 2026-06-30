@@ -1,0 +1,61 @@
+package fuck.andes.ui.model
+
+import androidx.compose.runtime.Immutable
+
+@Immutable
+data class AgentChatUiState(
+    val messages: List<AgentChatMessageUi>,
+    val input: String,
+    val isStreaming: Boolean,
+)
+
+@Immutable
+sealed interface AgentChatMessageUi {
+    val id: String
+}
+
+@Immutable
+data class UserMessageUi(
+    override val id: String,
+    val content: String,
+) : AgentChatMessageUi
+
+@Immutable
+data class AgentMessageUi(
+    override val id: String,
+    val content: String,
+    val isStreaming: Boolean = false,
+) : AgentChatMessageUi
+
+/**
+ * 首页的 Run trace 入口卡片：展示 Agent 当前可调用的能力分组。
+ */
+@Immutable
+data class RunTraceMessageUi(
+    override val id: String,
+    val capabilities: List<CapabilityUi>,
+) : AgentChatMessageUi
+
+@Immutable
+data class CapabilityUi(
+    val title: String,
+    val items: List<String>,
+)
+
+/**
+ * 工具调用摘要：出现在消息流中，显示当前/最近一步调用了哪些工具。
+ */
+@Immutable
+data class ToolSummaryMessageUi(
+    override val id: String,
+    val tools: List<String>,
+) : AgentChatMessageUi
+
+/**
+ * 建议语 chip 行。
+ */
+@Immutable
+data class SuggestionChipsMessageUi(
+    override val id: String,
+    val prompts: List<String>,
+) : AgentChatMessageUi
