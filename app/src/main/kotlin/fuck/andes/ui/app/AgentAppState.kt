@@ -3,7 +3,6 @@ package fuck.andes.ui.app
 import android.content.ComponentName
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.SystemClock
 import android.provider.Settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,7 +38,6 @@ import fuck.andes.ui.model.SystemEnhanceStatusUi
 import fuck.andes.ui.model.ThinkingMessageUi
 import fuck.andes.ui.model.TokenUsageUi
 import fuck.andes.ui.model.ToolActivityMessageUi
-import fuck.andes.ui.model.ToolActivityStatusUi
 import fuck.andes.ui.model.ToolGroupUi
 import fuck.andes.ui.model.ToolItemUi
 import fuck.andes.ui.model.UserMessageUi
@@ -58,9 +56,8 @@ internal class AgentAppState(
 ) {
     private val appContext = context.applicationContext
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-    private val runToolCounts = mutableMapOf<String, Int>()
     private val runConversationIds = mutableMapOf<String, String>()
-    private val runThinkingStartedAt = mutableMapOf<String, Long>()
+    private val runMessageProjector = AgentRunMessageProjector()
     private var currentRunId: String? = null
     private var currentRunJob: kotlinx.coroutines.Job? = null
     private val defaultThinkingEnabled = loadModelConfigForUi().thinkingEnabled
@@ -233,7 +230,6 @@ internal class AgentAppState(
             ?: prompt.lineSequence().firstOrNull().orEmpty().trim().take(MAX_TITLE_CHARS).ifBlank { "新对话" }
 
         conversationTitles = conversationTitles + (selectedConversationId to title)
-        runToolCounts[runId] = 0
         runConversationIds[runId] = conversationId
         currentRunId = runId
 
@@ -307,8 +303,10 @@ internal class AgentAppState(
         scope.launch(Dispatchers.IO) {
             AgentRuntimeClient(appContext, AndroidAgentLogger).cancelRun(runId)
         }
-        finalizeThinking(runId)
-        markRunningToolsFailed(runId, "已停止")
+        updateRunTrace(runId) { messages ->
+            val finalized = runMessageProjector.finalizeThinking(runId, messages)
+            runMessageProjector.failRunningTools("已停止", finalized)
+        }
         replaceAssistantMessage(
             runId = runId,
             content = currentAssistantContent(runId).ifBlank { "已停止" },
@@ -316,6 +314,7 @@ internal class AgentAppState(
             renderMarkdown = false,
         )
         setConversationStreaming(runId, false)
+        runMessageProjector.clearRun(runId)
         refreshConversationSummaries()
         persistConversations()
     }
@@ -383,7 +382,9 @@ internal class AgentAppState(
             }
 
             is AgentEvent.AssistantReasoningDelta -> {
-                appendReasoningDelta(runId, event.delta)
+                updateRunTrace(runId) { messages ->
+                    runMessageProjector.appendReasoningDelta(runId, event.round, event.delta, messages)
+                }
             }
 
             is AgentEvent.UsageReceived -> {
@@ -391,37 +392,42 @@ internal class AgentAppState(
             }
 
             is AgentEvent.ToolStarted -> {
-                val count = (runToolCounts[runId] ?: 0) + 1
-                runToolCounts[runId] = count
-                appendMessageOnce(
-                    runId,
-                    ToolActivityMessageUi(
-                        id = "$runId-tool-$count",
-                        toolName = event.name,
-                        status = ToolActivityStatusUi.Running,
-                        argumentsSummary = event.argsPreview,
-                    )
-                )
-                refreshConversationSummaries()
+                updateRunTrace(runId) { messages ->
+                    val finalized = runMessageProjector.finalizeThinkingRound(runId, event.round, messages)
+                    runMessageProjector.startTool(runId, event, finalized)
+                }
             }
 
             is AgentEvent.ToolFinished -> {
-                updateToolActivityFinished(runId, event)
+                updateRunTrace(runId) { messages ->
+                    runMessageProjector.finishTool(runId, event, messages)
+                }
             }
 
             is AgentEvent.RunFailed -> {
-                finalizeThinking(runId)
-                markRunningToolsFailed(runId, event.reason)
+                updateRunTrace(runId) { messages ->
+                    val finalized = runMessageProjector.finalizeThinking(runId, messages)
+                    runMessageProjector.failRunningTools(event.reason, finalized)
+                }
             }
 
             is AgentEvent.AssistantReceived -> {
                 if (event.reasoningContent.isNotBlank()) {
-                    ensureCompletedThinking(runId, event.reasoningContent)
+                    updateRunTrace(runId) { messages ->
+                        runMessageProjector.ensureCompletedThinking(
+                            runId = runId,
+                            round = event.round,
+                            content = event.reasoningContent,
+                            messages = messages,
+                        )
+                    }
                 }
             }
 
             is AgentEvent.RunFinished -> {
-                finalizeThinking(runId)
+                updateRunTrace(runId) { messages ->
+                    runMessageProjector.finalizeThinking(runId, messages)
+                }
             }
 
             is AgentEvent.RunStarted,
@@ -451,6 +457,7 @@ internal class AgentAppState(
             renderMarkdown = result.ok,
         )
         setConversationStreaming(runId, false)
+        runMessageProjector.clearRun(runId)
         refreshConversationSummaries()
         persistConversations()
     }
@@ -466,90 +473,12 @@ internal class AgentAppState(
         refreshConversationSummaries()
     }
 
-    private fun appendReasoningDelta(runId: String, delta: String) {
-        if (delta.isEmpty()) return
-        val startedAt = runThinkingStartedAt.getOrPut(runId) { SystemClock.elapsedRealtime() }
-        val elapsedSeconds = ((SystemClock.elapsedRealtime() - startedAt) / 1000).toInt().coerceAtLeast(0)
-        val thinkingId = "$runId-thinking"
-        var updated = false
-        updateMessages(runId) { messages ->
-            val next = messages.map { message ->
-                if (message is ThinkingMessageUi && message.id == thinkingId) {
-                    updated = true
-                    message.copy(
-                        content = message.content + delta,
-                        isStreaming = true,
-                        elapsedSeconds = elapsedSeconds,
-                        collapsed = false,
-                    )
-                } else {
-                    message
-                }
-            }
-            if (updated) {
-                next
-            } else {
-                val assistantIndex = next.indexOfFirst { it is AgentMessageUi && it.id == "assistant-$runId" }
-                val thinkingMessage = ThinkingMessageUi(
-                    id = thinkingId,
-                    content = delta,
-                    isStreaming = true,
-                    elapsedSeconds = elapsedSeconds,
-                    collapsed = false,
-                )
-                if (assistantIndex >= 0) {
-                    next.toMutableList().apply { add(assistantIndex, thinkingMessage) }
-                } else {
-                    next + thinkingMessage
-                }
-            }
-        }
+    private fun updateRunTrace(
+        runId: String,
+        transform: (List<AgentChatMessageUi>) -> List<AgentChatMessageUi>,
+    ) {
+        updateMessages(runId, transform)
         refreshConversationSummaries()
-    }
-
-    private fun ensureCompletedThinking(runId: String, content: String) {
-        val thinkingId = "$runId-thinking"
-        if (conversationStateForRun(runId).messages.any { it is ThinkingMessageUi && it.id == thinkingId }) {
-            finalizeThinking(runId)
-            return
-        }
-        val startedAt = runThinkingStartedAt.getOrPut(runId) { SystemClock.elapsedRealtime() }
-        val elapsedSeconds = ((SystemClock.elapsedRealtime() - startedAt) / 1000).toInt().coerceAtLeast(0)
-        updateMessages(runId) { messages ->
-            val assistantIndex = messages.indexOfFirst { it is AgentMessageUi && it.id == "assistant-$runId" }
-            val thinkingMessage = ThinkingMessageUi(
-                id = thinkingId,
-                content = content,
-                isStreaming = false,
-                elapsedSeconds = elapsedSeconds,
-                collapsed = true,
-            )
-            if (assistantIndex >= 0) {
-                messages.toMutableList().apply { add(assistantIndex, thinkingMessage) }
-            } else {
-                messages + thinkingMessage
-            }
-        }
-    }
-
-    private fun finalizeThinking(runId: String) {
-        val startedAt = runThinkingStartedAt[runId]
-        updateMessages(runId) { messages ->
-            messages.map { message ->
-                if (message is ThinkingMessageUi && message.id == "$runId-thinking") {
-                    val elapsedSeconds = startedAt?.let {
-                        ((SystemClock.elapsedRealtime() - it) / 1000).toInt().coerceAtLeast(0)
-                    } ?: message.elapsedSeconds
-                    message.copy(
-                        isStreaming = false,
-                        elapsedSeconds = elapsedSeconds,
-                        collapsed = true,
-                    )
-                } else {
-                    message
-                }
-            }
-        }
     }
 
     private fun updateAssistantUsage(runId: String, usage: TokenUsageUi) {
@@ -560,48 +489,6 @@ internal class AgentAppState(
             isStreaming = true,
             usage = usage,
         )
-    }
-
-    private fun updateToolActivityFinished(runId: String, event: AgentEvent.ToolFinished) {
-        val status = if (event.resultSummary.contains("ok=false", ignoreCase = true)) {
-            ToolActivityStatusUi.Failed
-        } else {
-            ToolActivityStatusUi.Success
-        }
-        updateMessages(runId) { messages ->
-            val targetIndex = messages.indexOfLast {
-                it is ToolActivityMessageUi &&
-                    it.toolName == event.name &&
-                    it.status == ToolActivityStatusUi.Running
-            }
-            if (targetIndex < 0) return@updateMessages messages
-            messages.mapIndexed { index, message ->
-                if (index == targetIndex && message is ToolActivityMessageUi) {
-                    message.copy(
-                        status = status,
-                        resultSummary = event.resultSummary,
-                        imageCount = event.imageCount,
-                    )
-                } else {
-                    message
-                }
-            }
-        }
-    }
-
-    private fun markRunningToolsFailed(runId: String, reason: String) {
-        updateMessages(runId) { messages ->
-            messages.map { message ->
-                if (message is ToolActivityMessageUi && message.status == ToolActivityStatusUi.Running) {
-                    message.copy(
-                        status = ToolActivityStatusUi.Failed,
-                        resultSummary = reason.take(MAX_PREVIEW_CHARS),
-                    )
-                } else {
-                    message
-                }
-            }
-        }
     }
 
     private fun currentAssistantContent(runId: String): String =
@@ -632,12 +519,6 @@ internal class AgentAppState(
                 }
             }
         }
-    }
-
-    private fun appendMessageOnce(runId: String, message: AgentChatMessageUi) {
-        val state = conversationStateForRun(runId)
-        if (state.messages.any { it.id == message.id }) return
-        updateMessages(runId) { it + message }
     }
 
     private fun updateMessages(

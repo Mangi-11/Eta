@@ -84,22 +84,24 @@ internal sealed interface AgentEvent {
 
     data class ToolStarted(
         val round: Int,
+        val toolCallId: String,
         val name: String,
         val argsPreview: String
     ) : AgentEvent {
         override fun toLogLine(): String =
-            "tool_started round=$round, name=$name, args=$argsPreview"
+            "tool_started round=$round, id=$toolCallId, name=$name, args=$argsPreview"
     }
 
     data class ToolFinished(
         val round: Int,
+        val toolCallId: String,
         val name: String,
         val resultSummary: String,
         val imageCount: Int,
         val imageBytes: Int
     ) : AgentEvent {
         override fun toLogLine(): String =
-            "tool_finished round=$round, name=$name, $resultSummary, images=$imageCount, image_bytes=$imageBytes"
+            "tool_finished round=$round, id=$toolCallId, name=$name, $resultSummary, images=$imageCount, image_bytes=$imageBytes"
     }
 
     data class ToolImagesAttached(

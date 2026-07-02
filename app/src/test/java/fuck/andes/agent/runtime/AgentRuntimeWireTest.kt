@@ -80,6 +80,20 @@ class AgentRuntimeWireTest {
                     cachedTokens = 900,
                 ),
             ),
+            AgentEvent.ToolStarted(
+                round = 2,
+                toolCallId = "call_abc",
+                name = "observe_screen",
+                argsPreview = """{"include_screenshot":true}""",
+            ),
+            AgentEvent.ToolFinished(
+                round = 2,
+                toolCallId = "call_abc",
+                name = "observe_screen",
+                resultSummary = "ok=true, chars=120",
+                imageCount = 1,
+                imageBytes = 2048,
+            ),
         )
 
         events.forEach { event ->

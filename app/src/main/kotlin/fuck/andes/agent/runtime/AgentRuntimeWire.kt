@@ -294,6 +294,7 @@ internal object AgentRuntimeWire {
             is AgentEvent.ToolStarted -> {
                 putString(KEY_TYPE, "tool_started")
                 putInt("round", event.round)
+                putString("tool_call_id", event.toolCallId)
                 putString("name", event.name)
                 putString("args_preview", event.argsPreview)
             }
@@ -301,6 +302,7 @@ internal object AgentRuntimeWire {
             is AgentEvent.ToolFinished -> {
                 putString(KEY_TYPE, "tool_finished")
                 putInt("round", event.round)
+                putString("tool_call_id", event.toolCallId)
                 putString("name", event.name)
                 putString("result_summary", event.resultSummary)
                 putInt("image_count", event.imageCount)
@@ -384,12 +386,14 @@ internal object AgentRuntimeWire {
 
         "tool_started" -> AgentEvent.ToolStarted(
             round = bundle.getInt("round"),
+            toolCallId = bundle.getString("tool_call_id").orEmpty(),
             name = bundle.getString("name").orEmpty(),
             argsPreview = bundle.getString("args_preview").orEmpty(),
         )
 
         "tool_finished" -> AgentEvent.ToolFinished(
             round = bundle.getInt("round"),
+            toolCallId = bundle.getString("tool_call_id").orEmpty(),
             name = bundle.getString("name").orEmpty(),
             resultSummary = bundle.getString("result_summary").orEmpty(),
             imageCount = bundle.getInt("image_count"),

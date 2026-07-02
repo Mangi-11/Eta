@@ -74,6 +74,7 @@ internal object AgentModelClient {
                     onEvent(
                         AgentEvent.ToolStarted(
                             round = round,
+                            toolCallId = toolCall.id,
                             name = toolCall.name,
                             argsPreview = toolCall.argumentsJson.compactTrace()
                         )
@@ -83,6 +84,7 @@ internal object AgentModelClient {
                     onEvent(
                         AgentEvent.ToolFinished(
                             round = round,
+                            toolCallId = toolCall.id,
                             name = toolCall.name,
                             resultSummary = summarizeToolResult(toolResult),
                             imageCount = toolResult.images.size,
