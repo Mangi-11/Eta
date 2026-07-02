@@ -170,6 +170,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         collapsed.value = false
 
         thread(name = "agent-runtime") {
+            val archivedEvents = mutableListOf<AgentEvent>()
             val skillIndexService = SkillRuntime.createIndexService(this@AgentRuntimeService)
             val skillLoader = SkillRuntime.createLoader(this@AgentRuntimeService)
             skillIndexService.seedBuiltinSkillsIfNeeded()
@@ -199,6 +200,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     ) { event ->
                         if (activeRunController == runController) {
                             AndroidAgentLogger.info("Agent runtime event: ${event.toLogLine()}")
+                            archivedEvents += event
                             sendEvent(event)
                             mainHandler.post {
                                 if (activeRunController == runController) {
@@ -217,6 +219,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         reasoningContent = response.reasoningContent
                     )
                     persistCompletedRun(request, result)
+                    persistArchivedRun(request, result, archivedEvents)
                     if (activeRunController == runController) {
                         sendResult(result)
                     }
@@ -238,7 +241,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     }
                     AndroidAgentLogger.error("Agent runtime failed: $message", throwable)
                     if (activeRunController == runController) {
-                        sendEvent(AgentEvent.RunFailed(message))
+                        val event = AgentEvent.RunFailed(message)
+                        archivedEvents += event
+                        sendEvent(event)
                     }
                     val result = AgentRuntimeWire.RunResult(
                         runId = request.runId,
@@ -247,6 +252,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         error = message
                     )
                     persistCompletedRun(request, result)
+                    persistArchivedRun(request, result, archivedEvents)
                     if (activeRunController == runController) {
                         sendResult(result)
                     }
@@ -306,6 +312,24 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             this,
             AgentRuntimeWire.CompletedRun(
                 handoff = handoff,
+                result = result,
+                createdAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    private fun persistArchivedRun(
+        request: AgentRuntimeWire.RunRequest,
+        result: AgentRuntimeWire.RunResult,
+        events: List<AgentEvent>
+    ) {
+        val handoff = request.handoff ?: return
+        AgentExternalArchivePayload.from(handoff.payload) ?: return
+        AgentRunArchiveStore.add(
+            this,
+            AgentRunArchiveStore.ArchivedRun(
+                handoff = handoff,
+                events = events,
                 result = result,
                 createdAt = System.currentTimeMillis()
             )

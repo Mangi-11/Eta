@@ -3,6 +3,7 @@ package fuck.andes.hook.breeno
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.runtime.AgentEvent
 import fuck.andes.agent.runtime.AgentAppContext
+import fuck.andes.agent.runtime.AgentExternalArchivePayload
 import fuck.andes.agent.runtime.AgentRuntimeClient
 import fuck.andes.agent.runtime.AgentRuntimeWire
 import fuck.andes.core.HookSupport
@@ -65,6 +66,7 @@ internal object BreenoHooks {
     private const val BREENO_REASONING_STATE = "深度思考"
     private const val BREENO_STREAM_FLUSH_DELAY_MS = 80L
     private const val BREENO_STREAM_FLUSH_CHARS = 48
+    private const val BREENO_ARCHIVE_TITLE_CHARS = 20
     private const val MAX_TEXT_CHARS = 240
     private const val RAW_LOG_CHUNK_CHARS = 3_200
     private val modelExecutor = Executors.newSingleThreadExecutor { runnable ->
@@ -707,18 +709,63 @@ internal object BreenoHooks {
         AgentRuntimeWire.EntryHandoff(
             id = runId,
             source = BREENO_HANDOFF_SOURCE,
-            payload = JSONObject()
-                .put("version", 1)
-                .put("userText", userText)
-                .put("recordId", recordId)
-                .put("originalRecordId", originalRecordId)
-                .put("sessionId", sessionId)
-                .put("roomId", roomId)
-                .apply {
-                    thinkingEnabledOverride?.let { put("thinkingEnabledOverride", it) }
-                }
-                .toString()
+            payload = AgentExternalArchivePayload(
+                userText = userText,
+                conversationKey = sessionId
+                    .ifBlank { roomId }
+                    .ifBlank { originalRecordId }
+                    .ifBlank { recordId }
+                    .ifBlank { runId },
+                title = archiveTitle(userText),
+                thinkingEnabled = thinkingEnabledOverride,
+                adapterPayload = JSONObject()
+                    .put("recordId", recordId)
+                    .put("originalRecordId", originalRecordId)
+                    .put("sessionId", sessionId)
+                    .put("roomId", roomId)
+                    .apply {
+                        thinkingEnabledOverride?.let { put("thinkingEnabledOverride", it) }
+                    },
+            ).toJson()
         )
+
+    private fun archiveTitle(userText: String): String {
+        val firstLine = userText.lineSequence().firstOrNull().orEmpty().trim()
+        return if (firstLine.isBlank()) {
+            "小布对话"
+        } else {
+            "小布：${firstLine.take(BREENO_ARCHIVE_TITLE_CHARS)}"
+        }
+    }
+
+    private fun textRequestPayloadFromHandoffPayload(raw: String): TextRequestPayload {
+        val archivePayload = AgentExternalArchivePayload.from(raw)
+        if (archivePayload != null) {
+            return TextRequestPayload(
+                userText = archivePayload.userText,
+                adapterPayload = archivePayload.adapterPayload,
+            )
+        }
+        val legacyPayload = JSONObject(raw)
+        return TextRequestPayload(
+            userText = legacyPayload.optString("userText"),
+            adapterPayload = legacyPayload,
+        )
+    }
+
+    private fun textRequestFromPayload(payload: TextRequestPayload, runId: String): TextRequest {
+        val recordId = payload.adapterPayload.optString("recordId")
+        return TextRequest(
+            runId = runId,
+            text = payload.userText,
+            images = emptyList(),
+            recordId = recordId,
+            originalRecordId = payload.adapterPayload.optString("originalRecordId").ifBlank { recordId },
+            sessionId = payload.adapterPayload.optString("sessionId"),
+            roomId = payload.adapterPayload.optString("roomId"),
+            thinkingEnabledOverride = payload.adapterPayload.optionalBoolean("thinkingEnabledOverride")
+        )
+    }
 
     private fun textRequestFromHandoff(
         handoff: AgentRuntimeWire.EntryHandoff,
@@ -726,17 +773,9 @@ internal object BreenoHooks {
     ): TextRequest? {
         if (handoff.source != BREENO_HANDOFF_SOURCE) return null
         return runCatching {
-            val json = JSONObject(handoff.payload)
-            val recordId = json.optString("recordId")
-            TextRequest(
+            textRequestFromPayload(
+                payload = textRequestPayloadFromHandoffPayload(handoff.payload),
                 runId = runId.ifBlank { handoff.id },
-                text = json.optString("userText"),
-                images = emptyList(),
-                recordId = recordId,
-                originalRecordId = json.optString("originalRecordId").ifBlank { recordId },
-                sessionId = json.optString("sessionId"),
-                roomId = json.optString("roomId"),
-                thinkingEnabledOverride = json.optionalBoolean("thinkingEnabledOverride")
             )
         }.getOrNull()
     }
@@ -1500,5 +1539,10 @@ internal object BreenoHooks {
         val sessionId: String,
         val roomId: String,
         val thinkingEnabledOverride: Boolean? = null
+    )
+
+    private data class TextRequestPayload(
+        val userText: String,
+        val adapterPayload: JSONObject,
     )
 }

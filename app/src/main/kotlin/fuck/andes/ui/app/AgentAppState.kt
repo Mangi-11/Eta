@@ -12,6 +12,8 @@ import fuck.andes.agent.accessibility.AgentAccessibilityService
 import fuck.andes.agent.media.AgentImageCodec
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.runtime.AgentEvent
+import fuck.andes.agent.runtime.AgentExternalArchivePayload
+import fuck.andes.agent.runtime.AgentRunArchiveStore
 import fuck.andes.agent.runtime.AgentRuntimeClient
 import fuck.andes.agent.runtime.AgentRuntimeWire
 import fuck.andes.agent.runtime.AgentTokenUsage
@@ -104,7 +106,10 @@ internal class AgentAppState(
 
     init {
         refreshConversationSummaries()
-        scope.launch(Dispatchers.IO) { recoverOrphanedRuns() }
+        scope.launch(Dispatchers.IO) {
+            recoverOrphanedRuns()
+            importArchivedExternalRuns()
+        }
     }
 
     /**
@@ -171,6 +176,68 @@ internal class AgentAppState(
         }
     }
 
+    private suspend fun importArchivedExternalRuns() {
+        val archivedRuns = AgentRunArchiveStore.list(appContext)
+            .filter { AgentExternalArchivePayload.from(it.handoff.payload) != null }
+        if (archivedRuns.isEmpty()) return
+
+        val importedRunIds = withContext(Dispatchers.Main) {
+            archivedRuns.mapNotNull { archivedRun ->
+                importExternalRun(archivedRun)
+            }.also {
+                refreshConversationSummaries()
+                persistConversations()
+            }
+        }
+
+        importedRunIds.forEach { runId ->
+            AgentRunArchiveStore.remove(appContext, runId)
+        }
+    }
+
+    private fun importExternalRun(archivedRun: AgentRunArchiveStore.ArchivedRun): String? {
+        val runId = archivedRun.result.runId.ifBlank { archivedRun.handoff.id }
+        if (runId.isBlank()) return null
+        val payload = AgentExternalArchivePayload.from(archivedRun.handoff.payload) ?: return null
+        val conversationId = archiveConversationId(
+            source = archivedRun.handoff.source,
+            conversationKey = payload.conversationKey,
+        )
+        val existingState = conversationsById[conversationId] ?: emptyChatState(
+            payload.thinkingEnabled ?: defaultThinkingEnabled
+        )
+        val alreadyImported = existingState.messages.any {
+            it is AgentMessageUi && it.id == "assistant-$runId" && !it.isStreaming
+        }
+        if (alreadyImported) return runId
+
+        if (conversationTitles[conversationId].isNullOrBlank() || conversationTitles[conversationId] == "新对话") {
+            conversationTitles = conversationTitles + (conversationId to payload.title.ifBlank { "外部记录" })
+        }
+        runConversationIds[runId] = conversationId
+        updateConversation(
+            conversationId,
+            existingState.copy(
+                input = "",
+                isStreaming = true,
+                thinkingEnabled = payload.thinkingEnabled ?: existingState.thinkingEnabled,
+                pendingImages = emptyList(),
+                messages = existingState.messages +
+                    UserMessageUi(id = "user-$runId", content = payload.userText) +
+                    AgentMessageUi(
+                        id = "assistant-$runId",
+                        content = "",
+                        isStreaming = true,
+                        renderMarkdown = false,
+                    ),
+            )
+        )
+        archivedRun.events.forEach { event -> applyRunEvent(runId, event) }
+        applyRunResult(runId, archivedRun.result)
+        conversationUpdatedAt = conversationUpdatedAt + (conversationId to archivedRun.createdAt)
+        return runId
+    }
+
     fun updateInput(text: String) {
         updateCurrentConversation(homeState.copy(input = text))
     }
@@ -210,6 +277,10 @@ internal class AgentAppState(
     fun sendCurrentMessage() {
         val prompt = homeState.input.trim()
         if (prompt.isBlank() || homeState.isStreaming) return
+
+        if (selectedConversationId.isExternalArchiveConversation()) {
+            moveCurrentDraftToNewConversation()
+        }
 
         val conversationId = selectedConversationId
         val history = buildConversationHistory(homeState.messages)
@@ -315,6 +386,7 @@ internal class AgentAppState(
         )
         setConversationStreaming(runId, false)
         runMessageProjector.clearRun(runId)
+        runConversationIds.remove(runId)
         refreshConversationSummaries()
         persistConversations()
     }
@@ -458,6 +530,7 @@ internal class AgentAppState(
         )
         setConversationStreaming(runId, false)
         runMessageProjector.clearRun(runId)
+        runConversationIds.remove(runId)
         refreshConversationSummaries()
         persistConversations()
     }
@@ -532,6 +605,21 @@ internal class AgentAppState(
 
     private fun updateCurrentConversation(state: AgentChatHomeUiState) {
         updateConversation(selectedConversationId, state)
+    }
+
+    private fun moveCurrentDraftToNewConversation() {
+        val draft = homeState
+        selectedConversationId = newConversationId()
+        val state = emptyChatState(loadModelConfigForUi().thinkingEnabled).copy(
+            input = draft.input,
+            thinkingEnabled = draft.thinkingEnabled,
+            pendingImages = draft.pendingImages,
+        )
+        conversationsById = conversationsById + (selectedConversationId to state)
+        conversationTitles = conversationTitles + (selectedConversationId to "新对话")
+        conversationUpdatedAt = conversationUpdatedAt + (selectedConversationId to System.currentTimeMillis())
+        homeState = state
+        conversationPaneState = conversationPaneState.copy(selectedConversationId = selectedConversationId)
     }
 
     private fun updateConversation(conversationId: String, state: AgentChatHomeUiState) {
@@ -662,6 +750,20 @@ internal class AgentAppState(
         fun newConversationId(): String = "conv-${UUID.randomUUID()}"
     }
 }
+
+private const val EXTERNAL_ARCHIVE_CONVERSATION_PREFIX = "archive-"
+
+private fun String.isExternalArchiveConversation(): Boolean =
+    startsWith(EXTERNAL_ARCHIVE_CONVERSATION_PREFIX)
+
+private fun archiveConversationId(source: String, conversationKey: String): String =
+    "$EXTERNAL_ARCHIVE_CONVERSATION_PREFIX${stableArchiveId("$source:$conversationKey")}"
+
+private fun stableArchiveId(value: String): String =
+    java.security.MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .take(12)
+        .joinToString(separator = "") { byte -> "%02x".format(byte) }
 
 private fun buildToolsState(): AgentToolsUiState =
     AgentToolsUiState(
