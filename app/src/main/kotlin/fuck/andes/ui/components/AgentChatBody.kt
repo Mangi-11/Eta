@@ -1,6 +1,7 @@
 package fuck.andes.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,8 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -34,20 +33,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.R as LucideR
 import fuck.andes.ui.model.AgentChatMessageUi
 import fuck.andes.ui.model.PendingImageUi
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 聊天主体：消息流 + 底部输入框。
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AgentChatBody(
     messages: List<AgentChatMessageUi>,
@@ -145,117 +141,120 @@ private fun EmptyChatState(
     onSuggestionClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val suggestions = listOf(
+        SuggestionItem(
+            title = "分析当前屏幕",
+            description = "截图并描述当前屏幕",
+            iconRes = LucideR.drawable.lucide_ic_scan_text,
+            prompt = "截图并描述当前屏幕",
+            highlighted = false,
+        ),
+        SuggestionItem(
+            title = "打开微信",
+            description = "快速启动微信应用",
+            iconRes = LucideR.drawable.lucide_ic_rocket,
+            prompt = "帮我打开微信",
+            highlighted = false,
+        ),
+        SuggestionItem(
+            title = "查看内存压力",
+            description = "读取 /proc/meminfo 和 /proc/pressure/，总结内存与系统压力",
+            iconRes = LucideR.drawable.lucide_ic_search,
+            prompt = "读取 /proc/meminfo 和 /proc/pressure/，重点分析 PSI（Pressure Stall Information）指标，总结当前内存压力和系统状态",
+            highlighted = false,
+        ),
+    )
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 24.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Kimi-style avatar
         Box(
             modifier = Modifier
-                .size(72.dp)
+                .size(48.dp)
                 .clip(CircleShape)
                 .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
-                .padding(16.dp),
+                .padding(11.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_atom),
+                painter = painterResource(LucideR.drawable.lucide_ic_bot),
                 contentDescription = null,
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(26.dp),
                 tint = MiuixTheme.colorScheme.primary,
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text(
             text = "有什么可以帮你？",
-            style = MiuixTheme.textStyles.title1,
+            style = MiuixTheme.textStyles.headline1,
             color = MiuixTheme.colorScheme.onSurface,
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "选择以下一个任务开始，或者在下方输入你想让我做的事",
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            val suggestions = listOf(
-                SuggestionItem(
-                    title = "帮我打开微信",
-                    description = "快速启动微信应用",
-                    iconRes = LucideR.drawable.lucide_ic_rocket,
-                    prompt = "帮我打开微信"
-                ),
-                SuggestionItem(
-                    title = "搜索通讯录联系人",
-                    description = "在通讯录中搜索好友或电话",
-                    iconRes = LucideR.drawable.lucide_ic_search,
-                    prompt = "搜索通讯录里的联系人"
-                ),
-                SuggestionItem(
-                    title = "描述当前屏幕内容",
-                    description = "自动截屏并用多模态大模型分析",
-                    iconRes = LucideR.drawable.lucide_ic_scan_text,
-                    prompt = "截图并描述当前屏幕"
-                )
-            )
-
             suggestions.forEach { item ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MiuixTheme.colorScheme.surfaceContainer)
-                        .clickable { onSuggestionClick(item.prompt) }
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.08f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(item.iconRes),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MiuixTheme.colorScheme.primary
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = item.title,
-                            style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = item.description,
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
-                    }
-
-                }
+                SuggestionCard(
+                    item = item,
+                    onClick = { onSuggestionClick(item.prompt) },
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun SuggestionCard(
+    item: SuggestionItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val bgColor = if (item.highlighted) {
+        MiuixTheme.colorScheme.primary.copy(alpha = 0.08f)
+    } else {
+        MiuixTheme.colorScheme.surface
+    }
+    val borderColor = if (item.highlighted) {
+        MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
+    } else {
+        MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.12f)
+    }
+    val contentColor = if (item.highlighted) {
+        MiuixTheme.colorScheme.primary
+    } else {
+        MiuixTheme.colorScheme.onSurface
+    }
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgColor)
+            .border(0.5.dp, borderColor, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (item.highlighted) {
+            Icon(
+                painter = painterResource(item.iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = contentColor,
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+        }
+        Text(
+            text = item.title,
+            style = MiuixTheme.textStyles.body1,
+            color = contentColor,
+        )
     }
 }
 
@@ -263,6 +262,7 @@ private data class SuggestionItem(
     val title: String,
     val description: String,
     val iconRes: Int,
-    val prompt: String
+    val prompt: String,
+    val highlighted: Boolean = false,
 )
 

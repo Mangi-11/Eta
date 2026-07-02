@@ -260,7 +260,7 @@ fun AgentChatInputBar(
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
-                                    painter = painterResource(LucideR.drawable.lucide_ic_sparkles),
+                                    painter = painterResource(LucideR.drawable.lucide_ic_atom),
                                     contentDescription = if (thinkingEnabled) "关闭思考" else "开启思考",
                                     modifier = Modifier.size(InputIconSize),
                                     tint = if (thinkingEnabled) {
@@ -338,7 +338,7 @@ fun AgentChatInputBar(
                                 enabled = !isStreaming,
                             ) {
                                 Icon(
-                                    painter = painterResource(LucideR.drawable.lucide_ic_sparkles),
+                                    painter = painterResource(LucideR.drawable.lucide_ic_atom),
                                     contentDescription = if (thinkingEnabled) "关闭思考" else "开启思考",
                                     modifier = Modifier.size(InputIconSize),
                                     tint = if (thinkingEnabled) {

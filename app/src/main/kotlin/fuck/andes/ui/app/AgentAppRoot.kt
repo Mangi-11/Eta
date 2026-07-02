@@ -13,6 +13,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
@@ -50,6 +51,7 @@ fun AgentAppRoot() {
     }
 
     var conversationPaneOpen by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
 
     fun pushRoute(
         route: AppRoute,
@@ -66,11 +68,13 @@ fun AgentAppRoot() {
     }
 
     fun selectConversation(conversationId: String) {
+        focusManager.clearFocus()
         agentState.selectConversation(conversationId)
         conversationPaneOpen = false
     }
 
     fun createConversation() {
+        focusManager.clearFocus()
         agentState.createConversation()
         conversationPaneOpen = false
     }
