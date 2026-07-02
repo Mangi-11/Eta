@@ -30,6 +30,7 @@ import fuck.andes.agent.overlay.AgentOverlayGlow
 import fuck.andes.agent.overlay.AgentOverlayOrb
 import fuck.andes.agent.overlay.AgentOverlayPhase
 import fuck.andes.agent.overlay.AgentOverlayState
+import fuck.andes.agent.overlay.AgentOverlayVisibilityPolicy
 import fuck.andes.agent.overlay.applyEvent
 import fuck.andes.agent.skill.SkillCompatibilityChecker
 import fuck.andes.agent.skill.SkillContext
@@ -167,7 +168,6 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         mainHandler.removeCallbacksAndMessages(hideToken)
         state.value = AgentOverlayState.Initial
         collapsed.value = false
-        ensureOverlayVisible()
 
         thread(name = "agent-runtime") {
             val skillIndexService = SkillRuntime.createIndexService(this@AgentRuntimeService)
@@ -203,7 +203,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                             mainHandler.post {
                                 if (activeRunController == runController) {
                                     state.value = state.value.applyEvent(event)
-                                    ensureOverlayVisible()
+                                    if (AgentOverlayVisibilityPolicy.shouldRevealFor(event)) {
+                                        ensureOverlayVisible()
+                                    }
                                 }
                             }
                         }
