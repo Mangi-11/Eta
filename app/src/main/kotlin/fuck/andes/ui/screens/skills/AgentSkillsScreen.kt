@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -27,7 +27,6 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -172,22 +171,19 @@ private fun SkillSwitchRow(
 
 @Composable
 private fun SkillIcon(skill: SkillItemUi) {
-    Surface(
+    Box(
         modifier = Modifier
-            .padding(end = 16.dp)
-            .size(IconContainerSize),
-        shape = RoundedCornerShape(IconContainerCornerRadius),
-        color = MiuixTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            .padding(end = 12.dp)
+            .size(36.dp)
+            .background(MiuixTheme.colorScheme.surfaceContainerHigh, CircleShape),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                painter = painterResource(iconForSkill(skill.id)),
-                contentDescription = null,
-                modifier = Modifier.size(IconSize),
-                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-            )
-        }
+        Icon(
+            painter = painterResource(iconForSkill(skill.id)),
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = MiuixTheme.colorScheme.onBackground,
+        )
     }
 }
 

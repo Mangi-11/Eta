@@ -3,7 +3,9 @@ package fuck.andes.ui
 import android.content.Context
 import android.content.SharedPreferences
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,8 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
+import com.composables.icons.lucide.R as LucideR
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,27 +57,21 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ConvertFile
-import top.yukonga.miuix.kmp.icon.extended.Link
-import top.yukonga.miuix.kmp.icon.extended.Lock
-import top.yukonga.miuix.kmp.icon.extended.Mic
-import top.yukonga.miuix.kmp.icon.extended.Scan
-import top.yukonga.miuix.kmp.icon.extended.Search
-import top.yukonga.miuix.kmp.icon.extended.Tune
-import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-// ── 图标 tint 色 ─────────────────────────────────────────────────────────────
-// 交互接管组 — 蓝色系
-private val IconTintBlue = Color(0xFF3482F6)
-// 助理配置组 — 绿色系
-private val IconTintGreen = Color(0xFF34C759)
-// 高级组 — 紫色系
-private val IconTintPurple = Color(0xFFAF52DE)
+// ── ColorOS 风格色彩定义 ─────────────────────────────────────────────────────────────
+private val ColorOSOrangeRed = Color(0xFFFA6022) // 温暖橙红
+private val ColorOSRoyalBlue = Color(0xFF2879FB) // 经典科技蓝
+private val ColorOSVividGreen = Color(0xFF24B251) // 质感绿（叶绿）
+private val ColorOSAmberYellow = Color(0xFFFFA312) // 琥珀金黄
+private val ColorOSLightBlue = Color(0xFF00AEEF) // 天空浅蓝
+private val ColorOSRed = Color(0xFFEB4335) // 警示红（微暖）
+private val ColorOSPurple = Color(0xFF9E57C2) // 雅致浅紫
+private val ColorOSSlateGray = Color(0xFF6E8296) // 沉稳灰蓝
+private val ColorOSOrange = Color(0xFFFF8800) // 标准鲜橙
 
 /**
  * 模块配置界面。
@@ -154,8 +154,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "长按电源键唤起 Gemini",
                         key = Prefs.Keys.POWER_KEY_TAKEOVER,
-                        icon = MiuixIcons.Tune,
-                        iconTint = IconTintBlue,
+                        icon = LucideR.drawable.lucide_ic_power,
+                        iconTint = ColorOSOrangeRed,
                     )
                     PrefDivider()
                     SwitchPref(
@@ -163,8 +163,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "手势条长按触发一圈即搜",
                         key = Prefs.Keys.GESTURE_BAR_CIRCLE_TO_SEARCH,
-                        icon = MiuixIcons.Search,
-                        iconTint = IconTintBlue,
+                        icon = LucideR.drawable.lucide_ic_search,
+                        iconTint = ColorOSRoyalBlue,
                     )
                     PrefDivider()
                     SwitchPref(
@@ -172,8 +172,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "双指长按触发一圈即搜",
                         key = Prefs.Keys.DOUBLE_FINGER_CIRCLE_TO_SEARCH,
-                        icon = MiuixIcons.Scan,
-                        iconTint = IconTintBlue,
+                        icon = LucideR.drawable.lucide_ic_mouse_pointer_click,
+                        iconTint = ColorOSLightBlue,
                     )
                 }
             }
@@ -187,8 +187,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "自动设置 Google 为默认助理",
                         key = Prefs.Keys.ASSISTANT_AUTO_CONFIG,
-                        icon = MiuixIcons.Update,
-                        iconTint = IconTintGreen,
+                        icon = LucideR.drawable.lucide_ic_sparkles,
+                        iconTint = ColorOSVividGreen,
                     )
                     PrefDivider()
                     SwitchPref(
@@ -196,8 +196,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "息屏后维持 Hey Google 检测",
                         key = Prefs.Keys.HOTWORD_SELF_HEAL,
-                        icon = MiuixIcons.Mic,
-                        iconTint = IconTintGreen,
+                        icon = LucideR.drawable.lucide_ic_mic,
+                        iconTint = ColorOSAmberYellow,
                     )
                     PrefDivider()
                     SwitchPref(
@@ -205,8 +205,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "锁屏唤起自动语音输入",
                         key = Prefs.Keys.LOCKSCREEN_VOICE_COMMAND,
-                        icon = MiuixIcons.Lock,
-                        iconTint = IconTintGreen,
+                        icon = LucideR.drawable.lucide_ic_lock,
+                        iconTint = ColorOSRed,
                     )
                     PrefDivider()
                     SwitchPref(
@@ -214,8 +214,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "亮屏唤起自动语音输入",
                         key = Prefs.Keys.SCREEN_ON_VOICE_COMMAND,
-                        icon = MiuixIcons.Mic,
-                        iconTint = IconTintGreen,
+                        icon = LucideR.drawable.lucide_ic_mic,
+                        iconTint = ColorOSLightBlue,
                     )
                 }
             }
@@ -229,8 +229,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "启用小布自定义模型",
                         key = Prefs.Keys.AGENT_CUSTOM_MODEL,
-                        icon = MiuixIcons.Tune,
-                        iconTint = IconTintGreen,
+                        icon = LucideR.drawable.lucide_ic_cpu,
+                        iconTint = ColorOSPurple,
                     )
                     PrefDivider()
                     SwitchPref(
@@ -238,8 +238,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "仅 /agent 前缀接管",
                         key = Prefs.Keys.AGENT_REQUIRE_PREFIX,
-                        icon = MiuixIcons.Lock,
-                        iconTint = IconTintGreen,
+                        icon = LucideR.drawable.lucide_ic_message_square,
+                        iconTint = ColorOSOrangeRed,
                     )
                     PrefDivider()
                     SwitchPref(
@@ -247,8 +247,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "启用终端/文件工具",
                         key = Prefs.Keys.AGENT_TERMINAL_TOOLS,
-                        icon = MiuixIcons.ConvertFile,
-                        iconTint = IconTintPurple,
+                        icon = LucideR.drawable.lucide_ic_square_terminal,
+                        iconTint = ColorOSAmberYellow,
                     )
                     PrefDivider()
                     SwitchPref(
@@ -256,16 +256,16 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "默认启用深度思考",
                         key = Prefs.Keys.AGENT_THINKING_ENABLED,
-                        icon = MiuixIcons.Tune,
-                        iconTint = IconTintPurple,
+                        icon = LucideR.drawable.lucide_ic_brain,
+                        iconTint = ColorOSRoyalBlue,
                     )
                     PrefDivider()
                     TextPref(
                         prefs = prefs,
                         title = "API 地址",
                         key = Prefs.Keys.AGENT_BASE_URL,
-                        icon = MiuixIcons.Link,
-                        iconTint = IconTintGreen,
+                        icon = LucideR.drawable.lucide_ic_link,
+                        iconTint = ColorOSVividGreen,
                         revision = prefRevision,
                         onClick = { editingTextPref = it },
                     )
@@ -274,8 +274,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "API Key",
                         key = Prefs.Keys.AGENT_API_KEY,
-                        icon = MiuixIcons.Lock,
-                        iconTint = IconTintGreen,
+                        icon = LucideR.drawable.lucide_ic_key,
+                        iconTint = ColorOSRed,
                         sensitive = true,
                         revision = prefRevision,
                         onClick = { editingTextPref = it },
@@ -285,8 +285,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "模型名",
                         key = Prefs.Keys.AGENT_MODEL,
-                        icon = MiuixIcons.Mic,
-                        iconTint = IconTintGreen,
+                        icon = LucideR.drawable.lucide_ic_tag,
+                        iconTint = ColorOSPurple,
                         revision = prefRevision,
                         onClick = { editingTextPref = it },
                     )
@@ -295,8 +295,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "系统提示词",
                         key = Prefs.Keys.AGENT_SYSTEM_PROMPT,
-                        icon = MiuixIcons.ConvertFile,
-                        iconTint = IconTintGreen,
+                        icon = LucideR.drawable.lucide_ic_file_text,
+                        iconTint = ColorOSLightBlue,
                         singleLine = false,
                         revision = prefRevision,
                         onClick = { editingTextPref = it },
@@ -306,8 +306,8 @@ internal fun SettingsScreen(context: Context) {
                         prefs = prefs,
                         title = "额外请求体 JSON",
                         key = Prefs.Keys.AGENT_EXTRA_BODY_JSON,
-                        icon = MiuixIcons.ConvertFile,
-                        iconTint = IconTintPurple,
+                        icon = LucideR.drawable.lucide_ic_code,
+                        iconTint = ColorOSOrange,
                         singleLine = false,
                         revision = prefRevision,
                         onClick = { editingTextPref = it },
@@ -317,8 +317,8 @@ internal fun SettingsScreen(context: Context) {
                         title = "悬浮窗权限",
                         startAction = {
                             TintedIcon(
-                                icon = MiuixIcons.Lock,
-                                tint = IconTintPurple,
+                                icon = LucideR.drawable.lucide_ic_layers,
+                                tint = ColorOSOrangeRed,
                             )
                         },
                         endActions = {
@@ -328,7 +328,7 @@ internal fun SettingsScreen(context: Context) {
                                 color = if (overlayGranted) {
                                     MiuixTheme.colorScheme.onSurfaceVariantActions
                                 } else {
-                                    IconTintPurple
+                                    ColorOSOrangeRed
                                 },
                             )
                         },
@@ -350,8 +350,8 @@ internal fun SettingsScreen(context: Context) {
                         title = "无障碍增强工具",
                         startAction = {
                             TintedIcon(
-                                icon = MiuixIcons.Scan,
-                                tint = IconTintPurple,
+                                icon = LucideR.drawable.lucide_ic_accessibility,
+                                tint = ColorOSRoyalBlue,
                             )
                         },
                         endActions = {
@@ -362,7 +362,7 @@ internal fun SettingsScreen(context: Context) {
                                 color = if (enabled) {
                                     MiuixTheme.colorScheme.onSurfaceVariantActions
                                 } else {
-                                    IconTintPurple
+                                    ColorOSRoyalBlue
                                 },
                             )
                         },
@@ -385,8 +385,8 @@ internal fun SettingsScreen(context: Context) {
                         title = "将 Google App 转为系统应用",
                         startAction = {
                             TintedIcon(
-                                icon = MiuixIcons.ConvertFile,
-                                tint = IconTintPurple,
+                                icon = LucideR.drawable.lucide_ic_shield,
+                                tint = ColorOSVividGreen,
                             )
                         },
                         enabled = !installingSystemizer,
@@ -402,8 +402,8 @@ internal fun SettingsScreen(context: Context) {
                         title = "源代码",
                         startAction = {
                             TintedIcon(
-                                icon = MiuixIcons.Link,
-                                tint = IconTintPurple,
+                                icon = LucideR.drawable.lucide_ic_github,
+                                tint = ColorOSPurple,
                             )
                         },
                         endActions = {
@@ -463,19 +463,27 @@ internal fun SettingsScreen(context: Context) {
     }
 }
 
-// ── 带色彩的图标（Miuix 风格：纯图标 + tint） ────────────────────────────────
+// ── 带色彩的圆形图标（ColorOS 风格：圆形背景 + 纯白图标） ────────────────────────────────
 
 @Composable
 private fun TintedIcon(
-    icon: ImageVector,
+    icon: Int,
     tint: Color,
 ) {
-    Icon(
-        imageVector = icon,
-        contentDescription = null,
-        modifier = Modifier.padding(end = 16.dp).size(24.dp),
-        tint = tint,
-    )
+    Box(
+        modifier = Modifier
+            .padding(end = 12.dp)
+            .size(32.dp)
+            .background(tint, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = Color.White,
+        )
+    }
 }
 
 // ── Card 内分隔线 ───────────────────────────────────────────────────────────
@@ -485,8 +493,8 @@ private fun PrefDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(
             // 对齐 BasicComponent 内文字起始位置：
-            // insideMargin(16) + 图标 padding end(16) + 图标宽度(24) + startAction 与 center 间距(8) = 64dp
-            start = 64.dp,
+            // insideMargin(16) + 图标 padding end(12) + 圆形宽度(32) = 60dp
+            start = 60.dp,
         ),
     )
 }
@@ -554,7 +562,7 @@ private fun SwitchPref(
     prefs: SharedPreferences?,
     title: String,
     key: String,
-    icon: ImageVector,
+    icon: Int,
     iconTint: Color,
 ) {
     val enabled = prefs != null
@@ -587,7 +595,7 @@ private fun TextPref(
     prefs: SharedPreferences?,
     title: String,
     key: String,
-    icon: ImageVector,
+    icon: Int,
     iconTint: Color,
     sensitive: Boolean = false,
     singleLine: Boolean = true,

@@ -14,10 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -29,8 +30,8 @@ import fuck.andes.ui.model.ToolItemUi
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private object ToolsMetrics {
@@ -133,21 +134,18 @@ private fun ToolCard(
             contentColor = MiuixTheme.colorScheme.onSurfaceContainer,
         ),
     ) {
-        Surface(
+        Box(
             modifier = Modifier
-                .size(ToolsMetrics.IconContainerSize),
-            shape = RoundedCornerShape(ToolsMetrics.IconContainerCornerRadius),
-            color = MiuixTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                .size(ToolsMetrics.IconContainerSize)
+                .background(colorForTool(tool.id), CircleShape),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    painter = painterResource(iconForTool(tool.id)),
-                    contentDescription = null,
-                    modifier = Modifier.size(ToolsMetrics.IconSize),
-                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                )
-            }
+            Icon(
+                painter = painterResource(iconForTool(tool.id)),
+                contentDescription = null,
+                modifier = Modifier.size(ToolsMetrics.IconSize),
+                tint = Color.White,
+            )
         }
         Spacer(modifier = Modifier.height(ToolsMetrics.IconTitleGap))
         Text(
@@ -167,6 +165,32 @@ private fun ToolCard(
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+private fun colorForTool(toolId: String): Color = when (toolId) {
+    // 屏幕与控件 (橙红 - ColorOS 权限管理风)
+    "observe", "observe_screen",
+    "click", "tap_element",
+    "tap_area", "long_press",
+    "swipe", "scroll" -> Color(0xFFFA6022)
+    
+    // 文本与剪贴板 (明蓝 - ColorOS 隐私替身风)
+    "clipboard", "paste_text",
+    "input_text", "replace_text",
+    "clear_text", "wait_text",
+    "wait_for_text" -> Color(0xFF2879FB)
+    
+    // 应用与系统 (亮绿 - ColorOS 私密保险箱风)
+    "search_apps", "open_app",
+    "launch_app", "open_uri",
+    "press_key", "open_system_panel" -> Color(0xFF24B251)
+    
+    // 终端与文件 (明黄 - ColorOS 应用锁风)
+    "terminal", "terminal_job",
+    "run_command", "read_file",
+    "write_file", "list_directory" -> Color(0xFFFFA312)
+    
+    else -> Color(0xFF6E8296) // 默认灰蓝
 }
 
 private fun iconForTool(toolId: String): Int = when (toolId) {

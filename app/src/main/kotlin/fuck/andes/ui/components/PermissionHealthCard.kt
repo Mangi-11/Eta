@@ -21,10 +21,8 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Check
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Report
+import androidx.compose.ui.res.painterResource
+import com.composables.icons.lucide.R as LucideR
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -95,20 +93,20 @@ private fun PermissionStatusIcon(status: PermissionStatusUi) {
     }
     when (status) {
         PermissionStatusUi.Available -> Icon(
-            imageVector = MiuixIcons.Basic.Check,
+            painter = painterResource(LucideR.drawable.lucide_ic_check),
             contentDescription = null,
             modifier = Modifier.size(16.dp),
             tint = tint,
         )
         PermissionStatusUi.Warning -> Icon(
-            imageVector = MiuixIcons.Report,
+            painter = painterResource(LucideR.drawable.lucide_ic_triangle_alert),
             contentDescription = null,
             modifier = Modifier.size(16.dp),
             tint = tint,
         )
         PermissionStatusUi.Missing,
         PermissionStatusUi.Disabled -> Icon(
-            imageVector = MiuixIcons.Close,
+            painter = painterResource(LucideR.drawable.lucide_ic_x),
             contentDescription = null,
             modifier = Modifier.size(16.dp),
             tint = tint,

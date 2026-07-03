@@ -20,10 +20,8 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Check
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.More
+import androidx.compose.ui.res.painterResource
+import com.composables.icons.lucide.R as LucideR
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -87,19 +85,19 @@ private fun StatusIndicator(status: RunStatusUi) {
             color = MiuixTheme.colorScheme.primary,
         )
         RunStatusUi.Success -> Icon(
-            imageVector = MiuixIcons.Basic.Check,
+            painter = painterResource(LucideR.drawable.lucide_ic_check),
             contentDescription = null,
             modifier = Modifier.size(18.dp),
             tint = MiuixTheme.colorScheme.primary,
         )
         RunStatusUi.Failed -> Icon(
-            imageVector = MiuixIcons.Close,
+            painter = painterResource(LucideR.drawable.lucide_ic_x),
             contentDescription = null,
             modifier = Modifier.size(18.dp),
             tint = MiuixTheme.colorScheme.primary,
         )
         RunStatusUi.Cancelled -> Icon(
-            imageVector = MiuixIcons.More,
+            painter = painterResource(LucideR.drawable.lucide_ic_ellipsis),
             contentDescription = null,
             modifier = Modifier.size(18.dp),
             tint = MiuixTheme.colorScheme.onSurfaceVariantActions,

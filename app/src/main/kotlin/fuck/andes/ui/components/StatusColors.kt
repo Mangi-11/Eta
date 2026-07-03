@@ -20,12 +20,8 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.basic.Check
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Lock
-import top.yukonga.miuix.kmp.icon.extended.Report
+import androidx.compose.ui.res.painterResource
+import com.composables.icons.lucide.R as LucideR
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 
@@ -63,7 +59,7 @@ fun RunStatusUi.label(): String = when (this) {
 
 @Composable
 fun PermissionStatusUi.color(): Color = when (this) {
-    PermissionStatusUi.Available -> StatusSuccess
+    PermissionStatusUi.Available -> StatusIdle
     PermissionStatusUi.Warning -> StatusWarning
     PermissionStatusUi.Missing -> StatusError
     PermissionStatusUi.Disabled -> StatusIdle
@@ -126,7 +122,7 @@ fun ArrowItem(
                 endActions()
             }
             Icon(
-                imageVector = MiuixIcons.Basic.ArrowRight,
+                painter = painterResource(LucideR.drawable.lucide_ic_chevron_right),
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,

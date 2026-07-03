@@ -69,7 +69,6 @@ dependencies {
     implementation(libs.libxposed.service)
     implementation(libs.miuix.ui)
     implementation(libs.miuix.preference)
-    implementation(libs.miuix.icons)
     implementation(libs.miuix.navigation3.ui)
     implementation(libs.lucide.icons)
     implementation(libs.androidx.navigation3.runtime)

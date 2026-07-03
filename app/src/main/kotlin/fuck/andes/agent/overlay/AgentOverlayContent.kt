@@ -35,17 +35,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.R as LucideR
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.ExpandMore
-import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 // Miuix 未提供语义 success 色，沿用项目既有值；失败色走主题 error
@@ -273,7 +270,7 @@ private fun TaskStatusPanel(
             Spacer(modifier = Modifier.weight(1f))
             OverlayActionPill(
                 text = if (finalPhase) "关闭" else "收起",
-                icon = if (finalPhase) MiuixIcons.Close else MiuixIcons.ExpandMore,
+                icon = if (finalPhase) LucideR.drawable.lucide_ic_x else LucideR.drawable.lucide_ic_chevron_down,
                 primary = false,
                 phase = state.phase,
                 onClick = if (finalPhase) onStop else onCollapse,
@@ -323,7 +320,7 @@ private fun PhaseActions(
             AgentOverlayPhase.RUNNING -> {
                 OverlayActionPill(
                     text = "接管",
-                    icon = MiuixIcons.Play,
+                    icon = LucideR.drawable.lucide_ic_play,
                     primary = false,
                     phase = phase,
                     onClick = onPause,
@@ -340,7 +337,7 @@ private fun PhaseActions(
             AgentOverlayPhase.PAUSED -> {
                 OverlayActionPill(
                     text = "继续",
-                    icon = MiuixIcons.Play,
+                    icon = LucideR.drawable.lucide_ic_play,
                     primary = false,
                     phase = phase,
                     onClick = onResume,
@@ -373,7 +370,7 @@ private fun OverlayActionPill(
     primary: Boolean,
     phase: AgentOverlayPhase,
     onClick: () -> Unit,
-    icon: ImageVector? = null,
+    icon: Int? = null,
     dotColor: Color? = null,
 ) {
     val accent = phaseAccent(phase)
@@ -401,7 +398,7 @@ private fun OverlayActionPill(
         when {
             icon != null -> {
                 Icon(
-                    imageVector = icon,
+                    painter = painterResource(icon),
                     contentDescription = null,
                     modifier = Modifier.size(15.dp),
                     tint = contentColor,
