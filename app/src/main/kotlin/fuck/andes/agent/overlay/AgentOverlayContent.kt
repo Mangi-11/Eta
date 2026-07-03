@@ -5,26 +5,29 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -32,16 +35,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.ExpandMore
@@ -151,16 +151,24 @@ internal fun AgentOverlayContent(
     onResume: () -> Unit,
     onStop: () -> Unit,
 ) {
-    TaskStatusPanel(
-        state = state,
-        onCollapse = onCollapse,
-        onPause = onPause,
-        onResume = onResume,
-        onStop = onStop,
+    Box(
         modifier = Modifier
+            .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp),
-    )
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        TaskStatusPanel(
+            state = state,
+            onCollapse = onCollapse,
+            onPause = onPause,
+            onResume = onResume,
+            onStop = onStop,
+            modifier = Modifier
+                .widthIn(max = 420.dp)
+                .fillMaxWidth(),
+        )
+    }
 }
 
 @Composable
@@ -226,8 +234,7 @@ private fun AssistantOrb(
 }
 
 /**
- * 底部任务状态卡片：状态标题 + 副状态 + 详情预览 + 操作按钮。
- * 宽度接近屏幕宽，左右 16dp margin，Squircle 风格圆角，阴影克制。
+ * 底部任务状态卡片：详情流在上，状态和动作固定在底部，增长时只向上展开。
  */
 @Composable
 private fun TaskStatusPanel(
@@ -238,161 +245,191 @@ private fun TaskStatusPanel(
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val finalPhase = state.phase == AgentOverlayPhase.FINISHED || state.phase == AgentOverlayPhase.FAILED
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(28.dp)),
+            .shadow(3.dp, RoundedCornerShape(28.dp)),
         cornerRadius = 28.dp,
-        insideMargin = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+        insideMargin = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StatusGlyph(phase = state.phase, modifier = Modifier.size(22.dp))
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = state.statusText,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    fontSize = MiuixTheme.textStyles.title3.fontSize,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = state.subStatusText,
-                    color = phaseAccent(state.phase),
-                    fontSize = MiuixTheme.textStyles.body2.fontSize,
-                )
-            }
-            val finalPhase = state.phase == AgentOverlayPhase.FINISHED || state.phase == AgentOverlayPhase.FAILED
-            IconButton(onClick = if (finalPhase) onStop else onCollapse) {
-                if (finalPhase) {
-                    Icon(
-                        imageVector = MiuixIcons.Close,
-                        contentDescription = "关闭",
-                        modifier = Modifier.size(20.dp),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                } else {
-                    Icon(
-                        imageVector = MiuixIcons.ExpandMore,
-                        contentDescription = "收起",
-                        modifier = Modifier.size(20.dp),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                }
-            }
-        }
+        StreamingDetailText(
+            text = state.detailText.ifBlank { state.statusText },
+            phase = state.phase,
+            expanded = finalPhase,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
 
-        if (state.detailText.isNotBlank()) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = state.detailText,
-                modifier = Modifier.fillMaxWidth(),
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                fontSize = MiuixTheme.textStyles.footnote1.fontSize,
-                maxLines = if (state.phase == AgentOverlayPhase.RUNNING) 2 else 8,
-                overflow = TextOverflow.Ellipsis,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PhaseActions(
+                phase = state.phase,
+                onPause = onPause,
+                onResume = onResume,
+                onStop = onStop,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            OverlayActionPill(
+                text = if (finalPhase) "关闭" else "收起",
+                icon = if (finalPhase) MiuixIcons.Close else MiuixIcons.ExpandMore,
+                primary = false,
+                phase = state.phase,
+                onClick = if (finalPhase) onStop else onCollapse,
             )
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            when (state.phase) {
-                AgentOverlayPhase.RUNNING -> {
-                    OverlayActionButton(
-                        text = "接管",
-                        primary = false,
-                        onClick = onPause,
-                        modifier = Modifier.weight(1f),
-                    )
-                    OverlayActionButton(
-                        text = "结束",
-                        primary = true,
-                        onClick = onStop,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+@Composable
+private fun StreamingDetailText(
+    text: String,
+    phase: AgentOverlayPhase,
+    expanded: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val heightModifier = if (expanded) {
+        Modifier.heightIn(max = 176.dp)
+    } else {
+        Modifier.height(42.dp)
+    }
+    Text(
+        text = text,
+        modifier = modifier
+            .fillMaxWidth()
+            .then(heightModifier),
+        color = if (expanded) {
+            MiuixTheme.colorScheme.onSurfaceVariantSummary
+        } else {
+            phaseAccent(phase)
+        },
+        fontSize = MiuixTheme.textStyles.footnote1.fontSize,
+        lineHeight = 18.sp,
+        maxLines = if (expanded) 9 else 2,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
 
-                AgentOverlayPhase.PAUSED -> {
-                    OverlayActionButton(
-                        text = "继续",
-                        primary = true,
-                        onClick = onResume,
-                        modifier = Modifier.weight(1f),
-                    )
-                    OverlayActionButton(
-                        text = "结束",
-                        primary = false,
-                        onClick = onStop,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+@Composable
+private fun PhaseActions(
+    phase: AgentOverlayPhase,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onStop: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        when (phase) {
+            AgentOverlayPhase.RUNNING -> {
+                OverlayActionPill(
+                    text = "接管",
+                    icon = MiuixIcons.Play,
+                    primary = false,
+                    phase = phase,
+                    onClick = onPause,
+                )
+                OverlayActionPill(
+                    text = "停止",
+                    primary = false,
+                    phase = phase,
+                    onClick = onStop,
+                    dotColor = phaseAccent(AgentOverlayPhase.FAILED),
+                )
+            }
 
-                AgentOverlayPhase.FINISHED, AgentOverlayPhase.FAILED -> {
-                    OverlayActionButton(
-                        text = "关闭",
-                        primary = true,
-                        onClick = onStop,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+            AgentOverlayPhase.PAUSED -> {
+                OverlayActionPill(
+                    text = "继续",
+                    icon = MiuixIcons.Play,
+                    primary = false,
+                    phase = phase,
+                    onClick = onResume,
+                )
+                OverlayActionPill(
+                    text = "停止",
+                    primary = false,
+                    phase = phase,
+                    onClick = onStop,
+                    dotColor = phaseAccent(AgentOverlayPhase.FAILED),
+                )
+            }
+
+            AgentOverlayPhase.FINISHED, AgentOverlayPhase.FAILED -> {
+                OverlayActionPill(
+                    text = stateLabel(phase),
+                    primary = false,
+                    phase = phase,
+                    onClick = onStop,
+                    dotColor = phaseAccent(phase),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun OverlayActionButton(
+private fun OverlayActionPill(
     text: String,
     primary: Boolean,
+    phase: AgentOverlayPhase,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    dotColor: Color? = null,
 ) {
-    if (primary) {
-        Button(
-            onClick = onClick,
-            modifier = modifier,
-            colors = ButtonDefaults.buttonColorsPrimary(),
-        ) {
-            Text(text = text)
-        }
+    val accent = phaseAccent(phase)
+    val backgroundColor = if (primary) {
+        accent
     } else {
-        TextButton(
+        accent.copy(alpha = 0.12f)
+    }
+    val contentColor = if (primary) {
+        Color.White
+    } else {
+        accent
+    }
+    Row(
+        modifier = Modifier
+            .height(32.dp)
+            .widthIn(min = 68.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(backgroundColor)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        when {
+            icon != null -> {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp),
+                    tint = contentColor,
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+
+            dotColor != null -> {
+                StatusDot(color = dotColor, modifier = Modifier.size(15.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+        }
+        Text(
             text = text,
-            onClick = onClick,
-            modifier = modifier,
+            color = contentColor,
+            fontSize = MiuixTheme.textStyles.footnote1.fontSize,
+            lineHeight = 16.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
-/** 状态指示符：运行中转圈、暂停播放图标、完成打勾、失败叉号，颜色跟随阶段。 */
-@Composable
-private fun StatusGlyph(phase: AgentOverlayPhase, modifier: Modifier = Modifier) {
-    when (phase) {
-        AgentOverlayPhase.RUNNING -> InfiniteProgressIndicator(
-            modifier = modifier,
-            color = MiuixTheme.colorScheme.primary,
-            size = 22.dp,
-            strokeWidth = 2.5.dp,
-        )
-
-        AgentOverlayPhase.PAUSED -> Icon(
-            imageVector = MiuixIcons.Play,
-            contentDescription = null,
-            modifier = modifier,
-            tint = Color(0xFFFF9F0A),
-        )
-
-        AgentOverlayPhase.FINISHED -> StatusDot(
-            color = SuccessColor,
-            modifier = modifier,
-        )
-
-        AgentOverlayPhase.FAILED -> StatusDot(
-            color = MiuixTheme.colorScheme.error,
-            modifier = modifier,
-        )
-    }
+private fun stateLabel(phase: AgentOverlayPhase): String = when (phase) {
+    AgentOverlayPhase.RUNNING -> "执行中"
+    AgentOverlayPhase.PAUSED -> "已暂停"
+    AgentOverlayPhase.FINISHED -> "已完成"
+    AgentOverlayPhase.FAILED -> "失败"
 }
 
 @Composable

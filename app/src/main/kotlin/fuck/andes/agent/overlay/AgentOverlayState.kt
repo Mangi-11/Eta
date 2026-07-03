@@ -148,7 +148,7 @@ private const val MaxStreamingPreviewChars = 320
 private fun AgentOverlayState.appendStreamingText(event: AgentEvent.AssistantTextDelta): AgentOverlayState {
     val nextPreview = (detailText + event.delta)
         .trimStart()
-        .takeLast(MaxStreamingPreviewChars)
+        .take(MaxStreamingPreviewChars)
     return copy(
         phase = AgentOverlayPhase.RUNNING,
         round = event.round,
