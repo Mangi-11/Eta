@@ -109,7 +109,7 @@ internal object BreenoHooks {
             "c",
             messageClass,
             Boolean::class.javaPrimitiveType!!,
-            Integer::class.java,
+            Int::class.javaObjectType,
             Boolean::class.javaPrimitiveType!!
         )
         if (method == null) {
@@ -1076,11 +1076,11 @@ internal object BreenoHooks {
         val payload = streamTextCardClass.getDeclaredConstructor().newInstance()
         invokeCompatible(payload, "setContent", content)
         invokeCompatible(payload, "setRoomId", request.roomId)
-        invokeCompatible(payload, "setFinal", java.lang.Boolean.valueOf(isFinal))
-        invokeCompatible(payload, "setType", Integer.valueOf(type))
+        invokeCompatible(payload, "setFinal", isFinal)
+        invokeCompatible(payload, "setType", type)
         invokeCompatible(payload, "setQuery", request.text)
-        invokeCompatible(payload, "setHtml", java.lang.Boolean.FALSE)
-        invokeCompatible(payload, "setCharPerSec", Integer.valueOf(50))
+        invokeCompatible(payload, "setHtml", false)
+        invokeCompatible(payload, "setCharPerSec", 50)
         if (reasoningContent.isNotBlank()) {
             invokeCompatible(payload, "setReasoningContent", reasoningContent)
         }
@@ -1315,7 +1315,7 @@ internal object BreenoHooks {
             invokeCompatible(record, "setOriginRecordId", recordId)
             invokeCompatible(record, "setContent", content)
             invokeCompatible(record, "setType", type)
-            invokeCompatible(record, "setCancelFlag", java.lang.Boolean.FALSE)
+            invokeCompatible(record, "setCancelFlag", false)
             if (payload != null) {
                 invokeCompatible(record, "setPayload", payload)
             }
@@ -1550,14 +1550,14 @@ internal object BreenoHooks {
 
     private fun Class<*>.wrapPrimitive(): Class<*> =
         when (this) {
-            java.lang.Boolean.TYPE -> java.lang.Boolean::class.java
-            java.lang.Integer.TYPE -> java.lang.Integer::class.java
-            java.lang.Long.TYPE -> java.lang.Long::class.java
-            java.lang.Float.TYPE -> java.lang.Float::class.java
-            java.lang.Double.TYPE -> java.lang.Double::class.java
-            java.lang.Byte.TYPE -> java.lang.Byte::class.java
-            java.lang.Short.TYPE -> java.lang.Short::class.java
-            java.lang.Character.TYPE -> java.lang.Character::class.java
+            Boolean::class.javaPrimitiveType -> Boolean::class.javaObjectType
+            Int::class.javaPrimitiveType -> Int::class.javaObjectType
+            Long::class.javaPrimitiveType -> Long::class.javaObjectType
+            Float::class.javaPrimitiveType -> Float::class.javaObjectType
+            Double::class.javaPrimitiveType -> Double::class.javaObjectType
+            Byte::class.javaPrimitiveType -> Byte::class.javaObjectType
+            Short::class.javaPrimitiveType -> Short::class.javaObjectType
+            Char::class.javaPrimitiveType -> Char::class.javaObjectType
             else -> this
         }
 
