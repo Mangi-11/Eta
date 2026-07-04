@@ -14,6 +14,11 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import fuck.andes.agent.overlay.GestureIndicator
 import fuck.andes.config.Prefs
 import fuck.andes.core.AgentLogger
 import java.util.Locale
@@ -21,6 +26,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal class AgentLocalTools(
+    private val context: Context,
     private val logger: AgentLogger,
     private val terminalToolsEnabled: Boolean = Prefs.isEnabled(Prefs.Keys.AGENT_TERMINAL_TOOLS),
     private val skillIndexService: SkillIndexService? = null,
@@ -117,6 +123,8 @@ internal class AgentLocalTools(
             y = args.optInt("y"),
             coordinateSpace = args.optString("coordinate_space")
         )
+        vibrateLight()
+        showTap(point.x, point.y)
         return deviceController.tap(point.x, point.y)
     }
 
@@ -130,22 +138,32 @@ internal class AgentLocalTools(
             y = (y1 + y2) / 2,
             coordinateSpace = args.optString("coordinate_space")
         )
+        vibrateLight()
+        showTap(point.x, point.y)
         return deviceController.tap(point.x, point.y)
     }
 
     private fun tapElement(args: JSONObject): String {
         val index = args.optInt("index", -1)
-        deviceController.tapElement(index).takeIf { it.isOkJson() }?.let { return it }
         val node = lastUiNodes.firstOrNull { it.index == index }
-            ?: return errorResult("NO_OBSERVATION", "未找到最近一次 observe_screen 的节点 index=$index")
+        if (node != null) {
+            vibrateLight()
+            showTap(node.centerX, node.centerY)
+        }
+        deviceController.tapElement(index).takeIf { it.isOkJson() }?.let { return it }
+        if (node == null) return errorResult("NO_OBSERVATION", "未找到最近一次 observe_screen 的节点 index=$index")
         return deviceController.tap(node.centerX, node.centerY)
     }
 
     private fun longPressElement(args: JSONObject): String {
         val index = args.optInt("index", -1)
-        deviceController.longPressElement(index).takeIf { it.isOkJson() }?.let { return it }
         val node = lastUiNodes.firstOrNull { it.index == index }
-            ?: return errorResult("NO_OBSERVATION", "未找到最近一次 observe_screen 的节点 index=$index")
+        if (node != null) {
+            vibrateLight()
+            showTap(node.centerX, node.centerY)
+        }
+        deviceController.longPressElement(index).takeIf { it.isOkJson() }?.let { return it }
+        if (node == null) return errorResult("NO_OBSERVATION", "未找到最近一次 observe_screen 的节点 index=$index")
         return deviceController.longPress(node.centerX, node.centerY, args.optInt("duration_ms", 800))
     }
 
@@ -155,6 +173,8 @@ internal class AgentLocalTools(
             y = args.optInt("y"),
             coordinateSpace = args.optString("coordinate_space")
         )
+        vibrateLight()
+        showTap(point.x, point.y)
         return deviceController.longPress(point.x, point.y, args.optInt("duration_ms", 800))
     }
 
@@ -169,12 +189,15 @@ internal class AgentLocalTools(
             y = args.optInt("y2"),
             coordinateSpace = args.optString("coordinate_space")
         )
+        val durationMs = args.optInt("duration_ms", 500)
+        vibrateLight()
+        showSwipe(start.x, start.y, end.x, end.y, durationMs)
         return deviceController.swipe(
             start.x,
             start.y,
             end.x,
             end.y,
-            args.optInt("duration_ms", 500)
+            durationMs
         )
     }
 
@@ -538,6 +561,32 @@ internal class AgentLocalTools(
         AgentModelClient.ToolResult(content)
 
     private data class ScreenPoint(val x: Int, val y: Int)
+
+    private fun vibrateLight() {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+            manager?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+        vibrator?.let {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                it.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                it.vibrate(50)
+            }
+        }
+    }
+
+    private fun showTap(x: Int, y: Int) {
+        GestureIndicator.showTap(context, x, y)
+    }
+
+    private fun showSwipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Int) {
+        GestureIndicator.showSwipe(context, x1, y1, x2, y2, durationMs)
+    }
 
     private data class AppInfo(
         val packageName: String,
