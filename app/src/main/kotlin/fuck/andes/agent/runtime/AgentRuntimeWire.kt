@@ -312,6 +312,12 @@ internal object AgentRuntimeWire {
                 putTokenUsage(event.usage)
             }
 
+            is AgentEvent.UserSupplementReceived -> {
+                putString(KEY_TYPE, "user_supplement_received")
+                putInt("index", event.index)
+                putString("text", event.text)
+            }
+
             is AgentEvent.ToolStarted -> {
                 putString(KEY_TYPE, "tool_started")
                 putInt("round", event.round)
@@ -403,6 +409,11 @@ internal object AgentRuntimeWire {
         "usage_received" -> AgentEvent.UsageReceived(
             round = bundle.getInt("round"),
             usage = bundle.getTokenUsage(),
+        )
+
+        "user_supplement_received" -> AgentEvent.UserSupplementReceived(
+            index = bundle.getInt("index"),
+            text = bundle.getString("text").orEmpty(),
         )
 
         "tool_started" -> AgentEvent.ToolStarted(

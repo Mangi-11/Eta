@@ -62,6 +62,10 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             val assistantMessage = readStreamingAssistantMessage(connection.inputStream, runController, onEvent)
             onEvent(ProviderEvent.Completed(assistantMessage.optString("finish_reason").ifBlank { null }))
             return ProviderResponse(assistantMessage)
+        } catch (throwable: Throwable) {
+            runCatching { runController.throwIfCancelled() }
+                .getOrElse { interruption -> throw interruption }
+            throw throwable
         } finally {
             binding.close()
             connection.disconnect()

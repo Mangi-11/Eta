@@ -18,6 +18,7 @@ import fuck.andes.agent.runtime.AgentRunArchiveStore
 import fuck.andes.agent.runtime.AgentRuntimeClient
 import fuck.andes.agent.runtime.AgentRuntimeWire
 import fuck.andes.agent.runtime.AgentTokenUsage
+import fuck.andes.agent.runtime.AgentUiHandoffPayload
 import fuck.andes.agent.skill.SkillRuntime
 import fuck.andes.config.Prefs
 import fuck.andes.core.AndroidAgentLogger
@@ -131,11 +132,12 @@ internal class AgentAppState(
         withContext(Dispatchers.Main) {
             ours.forEach { completedRun ->
                 val runId = completedRun.result.runId.ifBlank { completedRun.handoff.id }
-                val conversationId = completedRun.handoff.payload
+                val payload = AgentUiHandoffPayload.from(completedRun.handoff.payload)
+                val conversationId = payload.conversationId
                 val state = conversationsById[conversationId] ?: return@forEach
                 val alreadyHasResult = state.messages.any {
                     it is AgentMessageUi && it.id == "assistant-$runId" && !it.isStreaming
-                }
+                } && state.messages.hasSupplementMessages(runId, payload.supplements)
                 if (alreadyHasResult) {
                     scope.launch(Dispatchers.IO) { client.ackResult(runId) }
                     return@forEach
@@ -146,17 +148,21 @@ internal class AgentAppState(
                 } else {
                     result.error ?: "Agent Runtime 调用失败"
                 }
-                val updatedMessages = state.messages.map { message ->
-                    if (message is AgentMessageUi && message.id == "assistant-$runId") {
-                        message.copy(
-                            content = content,
-                            isStreaming = false,
-                            renderMarkdown = result.ok,
-                        )
-                    } else {
-                        message
+                val updatedMessages = withSupplementMessages(
+                    runId = runId,
+                    supplements = payload.supplements,
+                    messages = state.messages.map { message ->
+                        if (message is AgentMessageUi && message.id == "assistant-$runId") {
+                            message.copy(
+                                content = content,
+                                isStreaming = false,
+                                renderMarkdown = result.ok,
+                            )
+                        } else {
+                            message
+                        }
                     }
-                }.let { messages ->
+                ).let { messages ->
                     // 如果 assistant 消息不存在（进程被杀时未持久化空 streaming），补一条
                     if (messages.none { it is AgentMessageUi && it.id == "assistant-$runId" }) {
                         messages + AgentMessageUi(
@@ -464,6 +470,10 @@ internal class AgentAppState(
                 updateAssistantUsage(runId, event.usage.toUi())
             }
 
+            is AgentEvent.UserSupplementReceived -> {
+                insertSupplementMessage(runId, event.index, event.text)
+            }
+
             is AgentEvent.ToolStarted -> {
                 updateRunTrace(runId) { messages ->
                     val finalized = runMessageProjector.finalizeThinkingRound(runId, event.round, messages)
@@ -564,6 +574,57 @@ internal class AgentAppState(
             usage = usage,
         )
     }
+
+    private fun insertSupplementMessage(runId: String, index: Int, text: String) {
+        updateMessages(runId) { messages ->
+            withSupplementMessages(
+                runId = runId,
+                supplements = listOf(
+                    AgentUiHandoffPayload.Supplement(
+                        index = index,
+                        text = text,
+                        createdAt = System.currentTimeMillis(),
+                    )
+                ),
+                messages = messages,
+            )
+        }
+        refreshConversationSummaries()
+        persistConversations()
+    }
+
+    private fun List<AgentChatMessageUi>.hasSupplementMessages(
+        runId: String,
+        supplements: List<AgentUiHandoffPayload.Supplement>,
+    ): Boolean =
+        supplements.all { supplement ->
+            any { message -> message.id == supplementMessageId(runId, supplement.index) }
+        }
+
+    private fun withSupplementMessages(
+        runId: String,
+        supplements: List<AgentUiHandoffPayload.Supplement>,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        var updated = messages
+        supplements.sortedBy { it.index }.forEach { supplement ->
+            val id = supplementMessageId(runId, supplement.index)
+            if (updated.any { it.id == id }) return@forEach
+            val userMessage = UserMessageUi(id = id, content = supplement.text)
+            val assistantIndex = updated.indexOfLast {
+                it is AgentMessageUi && it.id == "assistant-$runId"
+            }
+            updated = if (assistantIndex >= 0) {
+                updated.toMutableList().also { it.add(assistantIndex, userMessage) }
+            } else {
+                updated + userMessage
+            }
+        }
+        return updated
+    }
+
+    private fun supplementMessageId(runId: String, index: Int): String =
+        "user-$runId-supplement-$index"
 
     private fun currentAssistantContent(runId: String): String =
         conversationStateForRun(runId).messages

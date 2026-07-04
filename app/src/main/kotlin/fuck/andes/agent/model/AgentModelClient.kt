@@ -4,6 +4,7 @@ import fuck.andes.agent.skill.SkillContext
 import fuck.andes.config.Prefs
 import fuck.andes.agent.runtime.AgentEvent
 import fuck.andes.agent.runtime.AgentRunController
+import fuck.andes.agent.runtime.AgentRunSteeredException
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -46,100 +47,108 @@ internal object AgentModelClient {
         val reasoningContent = StringBuilder()
         var round = 1
         while (true) {
-            runController.throwIfCancelled()
-            onEvent(AgentEvent.RoundStarted(round = round, messageCount = messages.length()))
-            val reasoningLengthBeforeRound = reasoningContent.length
-            val providerResponse = provider.complete(
-                request = ProviderRequest(
-                    config = config,
-                    messages = messages,
-                    tools = tools
-                ),
-                runController = runController
-            ) { providerEvent ->
-                if (providerEvent is ProviderEvent.ReasoningDelta) {
-                    reasoningContent.append(providerEvent.delta)
-                }
-                providerEvent.toAgentEvent(round)?.let(onEvent)
-            }
-            val assistantMessage = providerResponse.assistantMessage
-            val toolCalls = parseToolCalls(assistantMessage)
-            val assistantReasoning = assistantMessage.optString("reasoning_content")
-            if (assistantReasoning.isNotBlank() && reasoningContent.length == reasoningLengthBeforeRound) {
-                reasoningContent.append(assistantReasoning)
-            }
-            onEvent(
-                AgentEvent.AssistantReceived(
-                    round = round,
-                    contentChars = assistantMessage.optString("content").length,
-                    reasoningContent = assistantReasoning,
-                    toolNames = toolCalls.map { it.name }
-                )
-            )
-            if (toolCalls.isNotEmpty()) {
-                messages.put(buildAssistantToolCallMessage(assistantMessage, toolCalls))
-                toolCalls.forEach { toolCall ->
-                    runController.throwIfCancelled()
-                    onEvent(
-                        AgentEvent.ToolStarted(
-                            round = round,
-                            toolCallId = toolCall.id,
-                            name = toolCall.name,
-                            argsPreview = toolCall.argumentsJson.compactTrace()
-                        )
-                    )
-                    val toolResult = toolExecutor.execute(toolCall)
-                    runController.throwIfCancelled()
-                    onEvent(
-                        AgentEvent.ToolFinished(
-                            round = round,
-                            toolCallId = toolCall.id,
-                            name = toolCall.name,
-                            resultSummary = summarizeToolResult(toolResult),
-                            imageCount = toolResult.images.size,
-                            imageBytes = toolResult.images.sumOf { it.bytes }
-                        )
-                    )
-                    messages.put(
-                        JSONObject()
-                            .put("role", "tool")
-                            .put("tool_call_id", toolCall.id)
-                            .put("content", toolResult.content)
-                    )
-                    if (toolResult.images.isNotEmpty()) {
-                        val imageBytes = toolResult.images.sumOf { it.bytes }
-                        messages.put(
-                            buildUserMessage(
-                                text = "Observation image(s) returned by tool ${toolCall.name}.",
-                                images = toolResult.images
-                            )
-                        )
-                        onEvent(
-                            AgentEvent.ToolImagesAttached(
-                                round = round,
-                                toolName = toolCall.name,
-                                imageCount = toolResult.images.size,
-                                imageBytes = imageBytes
-                            )
-                        )
+            try {
+                runController.throwIfCancelled()
+                onEvent(AgentEvent.RoundStarted(round = round, messageCount = messages.length()))
+                val reasoningLengthBeforeRound = reasoningContent.length
+                val providerResponse = provider.complete(
+                    request = ProviderRequest(
+                        config = config,
+                        messages = messages,
+                        tools = tools
+                    ),
+                    runController = runController
+                ) { providerEvent ->
+                    if (providerEvent is ProviderEvent.ReasoningDelta) {
+                        reasoningContent.append(providerEvent.delta)
                     }
+                    providerEvent.toAgentEvent(round)?.let(onEvent)
                 }
-                round += 1
-                continue
-            }
-
-            val content = assistantMessage.optString("content").trim()
-            if (content.isNotBlank() && content != "null") {
-                onEvent(AgentEvent.RunFinished(round = round, contentChars = content.length))
-                return ModelResponse.Text(
-                    content = content,
-                    reasoningContent = reasoningContent.toString().trim()
+                val assistantMessage = providerResponse.assistantMessage
+                val toolCalls = parseToolCalls(assistantMessage)
+                val assistantReasoning = assistantMessage.optString("reasoning_content")
+                if (assistantReasoning.isNotBlank() && reasoningContent.length == reasoningLengthBeforeRound) {
+                    reasoningContent.append(assistantReasoning)
+                }
+                onEvent(
+                    AgentEvent.AssistantReceived(
+                        round = round,
+                        contentChars = assistantMessage.optString("content").length,
+                        reasoningContent = assistantReasoning,
+                        toolNames = toolCalls.map { it.name }
+                    )
                 )
+                if (toolCalls.isNotEmpty()) {
+                    messages.put(buildAssistantToolCallMessage(assistantMessage, toolCalls))
+                    toolCalls.forEach { toolCall ->
+                        runController.throwIfCancelled()
+                        onEvent(
+                            AgentEvent.ToolStarted(
+                                round = round,
+                                toolCallId = toolCall.id,
+                                name = toolCall.name,
+                                argsPreview = toolCall.argumentsJson.compactTrace()
+                            )
+                        )
+                        val toolResult = toolExecutor.execute(toolCall)
+                        runController.throwIfCancelled()
+                        onEvent(
+                            AgentEvent.ToolFinished(
+                                round = round,
+                                toolCallId = toolCall.id,
+                                name = toolCall.name,
+                                resultSummary = summarizeToolResult(toolResult),
+                                imageCount = toolResult.images.size,
+                                imageBytes = toolResult.images.sumOf { it.bytes }
+                            )
+                        )
+                        messages.put(
+                            JSONObject()
+                                .put("role", "tool")
+                                .put("tool_call_id", toolCall.id)
+                                .put("content", toolResult.content)
+                        )
+                        if (toolResult.images.isNotEmpty()) {
+                            val imageBytes = toolResult.images.sumOf { it.bytes }
+                            messages.put(
+                                buildUserMessage(
+                                    text = "Observation image(s) returned by tool ${toolCall.name}.",
+                                    images = toolResult.images
+                                )
+                            )
+                            onEvent(
+                                AgentEvent.ToolImagesAttached(
+                                    round = round,
+                                    toolName = toolCall.name,
+                                    imageCount = toolResult.images.size,
+                                    imageBytes = imageBytes
+                                )
+                            )
+                        }
+                    }
+                    round += 1
+                    continue
+                }
+
+                val content = assistantMessage.optString("content").trim()
+                if (content.isNotBlank() && content != "null") {
+                    onEvent(AgentEvent.RunFinished(round = round, contentChars = content.length))
+                    return ModelResponse.Text(
+                        content = content,
+                        reasoningContent = reasoningContent.toString().trim()
+                    )
+                }
+                val finishReason = assistantMessage.optString("finish_reason")
+                error("模型接口第 $round 轮返回为空${finishReason.ifBlank { "" }}")
+            } catch (steered: AgentRunSteeredException) {
+                messages.put(buildUserMessage(buildSteerMessage(steered.supplement), emptyList()))
+                round += 1
             }
-            val finishReason = assistantMessage.optString("finish_reason")
-            error("模型接口第 $round 轮返回为空${finishReason.ifBlank { "" }}")
         }
     }
+
+    private fun buildSteerMessage(supplement: String): String =
+        "用户补充指令：$supplement\n\n请基于当前任务上下文继续执行，不要从头重复已经完成或已经验证过的操作。"
 
     private fun ModelConfig.validate() {
         require(baseUrl.isNotBlank()) { "请先配置 API 地址" }

@@ -118,7 +118,7 @@ fun AgentChatInputBar(
         modifier = modifier
             .fillMaxWidth()
             .background(MiuixTheme.colorScheme.surface)
-            .padding(start = 16.dp, top = 2.dp, end = 16.dp, bottom = 8.dp),
+            .padding(start = 16.dp, top = 2.dp, end = 16.dp, bottom = 18.dp),
     ) {
         // Pending attached images row (sits beautifully above the input card)
         if (pendingImages.isNotEmpty()) {

@@ -13,6 +13,7 @@ import android.os.Messenger
 import android.os.Process
 import android.provider.Settings
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
@@ -40,6 +41,7 @@ import fuck.andes.agent.tool.AgentLocalTools
 import fuck.andes.core.AndroidAgentLogger
 import fuck.andes.core.ModuleConfig
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.UUID
 import kotlin.concurrent.thread
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
@@ -78,6 +80,10 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     private val state = mutableStateOf(AgentOverlayState.Initial)
     private val collapsed = mutableStateOf(false)
+    private var hasExecutedForegroundTool = false
+    private val supplementsLock = Any()
+    private val activeSupplements = mutableListOf<AgentUiHandoffPayload.Supplement>()
+    private var lastCompletedRunContext: CompletedRunContext? = null
     private val hideToken = Any()
 
     override fun onCreate() {
@@ -160,6 +166,24 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         }
     }
 
+    private fun vibrateNormal() {
+        val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val manager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager
+            manager?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+        }
+        vibrator?.let {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                it.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                it.vibrate(100)
+            }
+        }
+    }
+
     private fun startRun(request: AgentRuntimeWire.RunRequest) {
         activeRunController?.cancel()
         val runController = AgentRunController()
@@ -173,6 +197,13 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         mainHandler.removeCallbacksAndMessages(hideToken)
         state.value = AgentOverlayState.Initial
         collapsed.value = false
+        hasExecutedForegroundTool = false
+        synchronized(supplementsLock) {
+            activeSupplements.clear()
+            if (request.handoff?.source == AGENT_UI_HANDOFF_SOURCE) {
+                activeSupplements += AgentUiHandoffPayload.from(request.handoff.payload).supplements
+            }
+        }
 
         thread(name = "agent-runtime") {
             val archivedEvents = mutableListOf<AgentEvent>()
@@ -187,6 +218,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             )
 
             val toolExecutor = AgentLocalTools(
+                context = this@AgentRuntimeService,
                 logger = AndroidAgentLogger,
                 terminalToolsEnabled = request.config.terminalTools,
                 skillIndexService = skillIndexService,
@@ -210,6 +242,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                             sendEvent(event)
                             val revealsForegroundOperation =
                                 AgentOverlayVisibilityPolicy.shouldRevealFor(event)
+                            if (revealsForegroundOperation) {
+                                hasExecutedForegroundTool = true
+                            }
                             if (
                                 AgentOverlayVisibilityPolicy.shouldDismissEntrySurfaceFor(event) &&
                                 request.handoff?.dismissEntrySurfaceOnForegroundOperation == true &&
@@ -221,6 +256,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                                 if (activeRunController == runController) {
                                     state.value = state.value.applyEvent(event)
                                     if (revealsForegroundOperation) {
+                                        if (orbView == null) {
+                                            vibrateNormal()
+                                        }
                                         ensureOverlayVisible()
                                     }
                                 }
@@ -233,8 +271,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         content = response.content,
                         reasoningContent = response.reasoningContent
                     )
-                    persistCompletedRun(request, result)
-                    persistArchivedRun(request, result, archivedEvents)
+                    val persistRequest = request.withActiveSupplements()
+                    persistCompletedRun(persistRequest, result)
+                    persistArchivedRun(persistRequest, result, archivedEvents)
                     if (activeRunController == runController) {
                         sendResult(result)
                     }
@@ -242,6 +281,10 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         if (activeRunController != runController) return@post
                         activeRunController = null
                         activeRunId = null
+                        lastCompletedRunContext = CompletedRunContext(
+                            request = persistRequest,
+                            response = response,
+                        )
                         val finalResult = response.content.trim()
                         enterFinalState(
                             state.value.copy(
@@ -270,8 +313,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         content = "",
                         error = message
                     )
-                    persistCompletedRun(request, result)
-                    persistArchivedRun(request, result, archivedEvents)
+                    val persistRequest = request.withActiveSupplements()
+                    persistCompletedRun(persistRequest, result)
+                    persistArchivedRun(persistRequest, result, archivedEvents)
                     if (activeRunController == runController) {
                         sendResult(result)
                     }
@@ -421,6 +465,43 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         )
     }
 
+    private fun requestSupplement(text: String) {
+        val supplementText = text.trim()
+        if (supplementText.isBlank()) return
+        setPanelInputMode(focusable = false)
+        activeRunController?.let { controller ->
+            val event = recordSupplementEvent(supplementText)
+            AndroidAgentLogger.info("Agent runtime supplement received: index=${event.index}, chars=${event.text.length}")
+            sendEvent(event)
+            state.value = state.value.applyEvent(event)
+            controller.steer(supplementText)
+            return
+        }
+
+        val completed = lastCompletedRunContext ?: return
+        if (completed.request.handoff?.source != AGENT_UI_HANDOFF_SOURCE) {
+            state.value = state.value.copy(statusText = "当前入口不支持继续补充")
+            return
+        }
+        val continuationRequest = completed.toContinuationRequest(supplementText)
+        startRun(continuationRequest)
+    }
+
+    private fun recordSupplementEvent(text: String): AgentEvent.UserSupplementReceived {
+        val supplement = synchronized(supplementsLock) {
+            val nextIndex = (activeSupplements.maxOfOrNull { it.index } ?: 0) + 1
+            AgentUiHandoffPayload.Supplement(
+                index = nextIndex,
+                text = text,
+                createdAt = System.currentTimeMillis(),
+            ).also { activeSupplements += it }
+        }
+        return AgentEvent.UserSupplementReceived(
+            index = supplement.index,
+            text = supplement.text,
+        )
+    }
+
     private fun ensureOverlayVisible() {
         showOverlay()
     }
@@ -471,7 +552,10 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
         // ── 卡片窗口：展开态显示，底部居中 ────────────────────────────
         if (!collapsed.value) {
+            orb.visibility = View.GONE
             showPanel(wm)
+        } else {
+            orb.visibility = View.VISIBLE
         }
     }
 
@@ -480,6 +564,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         val wm = windowManager ?: return
         if (collapsed.value) {
             panelView?.let { view -> runCatching { wm.removeView(view) } }
+            panelView = null
+            panelParams = null
+            orbView?.visibility = View.VISIBLE
         } else {
             if (panelView == null) showPanel(wm)
         }
@@ -498,6 +585,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         onPause = ::requestPause,
                         onResume = ::requestResume,
                         onStop = ::requestStop,
+                        onSupplementModeChange = ::setPanelInputMode,
+                        onSupplement = ::requestSupplement,
                     )
                 }
             }
@@ -509,6 +598,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         }
         panelView = panel
         panelParams = lp
+        orbView?.visibility = View.GONE
     }
 
     @Suppress("unused")
@@ -542,16 +632,38 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
             // 底部居中，安全区由 Compose 内部 navigationBarsPadding 处理
-            gravity = Gravity.BOTTOM or Gravity.START
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             x = 0
             y = 0
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
         }
+
+    private fun setPanelInputMode(focusable: Boolean) {
+        val wm = windowManager ?: return
+        val panel = panelView ?: return
+        val lp = panelParams ?: return
+        val nextHeight = if (focusable) {
+            dpToPx(380)
+        } else {
+            WindowManager.LayoutParams.WRAP_CONTENT
+        }
+        val nextFlags = if (focusable) {
+            lp.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        } else {
+            lp.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        }
+        if (lp.flags == nextFlags && lp.height == nextHeight) return
+        lp.flags = nextFlags
+        lp.height = nextHeight
+        lp.y = 0
+        runCatching { wm.updateViewLayout(panel, lp) }.onFailure { throwable ->
+            AndroidAgentLogger.warn("Agent runtime panel focus update failed: ${throwable.message ?: throwable.javaClass.simpleName}")
+        }
+    }
 
     @Suppress("DEPRECATION")
     private fun glowLayoutParams(): WindowManager.LayoutParams {
@@ -585,15 +697,19 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     private fun enterFinalState(finalState: AgentOverlayState, keepVisible: Boolean = false) {
         state.value = finalState
         clientMessenger = null
-        if (keepVisible) {
+        
+        if (hasExecutedForegroundTool) {
+            // Always display the final status panel card, never collapse it.
             collapsed.value = false
             ensureOverlayVisible()
             removeAmbientWindows()
             windowManager?.let(::showPanel)
+
+            // Clear any auto-close timers. Let the user manually close it.
+            mainHandler.removeCallbacksAndMessages(hideToken)
+        } else {
+            dismissAndStop()
         }
-        mainHandler.removeCallbacksAndMessages(hideToken)
-        val delay = if (keepVisible) RESULT_REVIEW_DELAY_MS else HIDE_DELAY_MS
-        mainHandler.postDelayed({ dismissAndStop() }, hideToken, delay)
     }
 
     private fun removeAmbientWindows() {
@@ -633,9 +749,57 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         return mode == Configuration.UI_MODE_NIGHT_YES
     }
 
+    private fun AgentRuntimeWire.RunRequest.withActiveSupplements(): AgentRuntimeWire.RunRequest {
+        val handoff = handoff ?: return this
+        if (handoff.source != AGENT_UI_HANDOFF_SOURCE) return this
+        val supplements = synchronized(supplementsLock) { activeSupplements.toList() }
+        if (supplements.isEmpty()) return this
+        val payload = AgentUiHandoffPayload.from(handoff.payload).copy(
+            supplements = supplements,
+        )
+        return copy(
+            handoff = handoff.copy(payload = payload.toJson())
+        )
+    }
+
+    private fun CompletedRunContext.toContinuationRequest(supplement: String): AgentRuntimeWire.RunRequest {
+        val runId = "run-${UUID.randomUUID()}"
+        val baseHistory = request.history +
+            AgentModelClient.ConversationMessage(role = "user", content = request.prompt) +
+            AgentModelClient.ConversationMessage(role = "assistant", content = response.content)
+        val handoff = request.handoff?.let { original ->
+            if (original.source != AGENT_UI_HANDOFF_SOURCE) return@let original.copy(id = runId)
+            val payload = AgentUiHandoffPayload.from(original.payload)
+            val nextSupplement = AgentUiHandoffPayload.Supplement(
+                index = (payload.supplements.maxOfOrNull { it.index } ?: 0) + 1,
+                text = supplement,
+                createdAt = System.currentTimeMillis(),
+            )
+            original.copy(
+                id = runId,
+                payload = payload.copy(
+                    supplements = payload.supplements + nextSupplement
+                ).toJson(),
+            )
+        }
+        return request.copy(
+            runId = runId,
+            prompt = supplement,
+            images = emptyList(),
+            history = baseHistory,
+            handoff = handoff,
+        )
+    }
+
     private companion object {
+        const val AGENT_UI_HANDOFF_SOURCE = "agent_ui"
         const val ACTION_KEEP_ALIVE = "fuck.andes.agent.runtime.KEEP_ALIVE"
         const val HIDE_DELAY_MS = 2_500L
         const val RESULT_REVIEW_DELAY_MS = 120_000L
     }
+
+    private data class CompletedRunContext(
+        val request: AgentRuntimeWire.RunRequest,
+        val response: AgentModelClient.ModelResponse.Text,
+    )
 }

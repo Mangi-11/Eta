@@ -10,6 +10,9 @@ internal class AgentRunController {
     @Volatile
     private var cancelled = false
 
+    @Volatile
+    private var steerText: String? = null
+
     private val lock = ReentrantLock()
     private val pauseCondition = lock.newCondition()
     @Volatile
@@ -18,6 +21,22 @@ internal class AgentRunController {
     fun cancel() {
         lock.withLock {
             cancelled = true
+            steerText = null
+            paused = false
+            pauseCondition.signalAll()
+        }
+        resources.forEach { resource ->
+            runCatching { resource.cancel() }
+        }
+    }
+
+    fun steer(text: String) {
+        val prompt = text.trim()
+        if (prompt.isBlank()) return
+        lock.withLock {
+            if (cancelled) return
+            steerText = listOfNotNull(steerText, prompt)
+                .joinToString(separator = "\n\n")
             paused = false
             pauseCondition.signalAll()
         }
@@ -49,22 +68,28 @@ internal class AgentRunController {
      * 在 agent 循环的每轮/每步调用，实现暂停可恢复、取消即终止。
      */
     fun throwIfCancelled() {
+        var pendingSteer: String? = null
         lock.withLock {
-            while (paused && !cancelled) {
+            while (paused && !cancelled && steerText == null) {
                 try {
                     pauseCondition.await()
                 } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
                 }
             }
+            pendingSteer = steerText
+            if (pendingSteer != null) {
+                steerText = null
+            }
         }
+        pendingSteer?.let { throw AgentRunSteeredException(it) }
         if (cancelled) throw AgentRunCancelledException()
     }
 
     fun register(cancel: () -> Unit): ResourceBinding {
         val resource = CancellableResource(cancel)
         resources.add(resource)
-        if (cancelled) resource.cancel()
+        if (cancelled || steerText != null) resource.cancel()
         return ResourceBinding { resources.remove(resource) }
     }
 
@@ -80,3 +105,5 @@ internal class AgentRunController {
 }
 
 internal class AgentRunCancelledException : RuntimeException("Agent run cancelled")
+
+internal class AgentRunSteeredException(val supplement: String) : RuntimeException("Agent run steered")

@@ -82,6 +82,14 @@ internal sealed interface AgentEvent {
             "usage_received round=$round, ctx=${usage.contextTokens}, in=${usage.inputTokens}, out=${usage.outputTokens}, reasoning=${usage.reasoningTokens}, cache=${usage.cachedTokens}"
     }
 
+    data class UserSupplementReceived(
+        val index: Int,
+        val text: String
+    ) : AgentEvent {
+        override fun toLogLine(): String =
+            "user_supplement_received index=$index, chars=${text.length}"
+    }
+
     data class ToolStarted(
         val round: Int,
         val toolCallId: String,

@@ -78,6 +78,12 @@ internal fun AgentOverlayState.applyEvent(event: AgentEvent): AgentOverlayState 
 
     is AgentEvent.UsageReceived -> this
 
+    is AgentEvent.UserSupplementReceived -> copy(
+        phase = AgentOverlayPhase.RUNNING,
+        statusText = "已接收补充，继续执行",
+        detailText = "",
+    )
+
     is AgentEvent.ToolStarted -> copy(
         phase = AgentOverlayPhase.RUNNING,
         round = event.round,
