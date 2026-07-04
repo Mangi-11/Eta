@@ -45,9 +45,6 @@ import fuck.andes.ui.model.ToolActivityMessageUi
 import fuck.andes.ui.model.ToolGroupUi
 import fuck.andes.ui.model.ToolItemUi
 import fuck.andes.ui.model.UserMessageUi
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,7 +56,6 @@ internal class AgentAppState(
     private val scope: CoroutineScope,
 ) {
     private val appContext = context.applicationContext
-    private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     private val runConversationIds = mutableMapOf<String, String>()
     private val runMessageProjector = AgentRunMessageProjector()
     private var currentRunId: String? = null
@@ -726,7 +722,7 @@ internal class AgentAppState(
                     timeLabel = if (state.isStreaming) {
                         "现在"
                     } else {
-                        conversationUpdatedAt[id]?.let { timeFormat.format(Date(it)) } ?: "最近"
+                        conversationUpdatedAt[id]?.let(ConversationTimeLabels::label) ?: "最近"
                     },
                     mode = ConversationModeUi.Chat,
                     isActiveRun = state.isStreaming,
