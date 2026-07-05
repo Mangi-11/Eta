@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 java {
@@ -76,7 +77,20 @@ dependencies {
     implementation(libs.markdown.renderer)
     implementation(libs.markdown.renderer.m3)
     // markdown-renderer-m3 将 material3 作为 compileOnly，需显式引入以满足运行时依赖
-    implementation("androidx.compose.material3:material3:1.3.1")
+    implementation(libs.material3)
+
+    // DataStore：Provider / Model 结构化 JSON 与当前选中 ID 等键值
+    implementation(libs.datastore.preferences)
+
+    // OkHttp：替代 HttpURLConnection，支持 SSE
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.sse)
+
+    // Kotlinx Serialization：Room TypeConverter 与配置序列化
+    implementation(libs.kotlinx.serialization.json)
+
+    // Coroutines：显式引入，避免依赖传递版本不确定
+    implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
     testImplementation(libs.json)
