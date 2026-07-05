@@ -74,6 +74,21 @@ class ProviderRepositoryTest {
         assertEquals(listOf("x-provider"), restored.customHeaders.map { it.name })
         assertEquals(listOf("x-model"), restored.models.first().customHeaders.map { it.name })
     }
+
+    @Test
+    fun selectedRuntimeConfigUsesUpdatedProviderApiKey() = runBlocking {
+        ProviderRepository.ensureBuiltInsMerged()
+        val provider = (ProviderRepository.providerById(BuiltinProviders.OPENAI_ID) as OpenAiCompatibleProviderSetting)
+            .copy(apiKey = "sk-test-key")
+
+        ProviderRepository.updateProvider(provider)
+        RuntimeConfigRepository.setSelectedProviderId(provider.id)
+
+        val config = RuntimeConfigRepository.currentRuntimeConfig()
+        requireNotNull(config)
+        assertEquals(provider.id, config.providerId)
+        assertEquals("sk-test-key", config.apiKey)
+    }
 }
 
 private fun ProviderSetting.copyForTest(

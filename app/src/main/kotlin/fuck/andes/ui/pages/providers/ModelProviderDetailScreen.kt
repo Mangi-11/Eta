@@ -252,20 +252,26 @@ private fun ProviderConfigTab(
                             colors = ButtonDefaults.textButtonColorsPrimary(),
                             onClick = {
                                 scope.launch {
-                                    ProviderRepository.updateProvider(
-                                        buildUpdatedProvider(
-                                            source = provider,
-                                            name = name,
-                                            baseUrl = baseUrl,
-                                            apiKey = apiKey,
-                                            systemPrompt = systemPrompt,
-                                            isEnabled = isEnabled,
-                                            endpointMode = endpointMode,
-                                            anthropicVersion = anthropicVersion,
-                                        )
+                                    val updatedProvider = buildUpdatedProvider(
+                                        source = provider,
+                                        name = name,
+                                        baseUrl = baseUrl,
+                                        apiKey = apiKey,
+                                        systemPrompt = systemPrompt,
+                                        isEnabled = isEnabled,
+                                        endpointMode = endpointMode,
+                                        anthropicVersion = anthropicVersion,
                                     )
+                                    ProviderRepository.updateProvider(updatedProvider)
+                                    if (updatedProvider.isEnabled) {
+                                        RuntimeConfigRepository.setSelectedProviderId(updatedProvider.id)
+                                    }
                                     val ok = RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                                    status = if (ok) "已保存并同步" else "已保存，LSPosed 服务未连接"
+                                    status = when {
+                                        !updatedProvider.isEnabled -> "已保存，Provider 未启用"
+                                        ok -> "已保存、设为当前并同步"
+                                        else -> "已保存并设为当前，LSPosed 服务未连接"
+                                    }
                                 }
                             },
                         )
