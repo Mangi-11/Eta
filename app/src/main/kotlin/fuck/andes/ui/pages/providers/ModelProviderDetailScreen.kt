@@ -67,7 +67,7 @@ internal fun ModelProviderDetailScreen(
     var currentTab by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
-        RuntimeConfigRepository.migrateLegacyConfig(FuckAndesApp.serviceInstance)
+        RuntimeConfigRepository.ensureDefaults(FuckAndesApp.serviceInstance)
     }
 
     if (provider == null) {

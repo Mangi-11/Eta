@@ -61,16 +61,18 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-// ── ColorOS 风格色彩定义 ─────────────────────────────────────────────────────────────
-private val ColorOSOrangeRed = Color(0xFFFA6022) // 温暖橙红
-private val ColorOSRoyalBlue = Color(0xFF2879FB) // 经典科技蓝
-private val ColorOSVividGreen = Color(0xFF24B251) // 质感绿（叶绿）
-private val ColorOSAmberYellow = Color(0xFFFFA312) // 琥珀金黄
-private val ColorOSLightBlue = Color(0xFF00AEEF) // 天空浅蓝
-private val ColorOSRed = Color(0xFFEB4335) // 警示红（微暖）
-private val ColorOSPurple = Color(0xFF9E57C2) // 雅致浅紫
-private val ColorOSSlateGray = Color(0xFF6E8296) // 沉稳灰蓝
-private val ColorOSOrange = Color(0xFFFF8800) // 标准鲜橙
+// ── ColorOS / COUI 主色（ColorOS 16.1 Settings.apk: coui_color_*） ────────────────
+// 约定：设置页圆形图标/按钮底色只使用 ColorOS 设置主色。
+// 不要用 coui_color_*_variant、截图平均取样色或 Material/iOS 近似色替代，否则实心圆底会发灰或偏色。
+private val ColorOSOrangeRed = Color(0xFFFF7700)
+private val ColorOSRoyalBlue = Color(0xFF0066FF)
+private val ColorOSVividGreen = Color(0xFF00BD13)
+private val ColorOSAmberYellow = Color(0xFFFFB200)
+private val ColorOSLightBlue = Color(0xFF0066FF)
+private val ColorOSRed = Color(0xFFEB3B2F)
+private val ColorOSPurple = Color(0xFF0066FF)
+private val ColorOSSlateGray = Color(0xFF0066FF)
+private val ColorOSOrange = Color(0xFFFF7700)
 
 /**
  * 模块配置界面。
@@ -132,7 +134,7 @@ internal fun SettingsScreen(
             override fun onServiceStateChanged(service: io.github.libxposed.service.XposedService?) {
                 prefs = Prefs.remotePreferencesForUi(service)
                 coroutineScope.launch {
-                    RuntimeConfigRepository.migrateLegacyConfig(service)
+                    RuntimeConfigRepository.ensureDefaults(service)
                 }
             }
         }

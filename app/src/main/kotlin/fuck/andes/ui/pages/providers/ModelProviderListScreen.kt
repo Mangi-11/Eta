@@ -48,7 +48,7 @@ internal fun ModelProviderListScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        RuntimeConfigRepository.migrateLegacyConfig(FuckAndesApp.serviceInstance)
+        RuntimeConfigRepository.ensureDefaults(FuckAndesApp.serviceInstance)
     }
 
     val filteredProviders = remember(providers, searchQuery) {

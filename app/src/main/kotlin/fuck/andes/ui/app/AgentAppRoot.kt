@@ -63,7 +63,7 @@ fun AgentAppRoot() {
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
-        RuntimeConfigRepository.migrateLegacyConfig(FuckAndesApp.serviceInstance)
+        RuntimeConfigRepository.ensureDefaults(FuckAndesApp.serviceInstance)
     }
 
     fun pushRoute(
