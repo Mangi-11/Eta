@@ -31,7 +31,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private object ToolsMetrics {
@@ -44,7 +43,6 @@ private object ToolsMetrics {
     val CardMinHeight = 136.dp
     val CardInsidePadding = 16.dp
     val IconContainerSize = 40.dp
-    val IconContainerCornerRadius = 12.dp
     val IconSize = 20.dp
     val IconTitleGap = 12.dp
     val TitleSummaryGap = 2.dp
@@ -168,29 +166,30 @@ private fun ToolCard(
 }
 
 private fun colorForTool(toolId: String): Color = when (toolId) {
-    // 屏幕与控件 (橙红 - ColorOS 权限管理风)
+    // 与设置页保持一致：圆形图标底色统一使用 ColorOS 设置主色，不使用 variant/截图取样色。
+    // 屏幕与控件
     "observe", "observe_screen",
     "click", "tap_element",
     "tap_area", "long_press",
-    "swipe", "scroll" -> Color(0xFFFA6022)
+    "swipe", "scroll" -> Color(0xFFFF7700)
     
-    // 文本与剪贴板 (明蓝 - ColorOS 隐私替身风)
+    // 文本与剪贴板
     "clipboard", "paste_text",
     "input_text", "replace_text",
     "clear_text", "wait_text",
-    "wait_for_text" -> Color(0xFF2879FB)
+    "wait_for_text" -> Color(0xFF0066FF)
     
-    // 应用与系统 (亮绿 - ColorOS 私密保险箱风)
+    // 应用与系统
     "search_apps", "open_app",
     "launch_app", "open_uri",
-    "press_key", "open_system_panel" -> Color(0xFF24B251)
+    "press_key", "open_system_panel" -> Color(0xFF00BD13)
     
-    // 终端与文件 (明黄 - ColorOS 应用锁风)
+    // 终端与文件
     "terminal", "terminal_job",
     "run_command", "read_file",
-    "write_file", "list_directory" -> Color(0xFFFFA312)
+    "write_file", "list_directory" -> Color(0xFFFFB200)
     
-    else -> Color(0xFF6E8296) // 默认灰蓝
+    else -> Color(0xFF0066FF)
 }
 
 private fun iconForTool(toolId: String): Int = when (toolId) {
@@ -205,10 +204,10 @@ private fun iconForTool(toolId: String): Int = when (toolId) {
     "replace_text" -> LucideR.drawable.lucide_ic_replace
     "clear_text" -> LucideR.drawable.lucide_ic_eraser
     "wait_text", "wait_for_text" -> LucideR.drawable.lucide_ic_clock
-    "search_apps" -> LucideR.drawable.lucide_ic_search
-    "open_app", "launch_app" -> LucideR.drawable.lucide_ic_rocket
+    "search_apps" -> LucideR.drawable.lucide_ic_package_search
+    "open_app", "launch_app" -> LucideR.drawable.lucide_ic_app_window
     "open_uri" -> LucideR.drawable.lucide_ic_external_link
-    "press_key" -> LucideR.drawable.lucide_ic_command
+    "press_key" -> LucideR.drawable.lucide_ic_smartphone
     "open_system_panel" -> LucideR.drawable.lucide_ic_panel_top_open
     "terminal", "terminal_job", "run_command" -> LucideR.drawable.lucide_ic_square_terminal
     "read_file" -> LucideR.drawable.lucide_ic_file_text

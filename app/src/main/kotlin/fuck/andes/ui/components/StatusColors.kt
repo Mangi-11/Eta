@@ -26,17 +26,18 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 
 // 语义状态色
-val StatusSuccess = Color(0xFF34C759)
-val StatusWarning = Color(0xFFFF9F0A)
+val StatusSuccess = Color(0xFF00BD13)
+val StatusWarning = Color(0xFFFFB200)
 val StatusError: Color @Composable get() = MiuixTheme.colorScheme.error
 val StatusRunning: Color @Composable get() = MiuixTheme.colorScheme.primary
 val StatusIdle: Color @Composable get() = MiuixTheme.colorScheme.onSurfaceVariantSummary
 
-// 图标 tint 色系（与设置页一致）
-val IconTintBlue = Color(0xFF3482F6)
-val IconTintGreen = Color(0xFF34C759)
-val IconTintPurple = Color(0xFFAF52DE)
-val IconTintOrange = Color(0xFFFF9F0A)
+// 图标 tint 色系（与设置页一致，统一使用 ColorOS 设置主色）
+// 不要用 coui_color_*_variant、截图平均取样色或 Material/iOS 近似色替代。
+val IconTintBlue = Color(0xFF0066FF)
+val IconTintGreen = Color(0xFF00BD13)
+val IconTintPurple = Color(0xFF0066FF)
+val IconTintOrange = Color(0xFFFF7700)
 
 // ── RunStatusUi 映射 ──────────────────────────────────────────────────
 
