@@ -32,17 +32,8 @@ internal object Prefs {
         const val SCREEN_ON_VOICE_COMMAND = "screen_on_voice_command"
         const val AGENT_CUSTOM_MODEL = "agent_custom_model"
         const val AGENT_REQUIRE_PREFIX = "agent_require_prefix"
-        const val AGENT_BASE_URL = "agent_base_url"
-        const val AGENT_API_KEY = "agent_api_key"
-        const val AGENT_MODEL = "agent_model"
-        const val AGENT_SYSTEM_PROMPT = "agent_system_prompt"
         const val AGENT_TERMINAL_TOOLS = "agent_terminal_tools"
         const val AGENT_THINKING_ENABLED = "agent_thinking_enabled"
-        const val AGENT_EXTRA_BODY_JSON = "agent_extra_body_json"
-
-        // Provider / Model 运行时镜像 key（供 Hook 进程读取）
-        const val AGENT_SELECTED_PROVIDER_ID = "agent_selected_provider_id"
-        const val AGENT_SELECTED_MODEL_ID = "agent_selected_model_id"
         const val AGENT_RUNTIME_CONFIG_JSON = "agent_runtime_config_json"
 
         /** 全部布尔开关及其默认值。 */
@@ -58,15 +49,6 @@ internal object Prefs {
             AGENT_REQUIRE_PREFIX to true,
             AGENT_TERMINAL_TOOLS to false,
             AGENT_THINKING_ENABLED to false
-        )
-
-        /** 文本配置默认值。 */
-        val STRING_DEFAULTS: Map<String, String> = mapOf(
-            AGENT_BASE_URL to "https://api.openai.com/v1",
-            AGENT_API_KEY to "",
-            AGENT_MODEL to "gpt-5.5",
-            AGENT_SYSTEM_PROMPT to "你是运行在 Android 设备上的手机 Agent。回答要简洁、直接，并保留必要的操作上下文。",
-            AGENT_EXTRA_BODY_JSON to ""
         )
     }
 
@@ -89,8 +71,7 @@ internal object Prefs {
     }
 
     fun getString(key: String): String {
-        val default = Keys.STRING_DEFAULTS[key].orEmpty()
-        return remote?.getString(key, default) ?: default
+        return remote?.getString(key, "") ?: ""
     }
 
     /**

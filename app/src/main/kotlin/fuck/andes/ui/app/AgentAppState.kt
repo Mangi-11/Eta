@@ -60,7 +60,7 @@ internal class AgentAppState(
     private val runMessageProjector = AgentRunMessageProjector()
     private var currentRunId: String? = null
     private var currentRunJob: kotlinx.coroutines.Job? = null
-    private val defaultThinkingEnabled = loadModelConfigForUi().thinkingEnabled
+    private val defaultThinkingEnabled = remoteBooleanForUi(Prefs.Keys.AGENT_THINKING_ENABLED)
     private val initialConversations = AgentConversationStore.load(appContext, defaultThinkingEnabled)
 
     private var selectedConversationId: String = initialConversations.selectedConversationId
@@ -264,7 +264,7 @@ internal class AgentAppState(
 
     fun createConversation() {
         selectedConversationId = newConversationId()
-        val state = emptyChatState(loadModelConfigForUi().thinkingEnabled)
+        val state = emptyChatState(defaultThinkingEnabled)
         conversationsById = conversationsById + (selectedConversationId to state)
         conversationTitles = conversationTitles + (selectedConversationId to "新对话")
         conversationUpdatedAt = conversationUpdatedAt + (selectedConversationId to System.currentTimeMillis())
@@ -320,7 +320,24 @@ internal class AgentAppState(
         persistConversations()
 
         currentRunJob = scope.launch(Dispatchers.IO) {
-            val config = loadModelConfigForUi().copy(thinkingEnabled = thinkingEnabled)
+            val config = RuntimeConfigRepository.currentRuntimeConfig()?.copy(
+                terminalTools = remoteBooleanForUi(Prefs.Keys.AGENT_TERMINAL_TOOLS),
+                thinkingEnabled = thinkingEnabled,
+            )
+            if (config == null) {
+                withContext(Dispatchers.Main) {
+                    applyRunResult(
+                        runId,
+                        AgentRuntimeWire.RunResult(
+                            runId = runId,
+                            ok = false,
+                            content = "",
+                            error = "请先配置模型提供商和模型",
+                        )
+                    )
+                }
+                return@launch
+            }
             val modelImages = pendingImages.map { p ->
                 AgentModelClient.ModelImage(
                     dataUrl = p.dataUrl,
@@ -668,7 +685,7 @@ internal class AgentAppState(
     private fun moveCurrentDraftToNewConversation() {
         val draft = homeState
         selectedConversationId = newConversationId()
-        val state = emptyChatState(loadModelConfigForUi().thinkingEnabled).copy(
+        val state = emptyChatState(defaultThinkingEnabled).copy(
             input = draft.input,
             thinkingEnabled = draft.thinkingEnabled,
             pendingImages = draft.pendingImages,
@@ -928,8 +945,12 @@ private fun buildPermissionHealthState(context: Context): PermissionHealthUiStat
     )
 }
 
-private fun loadModelConfigForUi(): AgentModelClient.ModelConfig =
-    AgentModelClient.loadConfig()
+private fun remoteBooleanForUi(key: String): Boolean {
+    val default = Prefs.Keys.BOOLEAN_DEFAULTS[key] ?: true
+    return Prefs.remotePreferencesForUi(FuckAndesApp.serviceInstance)
+        ?.getBoolean(key, default)
+        ?: Prefs.isEnabled(key)
+}
 
 private fun AgentTokenUsage.toUi(): TokenUsageUi =
     TokenUsageUi(
