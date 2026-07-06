@@ -2,32 +2,28 @@ package fuck.andes.data.provider
 
 import fuck.andes.data.model.AnthropicProviderSetting
 import fuck.andes.data.model.OpenAiCompatibleProviderSetting
+import fuck.andes.data.model.ProviderSourceTypes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BuiltinProvidersTest {
     @Test
-    fun builtInsUseStableIdsAndCurrentDefaultModels() {
+    fun builtInsKeepStablePresetMetadataWithoutInliningModels() {
         val providers = BuiltinProviders.PROVIDERS.associateBy { it.id }
 
         assertTrue(providers[BuiltinProviders.OPENAI_ID] is OpenAiCompatibleProviderSetting)
         assertTrue(providers[BuiltinProviders.ANTHROPIC_ID] is AnthropicProviderSetting)
-        assertEquals(
-            listOf("gpt-5.5"),
-            providers.getValue(BuiltinProviders.OPENAI_ID).models.map { it.modelId }
-        )
-        assertEquals(
-            listOf("claude-fable-5", "claude-opus-4-8", "claude-sonnet-5"),
-            providers.getValue(BuiltinProviders.ANTHROPIC_ID).models.map { it.modelId }
-        )
-        assertEquals(
-            listOf("qwen3.7-max", "qwen3.7-plus"),
-            providers.getValue(BuiltinProviders.DASHSCOPE_ID).models.map { it.modelId }
-        )
-        assertEquals(
-            listOf("deepseek-v4-pro", "deepseek-v4-flash"),
-            providers.getValue(BuiltinProviders.DEEPSEEK_ID).models.map { it.modelId }
-        )
+        assertEquals(0, providers.getValue(BuiltinProviders.OPENAI_ID).models.size)
+        assertEquals(0, providers.getValue(BuiltinProviders.BAILIAN_ID).models.size)
+        assertEquals(0, providers.getValue(BuiltinProviders.MIMO_ID).models.size)
+        assertEquals(0, providers.getValue(BuiltinProviders.MINIMAX_ID).models.size)
+        assertEquals(0, providers.getValue(BuiltinProviders.STEPFUN_ID).models.size)
+        assertEquals("https://api.moonshot.cn/v1", providers.getValue(BuiltinProviders.KIMI_ID).baseUrl)
+        assertEquals(ProviderSourceTypes.BAILIAN, providers.getValue(BuiltinProviders.BAILIAN_ID).sourceType)
+        assertEquals(ProviderSourceTypes.MOONSHOT, providers.getValue(BuiltinProviders.KIMI_ID).sourceType)
+        assertEquals(ProviderSourceTypes.MIMO, providers.getValue(BuiltinProviders.MIMO_ID).sourceType)
+        assertEquals(ProviderSourceTypes.MINIMAX, providers.getValue(BuiltinProviders.MINIMAX_ID).sourceType)
+        assertEquals(ProviderSourceTypes.STEPFUN, providers.getValue(BuiltinProviders.STEPFUN_ID).sourceType)
     }
 }

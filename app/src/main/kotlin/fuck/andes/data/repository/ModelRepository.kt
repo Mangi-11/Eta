@@ -46,9 +46,23 @@ internal object ModelRepository {
     }
 
     suspend fun replaceModelsForProvider(providerId: String, newModels: List<Model>) {
-        updateProviderModels(providerId) {
+        updateProviderModels(providerId) { existingModels ->
+            val existingByModelId = existingModels.associateBy { it.modelId.trim().lowercase() }
             newModels.mapIndexed { index, model ->
-                model.copy(sortOrder = index)
+                val existing = existingByModelId[model.modelId.trim().lowercase()]
+                if (existing == null) {
+                    model.copy(sortOrder = index)
+                } else {
+                    model.copy(
+                        id = existing.id,
+                        isEnabled = existing.isEnabled,
+                        isBuiltIn = existing.isBuiltIn || model.isBuiltIn,
+                        sortOrder = index,
+                        customHeaders = existing.customHeaders,
+                        customBody = existing.customBody,
+                        createdAt = existing.createdAt,
+                    )
+                }
             }
         }
     }

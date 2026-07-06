@@ -14,11 +14,26 @@ internal object OpenAiEndpointMode {
     const val RESPONSES = "responses"
 }
 
+internal object ProviderSourceTypes {
+    const val CUSTOM = "custom"
+    const val OPENAI = "openai"
+    const val ANTHROPIC = "anthropic"
+    const val BAILIAN = "bailian"
+    const val DEEPSEEK = "deepseek"
+    const val MOONSHOT = "moonshot"
+    const val MIMO = "mimo"
+    const val MINIMAX = "minimax"
+    const val STEPFUN = "stepfun"
+    const val SILICONFLOW = "siliconflow"
+    const val OPENROUTER = "openrouter"
+}
+
 @Serializable
 sealed interface ProviderSetting {
     val id: String
     val name: String
     val baseUrl: String
+    val sourceType: String
     val apiKey: String
     val isEnabled: Boolean
     val isBuiltIn: Boolean
@@ -36,6 +51,7 @@ data class OpenAiCompatibleProviderSetting(
     override val id: String,
     override val name: String,
     override val baseUrl: String,
+    override val sourceType: String = ProviderSourceTypes.CUSTOM,
     override val apiKey: String = "",
     override val isEnabled: Boolean = true,
     override val isBuiltIn: Boolean = false,
@@ -54,6 +70,7 @@ data class AnthropicProviderSetting(
     override val id: String,
     override val name: String,
     override val baseUrl: String,
+    override val sourceType: String = ProviderSourceTypes.CUSTOM,
     override val apiKey: String = "",
     override val isEnabled: Boolean = true,
     override val isBuiltIn: Boolean = false,
@@ -76,6 +93,7 @@ data class CustomProviderSetting(
     override val id: String,
     override val name: String,
     override val baseUrl: String,
+    override val sourceType: String = ProviderSourceTypes.CUSTOM,
     override val apiKey: String = "",
     override val isEnabled: Boolean = true,
     override val isBuiltIn: Boolean = false,

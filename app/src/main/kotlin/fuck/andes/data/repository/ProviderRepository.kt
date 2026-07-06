@@ -19,6 +19,7 @@ import fuck.andes.data.model.withApiKey
 import fuck.andes.data.model.withModels
 import fuck.andes.data.model.withSortOrder
 import fuck.andes.data.provider.BuiltinProviders
+import fuck.andes.data.provider.OfficialModelCatalog
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -77,7 +78,6 @@ internal object ProviderRepository {
                         id = newId(),
                         modelId = "model-id",
                         displayName = "自定义模型",
-                        supportsTools = true,
                     )
                 )
             )
@@ -85,20 +85,11 @@ internal object ProviderRepository {
 
     suspend fun addAnthropicProvider(): ProviderSetting =
         addProvider(
-            AnthropicProviderSetting(
-                id = newId(),
-                name = "自定义 Anthropic",
-                baseUrl = "https://api.anthropic.com",
-                models = listOf(
-                    Model(
-                        id = newId(),
-                        modelId = "claude-sonnet-5",
-                        displayName = "Claude Sonnet 5",
-                        supportsVision = true,
-                        supportsTools = true,
-                        supportsReasoning = true,
-                        contextWindow = 1_000_000,
-                    )
+            seedOfficialModelsIfEmpty(
+                AnthropicProviderSetting(
+                    id = newId(),
+                    name = "自定义 Anthropic",
+                    baseUrl = "https://api.anthropic.com",
                 )
             )
         )
@@ -132,9 +123,11 @@ internal object ProviderRepository {
     suspend fun resetBuiltIn(id: String) {
         val builtIn = BuiltinProviders.providerById(id) ?: return
         val current = providerById(id)
-        val restored = current
+        val restored = seedOfficialModelsIfEmpty(
+            current
             ?.let { builtIn.withApiKey(it.apiKey).withSortOrder(it.sortOrder) }
             ?: builtIn
+        )
         replaceProvider(restored)
         repairSelection()
     }
@@ -142,7 +135,7 @@ internal object ProviderRepository {
     suspend fun ensureBuiltInsMerged() {
         val current = allProviders()
         if (current.isEmpty()) {
-            insertProviders(BuiltinProviders.PROVIDERS)
+            insertProviders(BuiltinProviders.PROVIDERS.map(::seedOfficialModelsIfEmpty))
             repairSelection()
             return
         }
@@ -150,7 +143,7 @@ internal object ProviderRepository {
         val existingIds = current.mapTo(mutableSetOf()) { it.id }
         val missing = BuiltinProviders.PROVIDERS.filterNot { it.id in existingIds }
         if (missing.isNotEmpty()) {
-            insertProviders(missing)
+            insertProviders(missing.map(::seedOfficialModelsIfEmpty))
             repairSelection()
         } else {
             repairSelection()
@@ -199,6 +192,12 @@ internal object ProviderRepository {
                 )
             }
         )
+    }
+
+    private fun seedOfficialModelsIfEmpty(provider: ProviderSetting): ProviderSetting {
+        if (provider.models.isNotEmpty()) return provider
+        val seededModels = OfficialModelCatalog.modelsForProvider(provider)
+        return if (seededModels.isEmpty()) provider else provider.withModels(seededModels)
     }
 
     private fun ProviderSetting.deepCopy(

@@ -16,7 +16,9 @@ import fuck.andes.data.model.OpenAiCompatibleProviderSetting
 import fuck.andes.data.model.OpenAiEndpointMode
 import fuck.andes.data.model.ProviderSetting
 import fuck.andes.data.model.ProviderTypes
+import fuck.andes.data.provider.ProviderSourceRegistry
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 @Entity(tableName = "model_providers")
@@ -60,10 +62,15 @@ internal data class ProviderModelEntity(
     @ColumnInfo(name = "is_enabled") val isEnabled: Boolean,
     @ColumnInfo(name = "is_built_in") val isBuiltIn: Boolean,
     @ColumnInfo(name = "sort_order") val sortOrder: Int,
-    @ColumnInfo(name = "supports_vision") val supportsVision: Boolean,
-    @ColumnInfo(name = "supports_tools") val supportsTools: Boolean,
-    @ColumnInfo(name = "supports_reasoning") val supportsReasoning: Boolean,
+    @ColumnInfo(name = "owned_by") val ownedBy: String?,
     @ColumnInfo(name = "context_window") val contextWindow: Int?,
+    @ColumnInfo(name = "input_modalities_json") val inputModalitiesJson: String,
+    @ColumnInfo(name = "output_modalities_json") val outputModalitiesJson: String,
+    @ColumnInfo(name = "attachment") val attachment: Boolean?,
+    @ColumnInfo(name = "tool_call") val toolCall: Boolean?,
+    @ColumnInfo(name = "reasoning") val reasoning: Boolean?,
+    @ColumnInfo(name = "structured_output") val structuredOutput: Boolean?,
+    @ColumnInfo(name = "supports_temperature") val supportsTemperature: Boolean?,
     @ColumnInfo(name = "custom_headers_json") val customHeadersJson: String,
     @ColumnInfo(name = "custom_body_json") val customBodyJson: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
@@ -110,11 +117,17 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
     val domainModels = models
         .sortedBy { it.sortOrder }
         .map(ProviderModelEntity::toDomain)
+    val sourceType = ProviderSourceRegistry.resolve(
+        providerId = provider.id,
+        baseUrl = provider.baseUrl,
+        providerType = provider.type,
+    )
     return when (provider.type) {
         ProviderTypes.ANTHROPIC -> AnthropicProviderSetting(
             id = provider.id,
             name = provider.name,
             baseUrl = provider.baseUrl,
+            sourceType = sourceType,
             apiKey = provider.apiKey,
             isEnabled = provider.isEnabled,
             isBuiltIn = provider.isBuiltIn,
@@ -133,6 +146,7 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
             id = provider.id,
             name = provider.name,
             baseUrl = provider.baseUrl,
+            sourceType = sourceType,
             apiKey = provider.apiKey,
             isEnabled = provider.isEnabled,
             isBuiltIn = provider.isBuiltIn,
@@ -149,6 +163,7 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
             id = provider.id,
             name = provider.name,
             baseUrl = provider.baseUrl,
+            sourceType = sourceType,
             apiKey = provider.apiKey,
             isEnabled = provider.isEnabled,
             isBuiltIn = provider.isBuiltIn,
@@ -179,10 +194,15 @@ private fun Model.toEntity(providerId: String): ProviderModelEntity =
         isEnabled = isEnabled,
         isBuiltIn = isBuiltIn,
         sortOrder = sortOrder,
-        supportsVision = supportsVision,
-        supportsTools = supportsTools,
-        supportsReasoning = supportsReasoning,
+        ownedBy = ownedBy,
         contextWindow = contextWindow,
+        inputModalitiesJson = ProviderJson.encodeStrings(inputModalities),
+        outputModalitiesJson = ProviderJson.encodeStrings(outputModalities),
+        attachment = attachment,
+        toolCall = toolCall,
+        reasoning = reasoning,
+        structuredOutput = structuredOutput,
+        supportsTemperature = supportsTemperature,
         customHeadersJson = ProviderJson.encodeHeaders(customHeaders),
         customBodyJson = ProviderJson.encodeBody(customBody),
         createdAt = createdAt,
@@ -193,13 +213,22 @@ private fun ProviderModelEntity.toDomain(): Model =
         id = id,
         modelId = modelId,
         displayName = displayName,
+        ownedBy = ownedBy,
         isEnabled = isEnabled,
         isBuiltIn = isBuiltIn,
         sortOrder = sortOrder,
-        supportsVision = supportsVision,
-        supportsTools = supportsTools,
-        supportsReasoning = supportsReasoning,
         contextWindow = contextWindow,
+        inputModalities = ProviderJson.decodeStrings(inputModalitiesJson).ifEmpty {
+            listOf(Model.TEXT_MODALITY)
+        },
+        outputModalities = ProviderJson.decodeStrings(outputModalitiesJson).ifEmpty {
+            listOf(Model.TEXT_MODALITY)
+        },
+        attachment = attachment,
+        toolCall = toolCall,
+        reasoning = reasoning,
+        structuredOutput = structuredOutput,
+        supportsTemperature = supportsTemperature,
         customHeaders = ProviderJson.decodeHeaders(customHeadersJson),
         customBody = ProviderJson.decodeBody(customBodyJson),
         createdAt = createdAt,
@@ -212,6 +241,7 @@ private object ProviderJson {
     }
     private val headersSerializer = ListSerializer(CustomHeader.serializer())
     private val bodySerializer = ListSerializer(CustomBody.serializer())
+    private val stringsSerializer = ListSerializer(String.serializer())
 
     fun encodeHeaders(headers: List<CustomHeader>): String =
         json.encodeToString(headersSerializer, headers)
@@ -224,4 +254,10 @@ private object ProviderJson {
 
     fun decodeBody(raw: String): List<CustomBody> =
         runCatching { json.decodeFromString(bodySerializer, raw) }.getOrDefault(emptyList())
+
+    fun encodeStrings(values: List<String>): String =
+        json.encodeToString(stringsSerializer, values)
+
+    fun decodeStrings(raw: String): List<String> =
+        runCatching { json.decodeFromString(stringsSerializer, raw) }.getOrDefault(emptyList())
 }

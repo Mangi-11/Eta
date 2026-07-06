@@ -1,9 +1,9 @@
 package fuck.andes.data.provider
 
 import fuck.andes.data.model.AnthropicProviderSetting
-import fuck.andes.data.model.Model
 import fuck.andes.data.model.OpenAiCompatibleProviderSetting
 import fuck.andes.data.model.ProviderSetting
+import fuck.andes.data.model.ProviderSourceTypes
 
 internal object BuiltinProviders {
     const val DEFAULT_SYSTEM_PROMPT =
@@ -11,8 +11,12 @@ internal object BuiltinProviders {
 
     const val OPENAI_ID = "builtin-openai"
     const val ANTHROPIC_ID = "builtin-anthropic"
-    const val DASHSCOPE_ID = "builtin-dashscope"
+    const val BAILIAN_ID = "builtin-dashscope"
     const val DEEPSEEK_ID = "builtin-deepseek"
+    const val KIMI_ID = "builtin-kimi"
+    const val MIMO_ID = "builtin-mimo"
+    const val MINIMAX_ID = "builtin-minimax"
+    const val STEPFUN_ID = "builtin-stepfun"
     const val SILICONFLOW_ID = "builtin-siliconflow"
     const val OPENROUTER_ID = "builtin-openrouter"
 
@@ -21,137 +25,90 @@ internal object BuiltinProviders {
             id = OPENAI_ID,
             name = "OpenAI",
             baseUrl = "https://api.openai.com/v1",
+            sourceType = ProviderSourceTypes.OPENAI,
             isBuiltIn = true,
             sortOrder = 0,
             systemPrompt = DEFAULT_SYSTEM_PROMPT,
-            models = listOf(
-                Model(
-                    id = "builtin-openai-gpt-5-5",
-                    modelId = "gpt-5.5",
-                    displayName = "GPT-5.5",
-                    isBuiltIn = true,
-                    supportsVision = true,
-                    supportsTools = true,
-                    supportsReasoning = true
-                )
-            )
         ),
         AnthropicProviderSetting(
             id = ANTHROPIC_ID,
             name = "Anthropic",
             baseUrl = "https://api.anthropic.com",
+            sourceType = ProviderSourceTypes.ANTHROPIC,
             isBuiltIn = true,
             sortOrder = 1,
             systemPrompt = DEFAULT_SYSTEM_PROMPT,
-            models = listOf(
-                Model(
-                    id = "builtin-anthropic-claude-fable-5",
-                    modelId = "claude-fable-5",
-                    displayName = "Claude Fable 5",
-                    isBuiltIn = true,
-                    supportsVision = true,
-                    supportsTools = true,
-                    supportsReasoning = true,
-                    contextWindow = 1_000_000
-                ),
-                Model(
-                    id = "builtin-anthropic-claude-opus-4-8",
-                    modelId = "claude-opus-4-8",
-                    displayName = "Claude Opus 4.8",
-                    isBuiltIn = true,
-                    sortOrder = 1,
-                    supportsVision = true,
-                    supportsTools = true,
-                    supportsReasoning = true,
-                    contextWindow = 1_000_000
-                ),
-                Model(
-                    id = "builtin-anthropic-claude-sonnet-5",
-                    modelId = "claude-sonnet-5",
-                    displayName = "Claude Sonnet 5",
-                    isBuiltIn = true,
-                    sortOrder = 2,
-                    supportsVision = true,
-                    supportsTools = true,
-                    supportsReasoning = true,
-                    contextWindow = 1_000_000
-                )
-            )
         ),
         OpenAiCompatibleProviderSetting(
-            id = DASHSCOPE_ID,
+            id = BAILIAN_ID,
             name = "阿里百炼",
             baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            sourceType = ProviderSourceTypes.BAILIAN,
             isBuiltIn = true,
             sortOrder = 2,
             systemPrompt = DEFAULT_SYSTEM_PROMPT,
-            models = listOf(
-                Model(
-                    id = "builtin-dashscope-qwen3-7-max",
-                    modelId = "qwen3.7-max",
-                    displayName = "Qwen3.7 Max",
-                    isBuiltIn = true,
-                    supportsVision = true,
-                    supportsTools = true,
-                    supportsReasoning = true,
-                    contextWindow = 1_000_000
-                ),
-                Model(
-                    id = "builtin-dashscope-qwen3-7-plus",
-                    modelId = "qwen3.7-plus",
-                    displayName = "Qwen3.7 Plus",
-                    isBuiltIn = true,
-                    sortOrder = 1,
-                    supportsVision = true,
-                    supportsTools = true,
-                    supportsReasoning = true,
-                    contextWindow = 1_000_000
-                )
-            )
         ),
         OpenAiCompatibleProviderSetting(
             id = DEEPSEEK_ID,
             name = "DeepSeek",
             baseUrl = "https://api.deepseek.com",
+            sourceType = ProviderSourceTypes.DEEPSEEK,
             isBuiltIn = true,
             sortOrder = 3,
             systemPrompt = DEFAULT_SYSTEM_PROMPT,
-            models = listOf(
-                Model(
-                    id = "builtin-deepseek-v4-pro",
-                    modelId = "deepseek-v4-pro",
-                    displayName = "DeepSeek V4 Pro",
-                    isBuiltIn = true,
-                    supportsTools = true,
-                    supportsReasoning = true,
-                    contextWindow = 1_000_000
-                ),
-                Model(
-                    id = "builtin-deepseek-v4-flash",
-                    modelId = "deepseek-v4-flash",
-                    displayName = "DeepSeek V4 Flash",
-                    isBuiltIn = true,
-                    sortOrder = 1,
-                    supportsTools = true,
-                    supportsReasoning = true,
-                    contextWindow = 1_000_000
-                )
-            )
+        ),
+        OpenAiCompatibleProviderSetting(
+            id = KIMI_ID,
+            name = "Kimi",
+            baseUrl = "https://api.moonshot.cn/v1",
+            sourceType = ProviderSourceTypes.MOONSHOT,
+            isBuiltIn = true,
+            sortOrder = 4,
+            systemPrompt = DEFAULT_SYSTEM_PROMPT,
+        ),
+        OpenAiCompatibleProviderSetting(
+            id = MIMO_ID,
+            name = "MiMo",
+            baseUrl = "https://api.xiaomimimo.com/v1",
+            sourceType = ProviderSourceTypes.MIMO,
+            isBuiltIn = true,
+            sortOrder = 5,
+            systemPrompt = DEFAULT_SYSTEM_PROMPT
+        ),
+        OpenAiCompatibleProviderSetting(
+            id = MINIMAX_ID,
+            name = "MiniMax",
+            baseUrl = "https://api.minimaxi.com/v1",
+            sourceType = ProviderSourceTypes.MINIMAX,
+            isBuiltIn = true,
+            sortOrder = 6,
+            systemPrompt = DEFAULT_SYSTEM_PROMPT
+        ),
+        OpenAiCompatibleProviderSetting(
+            id = STEPFUN_ID,
+            name = "StepFun",
+            baseUrl = "https://api.stepfun.com/v1",
+            sourceType = ProviderSourceTypes.STEPFUN,
+            isBuiltIn = true,
+            sortOrder = 7,
+            systemPrompt = DEFAULT_SYSTEM_PROMPT
         ),
         OpenAiCompatibleProviderSetting(
             id = SILICONFLOW_ID,
             name = "硅基流动",
             baseUrl = "https://api.siliconflow.cn/v1",
+            sourceType = ProviderSourceTypes.SILICONFLOW,
             isBuiltIn = true,
-            sortOrder = 4,
+            sortOrder = 8,
             systemPrompt = DEFAULT_SYSTEM_PROMPT
         ),
         OpenAiCompatibleProviderSetting(
             id = OPENROUTER_ID,
             name = "OpenRouter",
             baseUrl = "https://openrouter.ai/api/v1",
+            sourceType = ProviderSourceTypes.OPENROUTER,
             isBuiltIn = true,
-            sortOrder = 5,
+            sortOrder = 9,
             systemPrompt = DEFAULT_SYSTEM_PROMPT
         )
     )

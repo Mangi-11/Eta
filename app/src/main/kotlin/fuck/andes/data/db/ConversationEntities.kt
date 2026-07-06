@@ -11,6 +11,7 @@ internal data class ConversationEntity(
     @PrimaryKey val id: String,
     val title: String,
     @ColumnInfo(name = "thinking_enabled") val thinkingEnabled: Boolean,
+    @ColumnInfo(name = "history_json") val historyJson: String = "[]",
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )

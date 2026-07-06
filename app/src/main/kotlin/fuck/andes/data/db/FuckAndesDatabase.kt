@@ -17,7 +17,7 @@ import androidx.room.RoomDatabase
         RuntimeArchiveEventEntity::class,
         SkillRegistryEntity::class,
     ],
-    version = 4,
+    version = 6,
     exportSchema = false,
 )
 internal abstract class FuckAndesDatabase : RoomDatabase() {

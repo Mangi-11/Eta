@@ -12,6 +12,7 @@ import fuck.andes.data.model.ProviderSetting
 import fuck.andes.data.model.runtimeProviderType
 import fuck.andes.data.model.selectedOrFirstModel
 import fuck.andes.data.provider.BuiltinProviders
+import fuck.andes.data.provider.ProviderSourceRegistry
 import io.github.libxposed.service.XposedService
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -85,6 +86,7 @@ internal object RuntimeConfigRepository {
             providerId = provider.id,
             providerName = provider.name,
             providerType = provider.runtimeProviderType,
+            providerSourceType = ProviderSourceRegistry.resolve(provider),
             baseUrl = provider.baseUrl.trim(),
             apiKey = provider.apiKey.trim(),
             model = model.modelId.trim(),
