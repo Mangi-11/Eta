@@ -6,6 +6,20 @@
 
 与普通端侧 AI 助手不同，我们不只是一个运行在沙盒里的聊天 App。项目通过 Xposed Hook、root、无障碍服务、系统浮层和系统设置修复，把第三方 Agent 接到电源键、小布、SystemUI 手势、ColorDirect 识屏、Google 语音助理等系统级入口上。
 
+## 界面预览
+
+| GUI Agent 演示 | 小布助手 BYOK：电源键启动 |
+|:---:|:---:|
+| ![GUI Agent 演示](docs/Screenshots/demo_gui_agent.gif) | ![小布助手 BYOK：电源键启动](docs/Screenshots/demo_tools.gif) |
+
+| App本体聊天首页 | 小布 BYOK：系统内存分析 | 命令执行 |
+|:---:|:---:|:---:|
+| ![聊天首页](docs/Screenshots/chat_home.jpg) | ![小布 BYOK：系统内存分析](docs/Screenshots/chat_breeno_analysis.jpg) | ![命令执行](docs/Screenshots/chat_command.jpg) |
+
+| 设置 | 工具能力 | 技能管理 |
+|:---:|:---:|:---:|
+| ![设置](docs/Screenshots/settings.jpg) | ![工具能力](docs/Screenshots/tools.jpg) | ![技能管理](docs/Screenshots/skills.jpg) |
+
 ## 产品定位
 
 当前项目要做的不是“换一个聊天机器人”，而是做一个能在手机上执行任务的第三方系统级 Agent 运行环境：
