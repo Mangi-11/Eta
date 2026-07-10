@@ -15,6 +15,7 @@ import android.graphics.RectF
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -23,12 +24,15 @@ import fuck.andes.core.AndroidAgentLogger
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
 import org.json.JSONObject
 
 class AgentAccessibilityService : AccessibilityService() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val mainThreadExecutor = Executor { command -> mainHandler.post(command) }
+    private val windowChangeLock = ReentrantLock()
+    private val windowChanged = windowChangeLock.newCondition()
     private var lastNodes: List<IndexedNode> = emptyList()
 
     override fun onServiceConnected() {
@@ -38,10 +42,16 @@ class AgentAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         if (instance === this) instance = null
         lastNodes = emptyList()
+        signalWindowChanged()
         super.onDestroy()
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        when (event?.eventType) {
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED,
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> signalWindowChanged()
+        }
+    }
 
     override fun onInterrupt() = Unit
 
@@ -55,6 +65,69 @@ class AgentAccessibilityService : AccessibilityService() {
 
     fun currentPackageName(): String? =
         rootInActiveWindow?.packageName?.toString()
+
+    fun isPackageWindowVisible(packageName: String): Boolean =
+        runOnMainSync {
+            rootInActiveWindow?.packageName?.toString() == packageName ||
+                windows.orEmpty().any { window ->
+                    val root = window.root ?: return@any false
+                    root.packageName?.toString() == packageName
+                }
+        } == true
+
+    /**
+     * BACK 只表示系统接收了退出动作；浮窗通常还会执行退出动画。
+     * 等待目标包窗口真正消失并稳定两个采样周期，避免下一步截图抢在 removeView 之前执行。
+     */
+    fun awaitPackageWindowGone(
+        packageName: String,
+        timeoutMillis: Long = 1_000L,
+        minimumWaitMillis: Long = 160L,
+        stableMillis: Long = 80L,
+    ): Boolean {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            return !isPackageWindowVisible(packageName)
+        }
+        val startedAt = SystemClock.elapsedRealtime()
+        val deadline = startedAt + timeoutMillis.coerceIn(200L, 2_000L)
+        var absentSince = 0L
+        do {
+            val now = SystemClock.elapsedRealtime()
+            if (isPackageWindowVisible(packageName)) {
+                absentSince = 0L
+            } else {
+                if (absentSince == 0L) absentSince = now
+                if (now - startedAt >= minimumWaitMillis && now - absentSince >= stableMillis) {
+                    return true
+                }
+            }
+            val remainingMillis = deadline - SystemClock.elapsedRealtime()
+            if (remainingMillis > 0L) {
+                awaitWindowChanged(remainingMillis.coerceAtMost(WINDOW_POLL_FALLBACK_MS))
+            }
+        } while (SystemClock.elapsedRealtime() < deadline)
+        return !isPackageWindowVisible(packageName)
+    }
+
+    private fun signalWindowChanged() {
+        windowChangeLock.lock()
+        try {
+            windowChanged.signalAll()
+        } finally {
+            windowChangeLock.unlock()
+        }
+    }
+
+    private fun awaitWindowChanged(timeoutMillis: Long) {
+        windowChangeLock.lock()
+        try {
+            windowChanged.await(timeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } finally {
+            windowChangeLock.unlock()
+        }
+    }
 
     fun clickNode(index: Int): Boolean {
         val node = nodeAt(index) ?: return false
@@ -165,7 +238,9 @@ class AgentAccessibilityService : AccessibilityService() {
      * callback 经 mainThreadExecutor 回主线程，latch 在子线程等待，不阻塞主线程。
      * 参考 OpenOmniBot OmniScreenshotAction.captureExcludingOverlaysV14。
      */
-    fun captureScreenshotExcludingOverlays(): Bitmap? {
+    fun captureScreenshotExcludingOverlays(
+        excludedPackages: Set<String> = emptySet(),
+    ): Bitmap? {
         val allWindows = windows ?: return null
         val wm = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return null
         val point = Point()
@@ -174,10 +249,14 @@ class AgentAccessibilityService : AccessibilityService() {
         val screenW = point.x
         val screenH = point.y
 
-        // 过滤掉无障碍 overlay 窗口（即我们自己的浮层 glow/orb/bubble/resultCard/GestureIndicator，
-        // 均为 TYPE_ACCESSIBILITY_OVERLAY），保留应用窗口 + 系统 UI（状态栏等）
-        val validWindows = allWindows.filter {
-            it.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY
+        // 过滤自己的无障碍 overlay 及入口浮窗包，保留应用窗口 + 系统 UI（状态栏等）。
+        val windowPackages = allWindows.associate { window ->
+            val packageName = window.root?.packageName?.toString()
+            window.id to packageName
+        }
+        val validWindows = allWindows.filter { window ->
+            window.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY &&
+                windowPackages[window.id] !in excludedPackages
         }
         if (validWindows.isEmpty()) return null
 
@@ -232,6 +311,7 @@ class AgentAccessibilityService : AccessibilityService() {
         AndroidAgentLogger.debug {
             "Agent accessibility action=capture_screenshot outcome=merged " +
                 "allWindows=${allWindows.size} validWindows=${validWindows.size} " +
+                "excludedPackages=${excludedPackages.size} " +
                 "success=$successCount screenshots=${screenshots.size} " +
                 "screen=${screenW}x${screenH} merged=${merged?.width}x${merged?.height}"
         }
@@ -466,6 +546,8 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        private const val WINDOW_POLL_FALLBACK_MS = 80L
+
         @Volatile
         private var instance: AgentAccessibilityService? = null
 

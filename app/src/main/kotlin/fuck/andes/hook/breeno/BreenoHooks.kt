@@ -63,6 +63,7 @@ internal object BreenoHooks {
         "com.heytap.speechassist.aichathome.chat.ui.tip.AiChatFastModeStateManager"
     private const val INSERT_RECORD_CLASS =
         "com.heytap.speechassist.aichat.repository.api.InsertRecord"
+    private const val JSON_UTIL_CLASS = "com.heytap.speechassist.utils.j3"
     private const val KOTLIN_FUNCTION1_CLASS = "kotlin.jvm.functions.Function1"
     private const val KOTLIN_UNIT_CLASS = "kotlin.Unit"
     private const val EXPERIMENTAL_PREFIX = "/agent "
@@ -136,6 +137,10 @@ internal object BreenoHooks {
     private val startedAgentRequests = ConcurrentHashMap<String, Long>()
     private val claimedAgentRooms = ConcurrentHashMap<String, Long>()
     private val injectedAnswerSignatures = ConcurrentHashMap<String, Long>()
+    private val historyPersistenceInFlight = BoundedRunIdSet(
+        capacity = HANDLED_RUN_ID_CAPACITY,
+        ttlMillis = HANDLED_RUN_ID_TTL_MS,
+    )
     private val pendingDrainRunning = AtomicBoolean(false)
     private val pendingAckDrainRunning = AtomicBoolean(false)
     private val pendingAckRetryScheduled = AtomicBoolean(false)
@@ -373,6 +378,7 @@ internal object BreenoHooks {
         classLoader: ClassLoader,
         bean: Any?
     ) {
+        if (bean == null) return
         val text = invokeString(bean, "getContent")?.trim().orEmpty()
         if (text.isBlank()) return
         val roomId = invokeString(bean, "getRoomId").orEmpty()
@@ -392,7 +398,12 @@ internal object BreenoHooks {
             originalRecordId = stableRecordId,
             sessionId = "",
             roomId = roomId,
-            thinkingEnabledOverride = currentBreenoThinkingEnabledOverride(classLoader)
+            thinkingEnabledOverride = currentBreenoThinkingEnabledOverride(classLoader),
+            queryPayload = invokeString(bean, "getPayload"),
+            queryClientResult = serializeForBreenoHistory(
+                classLoader,
+                HookSupport.invokeNoArgs(bean, "getClientResult"),
+            ),
         )
         val handled = startAgentRequest(
             logger = logger,
@@ -616,7 +627,17 @@ internal object BreenoHooks {
                     runCatching {
                         if (!markRunDelivered(deliveredRunId)) {
                             streamRenderer.cancel()
-                            ackRuntimeResult(logger, deliveredRunId)
+                            if (acknowledgeableRuntimeRunIds.contains(deliveredRunId)) {
+                                ackRuntimeResult(logger, deliveredRunId)
+                            } else if (ackRunId != null) {
+                                persistHistoryAndAck(
+                                    logger = logger,
+                                    classLoader = classLoader,
+                                    request = request.copy(text = prompt),
+                                    response = modelResponse,
+                                    runId = deliveredRunId,
+                                )
+                            }
                             logger.debug { "Breeno Agent result already delivered" }
                             return@runCatching
                         }
@@ -631,9 +652,16 @@ internal object BreenoHooks {
                         if (!streamRenderer.finish(modelResponse, injectedRequest)) {
                             injectModelResponse(classLoader, injectedRequest, modelResponse)
                         }
-                        persistChatHistory(logger, classLoader, injectedRequest, modelResponse)
-                        ackRunId?.let { runId ->
-                            ackRuntimeResult(logger, runId)
+                        if (ackRunId == null) {
+                            persistChatHistory(logger, classLoader, injectedRequest, modelResponse)
+                        } else {
+                            persistHistoryAndAck(
+                                logger = logger,
+                                classLoader = classLoader,
+                                request = injectedRequest,
+                                response = modelResponse,
+                                runId = deliveredRunId,
+                            )
                         }
                         logger.info(
                             "Breeno custom model injected: ${modelResponse.summary()}"
@@ -772,7 +800,11 @@ internal object BreenoHooks {
         var deliveryMarked = false
         runCatching {
             if (!markRunDelivered(runId)) {
-                ackRuntimeResult(logger, runId)
+                if (acknowledgeableRuntimeRunIds.contains(runId)) {
+                    ackRuntimeResult(logger, runId)
+                } else {
+                    persistHistoryAndAck(logger, classLoader, request, response, runId)
+                }
                 logger.debug { "Breeno pending Agent result already delivered" }
                 return@runCatching
             }
@@ -783,13 +815,13 @@ internal object BreenoHooks {
                 request,
                 response
             )
-            persistChatHistory(
+            persistHistoryAndAck(
                 logger = logger,
                 classLoader = classLoader,
                 request = request,
-                response = response
+                response = response,
+                runId = runId,
             )
-            ackRuntimeResult(logger, runId)
             logger.info("Breeno pending Agent result injected: ${response.summary()}")
         }.onFailure { throwable ->
             if (deliveryMarked) handledRuntimeRunIds.remove(runId)
@@ -1482,7 +1514,8 @@ internal object BreenoHooks {
         logger: ModuleLogger,
         classLoader: ClassLoader,
         request: TextRequest,
-        response: AgentModelClient.ModelResponse.Text
+        response: AgentModelClient.ModelResponse.Text,
+        onFinished: (Boolean) -> Unit = {},
     ) {
         runCatching {
             val roomId = request.roomId.ifBlank { currentRoomId(classLoader) }
@@ -1490,6 +1523,7 @@ internal object BreenoHooks {
                 logger.warnThrottled("breeno_history_room_missing") {
                     "Breeno: 跳过历史写入，roomId 为空"
                 }
+                onFinished(false)
                 return
             }
             val recordId = request.recordId
@@ -1503,7 +1537,8 @@ internal object BreenoHooks {
                 recordId = recordId,
                 content = request.text,
                 type = RECORD_TYPE_QUERY,
-                payload = null
+                payload = request.queryPayload,
+                clientResult = request.queryClientResult,
             )
             val answerRecord = newInsertRecord(
                 classLoader = classLoader,
@@ -1513,30 +1548,104 @@ internal object BreenoHooks {
                 payload = buildHistoryPayloadJson(
                     response = response,
                     request = request.copy(recordId = recordId, roomId = roomId)
-                )
+                ),
+                clientResult = null,
             )
-            invokeCompatible(
-                repository,
-                "r",
-                roomId,
-                agentName,
-                queryRecord,
-                newHistoryCallback(classLoader, logger, "query")
-            )
-            invokeCompatible(
-                repository,
-                "r",
-                roomId,
-                agentName,
-                answerRecord,
-                newHistoryCallback(classLoader, logger, "answer")
-            )
+            insertHistoryRecord(
+                classLoader = classLoader,
+                repository = repository,
+                roomId = roomId,
+                agentName = agentName,
+                record = queryRecord,
+                logger = logger,
+                label = "query",
+            ) { queryResult ->
+                runCatching {
+                    insertHistoryRecord(
+                        classLoader = classLoader,
+                        repository = repository,
+                        roomId = roomId,
+                        agentName = agentName,
+                        record = answerRecord,
+                        logger = logger,
+                        label = "answer",
+                    ) { answerResult ->
+                        if (answerResult.saved && answerResult.uniqueId != null) {
+                            updateInjectedAnswerUniqueId(
+                                classLoader = classLoader,
+                                roomId = roomId,
+                                content = response.content,
+                                uniqueId = answerResult.uniqueId,
+                            )
+                        }
+                        val historySaved = queryResult.saved && answerResult.saved
+                        if (historySaved) {
+                            logger.debug { "Breeno history persisted" }
+                        } else {
+                            logger.warnThrottled("breeno_history_persist_rejected") {
+                                "Breeno: 服务端未完整保存历史记录"
+                            }
+                        }
+                        onFinished(historySaved)
+                    }
+                }.onFailure { throwable ->
+                    logger.warnThrottled("breeno_history_answer_dispatch_failed") {
+                        "Breeno: 提交回答历史失败，type=${throwable.safeLogType()}"
+                    }
+                    onFinished(false)
+                }
+            }
             logger.debug { "Breeno history persist requested" }
         }.onFailure { throwable ->
             logger.warnThrottled("breeno_history_persist_failed") {
                 "Breeno: 写入历史记录失败，type=${throwable.safeLogType()}"
             }
+            onFinished(false)
         }
+    }
+
+    private fun persistHistoryAndAck(
+        logger: ModuleLogger,
+        classLoader: ClassLoader,
+        request: TextRequest,
+        response: AgentModelClient.ModelResponse.Text,
+        runId: String,
+    ) {
+        if (runId.isBlank()) {
+            persistChatHistory(logger, classLoader, request, response)
+            return
+        }
+        if (!historyPersistenceInFlight.add(runId)) return
+        persistChatHistory(logger, classLoader, request, response) { saved ->
+            historyPersistenceInFlight.remove(runId)
+            if (saved) {
+                ackRuntimeResult(logger, runId)
+            } else {
+                logger.warnThrottled("breeno_history_pending_${runId.hashCode()}") {
+                    "Breeno: 历史保存未完成，保留 Runtime 结果以便恢复"
+                }
+            }
+        }
+    }
+
+    private fun insertHistoryRecord(
+        classLoader: ClassLoader,
+        repository: Any,
+        roomId: String,
+        agentName: String,
+        record: Any,
+        logger: ModuleLogger,
+        label: String,
+        onResult: (HistoryInsertResult) -> Unit,
+    ) {
+        invokeCompatible(
+            repository,
+            "r",
+            roomId,
+            agentName,
+            record,
+            newHistoryCallback(classLoader, logger, label, onResult),
+        )
     }
 
     private fun buildHistoryPayloadJson(
@@ -1608,7 +1717,8 @@ internal object BreenoHooks {
         recordId: String,
         content: String,
         type: String,
-        payload: String?
+        payload: String?,
+        clientResult: String?,
     ): Any {
         val insertRecordClass = Class.forName(INSERT_RECORD_CLASS, false, classLoader)
         return insertRecordClass.getDeclaredConstructor().newInstance().also { record ->
@@ -1619,6 +1729,9 @@ internal object BreenoHooks {
             invokeCompatible(record, "setCancelFlag", false)
             if (payload != null) {
                 invokeCompatible(record, "setPayload", payload)
+            }
+            if (clientResult != null) {
+                invokeCompatible(record, "setClientResult", clientResult)
             }
         }
     }
@@ -1644,7 +1757,8 @@ internal object BreenoHooks {
     private fun newHistoryCallback(
         classLoader: ClassLoader,
         logger: ModuleLogger,
-        label: String
+        label: String,
+        onResult: (HistoryInsertResult) -> Unit,
     ): Any {
         val functionClass = Class.forName(KOTLIN_FUNCTION1_CLASS, false, classLoader)
         val unit = Class.forName(KOTLIN_UNIT_CLASS, false, classLoader)
@@ -1655,10 +1769,13 @@ internal object BreenoHooks {
             when (method.name) {
                 "invoke" -> {
                     val result = args?.firstOrNull()
+                    val insertResult = parseHistoryInsertResult(result)
                     logger.debug {
                         "Breeno history callback[$label]: " +
+                            "saved=${insertResult.saved}, " +
                             "resultType=${result?.javaClass?.simpleName.toSafeLogToken()}"
                     }
+                    onResult(insertResult)
                     unit
                 }
                 "toString" -> "BreenoHistoryCallback($label)"
@@ -1667,6 +1784,41 @@ internal object BreenoHooks {
                 else -> null
             }
         }
+    }
+
+    private fun parseHistoryInsertResult(result: Any?): HistoryInsertResult =
+        runCatching {
+            val response = result?.let { invokeCompatible(it, "a") }
+                ?: return@runCatching HistoryInsertResult.FAILED
+            val saved = invokeCompatible(response, "isSuccess") as? Boolean ?: false
+            HistoryInsertResult(
+                saved = saved,
+                uniqueId = if (saved) invokeCompatible(response, "getData") as? String else null,
+            )
+        }.getOrDefault(HistoryInsertResult.FAILED)
+
+    private fun updateInjectedAnswerUniqueId(
+        classLoader: ClassLoader,
+        roomId: String,
+        content: String,
+        uniqueId: String,
+    ) {
+        if (uniqueId.isBlank()) return
+        val dataCenter = singletonInstance(classLoader, AI_CHAT_DATA_CENTER_CLASS) ?: return
+        val bean = invokeCompatible(dataCenter, "q0", roomId) ?: return
+        if (invokeInt(bean, "getChatType") != AI_CHAT_TYPE_ANSWER) return
+        if (invokeString(bean, "getContent").orEmpty() != content) return
+        invokeCompatible(bean, "setUniqueId", uniqueId)
+    }
+
+    private fun serializeForBreenoHistory(classLoader: ClassLoader, value: Any?): String? {
+        if (value == null) return null
+        return runCatching {
+            Class.forName(JSON_UTIL_CLASS, false, classLoader)
+                .getDeclaredMethod("f", Any::class.java)
+                .apply { isAccessible = true }
+                .invoke(null, value) as? String
+        }.getOrNull()
     }
 
     private fun summarizeInboundMessage(content: String?): String {
@@ -1812,13 +1964,24 @@ internal object BreenoHooks {
         val originalRecordId: String,
         val sessionId: String,
         val roomId: String,
-        val thinkingEnabledOverride: Boolean? = null
+        val thinkingEnabledOverride: Boolean? = null,
+        val queryPayload: String? = null,
+        val queryClientResult: String? = null,
     )
 
     private data class TextRequestPayload(
         val userText: String,
         val adapterPayload: JSONObject,
     )
+
+    private data class HistoryInsertResult(
+        val saved: Boolean,
+        val uniqueId: String?,
+    ) {
+        companion object {
+            val FAILED = HistoryInsertResult(saved = false, uniqueId = null)
+        }
+    }
 
 }
 

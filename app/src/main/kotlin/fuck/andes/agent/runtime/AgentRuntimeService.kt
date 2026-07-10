@@ -43,7 +43,6 @@ import fuck.andes.agent.tool.AgentLocalTools
 import fuck.andes.core.AndroidAgentLogger
 import fuck.andes.core.ModuleConfig
 import fuck.andes.core.safeLogType
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
 import kotlin.concurrent.thread
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -204,7 +203,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
         thread(name = "agent-runtime") {
             val archivedEvents = mutableListOf<AgentEvent>()
-            val entrySurfaceDismissed = AtomicBoolean(false)
+            val entrySurfaceGuard = EntrySurfaceGuard.from(request.handoff, AndroidAgentLogger)
             val skillIndexService = SkillRuntime.createIndexService(this@AgentRuntimeService)
             val skillLoader = SkillRuntime.createLoader(this@AgentRuntimeService)
             skillIndexService.seedBuiltinSkillsIfNeeded()
@@ -220,6 +219,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                 browserRunId = request.runId,
                 browserToolsEnabled = request.config.browserTools,
                 terminalToolsEnabled = request.config.terminalTools,
+                screenshotExcludedPackages = {
+                    entrySurfaceGuard?.consumeScreenshotExcludedPackages().orEmpty()
+                },
                 skillIndexService = skillIndexService,
                 skillLoader = skillLoader,
             )
@@ -246,10 +248,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                             }
                             if (
                                 AgentOverlayVisibilityPolicy.shouldDismissEntrySurfaceFor(event) &&
-                                request.handoff?.dismissEntrySurfaceOnForegroundOperation == true &&
-                                entrySurfaceDismissed.compareAndSet(false, true)
+                                entrySurfaceGuard != null
                             ) {
-                                dismissEntrySurfaceForForegroundOperation(request)
+                                entrySurfaceGuard.dismissOnce()
                             }
                             mainHandler.post {
                                 if (activeRunController == runController) {
@@ -297,7 +298,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                                 statusText = "已返回结果",
                                 detailText = finalResult.ifBlank { state.value.detailText }
                             ),
-                            keepVisible = entrySurfaceDismissed.get()
+                            keepVisible = entrySurfaceGuard?.wasTriggered == true
                         )
                     }
                 }.getOrElse { throwable ->
@@ -344,34 +345,13 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                                 statusText = "调用失败",
                                 detailText = message
                             ),
-                            keepVisible = entrySurfaceDismissed.get()
+                            keepVisible = entrySurfaceGuard?.wasTriggered == true
                         )
                     }
                 }
             } finally {
                 toolsBinding.close()
                 toolExecutor.close()
-            }
-        }
-    }
-
-    private fun dismissEntrySurfaceForForegroundOperation(request: AgentRuntimeWire.RunRequest) {
-        if (request.handoff == null) return
-        val service = AgentAccessibilityService.current()
-        if (service == null) {
-            AndroidAgentLogger.warnThrottled("runtime_entry_surface_accessibility_unavailable") {
-                "Agent runtime entry surface dismiss skipped: accessibility service unavailable"
-            }
-            return
-        }
-        val dismissed = service.globalAction("BACK")
-        if (dismissed) {
-            AndroidAgentLogger.debug {
-                "Agent runtime entry surface dismissed before foreground operation"
-            }
-        } else {
-            AndroidAgentLogger.warnThrottled("runtime_entry_surface_dismiss_failed") {
-                "Agent runtime entry surface dismiss failed before foreground operation"
             }
         }
     }

@@ -19,7 +19,8 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 
 internal class RootShellDeviceController(
-    private val logger: AgentLogger
+    private val logger: AgentLogger,
+    private val screenshotExcludedPackages: () -> Set<String> = { emptySet() },
 ) {
     data class Observation(
         val content: String,
@@ -458,21 +459,31 @@ internal class RootShellDeviceController(
     }
 
     private fun captureScreenshot(): AgentModelClient.ModelImage? {
+        val excludedPackages = screenshotExcludedPackages()
         // 优先用无障碍截图：takeScreenshotOfWindow 逐窗口过滤 TYPE_ACCESSIBILITY_OVERLAY，
         // 天然排除浮层（glow/orb/bubble 等），对 Agent 透明
         val service = AgentAccessibilityService.current()
         if (service != null) {
-            val bitmap = runCatching { service.captureScreenshotExcludingOverlays() }.getOrNull()
+            val bitmap = runCatching {
+                service.captureScreenshotExcludingOverlays(excludedPackages)
+            }.getOrNull()
             if (bitmap != null) {
                 val image = AgentImageCodec.fromBitmap(bitmap, source = "screen")
                 bitmap.recycle()
                 if (image.bytes > 0) return image
             }
-            logger.debug {
-                "Agent device action=capture_screenshot outcome=fallback source=root"
-            }
         }
-        // 回退：root screencap（会包含浮层，仅在无障碍截图不可用时使用）
+        if (excludedPackages.isNotEmpty()) {
+            logger.warn(
+                "Agent device action=capture_screenshot outcome=failed " +
+                    "reason=package_exclusion_unavailable excludedPackages=${excludedPackages.size}"
+            )
+            return null
+        }
+        logger.debug {
+            "Agent device action=capture_screenshot outcome=fallback source=root"
+        }
+        // 无需排除入口窗口时才回退 root screencap；否则宁可返回无图，也不把错误浮窗交给模型。
         val result = runSuBytes("screencap -p", timeoutSeconds = 8)
         if (result.exitCode != 0 || result.output.isEmpty()) {
             logger.warn(

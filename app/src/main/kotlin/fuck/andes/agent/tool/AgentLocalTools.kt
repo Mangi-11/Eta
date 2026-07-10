@@ -30,11 +30,12 @@ internal class AgentLocalTools(
     private val browserRunId: String = "",
     private val browserToolsEnabled: Boolean = Prefs.isEnabled(Prefs.Keys.AGENT_BROWSER_TOOLS),
     private val terminalToolsEnabled: Boolean = Prefs.isEnabled(Prefs.Keys.AGENT_TERMINAL_TOOLS),
+    private val screenshotExcludedPackages: () -> Set<String> = { emptySet() },
     private val skillIndexService: SkillIndexService? = null,
     private val skillLoader: SkillLoader? = null,
 ) : AgentModelClient.ToolExecutor, AutoCloseable {
 
-    private val deviceController = RootShellDeviceController(logger)
+    private val deviceController = RootShellDeviceController(logger, screenshotExcludedPackages)
     private val terminalController = RootShellTerminalController(logger)
     private var lastUiNodes: List<RootShellDeviceController.UiNode> = emptyList()
     private var lastCoordinateSpace: RootShellDeviceController.CoordinateSpace? = null
