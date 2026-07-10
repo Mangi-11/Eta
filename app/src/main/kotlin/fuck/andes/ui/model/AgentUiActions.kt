@@ -12,6 +12,7 @@ sealed interface AgentHomeAction {
     data object OpenPermissions : AgentHomeAction
     data object OpenSystemEnhance : AgentHomeAction
     data object OpenSettings : AgentHomeAction
+    data object OpenBrowser : AgentHomeAction
     data object ExpandRunTrace : AgentHomeAction
 }
 
@@ -26,12 +27,14 @@ sealed interface AgentChatAction {
     data class ThinkingToggled(val enabled: Boolean) : AgentChatAction
     data object SendMessage : AgentChatAction
     data object StopRun : AgentChatAction
+    data object OpenBrowser : AgentChatAction
     data class ImageAttached(val uri: String) : AgentChatAction
     data class RemoveImage(val id: String) : AgentChatAction
 }
 
 sealed interface AgentToolsAction {
     data object NavigateBack : AgentToolsAction
+    data object OpenBrowser : AgentToolsAction
 }
 
 sealed interface AgentSkillsAction {

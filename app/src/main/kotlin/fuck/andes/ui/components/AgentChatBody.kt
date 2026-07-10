@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Scaffold
 import com.composables.icons.lucide.R as LucideR
+import fuck.andes.agent.browser.AgentBrowserSession
 import fuck.andes.ui.model.AgentChatMessageUi
 import fuck.andes.ui.model.AgentMessageUi
 import fuck.andes.ui.model.PendingImageUi
@@ -89,6 +91,7 @@ fun AgentChatBody(
     onRemoveImage: (String) -> Unit,
     onSuggestionClick: (String) -> Unit,
     onRunTraceClick: () -> Unit,
+    onOpenBrowser: () -> Unit,
     isDrawerOpen: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -97,10 +100,30 @@ fun AgentChatBody(
     val density = LocalDensity.current
     val imeBottomPx = WindowInsets.ime.getBottom(density)
     val isKeyboardVisible = imeBottomPx > 0
+    val browserSnapshot by AgentBrowserSession.snapshots.collectAsState()
 
     val visibleMessages = remember(messages) {
         messages.filterNot { message ->
             message is AgentMessageUi && message.content.isBlank()
+        }
+    }
+    val currentBrowserMessageId = remember(
+        visibleMessages,
+        browserSnapshot.available,
+        browserSnapshot.lastAgentRunId,
+        browserSnapshot.lastAgentToolCallId,
+    ) {
+        val runId = browserSnapshot.lastAgentRunId
+        val toolCallId = browserSnapshot.lastAgentToolCallId
+        if (!browserSnapshot.available || runId == null || toolCallId == null) {
+            null
+        } else {
+            visibleMessages.lastOrNull { message ->
+                message is ToolActivityMessageUi &&
+                    message.toolName == "browser_use" &&
+                    message.id.startsWith("$runId-tool-") &&
+                    message.id.endsWith("-$toolCallId")
+            }?.id
         }
     }
     var sentFromKeyboard by remember { mutableStateOf(false) }
@@ -142,6 +165,8 @@ fun AgentChatBody(
         onRemoveImage = onRemoveImage,
         onSuggestionClick = onSuggestionClick,
         onRunTraceClick = onRunTraceClick,
+        onOpenBrowser = onOpenBrowser,
+        currentBrowserMessageId = currentBrowserMessageId,
         modifier = modifier,
     )
 }
@@ -168,6 +193,8 @@ private fun AgentChatScaffold(
     onRemoveImage: (String) -> Unit,
     onSuggestionClick: (String) -> Unit,
     onRunTraceClick: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    currentBrowserMessageId: String?,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -213,6 +240,8 @@ private fun AgentChatScaffold(
                 onBottomAnchorChanged = onBottomAnchorChanged,
                 onSuggestionClick = onSuggestionClick,
                 onRunTraceClick = onRunTraceClick,
+                onOpenBrowser = onOpenBrowser,
+                currentBrowserMessageId = currentBrowserMessageId,
             )
         }
     }
@@ -229,6 +258,8 @@ private fun AgentChatMessages(
     onBottomAnchorChanged: (Boolean) -> Unit,
     onSuggestionClick: (String) -> Unit,
     onRunTraceClick: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    currentBrowserMessageId: String?,
 ) {
     val density = LocalDensity.current
     val bottomPaddingPx = with(density) { bottomPadding.roundToPx() }
@@ -276,6 +307,10 @@ private fun AgentChatMessages(
                 message = message,
                 onSuggestionClick = onSuggestionClick,
                 onRunTraceClick = onRunTraceClick,
+                onOpenBrowser = onOpenBrowser,
+                showBrowserShortcut = message is ToolActivityMessageUi &&
+                    message.toolName == "browser_use" &&
+                    message.id == currentBrowserMessageId,
             )
         }
         item(key = ChatBottomSentinelKey) {

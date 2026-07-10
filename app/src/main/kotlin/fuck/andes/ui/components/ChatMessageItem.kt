@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -67,7 +68,11 @@ import fuck.andes.ui.model.ToolActivityStatusUi
 import fuck.andes.ui.model.ToolSummaryMessageUi
 import fuck.andes.ui.model.UserMessageUi
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -203,6 +208,8 @@ fun ChatMessageItem(
     message: AgentChatMessageUi,
     onSuggestionClick: (String) -> Unit,
     onRunTraceClick: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    showBrowserShortcut: Boolean,
     modifier: Modifier = Modifier,
 ) {
     when (message) {
@@ -210,7 +217,12 @@ fun ChatMessageItem(
         is AgentMessageUi -> AgentMessageBlock(message = message, modifier = modifier)
         is ThinkingMessageUi -> ThinkingRow(message = message, modifier = modifier)
         is RunTraceMessageUi -> RunTraceRow(message = message, onClick = onRunTraceClick, modifier = modifier)
-        is ToolActivityMessageUi -> ToolActivityInline(message = message, modifier = modifier)
+        is ToolActivityMessageUi -> ToolActivityInline(
+            message = message,
+            onOpenBrowser = onOpenBrowser,
+            showBrowserShortcut = showBrowserShortcut,
+            modifier = modifier,
+        )
         is ToolSummaryMessageUi -> ToolSummaryInline(message = message, modifier = modifier)
         is SuggestionChipsMessageUi -> SuggestionChipsRow(message = message, onSuggestionClick = onSuggestionClick, modifier = modifier)
     }
@@ -478,6 +490,8 @@ private fun ThinkingRow(
 @Composable
 private fun ToolActivityInline(
     message: ToolActivityMessageUi,
+    onOpenBrowser: () -> Unit,
+    showBrowserShortcut: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var isExpanded by remember { mutableStateOf(false) }
@@ -540,7 +554,11 @@ private fun ToolActivityInline(
 
             // Tool label
             Text(
-                text = message.toolName.toToolLabel(),
+                text = if (message.toolName == "browser_use" && message.argumentsSummary.isNotBlank()) {
+                    message.argumentsSummary
+                } else {
+                    message.toolName.toToolLabel()
+                },
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 maxLines = 1,
@@ -556,7 +574,7 @@ private fun ToolActivityInline(
                 Text(
                     text = message.status.statusLabel(),
                     style = MiuixTheme.textStyles.footnote2,
-                    color = message.status.statusColor(),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.graphicsLayer(alpha = if (message.status == ToolActivityStatusUi.Running) pulseAlpha else 1.0f)
                 )
                 // Use exact same Lucide thin chevron right/down icons to guarantee 100% equal sizes
@@ -573,18 +591,19 @@ private fun ToolActivityInline(
         }
 
         AnimatedVisibility(visible = isExpanded) {
-            Column(
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 28.dp, top = 6.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black.copy(alpha = 0.02f))
-                    .border(0.5.dp, Color.Black.copy(alpha = 0.04f), RoundedCornerShape(8.dp))
-                    .padding(10.dp)
+                    .padding(start = 28.dp, top = 6.dp),
+                insideMargin = PaddingValues(12.dp),
+                colors = CardDefaults.defaultColors(
+                    color = MiuixTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MiuixTheme.colorScheme.onSurface,
+                ),
             ) {
                 if (message.argumentsSummary.isNotBlank()) {
                     Text(
-                        text = "Arguments:",
+                        text = "操作",
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.primary,
                         modifier = Modifier.padding(bottom = 2.dp)
@@ -598,9 +617,9 @@ private fun ToolActivityInline(
                 }
                 if (message.resultSummary != null && message.resultSummary.isNotBlank()) {
                     Text(
-                        text = "Result:",
+                        text = "结果",
                         style = MiuixTheme.textStyles.footnote1,
-                        color = Color(0xFF2F8F4E),
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(bottom = 2.dp)
                     )
                     Text(
@@ -608,6 +627,22 @@ private fun ToolActivityInline(
                         style = MiuixTheme.textStyles.footnote2.copy(fontFamily = FontFamily.Monospace),
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
+                }
+                if (showBrowserShortcut) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(
+                            text = "打开当前浏览器",
+                            onClick = onOpenBrowser,
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            minHeight = 36.dp,
+                            textStyle = MiuixTheme.textStyles.body2,
+                        )
+                    }
                 }
             }
         }
@@ -743,15 +778,15 @@ private fun SuggestionChipsRow(
 
 @Composable
 private fun ToolActivityStatusUi.statusColor() = when (this) {
-    ToolActivityStatusUi.Running -> Color(0xFF2C7FEB)
-    ToolActivityStatusUi.Success -> Color(0xFF2F8F4E)
-    ToolActivityStatusUi.Failed -> Color(0xFFFF6464)
+    ToolActivityStatusUi.Running -> StatusRunning
+    ToolActivityStatusUi.Success -> StatusSuccess
+    ToolActivityStatusUi.Failed -> StatusError
 }
 
 private fun ToolActivityStatusUi.statusLabel(): String = when (this) {
-    ToolActivityStatusUi.Running -> "Running"
-    ToolActivityStatusUi.Success -> "Success"
-    ToolActivityStatusUi.Failed -> "Failed"
+    ToolActivityStatusUi.Running -> "执行中"
+    ToolActivityStatusUi.Success -> "已完成"
+    ToolActivityStatusUi.Failed -> "失败"
 }
 
 @Composable
@@ -770,6 +805,7 @@ private fun String.toToolIcon(): Int = when (this) {
     "search_apps" -> LucideR.drawable.lucide_ic_search
     "launch_app" -> LucideR.drawable.lucide_ic_rocket
     "open_uri" -> LucideR.drawable.lucide_ic_external_link
+    "browser_use" -> LucideR.drawable.lucide_ic_globe
     "press_key" -> LucideR.drawable.lucide_ic_command
     "open_system_panel" -> LucideR.drawable.lucide_ic_panel_top_open
     "terminal", "run_command" -> LucideR.drawable.lucide_ic_square_terminal
@@ -795,6 +831,7 @@ private fun String.toToolLabel(): String = when (this) {
     "search_apps" -> "搜索应用"
     "launch_app" -> "打开应用"
     "open_uri" -> "打开链接"
+    "browser_use" -> "浏览网页"
     "press_key" -> "按键"
     "open_system_panel" -> "系统面板"
     "terminal" -> "终端"

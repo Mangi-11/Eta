@@ -185,7 +185,18 @@ internal fun SettingsScreen(
                     SwitchPref(
                         context = context,
                         prefs = prefs,
+                        title = "启用网页浏览工具",
+                        summary = "在离屏浏览器中读取和操作网页，不会自动切换前台",
+                        key = Prefs.Keys.AGENT_BROWSER_TOOLS,
+                        icon = LucideR.drawable.lucide_ic_globe,
+                        iconTint = ColorOSVividGreen,
+                    )
+                    PrefDivider()
+                    SwitchPref(
+                        context = context,
+                        prefs = prefs,
                         title = "启用终端/文件工具",
+                        summary = "允许 Agent 使用 user/root shell，并读取或写入手机文件",
                         key = Prefs.Keys.AGENT_TERMINAL_TOOLS,
                         icon = LucideR.drawable.lucide_ic_square_terminal,
                         iconTint = ColorOSAmberYellow,
@@ -546,6 +557,7 @@ private fun SwitchPref(
     context: Context,
     prefs: SharedPreferences?,
     title: String,
+    summary: String? = null,
     key: String,
     icon: Int,
     iconTint: Color,
@@ -557,6 +569,7 @@ private fun SwitchPref(
     }
     SwitchPreference(
         title = title,
+        summary = summary,
         checked = checked,
         onCheckedChange = { value ->
             // 同步提交；RemotePreferences.commit() 失败（binder 提交失败）时回滚 UI 状态，

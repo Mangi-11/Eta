@@ -5,6 +5,7 @@ import androidx.navigation3.runtime.NavKey
 sealed interface AppRoute : NavKey {
     data object Home : AppRoute
     data object Chat : AppRoute
+    data object Browser : AppRoute
     data object Tools : AppRoute
     data object Skills : AppRoute
     data object Permissions : AppRoute

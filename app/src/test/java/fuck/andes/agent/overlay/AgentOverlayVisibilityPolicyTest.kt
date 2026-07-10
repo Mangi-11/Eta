@@ -66,6 +66,20 @@ class AgentOverlayVisibilityPolicyTest {
                 imageCount = 0,
                 imageBytes = 0
             ),
+            AgentEvent.ToolStarted(
+                round = 1,
+                toolCallId = "call_browser",
+                name = "browser_use",
+                argsPreview = "提取正文 · example.com"
+            ),
+            AgentEvent.ToolFinished(
+                round = 1,
+                toolCallId = "call_browser",
+                name = "browser_use",
+                resultSummary = "ok=true, action=get_readable, host=example.com",
+                imageCount = 0,
+                imageBytes = 0
+            ),
             AgentEvent.RunFinished(round = 1, contentChars = 5)
         )
 

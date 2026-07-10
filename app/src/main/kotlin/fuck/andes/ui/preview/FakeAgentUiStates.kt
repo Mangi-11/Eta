@@ -197,11 +197,21 @@ internal object FakeAgentUiStates {
                 ),
             ),
             ToolGroupUi(
+                id = "web",
+                title = "网页浏览",
+                tools = listOf(
+                    ToolItemUi("browser_use", "Agent 浏览器", "离屏浏览并保持可接管会话"),
+                    ToolItemUi("browser_read", "阅读网页", "提取渲染后的网页正文"),
+                    ToolItemUi("browser_interact", "网页交互", "查找、点击和输入元素"),
+                    ToolItemUi("browser_screenshot", "页面截图", "把网页视口交给视觉模型"),
+                ),
+            ),
+            ToolGroupUi(
                 id = "app",
                 title = "App 与 URI",
                 tools = listOf(
                     ToolItemUi("open_app", "打开 App", "通过包名启动应用"),
-                    ToolItemUi("open_uri", "打开 URI", "启动链接或 Intent"),
+                    ToolItemUi("open_uri", "用应用打开", "显式交给外部应用处理"),
                 ),
             ),
             ToolGroupUi(

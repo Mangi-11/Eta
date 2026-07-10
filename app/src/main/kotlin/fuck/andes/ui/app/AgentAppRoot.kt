@@ -53,6 +53,7 @@ import fuck.andes.ui.model.PermissionHealthAction
 import fuck.andes.ui.navigation.AgentNavigator
 import fuck.andes.ui.navigation.AppRoute
 import fuck.andes.ui.screens.chat.AgentChatScreen
+import fuck.andes.ui.screens.browser.AgentBrowserScreen
 import fuck.andes.ui.screens.enhance.SystemEnhanceScreen
 import fuck.andes.ui.screens.home.AgentHomeScreen
 import fuck.andes.ui.screens.permissions.PermissionHealthScreen
@@ -166,6 +167,7 @@ fun AgentAppRoot() {
                                 AgentHomeAction.OpenPermissions -> pushRoute(AppRoute.Permissions)
                                 AgentHomeAction.OpenSystemEnhance -> pushRoute(AppRoute.SystemEnhance)
                                 AgentHomeAction.OpenSettings -> pushRoute(AppRoute.Settings)
+                                AgentHomeAction.OpenBrowser -> pushRoute(AppRoute.Browser)
                                 AgentHomeAction.ExpandRunTrace -> Unit
                             }
                         },
@@ -184,11 +186,17 @@ fun AgentAppRoot() {
                                 is AgentChatAction.ThinkingToggled -> agentState.updateThinkingEnabled(action.enabled)
                                 AgentChatAction.SendMessage -> agentState.sendCurrentMessage()
                                 AgentChatAction.StopRun -> agentState.stopCurrentRun()
+                                AgentChatAction.OpenBrowser -> pushRoute(AppRoute.Browser)
                                 is AgentChatAction.ImageAttached -> agentState.attachImage(action.uri)
                                 is AgentChatAction.RemoveImage -> agentState.removePendingImage(action.id)
                             }
                         },
                     )
+                }
+            }
+            entry<AppRoute.Browser> {
+                RoutedShell(route = AppRoute.Browser) {
+                    AgentBrowserScreen()
                 }
             }
             entry<AppRoute.Tools> {
@@ -197,6 +205,7 @@ fun AgentAppRoot() {
                     onAction = { action ->
                         when (action) {
                             AgentToolsAction.NavigateBack -> popRoute()
+                            AgentToolsAction.OpenBrowser -> pushRoute(AppRoute.Browser)
                         }
                     },
                 )

@@ -61,6 +61,7 @@ internal object AgentRuntimeWire {
     private const val KEY_ANTHROPIC_VERSION = "anthropic_version"
     private const val KEY_OPENAI_ENDPOINT_MODE = "openai_endpoint_mode"
     private const val KEY_TERMINAL_TOOLS = "terminal_tools"
+    private const val KEY_BROWSER_TOOLS = "browser_tools"
     private const val KEY_THINKING_ENABLED = "thinking_enabled"
     private const val KEY_EXTRA_BODY_JSON = "extra_body_json"
     private const val KEY_CUSTOM_HEADERS_JSON = "custom_headers_json"
@@ -147,6 +148,7 @@ internal object AgentRuntimeWire {
         putString(KEY_ANTHROPIC_VERSION, request.config.anthropicVersion)
         putString(KEY_OPENAI_ENDPOINT_MODE, request.config.openAiEndpointMode)
         putBoolean(KEY_TERMINAL_TOOLS, request.config.terminalTools)
+        putBoolean(KEY_BROWSER_TOOLS, request.config.browserTools)
         putBoolean(KEY_THINKING_ENABLED, request.config.thinkingEnabled)
         putString(KEY_EXTRA_BODY_JSON, request.config.extraBodyJson)
         putString(KEY_CUSTOM_HEADERS_JSON, json.encodeToString(request.config.customHeaders))
@@ -200,6 +202,11 @@ internal object AgentRuntimeWire {
                 openAiEndpointMode = bundle.getString(KEY_OPENAI_ENDPOINT_MODE).orEmpty()
                     .ifBlank { fuck.andes.data.model.OpenAiEndpointMode.CHAT_COMPLETIONS },
                 terminalTools = bundle.getBoolean(KEY_TERMINAL_TOOLS),
+                browserTools = if (bundle.containsKey(KEY_BROWSER_TOOLS)) {
+                    bundle.getBoolean(KEY_BROWSER_TOOLS)
+                } else {
+                    true
+                },
                 thinkingEnabled = bundle.getBoolean(KEY_THINKING_ENABLED),
                 extraBodyJson = bundle.getString(KEY_EXTRA_BODY_JSON).orEmpty(),
                 customHeaders = decodeCustomHeaders(bundle.getString(KEY_CUSTOM_HEADERS_JSON)),

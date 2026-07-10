@@ -33,6 +33,7 @@ internal object Prefs {
         const val AGENT_CUSTOM_MODEL = "agent_custom_model"
         const val AGENT_REQUIRE_PREFIX = "agent_require_prefix"
         const val AGENT_TERMINAL_TOOLS = "agent_terminal_tools"
+        const val AGENT_BROWSER_TOOLS = "agent_browser_tools"
         const val AGENT_THINKING_ENABLED = "agent_thinking_enabled"
         const val AGENT_RUNTIME_CONFIG_JSON = "agent_runtime_config_json"
 
@@ -48,6 +49,7 @@ internal object Prefs {
             AGENT_CUSTOM_MODEL to false,
             AGENT_REQUIRE_PREFIX to true,
             AGENT_TERMINAL_TOOLS to false,
+            AGENT_BROWSER_TOOLS to true,
             AGENT_THINKING_ENABLED to false
         )
     }

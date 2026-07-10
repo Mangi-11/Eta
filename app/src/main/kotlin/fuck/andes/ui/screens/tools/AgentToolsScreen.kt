@@ -3,10 +3,14 @@ package fuck.andes.ui.screens.tools
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -18,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -32,6 +37,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 private object ToolsMetrics {
     val GridHorizontalPadding = 20.dp
@@ -63,7 +69,14 @@ fun AgentToolsScreen(
                 items = group.tools.chunked(2),
                 key = { row -> "${group.id}-${row.joinToString(separator = "-") { it.id }}" },
             ) { row ->
-                ToolGridRow(tools = row)
+                ToolGridRow(
+                    tools = row,
+                    onToolClick = { tool ->
+                        if (tool.id.startsWith("browser_")) {
+                            onAction(AgentToolsAction.OpenBrowser)
+                        }
+                    },
+                )
             }
         }
     }
@@ -72,22 +85,53 @@ fun AgentToolsScreen(
 @Composable
 private fun ToolGridRow(
     tools: List<ToolItemUi>,
+    onToolClick: (ToolItemUi) -> Unit,
 ) {
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = ToolsMetrics.GridHorizontalPadding)
             .padding(bottom = ToolsMetrics.GridGap),
-        horizontalArrangement = Arrangement.spacedBy(ToolsMetrics.GridGap),
     ) {
-        tools.forEach { tool ->
-            ToolCard(
-                tool = tool,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        if (tools.size == 1) {
-            Spacer(modifier = Modifier.weight(1f))
+        val useSingleColumn = maxWidth < 320.dp || LocalDensity.current.fontScale >= 1.3f
+        if (useSingleColumn) {
+            Column(verticalArrangement = Arrangement.spacedBy(ToolsMetrics.GridGap)) {
+                tools.forEach { tool ->
+                    ToolCard(
+                        tool = tool,
+                        onClick = if (tool.id.startsWith("browser_")) {
+                            { onToolClick(tool) }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(ToolsMetrics.GridGap),
+            ) {
+                tools.forEach { tool ->
+                    ToolCard(
+                        tool = tool,
+                        onClick = if (tool.id.startsWith("browser_")) {
+                            { onToolClick(tool) }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    )
+                }
+                if (tools.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
@@ -95,6 +139,7 @@ private fun ToolGridRow(
 @Composable
 private fun ToolCard(
     tool: ToolItemUi,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -106,6 +151,9 @@ private fun ToolCard(
             color = MiuixTheme.colorScheme.surfaceContainer,
             contentColor = MiuixTheme.colorScheme.onSurfaceContainer,
         ),
+        pressFeedbackType = if (onClick != null) PressFeedbackType.Sink else PressFeedbackType.None,
+        showIndication = onClick != null,
+        onClick = onClick,
     ) {
         Box(
             modifier = Modifier
@@ -126,7 +174,7 @@ private fun ToolCard(
             color = MiuixTheme.colorScheme.onSurfaceContainer,
             style = MiuixTheme.textStyles.body2,
             fontWeight = FontWeight.Medium,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         Spacer(modifier = Modifier.height(ToolsMetrics.TitleSummaryGap))
@@ -134,7 +182,7 @@ private fun ToolCard(
             text = tool.summary,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             style = MiuixTheme.textStyles.footnote1,
-            maxLines = 2,
+            maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
     }
@@ -159,6 +207,10 @@ private fun colorForTool(toolId: String): Color = when (toolId) {
     "launch_app", "open_uri",
     "press_key", "open_system_panel" -> Color(0xFF00BD13)
 
+    // Agent 浏览器
+    "browser_use", "browser_read",
+    "browser_interact", "browser_screenshot" -> Color(0xFF0066FF)
+
     // 终端与文件
     "terminal", "terminal_job",
     "run_command", "read_file",
@@ -182,6 +234,10 @@ private fun iconForTool(toolId: String): Int = when (toolId) {
     "search_apps" -> LucideR.drawable.lucide_ic_package_search
     "open_app", "launch_app" -> LucideR.drawable.lucide_ic_app_window
     "open_uri" -> LucideR.drawable.lucide_ic_external_link
+    "browser_use" -> LucideR.drawable.lucide_ic_globe
+    "browser_read" -> LucideR.drawable.lucide_ic_book_open_text
+    "browser_interact" -> LucideR.drawable.lucide_ic_mouse_pointer_click
+    "browser_screenshot" -> LucideR.drawable.lucide_ic_scan_eye
     "press_key" -> LucideR.drawable.lucide_ic_smartphone
     "open_system_panel" -> LucideR.drawable.lucide_ic_panel_top_open
     "terminal", "terminal_job", "run_command" -> LucideR.drawable.lucide_ic_square_terminal

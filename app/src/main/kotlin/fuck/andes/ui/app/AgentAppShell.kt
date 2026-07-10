@@ -142,6 +142,7 @@ private fun AgentTopBar(
 private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.Home -> ""
     is AppRoute.Chat -> "对话"
+    is AppRoute.Browser -> "Agent 浏览器"
     is AppRoute.Tools -> "工具能力"
     is AppRoute.Skills -> "技能"
     is AppRoute.Permissions -> "权限健康"

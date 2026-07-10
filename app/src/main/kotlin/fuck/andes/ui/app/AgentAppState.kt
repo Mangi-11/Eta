@@ -364,6 +364,7 @@ internal class AgentAppState(
         currentRunJob = scope.launch(Dispatchers.IO) {
             val config = RuntimeConfigRepository.currentRuntimeConfig()?.copy(
                 terminalTools = remoteBooleanForUi(Prefs.Keys.AGENT_TERMINAL_TOOLS),
+                browserTools = remoteBooleanForUi(Prefs.Keys.AGENT_BROWSER_TOOLS),
                 thinkingEnabled = thinkingEnabled,
             )
             if (config == null) {
@@ -948,12 +949,22 @@ private fun buildToolsState(): AgentToolsUiState =
                 ),
             ),
             ToolGroupUi(
+                id = "web",
+                title = "网页浏览",
+                tools = listOf(
+                    ToolItemUi("browser_use", "Agent 浏览器", "离屏打开网页，并保持可接管的浏览会话"),
+                    ToolItemUi("browser_read", "阅读网页", "提取渲染后的正文、列表与链接"),
+                    ToolItemUi("browser_interact", "网页交互", "查找、点击并输入页面元素"),
+                    ToolItemUi("browser_screenshot", "页面截图", "把当前网页视口交给视觉模型"),
+                ),
+            ),
+            ToolGroupUi(
                 id = "app",
                 title = "应用与系统",
                 tools = listOf(
                     ToolItemUi("search_apps", "搜索应用", "按名称或包名查询已安装应用"),
                     ToolItemUi("launch_app", "打开 App", "启动指定包名或应用名"),
-                    ToolItemUi("open_uri", "打开 URI", "启动链接或 deep link"),
+                    ToolItemUi("open_uri", "用应用打开", "把链接或 deep link 显式交给外部应用"),
                     ToolItemUi("press_key", "按键", "返回、主页、最近任务等系统按键"),
                     ToolItemUi("open_system_panel", "系统面板", "打开通知栏、快捷设置等面板"),
                 ),

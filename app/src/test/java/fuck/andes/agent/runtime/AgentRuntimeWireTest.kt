@@ -1,6 +1,7 @@
 package fuck.andes.agent.runtime
 
 import fuck.andes.agent.model.AgentModelClient
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -10,6 +11,15 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class AgentRuntimeWireTest {
+    @Test
+    fun legacyModelConfigJsonDefaultsBrowserToolsToEnabled() {
+        val config = Json.decodeFromString<AgentModelClient.ModelConfig>(
+            """{"baseUrl":"https://api.openai.com/v1","apiKey":"test-key","model":"gpt-test","systemPrompt":"你是手机 Agent"}"""
+        )
+
+        assertEquals(true, config.browserTools)
+    }
+
     @Test
     fun runRequestBundleRoundTripPreservesConfigHistoryAndImages() {
         val request = AgentRuntimeWire.RunRequest(
@@ -22,6 +32,7 @@ class AgentRuntimeWireTest {
                 model = "qwen3-max",
                 systemPrompt = "你是手机 Agent",
                 terminalTools = true,
+                browserTools = true,
                 thinkingEnabled = true,
                 extraBodyJson = """{"thinking_budget":256}""",
             ),
@@ -52,9 +63,68 @@ class AgentRuntimeWireTest {
             ),
         )
 
-        val roundTripped = AgentRuntimeWire.runRequestFromBundle(AgentRuntimeWire.toBundle(request))
+        val bundle = AgentRuntimeWire.toBundle(request)
+        assertEquals(true, bundle.containsKey("browser_tools"))
+        assertEquals(true, bundle.getBoolean("browser_tools"))
+        val roundTripped = AgentRuntimeWire.runRequestFromBundle(bundle)
 
         assertEquals(request, roundTripped)
+    }
+
+    @Test
+    fun legacyRunRequestBundleDefaultsBrowserToolsToEnabled() {
+        val request = AgentRuntimeWire.RunRequest(
+            runId = "run-legacy",
+            prompt = "读取网页",
+            config = AgentModelClient.ModelConfig(
+                baseUrl = "https://api.openai.com/v1",
+                apiKey = "test-key",
+                model = "gpt-test",
+                systemPrompt = "你是手机 Agent",
+                browserTools = false,
+            ),
+            images = emptyList(),
+        )
+        val legacyBundle = AgentRuntimeWire.toBundle(request).apply {
+            remove("browser_tools")
+        }
+
+        val roundTripped = AgentRuntimeWire.runRequestFromBundle(legacyBundle)
+
+        assertEquals(true, roundTripped.config.browserTools)
+    }
+
+    @Test
+    fun browserToolArgumentsSummaryOmitsSensitiveInputAndUrlParts() {
+        val summary = AgentModelClient.summarizeBrowserToolArguments(
+            """{"action":"type","url":"https://user:password@example.com/private?q=token#fragment","text":"secret input"}"""
+        )
+
+        assertEquals("输入内容 · example.com", summary)
+    }
+
+    @Test
+    fun browserToolResultSummaryKeepsSafeMetadataAndFailureState() {
+        val summary = AgentModelClient.summarizeToolResult(
+            toolName = "browser_use",
+            result = AgentModelClient.ToolResult(
+                content = """{"ok":false,"action":"get_readable","url":"https://user:password@example.com/private?q=token#fragment","title":"Example","text":"secret body","elements":[{},{}],"truncated":true}"""
+            ),
+        )
+
+        assertEquals(
+            "ok=false, action=get_readable, host=example.com, title=Example, text_chars=11, elements=2, truncated=true",
+            summary,
+        )
+    }
+
+    @Test
+    fun openUriArgumentsSummaryOmitsPathCredentialsAndQuery() {
+        val summary = AgentModelClient.summarizeOpenUriArguments(
+            """{"uri":"https://user:password@example.com/private/access_token/value?q=secret#fragment"}"""
+        )
+
+        assertEquals("交给外部应用 · https · example.com", summary)
     }
 
     @Test

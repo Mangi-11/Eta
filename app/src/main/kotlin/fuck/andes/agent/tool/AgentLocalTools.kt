@@ -1,6 +1,8 @@
 package fuck.andes.agent.tool
 
 import fuck.andes.agent.device.RootShellDeviceController
+import fuck.andes.agent.browser.AgentBrowserSession
+import fuck.andes.agent.browser.BrowserUrlPolicy
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.runtime.AgentAppContext
 import fuck.andes.agent.skill.SkillCompatibilityChecker
@@ -28,6 +30,8 @@ import org.json.JSONObject
 internal class AgentLocalTools(
     private val context: Context,
     private val logger: AgentLogger,
+    private val browserRunId: String = "",
+    private val browserToolsEnabled: Boolean = Prefs.isEnabled(Prefs.Keys.AGENT_BROWSER_TOOLS),
     private val terminalToolsEnabled: Boolean = Prefs.isEnabled(Prefs.Keys.AGENT_TERMINAL_TOOLS),
     private val skillIndexService: SkillIndexService? = null,
     private val skillLoader: SkillLoader? = null,
@@ -39,6 +43,7 @@ internal class AgentLocalTools(
     private var lastCoordinateSpace: RootShellDeviceController.CoordinateSpace? = null
 
     override fun close() {
+        AgentBrowserSession.interruptAgentAction()
         terminalController.closeAll()
     }
 
@@ -49,6 +54,7 @@ internal class AgentLocalTools(
                 "search_apps" -> textResult(searchApps(args))
                 "launch_app" -> textResult(launchApp(args))
                 "open_uri" -> textResult(openUri(args))
+                "browser_use" -> browserUse(args, toolCall.id)
                 "observe_screen" -> observeScreen(args)
                 "tap" -> textResult(tap(args))
                 "tap_area" -> textResult(tapArea(args))
@@ -97,6 +103,31 @@ internal class AgentLocalTools(
             return errorResult("TERMINAL_TOOLS_DISABLED", "请先启用终端/文件工具")
         }
         return block()
+    }
+
+    private fun browserUse(args: JSONObject, toolCallId: String): AgentModelClient.ToolResult {
+        if (!browserToolsEnabled) {
+            return textResult(errorResult("BROWSER_TOOLS_DISABLED", "请先启用网页浏览工具"))
+        }
+        val result = AgentBrowserSession.execute(
+            context = context,
+            args = args,
+            runId = browserRunId,
+            toolCallId = toolCallId,
+        )
+        return AgentModelClient.ToolResult(
+            content = result.content,
+            images = result.images.map { image ->
+                AgentModelClient.ModelImage(
+                    dataUrl = image.dataUrl,
+                    mimeType = image.mimeType,
+                    bytes = image.bytes,
+                    width = image.width,
+                    height = image.height,
+                    source = "agent_browser",
+                )
+            },
+        )
     }
 
     private fun observeScreen(args: JSONObject): AgentModelClient.ToolResult {
@@ -325,20 +356,25 @@ internal class AgentLocalTools(
         }
         val uri = Uri.parse(uriText)
         if (uri.scheme.isNullOrBlank()) {
-            return errorResult("INVALID_ARGUMENT", "uri 缺少 scheme：$uriText")
+            return errorResult("INVALID_ARGUMENT", "uri 缺少 scheme")
         }
         val context = requireContext()
         val intent = Intent(Intent.ACTION_VIEW, uri)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (!HookSupport.resolvesActivity(context, intent)) {
-            return errorResult("NO_ACTIVITY", "没有应用可以处理该 URI：$uriText")
+            return errorResult("NO_ACTIVITY", "没有应用可以处理该 URI")
         }
         context.startActivity(intent)
         logger.info("Agent local tool action=open_uri outcome=started")
         return JSONObject()
             .put("ok", true)
             .put("tool", "open_uri")
-            .put("uri", uriText)
+            .put("scheme", uri.scheme?.lowercase(Locale.ROOT))
+            .also { result ->
+                if (uri.scheme.equals("https", true)) {
+                    result.put("display_uri", BrowserUrlPolicy.originForModel(uriText))
+                }
+            }
             .toString()
     }
 

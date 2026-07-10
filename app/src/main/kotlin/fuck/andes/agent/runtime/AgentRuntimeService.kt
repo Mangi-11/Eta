@@ -234,6 +234,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             val toolExecutor = AgentLocalTools(
                 context = this@AgentRuntimeService,
                 logger = AndroidAgentLogger,
+                browserRunId = request.runId,
+                browserToolsEnabled = request.config.browserTools,
                 terminalToolsEnabled = request.config.terminalTools,
                 skillIndexService = skillIndexService,
                 skillLoader = skillLoader,

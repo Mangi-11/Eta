@@ -36,6 +36,7 @@ internal fun AgentHomeScreen(
             onAction(AgentHomeAction.SendMessage)
         },
         onRunTraceClick = { onAction(AgentHomeAction.ExpandRunTrace) },
+        onOpenBrowser = { onAction(AgentHomeAction.OpenBrowser) },
         isDrawerOpen = isDrawerOpen,
         modifier = modifier,
     )
