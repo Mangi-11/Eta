@@ -1,6 +1,7 @@
 package fuck.andes.agent.runtime
 
 import android.content.Context
+import fuck.andes.agent.model.AgentModelClient
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -72,6 +73,12 @@ class AgentRunArchiveStoreTest {
                 ok = true,
                 content = "系统状态正常",
                 reasoningContent = "先看系统状态",
+                transcript = listOf(
+                    AgentModelClient.ConversationMessage(
+                        role = "assistant",
+                        content = "系统状态正常",
+                    )
+                ),
             ),
             createdAt = createdAt,
         )

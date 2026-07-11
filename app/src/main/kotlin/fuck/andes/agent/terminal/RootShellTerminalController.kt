@@ -7,12 +7,14 @@ import java.io.File
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import org.json.JSONArray
 import org.json.JSONObject
 
 internal class RootShellTerminalController(
-    private val logger: AgentLogger
+    private val logger: AgentLogger,
+    private val processSupervisor: ShellProcessSupervisor = ShellProcessSupervisor(),
 ) : AutoCloseable {
     private companion object {
         const val DEFAULT_CWD = "/data/local/tmp/fuck_andes"
@@ -29,6 +31,7 @@ internal class RootShellTerminalController(
 
     private val sessions = linkedMapOf<String, TerminalSession>()
     private val asyncJobs = linkedMapOf<String, AsyncCommand>()
+    private val cleanupStarted = AtomicBoolean(false)
 
     fun runCommand(command: String, cwd: String?, timeoutSeconds: Int): String {
         return runCommand(
@@ -131,8 +134,16 @@ internal class RootShellTerminalController(
         session.stderrThread = thread(name = "agent-terminal-session-stderr-$id", isDaemon = true) {
             process.errorStream.use { input -> stderr.readFrom(input) }
         }
-        synchronized(sessions) {
-            sessions[id] = session
+        session.waiterThread = thread(name = "agent-terminal-session-waiter-$id", isDaemon = true) {
+            runCatching { process.waitFor() }
+            processSupervisor.retireExitedProcess(process)
+        }
+        if (!processSupervisor.transferActiveProcess(process) {
+                synchronized(sessions) { sessions[id] = session }
+            }
+        ) {
+            processSupervisor.terminateProcessTree(process)
+            return errorJson("TERMINAL_CLOSED", "terminal controller 已关闭")
         }
 
         val mkdirDefault = if (safeCwd == DEFAULT_CWD) "mkdir -p ${shellQuote(DEFAULT_CWD)} && " else ""
@@ -221,15 +232,14 @@ internal class RootShellTerminalController(
         val safeCwd = normalizeCwd(cwd)
         val setup = if (safeCwd == DEFAULT_CWD) "mkdir -p ${shellQuote(DEFAULT_CWD)} && " else ""
         val fullCommand = "${setup}cd ${shellQuote(safeCwd)} && export TERM=dumb NO_COLOR=1 && $trimmed"
-        val process = runCatching {
-            if (normalizedIdentity == "root") {
-                ProcessBuilder("su", "-c", fullCommand).redirectErrorStream(mergeStderr).start()
-            } else {
-                ProcessBuilder("sh", "-c", fullCommand).redirectErrorStream(mergeStderr).start()
-            }
-        }.getOrElse {
-            return errorJson("PROCESS_START_FAILED", it.message ?: it.javaClass.simpleName)
-        }
+        val process = processSupervisor.startShellProcess(
+            identity = normalizedIdentity,
+            command = fullCommand,
+            mergeStderr = mergeStderr,
+        ) ?: return errorJson(
+            if (processSupervisor.isClosing) "TERMINAL_CLOSED" else "PROCESS_START_FAILED",
+            if (processSupervisor.isClosing) "terminal controller 已关闭" else "无法启动 terminal process",
+        )
         val id = "job_" + UUID.randomUUID().toString().take(8)
         val stdout = ByteArrayOutputCollector()
         val stderr = ByteArrayOutputCollector()
@@ -253,15 +263,25 @@ internal class RootShellTerminalController(
             process.errorStream.use { input -> stderr.readFrom(input, MAX_ASYNC_OUTPUT_CHARS) }
         }
         job.waiterThread = thread(name = "agent-terminal-async-waiter-$id", isDaemon = true) {
-            val finished = process.waitFor(job.timeoutMs.toLong(), TimeUnit.MILLISECONDS)
-            if (!finished) {
-                job.timedOut = true
-                process.destroyForcibly()
+            try {
+                val finished = process.waitFor(job.timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                if (!finished) {
+                    job.timedOut = true
+                    processSupervisor.terminateProcessTree(process)
+                }
+                job.exitCode = runCatching { process.exitValue() }.getOrDefault(-2)
+                job.completedAt = System.currentTimeMillis()
+            } finally {
+                processSupervisor.retireExitedProcess(process)
             }
-            job.exitCode = runCatching { process.exitValue() }.getOrDefault(-2)
-            job.completedAt = System.currentTimeMillis()
         }
-        synchronized(asyncJobs) { asyncJobs[id] = job }
+        if (!processSupervisor.transferActiveProcess(process) {
+                synchronized(asyncJobs) { asyncJobs[id] = job }
+            }
+        ) {
+            processSupervisor.terminateProcessTree(process)
+            return errorJson("TERMINAL_CLOSED", "terminal controller 已关闭")
+        }
         logger.info(
             "Agent terminal action=open_and_exec outcome=started async=true " +
                 "identity=$normalizedIdentity timeoutMs=${job.timeoutMs} commandChars=${trimmed.length}"
@@ -342,7 +362,30 @@ internal class RootShellTerminalController(
         closeAll()
     }
 
+    /** 取消热路径只封闭新进程接纳；进程树终止和 reader/waiter 回收在后台完成。 */
+    fun interruptAll() {
+        beginClosing()
+        if (cleanupStarted.compareAndSet(false, true)) {
+            thread(name = "agent-terminal-cleanup", isDaemon = true) {
+                closeAllInternal()
+            }
+        }
+    }
+
     fun closeAll() {
+        beginClosing()
+        cleanupStarted.set(true)
+        closeAllInternal()
+    }
+
+    private fun beginClosing() {
+        processSupervisor.beginClosing()
+        synchronized(sessions) {
+            sessions.values.forEach { session -> session.closed = true }
+        }
+    }
+
+    private fun closeAllInternal() {
         val sessionIds = synchronized(sessions) { sessions.keys.toList() }
         sessionIds.forEach(::closeSession)
 
@@ -350,17 +393,23 @@ internal class RootShellTerminalController(
             asyncJobs.values.toList().also { asyncJobs.clear() }
         }
         jobs.forEach(::closeJob)
+
+        val remainingProcesses = processSupervisor.takeRemainingProcesses()
+        remainingProcesses.forEach { process ->
+            processSupervisor.terminateAndReap(process)
+            processSupervisor.unregisterProcess(process)
+        }
     }
 
     private fun closeSession(id: String): Boolean {
         val session = synchronized(sessions) { sessions.remove(id) } ?: return false
         session.closed = true
         runCatching { session.process.outputStream.close() }
-        if (session.process.isAlive) {
-            session.process.destroyForcibly()
-        }
+        processSupervisor.terminateAndReap(session.process)
         runCatching { session.stdoutThread.join(500) }
         runCatching { session.stderrThread.join(500) }
+        runCatching { session.waiterThread.join(500) }
+        processSupervisor.unregisterProcess(session.process)
         return true
     }
 
@@ -371,12 +420,11 @@ internal class RootShellTerminalController(
     }
 
     private fun closeJob(job: AsyncCommand) {
-        if (job.exitCode == null && job.process.isAlive) {
-            job.process.destroyForcibly()
-        }
+        processSupervisor.terminateAndReap(job.process)
         runCatching { job.stdoutThread.join(500) }
         runCatching { job.stderrThread.join(500) }
         runCatching { job.waiterThread.join(500) }
+        processSupervisor.unregisterProcess(job.process)
     }
 
     private fun execInSession(
@@ -508,7 +556,7 @@ internal class RootShellTerminalController(
             }
 
             session.closed = true
-            if (session.process.isAlive) session.process.destroyForcibly()
+            processSupervisor.terminateProcessTree(session.process)
             return SessionCommandResult(
                 exitCode = -2,
                 stdout = session.stdout.text().drop(stdoutStart).trimEnd(),
@@ -687,16 +735,10 @@ internal class RootShellTerminalController(
     }
 
     private fun startSessionProcess(identity: String): Process? =
-        runCatching {
-            if (identity == "root") {
-                ProcessBuilder("su", "-c", "sh").redirectErrorStream(false).start()
-            } else {
-                ProcessBuilder("sh").redirectErrorStream(false).start()
-            }
-        }.getOrNull()
+        processSupervisor.startShellProcess(identity = identity, command = null, mergeStderr = false)
 
     private fun runSuText(command: String, timeoutSeconds: Long): ShellTextResult {
-        val result = runProcess(timeoutSeconds, stdin = null, "su", "-c", command)
+        val result = runProcess("root", command, timeoutSeconds, stdin = null)
         return ShellTextResult(
             exitCode = result.exitCode,
             output = result.output.decodeToString().trimEnd(),
@@ -705,7 +747,7 @@ internal class RootShellTerminalController(
     }
 
     private fun runShText(command: String, timeoutSeconds: Long): ShellTextResult {
-        val result = runProcess(timeoutSeconds, stdin = null, "sh", "-c", command)
+        val result = runProcess("user", command, timeoutSeconds, stdin = null)
         return ShellTextResult(
             exitCode = result.exitCode,
             output = result.output.decodeToString().trimEnd(),
@@ -714,7 +756,7 @@ internal class RootShellTerminalController(
     }
 
     private fun runSuTextWithStdin(command: String, stdin: ByteArray, timeoutSeconds: Long): ShellTextResult {
-        val result = runProcess(timeoutSeconds, stdin, "su", "-c", command)
+        val result = runProcess("root", command, timeoutSeconds, stdin)
         return ShellTextResult(
             exitCode = result.exitCode,
             output = result.output.decodeToString().trimEnd(),
@@ -723,54 +765,64 @@ internal class RootShellTerminalController(
     }
 
     private fun runSuBytes(command: String, timeoutSeconds: Long): ShellBytesResult {
-        val result = runProcess(timeoutSeconds, stdin = null, "su", "-c", command)
+        val result = runProcess("root", command, timeoutSeconds, stdin = null)
         return ShellBytesResult(result.exitCode, result.output, result.stderr.decodeToString().trimEnd())
     }
 
     private fun runProcess(
+        identity: String,
+        command: String,
         timeoutSeconds: Long,
         stdin: ByteArray?,
-        vararg command: String
     ): ProcessBytesResult {
-        val process = runCatching {
-            ProcessBuilder(*command)
-                .redirectErrorStream(false)
-                .start()
-        }.getOrElse {
-            return ProcessBytesResult(-1, ByteArray(0), it.message.orEmpty().toByteArray())
-        }
+        val process = processSupervisor.startShellProcess(
+            identity = identity,
+            command = command,
+            mergeStderr = false,
+        ) ?: return ProcessBytesResult(
+            if (processSupervisor.isClosing) -3 else -1,
+            ByteArray(0),
+            if (processSupervisor.isClosing) "操作已取消".toByteArray() else "无法启动进程".toByteArray(),
+        )
 
-        val output = ByteArrayOutputCollector()
-        val stderr = ByteArrayOutputCollector()
-        val outputThread = thread(name = "agent-terminal-stdout") {
-            process.inputStream.use { input -> output.readFrom(input) }
-        }
-        val stderrThread = thread(name = "agent-terminal-stderr") {
-            process.errorStream.use { input -> stderr.readFrom(input) }
-        }
-        val stdinThread = thread(name = "agent-terminal-stdin") {
-            process.outputStream.use { out ->
-                if (stdin != null) out.write(stdin)
+        try {
+            val output = ByteArrayOutputCollector()
+            val stderr = ByteArrayOutputCollector()
+            val outputThread = thread(name = "agent-terminal-stdout") {
+                process.inputStream.use { input -> output.readFrom(input) }
             }
-        }
+            val stderrThread = thread(name = "agent-terminal-stderr") {
+                process.errorStream.use { input -> stderr.readFrom(input) }
+            }
+            val stdinThread = thread(name = "agent-terminal-stdin") {
+                process.outputStream.use { out ->
+                    if (stdin != null) out.write(stdin)
+                }
+            }
 
-        val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
-        if (!finished) {
-            process.destroyForcibly()
+            val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+            if (!finished) {
+                processSupervisor.terminateProcessTree(process)
+                outputThread.join(500)
+                stderrThread.join(500)
+                stdinThread.join(500)
+                processSupervisor.reapProcess(process)
+                return ProcessBytesResult(-2, output.bytes(), "命令执行超时".toByteArray())
+            }
+
             outputThread.join(500)
             stderrThread.join(500)
             stdinThread.join(500)
-            return ProcessBytesResult(-2, output.bytes(), "命令执行超时".toByteArray())
+            return ProcessBytesResult(process.exitValue(), output.bytes(), stderr.bytes())
+        } finally {
+            if (processSupervisor.isClosing) {
+                processSupervisor.terminateAndReap(process)
+            } else {
+                processSupervisor.reapProcess(process)
+            }
+            processSupervisor.unregisterProcess(process)
         }
-
-        outputThread.join(500)
-        stderrThread.join(500)
-        stdinThread.join(500)
-        return ProcessBytesResult(process.exitValue(), output.bytes(), stderr.bytes())
     }
-
-    private fun shellQuote(value: String): String =
-        "'" + value.replace("'", "'\\''") + "'"
 
     private fun String.truncateForJson(): String =
         if (length <= MAX_OUTPUT_CHARS) this else take(MAX_OUTPUT_CHARS) + "\n...[truncated]"
@@ -809,6 +861,7 @@ internal class RootShellTerminalController(
 
         lateinit var stdoutThread: Thread
         lateinit var stderrThread: Thread
+        lateinit var waiterThread: Thread
     }
 
     private class AsyncCommand(

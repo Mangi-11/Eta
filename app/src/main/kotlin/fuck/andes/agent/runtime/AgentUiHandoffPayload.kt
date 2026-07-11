@@ -5,6 +5,7 @@ import org.json.JSONObject
 
 internal data class AgentUiHandoffPayload(
     val conversationId: String,
+    val promptSupplement: Supplement? = null,
     val supplements: List<Supplement> = emptyList(),
 ) {
     data class Supplement(
@@ -18,15 +19,15 @@ internal data class AgentUiHandoffPayload(
             .put("type", TYPE)
             .put("version", VERSION)
             .put("conversationId", conversationId)
+            .also { json ->
+                promptSupplement?.let { json.put("promptSupplement", it.toJson()) }
+            }
             .put(
                 "supplements",
                 JSONArray().also { array ->
                     supplements.forEach { supplement ->
                         array.put(
-                            JSONObject()
-                                .put("index", supplement.index)
-                                .put("text", supplement.text)
-                                .put("createdAt", supplement.createdAt)
+                            supplement.toJson()
                         )
                     }
                 }
@@ -35,7 +36,7 @@ internal data class AgentUiHandoffPayload(
 
     companion object {
         private const val TYPE = "agent_ui_handoff"
-        private const val VERSION = 1
+        private const val VERSION = 2
 
         fun from(raw: String): AgentUiHandoffPayload {
             val trimmed = raw.trim()
@@ -50,18 +51,29 @@ internal data class AgentUiHandoffPayload(
                 val supplementsJson = json.optJSONArray("supplements") ?: JSONArray()
                 AgentUiHandoffPayload(
                     conversationId = json.optString("conversationId"),
+                    promptSupplement = json.optJSONObject("promptSupplement")
+                        ?.toSupplement(defaultIndex = 1),
                     supplements = (0 until supplementsJson.length()).mapNotNull { index ->
-                        val item = supplementsJson.optJSONObject(index) ?: return@mapNotNull null
-                        val text = item.optString("text").trim()
-                        if (text.isBlank()) return@mapNotNull null
-                        Supplement(
-                            index = item.optInt("index", index + 1),
-                            text = text,
-                            createdAt = item.optLong("createdAt"),
-                        )
+                        supplementsJson.optJSONObject(index)?.toSupplement(index + 1)
                     }
                 )
             }.getOrDefault(AgentUiHandoffPayload(conversationId = trimmed))
         }
+
+        private fun JSONObject.toSupplement(defaultIndex: Int): Supplement? {
+            val text = optString("text").trim()
+            if (text.isBlank()) return null
+            return Supplement(
+                index = optInt("index", defaultIndex),
+                text = text,
+                createdAt = optLong("createdAt"),
+            )
+        }
     }
+
+    private fun Supplement.toJson(): JSONObject =
+        JSONObject()
+            .put("index", index)
+            .put("text", text)
+            .put("createdAt", createdAt)
 }

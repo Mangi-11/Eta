@@ -1,8 +1,11 @@
 package fuck.andes.agent.runtime
 
+import android.os.Parcel
 import fuck.andes.agent.model.AgentModelClient
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -11,6 +14,64 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class AgentRuntimeWireTest {
+    @Test
+    fun oversizedImageRequestIsRejectedBeforeMessengerSend() {
+        val request = AgentRuntimeWire.RunRequest(
+            runId = "run-large-image",
+            prompt = "分析图片",
+            config = AgentModelClient.ModelConfig(
+                baseUrl = "https://example.invalid/v1",
+                apiKey = "test-key",
+                model = "test-model",
+                systemPrompt = "",
+            ),
+            images = listOf(
+                AgentModelClient.ModelImage(
+                    dataUrl = "data:image/png;base64,${"A".repeat(500_000)}",
+                    mimeType = "image/png",
+                    bytes = 375_000,
+                )
+            ),
+        )
+
+        assertThrows(AgentRuntimeWire.PayloadTooLargeException::class.java) {
+            AgentRuntimeWire.toBundle(request)
+        }
+    }
+
+    @Test
+    fun completedRunDrainStaysUnderBinderTransactionBudget() {
+        val runs = List(8) { index ->
+            AgentRuntimeWire.CompletedRun(
+                handoff = AgentRuntimeWire.EntryHandoff(
+                    id = "run-$index",
+                    source = "agent_ui",
+                    payload = "conversation-$index",
+                ),
+                result = AgentRuntimeWire.RunResult(
+                    runId = "run-$index",
+                    ok = true,
+                    content = "c".repeat(80_000),
+                    reasoningContent = "r".repeat(40_000),
+                    transcript = listOf(
+                        AgentModelClient.ConversationMessage(
+                            role = "assistant",
+                            content = "t".repeat(80_000),
+                        )
+                    ),
+                ),
+                createdAt = index.toLong(),
+            )
+        }
+        val parcel = Parcel.obtain()
+        try {
+            parcel.writeBundle(AgentRuntimeWire.completedRunsToBundle(runs))
+            assertTrue(parcel.dataSize() < 900_000)
+        } finally {
+            parcel.recycle()
+        }
+    }
+
     @Test
     fun legacyModelConfigJsonDefaultsBrowserToolsToEnabled() {
         val config = Json.decodeFromString<AgentModelClient.ModelConfig>(

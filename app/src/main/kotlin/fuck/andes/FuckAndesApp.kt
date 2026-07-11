@@ -3,11 +3,18 @@ package fuck.andes
 import android.app.Application
 import android.os.Handler
 import android.os.Looper
+import fuck.andes.agent.skill.SkillRuntime
+import fuck.andes.core.AndroidAgentLogger
+import fuck.andes.core.safeLogType
 import fuck.andes.data.datastore.SettingsDataStore
 import fuck.andes.data.repository.ProviderRepository
 import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper
 import java.util.concurrent.CopyOnWriteArraySet
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * 模块 UI 进程的 Application。
@@ -19,6 +26,8 @@ import java.util.concurrent.CopyOnWriteArraySet
  */
 class FuckAndesApp : Application(), XposedServiceHelper.OnServiceListener {
 
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     interface ServiceStateListener {
         fun onServiceStateChanged(service: XposedService?)
     }
@@ -28,6 +37,15 @@ class FuckAndesApp : Application(), XposedServiceHelper.OnServiceListener {
         SettingsDataStore.init(this)
         ProviderRepository.init(this)
         XposedServiceHelper.registerListener(this)
+        applicationScope.launch {
+            runCatching {
+                SkillRuntime.createIndexService(this@FuckAndesApp).listInstalledSkills()
+            }.onFailure { throwable ->
+                AndroidAgentLogger.warn(
+                    "Agent skill index prewarm failed: type=${throwable.safeLogType()}"
+                )
+            }
+        }
     }
 
     override fun onServiceBind(service: XposedService) {

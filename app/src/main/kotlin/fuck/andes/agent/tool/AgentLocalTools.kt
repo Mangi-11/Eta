@@ -1,26 +1,26 @@
 package fuck.andes.agent.tool
 
-import fuck.andes.agent.device.RootShellDeviceController
-import fuck.andes.agent.browser.AgentBrowserSession
-import fuck.andes.agent.browser.BrowserUrlPolicy
-import fuck.andes.agent.model.AgentModelClient
-import fuck.andes.agent.runtime.AgentAppContext
-import fuck.andes.agent.skill.SkillCompatibilityChecker
-import fuck.andes.agent.skill.SkillIndexService
-import fuck.andes.agent.skill.SkillLoader
-import fuck.andes.agent.terminal.RootShellTerminalController
-import fuck.andes.core.HookSupport
-
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
+import fuck.andes.agent.browser.AgentBrowserSession
+import fuck.andes.agent.browser.BrowserUrlPolicy
+import fuck.andes.agent.device.RootShellDeviceController
+import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.overlay.AgentHapticFeedback
 import fuck.andes.agent.overlay.GestureIndicator
+import fuck.andes.agent.runtime.AgentAppContext
+import fuck.andes.agent.skill.SkillCompatibilityChecker
+import fuck.andes.agent.skill.SkillIndexService
+import fuck.andes.agent.skill.SkillLoader
+import fuck.andes.agent.terminal.RootShellTerminalController
 import fuck.andes.config.Prefs
 import fuck.andes.core.AgentLogger
+import fuck.andes.core.HookSupport
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -28,8 +28,12 @@ internal class AgentLocalTools(
     private val context: Context,
     private val logger: AgentLogger,
     private val browserRunId: String = "",
-    private val browserToolsEnabled: Boolean = Prefs.isEnabled(Prefs.Keys.AGENT_BROWSER_TOOLS),
-    private val terminalToolsEnabled: Boolean = Prefs.isEnabled(Prefs.Keys.AGENT_TERMINAL_TOOLS),
+    private val browserToolsEnabled: () -> Boolean = {
+        Prefs.isEnabled(Prefs.Keys.AGENT_BROWSER_TOOLS)
+    },
+    private val terminalToolsEnabled: () -> Boolean = {
+        Prefs.isEnabled(Prefs.Keys.AGENT_TERMINAL_TOOLS)
+    },
     private val screenshotExcludedPackages: () -> Set<String> = { emptySet() },
     private val skillIndexService: SkillIndexService? = null,
     private val skillLoader: SkillLoader? = null,
@@ -39,10 +43,12 @@ internal class AgentLocalTools(
     private val terminalController = RootShellTerminalController(logger)
     private var lastUiNodes: List<RootShellDeviceController.UiNode> = emptyList()
     private var lastCoordinateSpace: RootShellDeviceController.CoordinateSpace? = null
+    private val closed = AtomicBoolean(false)
 
     override fun close() {
-        AgentBrowserSession.interruptAgentAction()
-        terminalController.closeAll()
+        if (!closed.compareAndSet(false, true)) return
+        AgentBrowserSession.interruptAgentAction(browserRunId)
+        terminalController.interruptAll()
     }
 
     override fun execute(toolCall: AgentModelClient.ToolCall): AgentModelClient.ToolResult =
@@ -98,14 +104,14 @@ internal class AgentLocalTools(
         }
 
     private fun terminalTool(block: () -> String): String {
-        if (!terminalToolsEnabled) {
+        if (!terminalToolsEnabled()) {
             return errorResult("TERMINAL_TOOLS_DISABLED", "请先启用终端/文件工具")
         }
         return block()
     }
 
     private fun browserUse(args: JSONObject, toolCallId: String): AgentModelClient.ToolResult {
-        if (!browserToolsEnabled) {
+        if (!browserToolsEnabled()) {
             return textResult(errorResult("BROWSER_TOOLS_DISABLED", "请先启用网页浏览工具"))
         }
         val result = AgentBrowserSession.execute(

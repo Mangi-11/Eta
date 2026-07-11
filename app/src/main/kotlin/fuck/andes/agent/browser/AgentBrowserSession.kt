@@ -193,6 +193,9 @@ internal object AgentBrowserSession {
     @Volatile
     private var lastAgentRunId: String? = null
 
+    @Volatile
+    private var activeAgentRunId: String? = null
+
     fun initialize(context: Context) {
         if (appContext == null) {
             synchronized(this) {
@@ -207,7 +210,12 @@ internal object AgentBrowserSession {
         runId: String,
         toolCallId: String,
     ): BrowserToolResult {
-        val result = executeInternal(context, args, userInitiated = false)
+        val result = executeInternal(
+            context = context,
+            args = args,
+            userInitiated = false,
+            agentRunId = runId,
+        )
         val succeeded = runCatching { JSONObject(result.content).optBoolean("ok", false) }
             .getOrDefault(false)
         if (succeeded && toolCallId.isNotBlank()) {
@@ -266,8 +274,9 @@ internal object AgentBrowserSession {
         }
     }
 
-    fun interruptAgentAction() {
+    fun interruptAgentAction(runId: String? = null) {
         if (userControlActive) return
+        if (!runId.isNullOrBlank() && activeAgentRunId != runId) return
         interruptCurrentAction(force = false)
     }
 
@@ -328,6 +337,7 @@ internal object AgentBrowserSession {
         context: Context,
         args: JSONObject,
         userInitiated: Boolean,
+        agentRunId: String? = null,
     ): BrowserToolResult {
         initialize(context)
         val action = args.optString("action").trim().lowercase(Locale.ROOT)
@@ -352,6 +362,7 @@ internal object AgentBrowserSession {
             val epoch = operationEpoch.incrementAndGet()
             activeOperationEpoch = epoch
             activeActionIsUserInitiated = userInitiated
+            activeAgentRunId = agentRunId.takeUnless { userInitiated }
             callOnMain {
                 currentError = null
                 publishSnapshotOnMain()
@@ -378,6 +389,7 @@ internal object AgentBrowserSession {
             } finally {
                 if (activeOperationEpoch == epoch) activeOperationEpoch = 0L
                 activeActionIsUserInitiated = false
+                if (activeAgentRunId == agentRunId) activeAgentRunId = null
             }
         }
     }

@@ -40,7 +40,29 @@ internal data class ProviderRequest(
 
 internal data class ProviderResponse(
     val assistantMessage: JSONObject
-)
+) {
+    val stopReason: AssistantStopReason
+        get() = AssistantStopReason.fromWireValue(assistantMessage.optString("finish_reason"))
+}
+
+internal enum class AssistantStopReason {
+    END_TURN,
+    TOOL_USE,
+    OUTPUT_LIMIT,
+    CONTENT_FILTER,
+    UNKNOWN;
+
+    companion object {
+        fun fromWireValue(value: String?): AssistantStopReason =
+            when (value?.trim()?.lowercase()) {
+                "stop", "end_turn" -> END_TURN
+                "tool_calls", "tool_use" -> TOOL_USE
+                "length", "max_tokens" -> OUTPUT_LIMIT
+                "content_filter", "refusal" -> CONTENT_FILTER
+                else -> UNKNOWN
+            }
+    }
+}
 
 internal enum class AssistantBlockKind {
     TEXT,

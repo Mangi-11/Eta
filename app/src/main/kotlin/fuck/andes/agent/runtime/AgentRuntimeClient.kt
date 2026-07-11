@@ -1,8 +1,6 @@
 package fuck.andes.agent.runtime
 
-import android.content.ComponentName
 import android.content.Context
-import android.content.ServiceConnection
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -28,7 +26,6 @@ internal class AgentRuntimeClient(
         request: AgentRuntimeWire.RunRequest,
         onEvent: (AgentEvent) -> Unit
     ): AgentRuntimeWire.RunResult {
-        val connectedLatch = CountDownLatch(1)
         val resultLatch = CountDownLatch(1)
         val resultRef = AtomicReference<AgentRuntimeWire.RunResult?>()
         val clientMessenger = Messenger(
@@ -41,91 +38,60 @@ internal class AgentRuntimeClient(
             )
         )
 
-        var serviceMessenger: Messenger? = null
-        var bound = false
-        val connection = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-                serviceMessenger = Messenger(binder)
-                connectedLatch.countDown()
-                runCatching {
-                    val msg = Message.obtain(null, AgentRuntimeWire.MSG_START_RUN)
-                    msg.replyTo = clientMessenger
-                    msg.data = AgentRuntimeWire.toBundle(request)
-                    serviceMessenger?.send(msg)
-                }.onFailure { throwable ->
-                    logger.warn(
-                        "Agent runtime start request send failed: type=${throwable.safeLogType()}"
-                    )
-                    resultRef.set(
-                        AgentRuntimeWire.RunResult(
-                            runId = "",
-                            ok = false,
-                            content = "",
-                            error = "Agent Runtime 请求发送失败（${throwable.safeLogType()}）"
-                        )
-                    )
-                    resultLatch.countDown()
-                }
-            }
-
-            override fun onServiceDisconnected(name: ComponentName) {
-                serviceMessenger = null
-                connectedLatch.countDown()
-                if (resultRef.get() == null) {
-                    resultRef.set(
-                        AgentRuntimeWire.RunResult(
-                            runId = "",
-                            ok = false,
-                            content = "",
-                            error = "Agent Runtime 服务连接已断开"
-                        )
-                    )
-                    resultLatch.countDown()
-                }
-            }
-
-            override fun onNullBinding(name: ComponentName) {
-                connectedLatch.countDown()
+        val lease = AgentRuntimeConnection.acquire(context, logger)
+            ?: return AgentRuntimeWire.RunResult("", false, "", "Agent Runtime 服务绑定失败")
+        val serviceMessenger = lease.messenger
+        val deathRecipient = IBinder.DeathRecipient {
+            if (resultRef.get() == null) {
                 resultRef.set(
-                    AgentRuntimeWire.RunResult(
-                        runId = "",
-                        ok = false,
-                        content = "",
-                        error = "Agent Runtime 服务拒绝绑定"
-                    )
+                    AgentRuntimeWire.RunResult("", false, "", "Agent Runtime 服务连接已断开")
                 )
                 resultLatch.countDown()
             }
         }
 
         try {
-            bound = context.bindService(
-                AgentRuntimeWire.serviceIntent(),
-                connection,
-                Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT or Context.BIND_INCLUDE_CAPABILITIES
-            )
-            if (!bound) {
-                return AgentRuntimeWire.RunResult("", false, "", "Agent Runtime 服务绑定失败")
+            lease.binder.linkToDeath(deathRecipient, 0)
+            val msg = Message.obtain(null, AgentRuntimeWire.MSG_START_RUN)
+            msg.replyTo = clientMessenger
+            msg.data = AgentRuntimeWire.toBundle(request)
+            serviceMessenger.send(msg)
+            if (!resultLatch.await(RUN_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
+                runCatching {
+                    val cancelMessage = Message.obtain(null, AgentRuntimeWire.MSG_CANCEL)
+                    cancelMessage.data = AgentRuntimeWire.ackBundle(request.runId)
+                    serviceMessenger.send(cancelMessage)
+                }
+                return AgentRuntimeWire.RunResult(
+                    runId = request.runId,
+                    ok = false,
+                    content = "",
+                    error = "Agent Runtime 执行超时",
+                )
             }
-            if (!connectedLatch.await(BIND_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                return AgentRuntimeWire.RunResult("", false, "", "Agent Runtime 服务连接超时")
-            }
-            resultLatch.await()
             return resultRef.get() ?: AgentRuntimeWire.RunResult("", false, "", "Agent Runtime 未返回结果")
         } catch (interrupted: InterruptedException) {
             Thread.currentThread().interrupt()
             runCatching {
-                val msg = Message.obtain(null, AgentRuntimeWire.MSG_CANCEL)
-                msg.data = AgentRuntimeWire.ackBundle(request.runId)
-                serviceMessenger?.send(msg)
+                val cancelMessage = Message.obtain(null, AgentRuntimeWire.MSG_CANCEL)
+                cancelMessage.data = AgentRuntimeWire.ackBundle(request.runId)
+                serviceMessenger.send(cancelMessage)
             }
             return AgentRuntimeWire.RunResult("", false, "", "Agent Runtime 等待被中断")
+        } catch (throwable: Throwable) {
+            logger.warn("Agent runtime start request failed: type=${throwable.safeLogType()}")
+            return AgentRuntimeWire.RunResult(
+                runId = request.runId,
+                ok = false,
+                content = "",
+                error = when (throwable) {
+                    is AgentRuntimeWire.PayloadTooLargeException -> throwable.message
+                    else -> "Agent Runtime 请求发送失败（${throwable.safeLogType()}）"
+                },
+            )
         } finally {
-            runCatching {
-                if (bound) context.unbindService(connection)
-            }.onFailure { throwable ->
-                logger.warn("Agent runtime service unbind failed: type=${throwable.safeLogType()}")
-            }
+            runCatching { lease.binder.unlinkToDeath(deathRecipient, 0) }
+            lease.close()
         }
     }
 
@@ -162,40 +128,15 @@ internal class AgentRuntimeClient(
             val msg = Message.obtain(null, AgentRuntimeWire.MSG_DRAIN_RESULTS)
             msg.replyTo = clientMessenger
             serviceMessenger.send(msg)
-            resultLatch.await(BIND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            resultLatch.await(RESPONSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             resultRef.get()
         }
     }
 
     private fun <T> withRuntimeMessenger(defaultValue: T, block: (Messenger) -> T): T {
-        val connectedLatch = CountDownLatch(1)
-        var serviceMessenger: Messenger? = null
-        var bound = false
-        val connection = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-                serviceMessenger = Messenger(binder)
-                connectedLatch.countDown()
-            }
-
-            override fun onServiceDisconnected(name: ComponentName) {
-                serviceMessenger = null
-                connectedLatch.countDown()
-            }
-
-            override fun onNullBinding(name: ComponentName) {
-                connectedLatch.countDown()
-            }
-        }
-
+        val lease = AgentRuntimeConnection.acquire(context, logger) ?: return defaultValue
         try {
-            bound = context.bindService(
-                AgentRuntimeWire.serviceIntent(),
-                connection,
-                Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT or Context.BIND_INCLUDE_CAPABILITIES
-            )
-            if (!bound || !connectedLatch.await(BIND_TIMEOUT_SECONDS, TimeUnit.SECONDS)) return defaultValue
-            val messenger = serviceMessenger ?: return defaultValue
-            return block(messenger)
+            return block(lease.messenger)
         } catch (interrupted: InterruptedException) {
             Thread.currentThread().interrupt()
             return defaultValue
@@ -203,11 +144,7 @@ internal class AgentRuntimeClient(
             logger.warn("Agent runtime service call failed: type=${throwable.safeLogType()}")
             return defaultValue
         } finally {
-            runCatching {
-                if (bound) context.unbindService(connection)
-            }.onFailure { throwable ->
-                logger.warn("Agent runtime service unbind failed: type=${throwable.safeLogType()}")
-            }
+            lease.close()
         }
     }
 
@@ -239,6 +176,7 @@ internal class AgentRuntimeClient(
     }
 
     private companion object {
-        const val BIND_TIMEOUT_SECONDS = 8L
+        const val RESPONSE_TIMEOUT_SECONDS = 8L
+        const val RUN_TIMEOUT_MINUTES = 30L
     }
 }

@@ -19,6 +19,7 @@ internal data class RuntimeResultEntity(
     val content: String,
     val error: String?,
     @ColumnInfo(name = "reasoning_content") val reasoningContent: String,
+    @ColumnInfo(name = "transcript_json") val transcriptJson: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
 
@@ -34,6 +35,7 @@ internal data class RuntimeArchiveRunEntity(
     val content: String,
     val error: String?,
     @ColumnInfo(name = "reasoning_content") val reasoningContent: String,
+    @ColumnInfo(name = "transcript_json") val transcriptJson: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
 

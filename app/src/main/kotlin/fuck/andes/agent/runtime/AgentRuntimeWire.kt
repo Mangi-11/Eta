@@ -3,6 +3,8 @@ package fuck.andes.agent.runtime
 import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
+import android.os.Parcel
+import fuck.andes.agent.model.AgentConversationCodec
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.data.model.CustomBody
 import fuck.andes.data.model.CustomHeader
@@ -18,6 +20,10 @@ import kotlinx.serialization.json.Json
  * 不引入 AIDL：消息体只用 [Bundle]（Int/Boolean/String/ArrayList），跨进程传递无序列化门槛。
  */
 internal object AgentRuntimeWire {
+    internal class PayloadTooLargeException(sizeBytes: Int) : IllegalArgumentException(
+        "Agent Runtime 请求跨进程数据过大（$sizeBytes bytes）；请减少图片数量或分辨率后重试"
+    )
+
     /** bind 获取服务端 Messenger 的 Intent action。 */
     const val ACTION_BIND = "fuck.andes.agent.runtime.BIND"
 
@@ -93,6 +99,12 @@ internal object AgentRuntimeWire {
     private const val LEGACY_BREENO_HANDOFF_SOURCE = "breeno"
     private const val KEY_CREATED_AT = "created_at"
     private const val KEY_RESULTS = "results"
+    private const val MAX_RESULT_CONTENT_CHARS = 64_000
+    private const val MAX_RESULT_REASONING_CHARS = 32_000
+    private const val MAX_DRAIN_CONTENT_CHARS = 16_000
+    private const val MAX_DRAIN_REASONING_CHARS = 4_000
+    private const val TRUNCATED_SUFFIX = "\n\n[跨进程结果过长，已截断]"
+    private const val MAX_START_REQUEST_PARCEL_BYTES = 768 * 1024
 
     data class RunRequest(
         val runId: String,
@@ -156,7 +168,7 @@ internal object AgentRuntimeWire {
         request.handoff?.let { putBundle(KEY_HANDOFF, toBundle(it)) }
         putParcelableArrayList(
             KEY_HISTORY,
-            ArrayList(request.history.map { message ->
+            ArrayList(AgentConversationCodec.messagesForIpc(request.history).map { message ->
                 Bundle().apply {
                     putString(KEY_ROLE, message.role)
                     putString(KEY_CONTENT, message.content)
@@ -180,7 +192,7 @@ internal object AgentRuntimeWire {
                 }
             })
         )
-    }
+    }.also(::requireStartRequestWithinBinderBudget)
 
     fun runRequestFromBundle(bundle: Bundle): RunRequest =
         RunRequest(
@@ -261,13 +273,32 @@ internal object AgentRuntimeWire {
         )
     }
 
-    fun toBundle(result: RunResult): Bundle = Bundle().apply {
-        putString(KEY_RUN_ID, result.runId)
-        putBoolean(KEY_OK, result.ok)
-        putString(KEY_CONTENT, result.content)
-        putString(KEY_REASONING_CONTENT, result.reasoningContent)
-        putString(KEY_ERROR, result.error)
-        putString(KEY_TRANSCRIPT_JSON, json.encodeToString(result.transcript))
+    fun toBundle(result: RunResult): Bundle = result.toBundle(compactForDrain = false)
+
+    private fun RunResult.toBundle(compactForDrain: Boolean): Bundle = Bundle().apply {
+        putString(KEY_RUN_ID, runId)
+        putBoolean(KEY_OK, ok)
+        putString(
+            KEY_CONTENT,
+            content.boundedText(
+                if (compactForDrain) MAX_DRAIN_CONTENT_CHARS else MAX_RESULT_CONTENT_CHARS
+            ),
+        )
+        putString(
+            KEY_REASONING_CONTENT,
+            reasoningContent.boundedText(
+                if (compactForDrain) MAX_DRAIN_REASONING_CHARS else MAX_RESULT_REASONING_CHARS
+            ),
+        )
+        putString(KEY_ERROR, error?.boundedText(MAX_DRAIN_CONTENT_CHARS))
+        putString(
+            KEY_TRANSCRIPT_JSON,
+            if (compactForDrain) {
+                AgentConversationCodec.encodeTranscriptForDrain(transcript)
+            } else {
+                AgentConversationCodec.encodeTranscriptForIpc(transcript)
+            },
+        )
     }
 
     fun runResultFromBundle(bundle: Bundle): RunResult =
@@ -277,13 +308,15 @@ internal object AgentRuntimeWire {
             content = bundle.getString(KEY_CONTENT).orEmpty(),
             error = bundle.getString(KEY_ERROR),
             reasoningContent = bundle.getString(KEY_REASONING_CONTENT).orEmpty(),
-            transcript = decodeConversationHistory(bundle.getString(KEY_TRANSCRIPT_JSON)),
+            transcript = AgentConversationCodec.decodeTranscript(bundle.getString(KEY_TRANSCRIPT_JSON)),
         )
 
-    fun toBundle(completedRun: CompletedRun): Bundle = Bundle().apply {
-        putBundle(KEY_HANDOFF, toBundle(completedRun.handoff))
-        putBundle(KEY_RESULT, toBundle(completedRun.result))
-        putLong(KEY_CREATED_AT, completedRun.createdAt)
+    fun toBundle(completedRun: CompletedRun): Bundle = completedRun.toBundle(compactForDrain = false)
+
+    private fun CompletedRun.toBundle(compactForDrain: Boolean): Bundle = Bundle().apply {
+        putBundle(KEY_HANDOFF, toBundle(handoff))
+        putBundle(KEY_RESULT, result.toBundle(compactForDrain))
+        putLong(KEY_CREATED_AT, createdAt)
     }
 
     fun completedRunFromBundle(bundle: Bundle): CompletedRun =
@@ -294,7 +327,10 @@ internal object AgentRuntimeWire {
         )
 
     fun completedRunsToBundle(results: List<CompletedRun>): Bundle = Bundle().apply {
-        putParcelableArrayList(KEY_RESULTS, ArrayList(results.map(::toBundle)))
+        putParcelableArrayList(
+            KEY_RESULTS,
+            ArrayList(results.map { it.toBundle(compactForDrain = true) }),
+        )
     }
 
     fun completedRunsFromBundle(bundle: Bundle): List<CompletedRun> =
@@ -308,6 +344,22 @@ internal object AgentRuntimeWire {
 
     fun runIdFromBundle(bundle: Bundle): String =
         bundle.getString(KEY_RUN_ID).orEmpty()
+
+    private fun String.boundedText(maxChars: Int): String =
+        if (length <= maxChars) this else take((maxChars - TRUNCATED_SUFFIX.length).coerceAtLeast(0)) + TRUNCATED_SUFFIX
+
+    private fun requireStartRequestWithinBinderBudget(bundle: Bundle) {
+        val parcel = Parcel.obtain()
+        val sizeBytes = try {
+            parcel.writeBundle(bundle)
+            parcel.dataSize()
+        } finally {
+            parcel.recycle()
+        }
+        if (sizeBytes > MAX_START_REQUEST_PARCEL_BYTES) {
+            throw PayloadTooLargeException(sizeBytes)
+        }
+    }
 
     /** 将 [AgentEvent] 打包为可跨进程传递的 [Bundle]。 */
     fun eventToBundle(event: AgentEvent): Bundle = Bundle().apply {
@@ -558,10 +610,4 @@ internal object AgentRuntimeWire {
         if (raw.isNullOrBlank()) emptyList()
         else runCatching { json.decodeFromString<List<CustomBody>>(raw) }.getOrDefault(emptyList())
 
-    private fun decodeConversationHistory(raw: String?): List<AgentModelClient.ConversationMessage> =
-        if (raw.isNullOrBlank()) emptyList()
-        else {
-            runCatching { json.decodeFromString<List<AgentModelClient.ConversationMessage>>(raw) }
-                .getOrDefault(emptyList())
-        }
 }

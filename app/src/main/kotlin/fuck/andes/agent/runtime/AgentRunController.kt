@@ -1,6 +1,8 @@
 package fuck.andes.agent.runtime
 
+import java.util.ArrayDeque
 import java.util.concurrent.CopyOnWriteArraySet
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -13,18 +15,18 @@ internal class AgentRunController {
     val isCancelled: Boolean
         get() = cancelled
 
-    @Volatile
-    private var steerText: String? = null
-
     private val lock = ReentrantLock()
     private val pauseCondition = lock.newCondition()
+    private val steeringMessages = ArrayDeque<String>()
+    private var acceptingSteering = true
     @Volatile
     private var paused = false
 
     fun cancel() {
         lock.withLock {
             cancelled = true
-            steerText = null
+            acceptingSteering = false
+            steeringMessages.clear()
             paused = false
             pauseCondition.signalAll()
         }
@@ -33,20 +35,36 @@ internal class AgentRunController {
         }
     }
 
-    fun steer(text: String) {
+    /**
+     * 将补充指令排入下一个 turn。steering 不取消当前模型请求或工具批次。
+     */
+    fun steer(text: String): Boolean {
         val prompt = text.trim()
-        if (prompt.isBlank()) return
+        if (prompt.isBlank()) return false
         lock.withLock {
-            if (cancelled) return
-            steerText = listOfNotNull(steerText, prompt)
-                .joinToString(separator = "\n\n")
-            paused = false
-            pauseCondition.signalAll()
+            if (cancelled || !acceptingSteering) return false
+            steeringMessages.addLast(prompt)
         }
-        resources.forEach { resource ->
-            runCatching { resource.cancel() }
-        }
+        return true
     }
+
+    /** 默认逐条消费，避免后来的补充指令越过前一条的模型回合。 */
+    fun pollSteeringMessage(): String? =
+        lock.withLock { steeringMessages.pollFirst() }
+
+    /**
+     * 自然结束前原子地消费最后一条 steering；若队列为空则永久关闭本 run 的接收入口。
+     * 这样 Service 不会在 loop 已返回后仍把补充指令误报为已接收。
+     */
+    fun pollSteeringOrSeal(): String? =
+        lock.withLock {
+            steeringMessages.pollFirst()?.let { return it }
+            acceptingSteering = false
+            null
+        }
+
+    val hasPendingSteering: Boolean
+        get() = lock.withLock { steeringMessages.isNotEmpty() }
 
     /**
      * 暂停执行：后续 [throwIfCancelled] 调用会阻塞挂起，直到 [resume] 或 [cancel]。
@@ -71,28 +89,23 @@ internal class AgentRunController {
      * 在 agent 循环的每轮/每步调用，实现暂停可恢复、取消即终止。
      */
     fun throwIfCancelled() {
-        var pendingSteer: String? = null
         lock.withLock {
-            while (paused && !cancelled && steerText == null) {
+            while (paused && !cancelled) {
                 try {
                     pauseCondition.await()
                 } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
+                    cancelled = true
                 }
             }
-            pendingSteer = steerText
-            if (pendingSteer != null) {
-                steerText = null
-            }
         }
-        pendingSteer?.let { throw AgentRunSteeredException(it) }
         if (cancelled) throw AgentRunCancelledException()
     }
 
     fun register(cancel: () -> Unit): ResourceBinding {
         val resource = CancellableResource(cancel)
         resources.add(resource)
-        if (cancelled || steerText != null) resource.cancel()
+        if (cancelled) resource.cancel()
         return ResourceBinding { resources.remove(resource) }
     }
 
@@ -103,10 +116,12 @@ internal class AgentRunController {
     }
 
     private class CancellableResource(private val cancelBlock: () -> Unit) {
-        fun cancel() = cancelBlock()
+        private val cancelled = AtomicBoolean(false)
+
+        fun cancel() {
+            if (cancelled.compareAndSet(false, true)) cancelBlock()
+        }
     }
 }
 
 internal class AgentRunCancelledException : RuntimeException("Agent run cancelled")
-
-internal class AgentRunSteeredException(val supplement: String) : RuntimeException("Agent run steered")

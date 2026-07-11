@@ -2,6 +2,8 @@ package fuck.andes.agent.skill
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -39,5 +41,24 @@ class SkillRuntimeTest {
         service.seedBuiltinSkillsIfNeeded()
 
         assertEquals("preserve existing learning\n", errorsFile.readText())
+
+        service.listSkillsForManagement()
+        val userSkill = File(temporaryFolder.root, "skills/cache-probe/SKILL.md")
+        userSkill.parentFile?.mkdirs()
+        userSkill.writeText(
+            """
+            ---
+            name: cache-probe
+            description: Verify explicit index refresh.
+            ---
+
+            # Cache probe
+            """.trimIndent()
+        )
+
+        assertFalse(service.listSkillsForManagement().any { it.id == "cache-probe" })
+        assertTrue(
+            service.listSkillsForManagement(forceRefresh = true).any { it.id == "cache-probe" }
+        )
     }
 }

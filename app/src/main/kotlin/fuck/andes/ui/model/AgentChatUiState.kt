@@ -11,6 +11,7 @@ internal data class AgentChatUiState(
     val isStreaming: Boolean,
     val thinkingEnabled: Boolean,
     val pendingImages: List<PendingImageUi> = emptyList(),
+    val appliedRuntimeRunIds: List<String> = emptyList(),
 )
 
 @Immutable

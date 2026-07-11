@@ -1,0 +1,72 @@
+package fuck.andes.agent.tool
+
+import android.content.Context
+import fuck.andes.agent.model.AgentModelClient
+import fuck.andes.core.AgentLogger
+import java.util.concurrent.atomic.AtomicBoolean
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
+class AgentLocalToolsPermissionTest {
+    @Test
+    fun terminalPermissionIsRecheckedImmediatelyBeforeExecution() {
+        val enabled = AtomicBoolean(true)
+        val tools = tools(terminalEnabled = enabled::get)
+        enabled.set(false)
+
+        val result = tools.execute(
+            AgentModelClient.ToolCall(
+                id = "call-1",
+                name = "run_command",
+                argumentsJson = "{\"command\":\"id\"}",
+            )
+        )
+
+        assertEquals("TERMINAL_TOOLS_DISABLED", JSONObject(result.content).getString("code"))
+        tools.close()
+    }
+
+    @Test
+    fun browserPermissionIsRecheckedImmediatelyBeforeExecution() {
+        val enabled = AtomicBoolean(true)
+        val tools = tools(browserEnabled = enabled::get)
+        enabled.set(false)
+
+        val result = tools.execute(
+            AgentModelClient.ToolCall(
+                id = "call-1",
+                name = "browser_use",
+                argumentsJson = "{\"action\":\"get_page_info\"}",
+            )
+        )
+
+        assertEquals("BROWSER_TOOLS_DISABLED", JSONObject(result.content).getString("code"))
+        tools.close()
+    }
+
+    private fun tools(
+        terminalEnabled: () -> Boolean = { false },
+        browserEnabled: () -> Boolean = { false },
+    ): AgentLocalTools =
+        AgentLocalTools(
+            context = RuntimeEnvironment.getApplication() as Context,
+            logger = NoOpLogger,
+            browserRunId = "test-run",
+            terminalToolsEnabled = terminalEnabled,
+            browserToolsEnabled = browserEnabled,
+        )
+
+    private object NoOpLogger : AgentLogger {
+        override fun debug(message: () -> String) = Unit
+        override fun info(message: String) = Unit
+        override fun warn(message: String) = Unit
+        override fun error(message: String, throwable: Throwable?) = Unit
+    }
+}

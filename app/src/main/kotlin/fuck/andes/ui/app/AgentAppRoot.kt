@@ -93,6 +93,7 @@ fun AgentAppRoot() {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 agentState.refreshPermissionHealth()
+                agentState.refreshRuntimeResults()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

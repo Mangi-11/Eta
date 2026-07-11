@@ -1,6 +1,8 @@
 package fuck.andes.agent.runtime
 
 import android.content.Context
+import fuck.andes.agent.model.AgentConversationCodec
+import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.data.db.FuckAndesDatabase
 import fuck.andes.data.db.RuntimeResultEntity
 import kotlinx.coroutines.Dispatchers
@@ -99,6 +101,7 @@ internal object AgentRuntimeResultStore {
             content = result.content,
             error = result.error,
             reasoningContent = result.reasoningContent,
+            transcriptJson = AgentConversationCodec.encodeTranscriptForStorage(result.transcript),
             createdAt = createdAt,
         )
     }
@@ -117,7 +120,30 @@ internal object AgentRuntimeResultStore {
                 content = content,
                 error = error,
                 reasoningContent = reasoningContent,
+                transcript = legacyCompatibleTranscript(
+                    raw = transcriptJson,
+                    ok = ok,
+                    content = content,
+                    reasoningContent = reasoningContent,
+                ),
             ),
             createdAt = createdAt,
         )
+
+    private fun legacyCompatibleTranscript(
+        raw: String,
+        ok: Boolean,
+        content: String,
+        reasoningContent: String,
+    ): List<AgentModelClient.ConversationMessage> =
+        AgentConversationCodec.decodeTranscript(raw).ifEmpty {
+            if (!ok || content.isBlank()) return@ifEmpty emptyList()
+            listOf(
+                AgentModelClient.ConversationMessage(
+                    role = "assistant",
+                    content = content,
+                    reasoningContent = reasoningContent,
+                )
+            )
+        }
 }

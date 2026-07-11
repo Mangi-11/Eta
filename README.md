@@ -150,4 +150,4 @@ systemizer/                Google App 系统化安装器
 config/Prefs.kt            RemotePreferences 配置
 ```
 
-更多旧入口接管细节见 [docs/TECHNICAL.md](docs/TECHNICAL.md)。该文档主要记录 Gemini、一圈即搜和 RemotePreferences 链路，Agent Runtime 以后会单独补充技术文档。
+Agent Loop、工具批次、steering 与 transcript 语义见 [docs/AGENT_RUNTIME.md](docs/AGENT_RUNTIME.md)。Gemini、一圈即搜和 RemotePreferences 链路见 [docs/TECHNICAL.md](docs/TECHNICAL.md)。

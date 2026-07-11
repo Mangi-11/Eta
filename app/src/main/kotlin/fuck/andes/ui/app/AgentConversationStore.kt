@@ -68,6 +68,7 @@ internal object AgentConversationStore {
                         title = titles[id] ?: "新对话",
                         thinkingEnabled = state.thinkingEnabled,
                         historyJson = json.encodeToString(state.history),
+                        appliedRuntimeRunIdsJson = json.encodeToString(state.appliedRuntimeRunIds),
                         createdAt = updatedAt[id] ?: now,
                         updatedAt = updatedAt[id] ?: now,
                     )
@@ -115,6 +116,7 @@ internal object AgentConversationStore {
                             .sortedBy { it.sortIndex }
                             .toLegacyHistory()
                     },
+                appliedRuntimeRunIds = conversation.appliedRuntimeRunIdsJson.toStringList(),
                 input = "",
                 isStreaming = false,
                 thinkingEnabled = conversation.thinkingEnabled,

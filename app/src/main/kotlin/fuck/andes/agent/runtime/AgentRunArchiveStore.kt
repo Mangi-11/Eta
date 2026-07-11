@@ -2,6 +2,8 @@ package fuck.andes.agent.runtime
 
 import android.content.Context
 import android.os.Bundle
+import fuck.andes.agent.model.AgentConversationCodec
+import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.data.db.FuckAndesDatabase
 import fuck.andes.data.db.RuntimeArchiveEventEntity
 import fuck.andes.data.db.RuntimeArchiveRunEntity
@@ -89,6 +91,7 @@ internal object AgentRunArchiveStore {
             content = result.content,
             error = result.error,
             reasoningContent = result.reasoningContent,
+            transcriptJson = AgentConversationCodec.encodeTranscriptForStorage(result.transcript),
             createdAt = createdAt,
         )
 
@@ -116,6 +119,16 @@ internal object AgentRunArchiveStore {
                     content = run.content,
                     error = run.error,
                     reasoningContent = run.reasoningContent,
+                    transcript = AgentConversationCodec.decodeTranscript(run.transcriptJson).ifEmpty {
+                        if (!run.ok || run.content.isBlank()) return@ifEmpty emptyList()
+                        listOf(
+                            AgentModelClient.ConversationMessage(
+                                role = "assistant",
+                                content = run.content,
+                                reasoningContent = run.reasoningContent,
+                            )
+                        )
+                    },
                 ),
                 createdAt = run.createdAt,
                 events = events

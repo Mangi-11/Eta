@@ -12,6 +12,7 @@ internal data class ConversationEntity(
     val title: String,
     @ColumnInfo(name = "thinking_enabled") val thinkingEnabled: Boolean,
     @ColumnInfo(name = "history_json") val historyJson: String = "[]",
+    @ColumnInfo(name = "applied_runtime_run_ids_json") val appliedRuntimeRunIdsJson: String = "[]",
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )

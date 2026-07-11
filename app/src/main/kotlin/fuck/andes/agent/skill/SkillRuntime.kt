@@ -110,7 +110,7 @@ private class BuiltinSkillAssetStore(
     private val context: Context,
     private val skillsRoot: File,
 ) {
-    fun listBuiltins(): List<BuiltinSkillAsset> =
+    private val builtins: List<BuiltinSkillAsset> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         runCatching {
             context.assets.open(BUILTIN_SKILL_MANIFEST_ASSET).bufferedReader().use { reader ->
                 val json = JSONObject(reader.readText())
@@ -130,6 +130,9 @@ private class BuiltinSkillAssetStore(
                 }.filter { it.id.isNotBlank() && it.assetPath.isNotBlank() }
             }
         }.getOrElse { emptyList() }
+    }
+
+    fun listBuiltins(): List<BuiltinSkillAsset> = builtins
 
     fun findBuiltin(skillId: String): BuiltinSkillAsset? =
         listBuiltins().firstOrNull { it.id == skillId }
@@ -198,32 +201,32 @@ class SkillIndexService(
     private val context: Context,
     private val skillsRoot: File,
 ) {
-    private fun registryStore() = SkillRegistryStore(context)
-    private fun builtinStore() = BuiltinSkillAssetStore(context.applicationContext, skillsRoot)
+    private val indexLock = Any()
+    private val registryStore = SkillRegistryStore(context.applicationContext)
+    private val builtinStore = BuiltinSkillAssetStore(context.applicationContext, skillsRoot)
+
+    @Volatile
+    private var builtinsSeeded = false
+
+    @Volatile
+    private var cachedManagementEntries: List<SkillIndexEntry>? = null
 
     fun seedBuiltinSkillsIfNeeded() {
-        if (!skillsRoot.exists()) skillsRoot.mkdirs()
-        builtinStore().seedMissingBuiltins(registryStore())
+        if (builtinsSeeded) return
+        synchronized(indexLock) {
+            seedBuiltinSkillsLocked()
+        }
     }
 
-    fun listSkillsForManagement(): List<SkillIndexEntry> {
-        seedBuiltinSkillsIfNeeded()
-        val store = registryStore()
-        val registry = store.read()
-        val builtinAssets = builtinStore().listBuiltins().associateBy { it.id }
-        val installed = scanInstalledEntries(registry, builtinAssets)
-        val installedIds = installed.mapTo(mutableSetOf()) { it.id }
-        val removedBuiltins = builtinAssets.values
-            .asSequence()
-            .filter { it.id !in installedIds && registry[it.id]?.installState == INSTALL_STATE_REMOVED_BUILTIN }
-            .map { buildBuiltinPlaceholder(it, registry[it.id]) }
-            .toList()
-        return (installed + removedBuiltins).sortedWith(
-            compareByDescending<SkillIndexEntry> { it.installed }
-                .thenBy { sourceRank(it.source) }
-                .thenBy { it.name.lowercase() },
-        )
-    }
+    fun listSkillsForManagement(forceRefresh: Boolean = false): List<SkillIndexEntry> =
+        synchronized(indexLock) {
+            if (forceRefresh) builtinsSeeded = false
+            seedBuiltinSkillsLocked()
+            if (forceRefresh) cachedManagementEntries = null
+            cachedManagementEntries ?: buildManagementEntries().also {
+                cachedManagementEntries = it
+            }
+        }
 
     fun listInstalledSkills(): List<SkillIndexEntry> =
         listSkillsForManagement().filter { it.installed && it.enabled }
@@ -239,38 +242,83 @@ class SkillIndexService(
     }
 
     fun setSkillEnabled(skillId: String, enabled: Boolean): SkillIndexEntry {
-        val entry = listSkillsForManagement().firstOrNull { it.id == skillId && it.installed }
-            ?: throw IllegalArgumentException("未找到已安装 skill：$skillId")
-        registryStore().set(
-            entry.id,
-            SkillRegistryEntry(enabled = enabled, source = entry.source, installState = INSTALL_STATE_INSTALLED),
-        )
-        return entry.copy(enabled = enabled)
+        synchronized(indexLock) {
+            val entry = listSkillsForManagement().firstOrNull { it.id == skillId && it.installed }
+                ?: throw IllegalArgumentException("未找到已安装 skill：$skillId")
+            registryStore.set(
+                entry.id,
+                SkillRegistryEntry(enabled = enabled, source = entry.source, installState = INSTALL_STATE_INSTALLED),
+            )
+            invalidateIndexLocked()
+            return entry.copy(enabled = enabled)
+        }
     }
 
     fun deleteSkill(skillId: String): Boolean {
-        val entry = listSkillsForManagement().firstOrNull { it.id == skillId && it.installed } ?: return false
-        val targetDir = File(entry.rootPath)
-        if (entry.source == BUILTIN_SOURCE) {
-            if (targetDir.exists()) {
-                targetDir.deleteRecursively()
-                if (targetDir.exists()) return false
+        synchronized(indexLock) {
+            val entry = listSkillsForManagement().firstOrNull { it.id == skillId && it.installed } ?: return false
+            val targetDir = File(entry.rootPath)
+            if (entry.source == BUILTIN_SOURCE) {
+                if (targetDir.exists()) {
+                    targetDir.deleteRecursively()
+                    if (targetDir.exists()) return false
+                }
+                registryStore.set(
+                    entry.id,
+                    SkillRegistryEntry(
+                        enabled = false,
+                        source = BUILTIN_SOURCE,
+                        installState = INSTALL_STATE_REMOVED_BUILTIN,
+                    ),
+                )
+                invalidateIndexLocked()
+                return true
             }
-            registryStore().set(
-                entry.id,
-                SkillRegistryEntry(enabled = false, source = BUILTIN_SOURCE, installState = INSTALL_STATE_REMOVED_BUILTIN),
-            )
-            return true
+            val deleted = !targetDir.exists() || targetDir.deleteRecursively()
+            registryStore.remove(entry.id)
+            invalidateIndexLocked()
+            return deleted
         }
-        val deleted = !targetDir.exists() || targetDir.deleteRecursively()
-        registryStore().remove(entry.id)
-        return deleted
     }
 
     fun installBuiltinSkill(skillId: String): SkillIndexEntry {
-        builtinStore().installBuiltin(skillId, registryStore())
-        return findInstalledSkill(skillId)
-            ?: throw IllegalStateException("安装内置 skill 后索引失败：$skillId")
+        synchronized(indexLock) {
+            builtinStore.installBuiltin(skillId, registryStore)
+            invalidateIndexLocked()
+            return findInstalledSkill(skillId)
+                ?: throw IllegalStateException("安装内置 skill 后索引失败：$skillId")
+        }
+    }
+
+    private fun seedBuiltinSkillsLocked() {
+        if (builtinsSeeded) return
+        if (!skillsRoot.exists() && !skillsRoot.mkdirs()) {
+            error("无法创建 Skills 目录：${skillsRoot.absolutePath}")
+        }
+        builtinStore.seedMissingBuiltins(registryStore)
+        builtinsSeeded = true
+        invalidateIndexLocked()
+    }
+
+    private fun buildManagementEntries(): List<SkillIndexEntry> {
+        val registry = registryStore.read()
+        val builtinAssets = builtinStore.listBuiltins().associateBy { it.id }
+        val installed = scanInstalledEntries(registry, builtinAssets)
+        val installedIds = installed.mapTo(mutableSetOf()) { it.id }
+        val removedBuiltins = builtinAssets.values
+            .asSequence()
+            .filter { it.id !in installedIds && registry[it.id]?.installState == INSTALL_STATE_REMOVED_BUILTIN }
+            .map { buildBuiltinPlaceholder(it, registry[it.id]) }
+            .toList()
+        return (installed + removedBuiltins).sortedWith(
+            compareByDescending<SkillIndexEntry> { it.installed }
+                .thenBy { sourceRank(it.source) }
+                .thenBy { it.name.lowercase() },
+        )
+    }
+
+    private fun invalidateIndexLocked() {
+        cachedManagementEntries = null
     }
 
     private fun scanInstalledEntries(
@@ -411,10 +459,20 @@ object SkillCompatibilityChecker {
 // =====================================================================================
 
 object SkillRuntime {
+    @Volatile
+    private var sharedIndexService: SkillIndexService? = null
+
     fun skillsRoot(context: Context): File = File(context.filesDir, "skills")
 
-    fun createIndexService(context: Context): SkillIndexService =
-        SkillIndexService(context.applicationContext, skillsRoot(context))
+    fun createIndexService(context: Context): SkillIndexService {
+        sharedIndexService?.let { return it }
+        return synchronized(this) {
+            sharedIndexService ?: SkillIndexService(
+                context = context.applicationContext,
+                skillsRoot = skillsRoot(context),
+            ).also { sharedIndexService = it }
+        }
+    }
 
     fun createLoader(context: Context): SkillLoader =
         SkillLoader(skillsRoot(context))
