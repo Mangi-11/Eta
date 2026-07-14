@@ -11,8 +11,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,8 +32,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,14 +42,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.Scaffold
 import com.composables.icons.lucide.R as LucideR
 import fuck.andes.agent.browser.AgentBrowserSession
 import fuck.andes.ui.model.AgentChatMessageUi
@@ -66,8 +61,12 @@ import fuck.andes.ui.model.ToolActivityMessageUi
 import fuck.andes.ui.model.ToolSummaryMessageUi
 import fuck.andes.ui.model.UserMessageUi
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 /**
  * 聊天主体：消息流 + 底部输入框。
@@ -261,9 +260,10 @@ private fun AgentChatMessages(
     onOpenBrowser: () -> Unit,
     currentBrowserMessageId: String?,
 ) {
+    val timelineEntries = remember(visibleMessages) { visibleMessages.toTimelineEntries() }
     val density = LocalDensity.current
     val bottomPaddingPx = with(density) { bottomPadding.roundToPx() }
-    val bottomItemIndex = visibleMessages.size
+    val bottomItemIndex = timelineEntries.size
     val bottomAnchorKey = visibleMessages.lastOrNull()?.bottomAnchorKey()
     val isAtBottom by remember(scrollState, bottomPaddingPx) {
         derivedStateOf { scrollState.isScrolledToBottom(bottomPaddingPx) }
@@ -300,18 +300,32 @@ private fun AgentChatMessages(
         ),
     ) {
         items(
-            items = visibleMessages,
-            key = { it.id },
-        ) { message ->
-            ChatMessageItem(
-                message = message,
-                onSuggestionClick = onSuggestionClick,
-                onRunTraceClick = onRunTraceClick,
-                onOpenBrowser = onOpenBrowser,
-                showBrowserShortcut = message is ToolActivityMessageUi &&
-                    message.toolName == "browser_use" &&
-                    message.id == currentBrowserMessageId,
-            )
+            items = timelineEntries,
+            key = { it.key },
+        ) { entry ->
+            when (entry) {
+                is AgentTimelineEntry.Message -> {
+                    val message = entry.message
+                    ChatMessageItem(
+                        message = message,
+                        onSuggestionClick = onSuggestionClick,
+                        onRunTraceClick = onRunTraceClick,
+                        onOpenBrowser = onOpenBrowser,
+                        showBrowserShortcut = message is ToolActivityMessageUi &&
+                            message.toolName == "browser_use" &&
+                            message.id == currentBrowserMessageId,
+                    )
+                }
+
+                is AgentTimelineEntry.WorkProcess -> {
+                    AgentWorkProcess(
+                        id = entry.key,
+                        messages = entry.messages,
+                        onOpenBrowser = onOpenBrowser,
+                        currentBrowserMessageId = currentBrowserMessageId,
+                    )
+                }
+            }
         }
         item(key = ChatBottomSentinelKey) {
             Spacer(
@@ -322,6 +336,49 @@ private fun AgentChatMessages(
         }
     }
 }
+
+private sealed interface AgentTimelineEntry {
+    val key: String
+
+    data class Message(
+        val message: AgentChatMessageUi,
+    ) : AgentTimelineEntry {
+        override val key: String = message.id
+    }
+
+    data class WorkProcess(
+        override val key: String,
+        val messages: List<AgentChatMessageUi>,
+    ) : AgentTimelineEntry
+}
+
+private fun List<AgentChatMessageUi>.toTimelineEntries(): List<AgentTimelineEntry> = buildList {
+    val workMessages = mutableListOf<AgentChatMessageUi>()
+
+    fun flushWorkProcess() {
+        if (workMessages.isEmpty()) return
+        add(
+            AgentTimelineEntry.WorkProcess(
+                key = "work-${workMessages.first().id}",
+                messages = workMessages.toList(),
+            )
+        )
+        workMessages.clear()
+    }
+
+    this@toTimelineEntries.forEach { message ->
+        if (message.isWorkProcessMessage()) {
+            workMessages += message
+        } else {
+            flushWorkProcess()
+            add(AgentTimelineEntry.Message(message))
+        }
+    }
+    flushWorkProcess()
+}
+
+private fun AgentChatMessageUi.isWorkProcessMessage(): Boolean =
+    this is ThinkingMessageUi || this is ToolActivityMessageUi || this is ToolSummaryMessageUi
 
 @Composable
 private fun AgentChatBottomBar(
@@ -336,22 +393,47 @@ private fun AgentChatBottomBar(
     onAttachImage: (String) -> Unit,
     onRemoveImage: (String) -> Unit,
 ) {
-    AgentChatInputBar(
-        input = input,
-        isStreaming = isStreaming,
-        thinkingEnabled = thinkingEnabled,
-        pendingImages = pendingImages,
-        onInputChange = onInputChange,
-        onThinkingChange = onThinkingChange,
-        onSend = onSend,
-        onStop = onStop,
-        onAttachImage = onAttachImage,
-        onRemoveImage = onRemoveImage,
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .imePadding()
-            .navigationBarsPadding(),
-    )
+            .imePadding(),
+    ) {
+        // 轻微渐隐把正文与输入器分层，避免消息从圆角卡片和系统导航区“漏”出来。
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(12.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            MiuixTheme.colorScheme.surface,
+                        ),
+                    )
+                ),
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MiuixTheme.colorScheme.surface)
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+        ) {
+            AgentChatInputBar(
+                input = input,
+                isStreaming = isStreaming,
+                thinkingEnabled = thinkingEnabled,
+                pendingImages = pendingImages,
+                onInputChange = onInputChange,
+                onThinkingChange = onThinkingChange,
+                onSend = onSend,
+                onStop = onStop,
+                onAttachImage = onAttachImage,
+                onRemoveImage = onRemoveImage,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
 }
 
 private const val ChatBottomSentinelKey = "agent-chat-bottom-sentinel"
@@ -385,58 +467,62 @@ private fun EmptyChatState(
     val suggestions = listOf(
         SuggestionItem(
             title = "分析当前屏幕",
-            description = "截图并描述当前屏幕",
+            description = "理解界面内容并给出下一步",
             iconRes = LucideR.drawable.lucide_ic_scan_text,
             prompt = "截图并描述当前屏幕",
-            highlighted = false,
         ),
         SuggestionItem(
             title = "打开微信",
-            description = "快速启动微信应用",
+            description = "在设备上直接完成操作",
             iconRes = LucideR.drawable.lucide_ic_rocket,
             prompt = "帮我打开微信",
-            highlighted = false,
         ),
         SuggestionItem(
             title = "查看内存压力",
-            description = "读取 /proc/meminfo 和 /proc/pressure/，总结内存与系统压力",
-            iconRes = LucideR.drawable.lucide_ic_search,
+            description = "运行命令并分析系统状态",
+            iconRes = LucideR.drawable.lucide_ic_square_terminal,
             prompt = "读取 /proc/meminfo 和 /proc/pressure/，重点分析 PSI（Pressure Stall Information）指标，总结当前内存压力和系统状态",
-            highlighted = false,
         ),
     )
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(start = 24.dp, top = 88.dp, end = 24.dp, bottom = 32.dp),
+            .padding(start = 24.dp, top = 72.dp, end = 24.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.Top,
     ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
-                .padding(11.dp),
-            contentAlignment = Alignment.Center
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_bot),
+                painter = painterResource(LucideR.drawable.lucide_ic_sparkles),
                 contentDescription = null,
-                modifier = Modifier.size(26.dp),
+                modifier = Modifier.size(17.dp),
                 tint = MiuixTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Eta Agent",
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.primary,
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         Text(
-            text = "有什么可以帮你？",
+            text = "让 Eta 替你完成",
             style = MiuixTheme.textStyles.headline1,
             color = MiuixTheme.colorScheme.onSurface,
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(7.dp))
+
+        Text(
+            text = "操作手机、浏览网页，或运行终端任务。",
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -486,45 +572,48 @@ private fun SuggestionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bgColor = if (item.highlighted) {
-        MiuixTheme.colorScheme.primary.copy(alpha = 0.08f)
-    } else {
-        MiuixTheme.colorScheme.surface
-    }
-    val borderColor = if (item.highlighted) {
-        MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
-    } else {
-        MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.12f)
-    }
-    val contentColor = if (item.highlighted) {
-        MiuixTheme.colorScheme.primary
-    } else {
-        MiuixTheme.colorScheme.onSurface
-    }
-
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(bgColor)
-            .border(0.5.dp, borderColor, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        cornerRadius = 14.dp,
+        insideMargin = PaddingValues(0.dp),
+        colors = CardDefaults.defaultColors(
+            color = MiuixTheme.colorScheme.surfaceContainer,
+            contentColor = MiuixTheme.colorScheme.onSurface,
+        ),
+        pressFeedbackType = PressFeedbackType.Sink,
+        onClick = onClick,
     ) {
-        if (item.highlighted) {
+        Row(
+            modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Icon(
                 painter = painterResource(item.iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
-                tint = contentColor,
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.title,
+                    style = MiuixTheme.textStyles.body1,
+                    color = MiuixTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = item.description,
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                )
+            }
+            Icon(
+                painter = painterResource(LucideR.drawable.lucide_ic_chevron_right),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
         }
-        Text(
-            text = item.title,
-            style = MiuixTheme.textStyles.body1,
-            color = contentColor,
-        )
     }
 }
 
@@ -533,5 +622,4 @@ private data class SuggestionItem(
     val description: String,
     val iconRes: Int,
     val prompt: String,
-    val highlighted: Boolean = false,
 )

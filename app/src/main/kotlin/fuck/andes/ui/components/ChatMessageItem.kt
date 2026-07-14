@@ -5,10 +5,16 @@ import android.util.Base64
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,6 +37,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,7 +52,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -53,8 +62,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.R as LucideR
+import com.mikepenz.markdown.compose.components.markdownComponents
+import com.mikepenz.markdown.compose.elements.MarkdownTable
+import com.mikepenz.markdown.compose.elements.MarkdownTableHeader
+import com.mikepenz.markdown.compose.elements.MarkdownTableRow
 import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
+import com.mikepenz.markdown.model.markdownDimens
+import com.mikepenz.markdown.model.markdownPadding
 import com.mikepenz.markdown.model.rememberMarkdownState
 import com.mikepenz.markdown.model.rememberStreamingMarkdownState
 import fuck.andes.ui.model.AgentChatMessageUi
@@ -62,7 +78,6 @@ import fuck.andes.ui.model.AgentMessageUi
 import fuck.andes.ui.model.RunTraceMessageUi
 import fuck.andes.ui.model.SuggestionChipsMessageUi
 import fuck.andes.ui.model.ThinkingMessageUi
-import fuck.andes.ui.model.TokenUsageUi
 import fuck.andes.ui.model.ToolActivityMessageUi
 import fuck.andes.ui.model.ToolActivityStatusUi
 import fuck.andes.ui.model.ToolSummaryMessageUi
@@ -73,6 +88,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -87,7 +103,7 @@ internal fun rememberDataUrlBitmap(dataUrl: String) = remember(dataUrl) {
 }
 
 /**
- * Custom modern word-by-word streaming animation helper (Zero external dependencies)
+ * 按语义片段推进流式文本，避免逐字符动画造成闪烁。
  */
 @Composable
 fun StreamingText(
@@ -172,7 +188,7 @@ private fun splitIntoWords(text: String): List<String> {
 private val WordSplitRegex = Regex("""(\s+|\S+)""")
 
 /**
- * Custom modern three-dot typing indicator (Zero external dependencies)
+ * 等待首个文本片段时的轻量反馈。
  */
 @Composable
 fun AITypingIndicator(modifier: Modifier = Modifier) {
@@ -211,20 +227,134 @@ fun ChatMessageItem(
     onOpenBrowser: () -> Unit,
     showBrowserShortcut: Boolean,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     when (message) {
         is UserMessageUi -> UserMessageBubble(message = message, modifier = modifier)
         is AgentMessageUi -> AgentMessageBlock(message = message, modifier = modifier)
-        is ThinkingMessageUi -> ThinkingRow(message = message, modifier = modifier)
+        is ThinkingMessageUi -> ThinkingRow(message = message, modifier = modifier, compact = compact)
         is RunTraceMessageUi -> RunTraceRow(message = message, onClick = onRunTraceClick, modifier = modifier)
         is ToolActivityMessageUi -> ToolActivityInline(
             message = message,
             onOpenBrowser = onOpenBrowser,
             showBrowserShortcut = showBrowserShortcut,
             modifier = modifier,
+            compact = compact,
         )
-        is ToolSummaryMessageUi -> ToolSummaryInline(message = message, modifier = modifier)
+        is ToolSummaryMessageUi -> ToolSummaryInline(message = message, modifier = modifier, compact = compact)
         is SuggestionChipsMessageUi -> SuggestionChipsRow(message = message, onSuggestionClick = onSuggestionClick, modifier = modifier)
+    }
+}
+
+/**
+ * 把连续的思考与工具调用收束为一个可展开的工作过程，避免 Agent 事件退化为聊天气泡噪音。
+ */
+@Composable
+internal fun AgentWorkProcess(
+    id: String,
+    messages: List<AgentChatMessageUi>,
+    onOpenBrowser: () -> Unit,
+    currentBrowserMessageId: String?,
+    modifier: Modifier = Modifier,
+) {
+    val running = messages.any { message ->
+        (message is ThinkingMessageUi && message.isStreaming) ||
+            (message is ToolActivityMessageUi && message.status == ToolActivityStatusUi.Running)
+    }
+    val toolCount = messages.count { it is ToolActivityMessageUi }
+    var expanded by remember(id) { mutableStateOf(running) }
+
+    LaunchedEffect(running) {
+        if (running) {
+            expanded = true
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 4.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(
+                    if (running) LucideR.drawable.lucide_ic_atom else LucideR.drawable.lucide_ic_wrench
+                ),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = if (running) {
+                    MiuixTheme.colorScheme.primary
+                } else {
+                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                },
+            )
+            Spacer(modifier = Modifier.width(9.dp))
+            Text(
+                text = when {
+                    running && toolCount > 0 -> "正在处理 · 第 $toolCount 步"
+                    running -> "正在分析任务"
+                    toolCount > 0 -> "已处理 $toolCount 个步骤"
+                    else -> "已完成分析"
+                },
+                style = MiuixTheme.textStyles.body2,
+                color = if (running) {
+                    MiuixTheme.colorScheme.onSurface
+                } else {
+                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                },
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                painter = painterResource(
+                    if (expanded) LucideR.drawable.lucide_ic_chevron_down
+                    else LucideR.drawable.lucide_ic_chevron_right
+                ),
+                contentDescription = if (expanded) "收起工作过程" else "展开工作过程",
+                modifier = Modifier.size(16.dp),
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(0.5.dp)
+                .background(MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.14f)),
+        )
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn() + expandVertically(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
+                )
+            ),
+            exit = fadeOut() + shrinkVertically(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
+                )
+            ),
+        ) {
+            Column(modifier = Modifier.padding(top = 3.dp, bottom = 6.dp)) {
+                messages.forEach { message ->
+                    ChatMessageItem(
+                        message = message,
+                        onSuggestionClick = {},
+                        onRunTraceClick = {},
+                        onOpenBrowser = onOpenBrowser,
+                        showBrowserShortcut = message.id == currentBrowserMessageId,
+                        compact = true,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -241,13 +371,14 @@ private fun UserMessageBubble(
             .padding(horizontal = 24.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.End,
     ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 290.dp)
-                .clip(RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp))
-                .background(MiuixTheme.colorScheme.primary)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.End,
+        Card(
+            modifier = Modifier.widthIn(max = 312.dp),
+            cornerRadius = 18.dp,
+            insideMargin = PaddingValues(horizontal = 15.dp, vertical = 11.dp),
+            colors = CardDefaults.defaultColors(
+                color = MiuixTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MiuixTheme.colorScheme.onSurface,
+            ),
         ) {
             if (message.images.isNotEmpty()) {
                 Row(
@@ -271,29 +402,40 @@ private fun UserMessageBubble(
                 }
             }
             if (message.content.isNotBlank()) {
-                Text(
-                    text = message.content,
-                    style = MiuixTheme.textStyles.body1,
-                    color = MiuixTheme.colorScheme.onPrimary,
-                )
+                SelectionContainer {
+                    Text(
+                        text = message.content,
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurface,
+                    )
+                }
             }
         }
     }
 }
 
-// ── Assistant 消息：无任何繁杂头部，内容直接展现（完美还原 DeepSeek） ───────────
+// ── Agent 结果 ───────────────────────────────────────────────────────
 
 @Composable
 private fun AgentMessageBlock(
     message: AgentMessageUi,
     modifier: Modifier = Modifier,
 ) {
+    @Suppress("DEPRECATION")
+    val clipboardManager = LocalClipboardManager.current
+    var copied by remember(message.id) { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            kotlinx.coroutines.delay(1_400)
+            copied = false
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 6.dp),
     ) {
-        // AI response starts directly on the left with zero clunky headers, avatars or badges
         when {
             message.content.isBlank() && message.isStreaming -> {
                 AITypingIndicator(
@@ -301,23 +443,63 @@ private fun AgentMessageBlock(
                 )
             }
             message.isStreaming -> {
-                StreamingMarkdown(
-                    content = message.content,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                SelectionContainer {
+                    StreamingMarkdown(
+                        content = message.content,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             message.renderMarkdown -> {
-                StableMarkdown(
-                    content = message.content,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                SelectionContainer {
+                    StableMarkdown(
+                        content = message.content,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             message.content.isNotBlank() -> {
-                Text(
-                    text = message.content,
-                    style = MiuixTheme.textStyles.body1,
-                    color = MiuixTheme.colorScheme.onSurface,
-                )
+                SelectionContainer {
+                    Text(
+                        text = message.content,
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+        }
+
+        if (!message.isStreaming && message.content.isNotBlank()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(
+                    onClick = {
+                        @Suppress("DEPRECATION")
+                        clipboardManager.setText(AnnotatedString(message.content))
+                        copied = true
+                    },
+                    minWidth = 32.dp,
+                    minHeight = 32.dp,
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            if (copied) LucideR.drawable.lucide_ic_check
+                            else LucideR.drawable.lucide_ic_copy
+                        ),
+                        contentDescription = if (copied) "已复制" else "复制回答",
+                        modifier = Modifier.size(16.dp),
+                        tint = if (copied) {
+                            MiuixTheme.colorScheme.primary
+                        } else {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        },
+                    )
+                }
             }
         }
     }
@@ -334,7 +516,11 @@ private fun StableMarkdown(
     )
     Markdown(
         markdownState = markdownState,
+        colors = chatMarkdownColors(),
         typography = chatMarkdownTypography(),
+        padding = chatMarkdownPadding(),
+        dimens = chatMarkdownDimens(),
+        components = chatMarkdownComponents(),
         modifier = modifier,
         loading = {
             Text(
@@ -380,7 +566,11 @@ private fun StreamingMarkdown(
 
         Markdown(
             streamingMarkdownState = markdownState,
+            colors = chatMarkdownColors(),
             typography = chatMarkdownTypography(),
+            padding = chatMarkdownPadding(),
+            dimens = chatMarkdownDimens(),
+            components = chatMarkdownComponents(),
             modifier = modifier,
         )
     }
@@ -388,29 +578,100 @@ private fun StreamingMarkdown(
 
 @Composable
 private fun chatMarkdownTypography() = markdownTypography(
-    h1 = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold),
-    h2 = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
-    h3 = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Bold),
-    h4 = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold),
-    h5 = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold),
-    h6 = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold),
-    text = MiuixTheme.textStyles.body1,
-    paragraph = MiuixTheme.textStyles.body1,
-    ordered = MiuixTheme.textStyles.body1,
-    bullet = MiuixTheme.textStyles.body1,
-    list = MiuixTheme.textStyles.body1,
-    quote = MiuixTheme.textStyles.body2,
-    code = MiuixTheme.textStyles.footnote1.copy(fontFamily = FontFamily.Monospace),
-    inlineCode = MiuixTheme.textStyles.body1.copy(fontFamily = FontFamily.Monospace),
-    table = MiuixTheme.textStyles.footnote1,
+    h1 = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
+    h2 = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold),
+    h3 = TextStyle(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold),
+    h4 = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
+    h5 = TextStyle(fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold),
+    h6 = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
+    text = chatMarkdownBodyStyle(),
+    paragraph = chatMarkdownBodyStyle(),
+    ordered = chatMarkdownBodyStyle(),
+    bullet = chatMarkdownBodyStyle(),
+    list = chatMarkdownBodyStyle(),
+    quote = MiuixTheme.textStyles.body2.copy(fontSize = 15.sp, lineHeight = 23.sp),
+    code = MiuixTheme.textStyles.footnote1.copy(
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        fontFamily = FontFamily.Monospace,
+    ),
+    inlineCode = chatMarkdownBodyStyle().copy(fontFamily = FontFamily.Monospace),
+    table = MiuixTheme.textStyles.footnote1.copy(fontSize = 13.sp, lineHeight = 18.sp),
 )
 
-// ── 思考：纯文字无边框极简设计，用 Lucide 完美配对的 Chevron ───
+@Composable
+private fun chatMarkdownBodyStyle() = MiuixTheme.textStyles.body1.copy(
+    fontSize = 16.sp,
+    lineHeight = 24.sp,
+)
+
+@Composable
+private fun chatMarkdownColors() = markdownColor(
+    text = MiuixTheme.colorScheme.onSurface,
+    codeBackground = MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.78f),
+    inlineCodeBackground = MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f),
+    dividerColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.18f),
+    tableBackground = MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.48f),
+)
+
+@Composable
+private fun chatMarkdownDimens() = markdownDimens(
+    dividerThickness = 0.5.dp,
+    codeBackgroundCornerSize = 10.dp,
+    blockQuoteThickness = 2.dp,
+    tableCellWidth = 132.dp,
+    tableCellPadding = 12.dp,
+    tableCornerSize = 10.dp,
+)
+
+@Composable
+private fun chatMarkdownPadding() = markdownPadding(
+    block = 3.dp,
+    list = 2.dp,
+    listItemTop = 2.dp,
+    listItemBottom = 2.dp,
+    listIndent = 10.dp,
+    codeBlock = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+    blockQuote = PaddingValues(horizontal = 12.dp),
+    blockQuoteText = PaddingValues(vertical = 4.dp),
+)
+
+@Composable
+private fun chatMarkdownComponents() = markdownComponents(
+    table = { model ->
+        MarkdownTable(
+            content = model.content,
+            node = model.node,
+            style = model.typography.table,
+            headerBlock = { content, header, tableWidth, style ->
+                MarkdownTableHeader(
+                    content = content,
+                    header = header,
+                    tableWidth = tableWidth,
+                    style = style,
+                    maxLines = 3,
+                )
+            },
+            rowBlock = { content, row, tableWidth, style ->
+                MarkdownTableRow(
+                    content = content,
+                    header = row,
+                    tableWidth = tableWidth,
+                    style = style,
+                    maxLines = 3,
+                )
+            },
+        )
+    },
+)
+
+// ── 思考过程 ─────────────────────────────────────────────────────────
 
 @Composable
 private fun ThinkingRow(
     message: ThinkingMessageUi,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     var expanded by remember(message.id) { mutableStateOf(!message.collapsed) }
     LaunchedEffect(message.isStreaming, message.collapsed) {
@@ -421,7 +682,7 @@ private fun ThinkingRow(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 4.dp),
+            .padding(horizontal = if (compact) 14.dp else 24.dp, vertical = 4.dp),
     ) {
         Row(
             modifier = Modifier
@@ -439,7 +700,6 @@ private fun ThinkingRow(
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
             Spacer(modifier = Modifier.width(4.dp))
-            // Use exact same Lucide thin chevron right/down icons to guarantee 100% equal sizes
             Icon(
                 painter = painterResource(
                     if (expanded) LucideR.drawable.lucide_ic_chevron_down 
@@ -493,8 +753,9 @@ private fun ToolActivityInline(
     onOpenBrowser: () -> Unit,
     showBrowserShortcut: Boolean,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
+    var isExpanded by remember(message.id) { mutableStateOf(false) }
 
     // Running pulse alpha
     val pulseTransition = rememberInfiniteTransition(label = "pulse_alpha")
@@ -512,7 +773,7 @@ private fun ToolActivityInline(
         modifier = modifier
             .fillMaxWidth()
             .clickable { isExpanded = !isExpanded }
-            .padding(horizontal = 24.dp, vertical = 4.dp)
+            .padding(horizontal = if (compact) 14.dp else 24.dp, vertical = 4.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -554,11 +815,7 @@ private fun ToolActivityInline(
 
             // Tool label
             Text(
-                text = if (message.toolName == "browser_use" && message.argumentsSummary.isNotBlank()) {
-                    message.argumentsSummary
-                } else {
-                    message.toolName.toToolLabel()
-                },
+                text = message.toolName.toToolLabel(),
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 maxLines = 1,
@@ -577,7 +834,6 @@ private fun ToolActivityInline(
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.graphicsLayer(alpha = if (message.status == ToolActivityStatusUi.Running) pulseAlpha else 1.0f)
                 )
-                // Use exact same Lucide thin chevron right/down icons to guarantee 100% equal sizes
                 Icon(
                     painter = painterResource(
                         if (isExpanded) LucideR.drawable.lucide_ic_chevron_down 
@@ -676,7 +932,7 @@ private fun RunTraceRow(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Agent Capabilities",
+            text = "可用能力",
             style = MiuixTheme.textStyles.body2,
             color = MiuixTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
@@ -697,11 +953,12 @@ private fun RunTraceRow(
 private fun ToolSummaryInline(
     message: ToolSummaryMessageUi,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     FlowRow(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 3.dp),
+            .padding(horizontal = if (compact) 14.dp else 24.dp, vertical = 3.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
