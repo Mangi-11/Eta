@@ -3,6 +3,7 @@ package fuck.andes.ui.app
 import android.content.Context
 import fuck.andes.ui.model.AgentChatHomeUiState
 import fuck.andes.ui.model.AgentMessageUi
+import fuck.andes.ui.model.AgentRunMetricsUi
 import fuck.andes.ui.model.ThinkingMessageUi
 import fuck.andes.ui.model.TokenUsageUi
 import fuck.andes.ui.model.ToolActivityMessageUi
@@ -64,6 +65,12 @@ class AgentConversationStoreTest {
                         outputTokens = 40,
                         reasoningTokens = 20,
                         cachedTokens = 10,
+                    ),
+                    runMetrics = AgentRunMetricsUi(
+                        inputTokens = 240,
+                        cachedInputTokens = 180,
+                        outputTokens = 36,
+                        elapsedMs = 5_400,
                     ),
                 ),
             ),

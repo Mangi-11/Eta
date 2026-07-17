@@ -448,7 +448,7 @@ private fun LazyListState.isScrolledToBottom(bottomPaddingPx: Int): Boolean {
 
 private fun AgentChatMessageUi.bottomAnchorKey(): String = when (this) {
     is UserMessageUi -> "$id:${content.hashCode()}:${images.size}"
-    is AgentMessageUi -> "$id:${content.hashCode()}:$isStreaming:${usage.hashCode()}"
+    is AgentMessageUi -> "$id:${content.hashCode()}:$isStreaming:${usage.hashCode()}:${runMetrics.hashCode()}"
     is ThinkingMessageUi -> "$id:${content.hashCode()}:$isStreaming:$elapsedSeconds:$collapsed"
     is RunTraceMessageUi -> "$id:${capabilities.size}"
     is ToolSummaryMessageUi -> "$id:${tools.hashCode()}"

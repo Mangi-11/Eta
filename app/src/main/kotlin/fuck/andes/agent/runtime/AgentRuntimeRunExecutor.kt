@@ -49,6 +49,7 @@ internal class AgentRuntimeRunExecutor(
         var response: AgentModelClient.ModelResponse.Text? = null
         var cancelled = false
         val timing = AgentRunTiming(AndroidAgentLogger)
+        val metricsAccumulator = AgentRunMetricsAccumulator()
 
         val result = try {
             entrySurfaceGuard = EntrySurfaceGuard.from(request.handoff, AndroidAgentLogger)
@@ -87,6 +88,7 @@ internal class AgentRuntimeRunExecutor(
                 skillContext = skillContext,
             ) { event ->
                 timing.accept(event)
+                metricsAccumulator.accept(event)
                 acceptEvent(session, event, archivedEvents, entrySurfaceGuard)
             }
             response = completedResponse
@@ -96,6 +98,7 @@ internal class AgentRuntimeRunExecutor(
                 content = completedResponse.content,
                 reasoningContent = completedResponse.reasoningContent,
                 transcript = completedResponse.transcript,
+                metrics = metricsAccumulator.snapshot(timing.assistantOutputElapsedMs()),
             )
         } catch (throwable: Throwable) {
             cancelled = runController.isCancelled || throwable is AgentRunCancelledException
@@ -112,6 +115,7 @@ internal class AgentRuntimeRunExecutor(
                     "Agent runtime failed: type=${throwable.safeLogType()}"
                 )
                 val event = AgentEvent.RunFailed(message)
+                timing.accept(event)
                 acceptEvent(session, event, archivedEvents, entrySurfaceGuard)
             }
             AgentRuntimeWire.RunResult(
@@ -121,6 +125,7 @@ internal class AgentRuntimeRunExecutor(
                 error = message,
                 reasoningContent = modelFailure?.reasoningContent.orEmpty(),
                 transcript = modelFailure?.transcript.orEmpty(),
+                metrics = metricsAccumulator.snapshot(timing.assistantOutputElapsedMs()),
             )
         } finally {
             runCatching { toolsBinding?.close() }

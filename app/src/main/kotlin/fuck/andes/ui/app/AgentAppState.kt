@@ -43,6 +43,8 @@ import fuck.andes.ui.model.SystemEnhanceSectionUi
 import fuck.andes.ui.model.SystemEnhanceStatusUi
 import fuck.andes.ui.model.ThinkingMessageUi
 import fuck.andes.ui.model.TokenUsageUi
+import fuck.andes.ui.model.AgentRunMetricsUi
+import fuck.andes.ui.model.toRunMetricsUi
 import fuck.andes.ui.model.ToolActivityMessageUi
 import fuck.andes.ui.model.ToolGroupUi
 import fuck.andes.ui.model.ToolItemUi
@@ -618,7 +620,13 @@ internal class AgentAppState(
         }
 
         applyConversationHistoryResult(runId, result.transcript)
-        replaceLatestAssistantMessage(runId, content, isStreaming = false, renderMarkdown = result.ok)
+        replaceLatestAssistantMessage(
+            runId = runId,
+            content = content,
+            isStreaming = false,
+            renderMarkdown = result.ok,
+            runMetrics = result.metrics?.toRunMetricsUi(),
+        )
         setConversationStreaming(runId, false)
         runMessageProjector.clearRun(runId)
         runConversationIds.remove(runId)
@@ -685,6 +693,7 @@ internal class AgentAppState(
         isStreaming: Boolean,
         renderMarkdown: Boolean? = null,
         usage: TokenUsageUi? = null,
+        runMetrics: AgentRunMetricsUi? = null,
     ) {
         updateMessages(runId) { messages ->
             val assistantId = assistantMessageId(runId, round)
@@ -697,6 +706,7 @@ internal class AgentAppState(
                         isStreaming = isStreaming,
                         renderMarkdown = renderMarkdown ?: message.renderMarkdown,
                         usage = usage ?: message.usage,
+                        runMetrics = runMetrics ?: message.runMetrics,
                     )
                 } else {
                     message
@@ -711,6 +721,7 @@ internal class AgentAppState(
                     isStreaming = isStreaming,
                     renderMarkdown = renderMarkdown ?: false,
                     usage = usage,
+                    runMetrics = runMetrics,
                 )
             }
         }
@@ -722,6 +733,7 @@ internal class AgentAppState(
         isStreaming: Boolean,
         renderMarkdown: Boolean? = null,
         usage: TokenUsageUi? = null,
+        runMetrics: AgentRunMetricsUi? = null,
     ) {
         replaceAssistantMessage(
             runId = runId,
@@ -730,6 +742,7 @@ internal class AgentAppState(
             isStreaming = isStreaming,
             renderMarkdown = renderMarkdown,
             usage = usage,
+            runMetrics = runMetrics,
         )
     }
 

@@ -19,13 +19,17 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class FuckAndesDatabaseMigrationTest {
     @Test
-    fun migration6To8PreservesRunsAndAddsDeliveryMetadata() {
+    fun migration6To9PreservesRunsAndAddsDeliveryMetadata() {
         val context = RuntimeEnvironment.getApplication() as Context
         val databaseName = "migration-${UUID.randomUUID()}.db"
         createVersion6Database(context, databaseName)
 
         val database = Room.databaseBuilder(context, FuckAndesDatabase::class.java, databaseName)
-            .addMigrations(FuckAndesDatabase.MIGRATION_6_7, FuckAndesDatabase.MIGRATION_7_8)
+            .addMigrations(
+                FuckAndesDatabase.MIGRATION_6_7,
+                FuckAndesDatabase.MIGRATION_7_8,
+                FuckAndesDatabase.MIGRATION_8_9,
+            )
             .build()
         try {
             val (result, archive, conversation) = runBlocking(Dispatchers.IO) {
@@ -38,8 +42,12 @@ class FuckAndesDatabaseMigrationTest {
 
             assertEquals("保留的结果", result.content)
             assertEquals("[]", result.transcriptJson)
+            assertEquals(null, result.runInputTokens)
+            assertEquals(null, result.runElapsedMs)
             assertEquals("保留的归档", archive.content)
             assertEquals("[]", archive.transcriptJson)
+            assertEquals(null, archive.runOutputTokens)
+            assertEquals(null, archive.runElapsedMs)
             assertEquals("[]", conversation.appliedRuntimeRunIdsJson)
         } finally {
             database.close()
