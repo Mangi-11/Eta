@@ -39,6 +39,9 @@ internal object AgentOverlayVisibilityPolicy {
         else -> false
     }
 
+    internal fun isForegroundOperationTool(name: String?): Boolean =
+        name.isForegroundOperationTool()
+
     private fun String?.isForegroundOperationTool(): Boolean =
         this?.trim()?.lowercase() in foregroundOperationTools
 

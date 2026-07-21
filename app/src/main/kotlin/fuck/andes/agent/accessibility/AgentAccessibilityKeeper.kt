@@ -1,120 +1,79 @@
 package fuck.andes.agent.accessibility
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.view.accessibility.AccessibilityManager
 import fuck.andes.core.AndroidAgentLogger
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
+/**
+ * 开机和升级后只通过公开 API 审计用户授权状态。
+ * 服务绑定由系统负责；这里不得修改 Secure Settings 或替用户重新启用无障碍。
+ */
 object AgentAccessibilityKeeper {
     private val executor = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "agent-accessibility-keeper").apply { isDaemon = true }
+        Thread(runnable, "agent-accessibility-audit").apply { isDaemon = true }
     }
 
-    fun restoreAsync(
+    fun auditAsync(
         context: Context,
         reason: String,
-        onComplete: (() -> Unit)? = null
+        onComplete: (() -> Unit)? = null,
     ) {
         val appContext = context.applicationContext
         executor.execute {
             try {
-                restore(appContext, reason)
+                audit(appContext, reason)
             } finally {
                 onComplete?.invoke()
             }
         }
     }
 
-    private fun restore(context: Context, reason: String) {
-        val component = ComponentName(
-            context,
-            AgentAccessibilityService::class.java
-        ).flattenToString()
-        val shortComponent = ComponentName(
-            context,
-            AgentAccessibilityService::class.java
-        ).flattenToShortString()
-        val result = runProcess(buildEnableCommand(component, shortComponent))
-        val safeReason = reason.toSafeRestoreReason()
-        if (result.exitCode == 0) {
-            val outcome = when (result.stdout) {
-                "restored" -> "restored"
-                "noop" -> "noop"
-                else -> "unknown"
-            }
-            AndroidAgentLogger.info(
-                "Agent accessibility action=restore outcome=$outcome " +
-                    "reason=$safeReason exitCode=${result.exitCode} outputChars=${result.stdout.length}"
-            )
-        } else {
+    private fun audit(context: Context, reason: String) {
+        val targetComponent = ComponentName(context, AgentAccessibilityService::class.java)
+        val target = AccessibilityServiceIdentity(
+            packageName = targetComponent.packageName,
+            className = targetComponent.className,
+        )
+        val enabledComponents = runCatching {
+            val manager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+            manager
+                .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                .mapNotNull { info ->
+                    info.resolveInfo?.serviceInfo?.let { serviceInfo ->
+                        AccessibilityServiceIdentity(serviceInfo.packageName, serviceInfo.name)
+                    }
+                }
+        }.getOrElse { throwable ->
             AndroidAgentLogger.warn(
-                "Agent accessibility action=restore outcome=failed " +
-                    "reason=$safeReason exitCode=${result.exitCode} errorChars=${result.stderr.length}"
+                "Agent accessibility action=audit outcome=failed " +
+                    "reason=${reason.toSafeReason()} error=${throwable.javaClass.simpleName}"
             )
+            return
         }
-    }
-
-    private fun buildEnableCommand(
-        component: String,
-        shortComponent: String
-    ): String =
-        """
-        target=${shellQuote(component)}
-        service_path=${shellQuote(shortComponent)}
-        service=${'$'}(dumpsys activity service "${'$'}service_path" 2>/dev/null | grep SERVICE)
-        services=${'$'}(settings get secure enabled_accessibility_services 2>/dev/null)
-        case ":${'$'}services:" in
-          *":${'$'}target:"*) needs_append=0; new_services="${'$'}services" ;;
-          "") needs_append=1; new_services="${'$'}target" ;;
-          *) needs_append=1; new_services="${'$'}services:${'$'}target" ;;
-        esac
-        if [ -z "${'$'}service" ] || [ "${'$'}needs_append" -eq 1 ]; then
-          settings put secure accessibility_enabled 0
-          settings put secure enabled_accessibility_services "${'$'}new_services"
-          settings put secure accessibility_enabled 1
-          echo restored
-        else
-          echo noop
-        fi
-        """.trimIndent()
-
-    private fun runProcess(command: String): ShellResult {
-        val process = runCatching {
-            ProcessBuilder("su", "-c", command)
-                .redirectErrorStream(false)
-                .start()
-        }.getOrElse {
-            return ShellResult(exitCode = -1, stderr = it.message.orEmpty())
-        }
-
-        val stdout = process.inputStream.bufferedReader().use { it.readText() }
-        val stderr = process.errorStream.bufferedReader().use { it.readText() }
-        val finished = process.waitFor(10, TimeUnit.SECONDS)
-        if (!finished) {
-            process.destroyForcibly()
-            return ShellResult(exitCode = -2, stderr = "timeout")
-        }
-        return ShellResult(
-            exitCode = process.exitValue(),
-            stdout = stdout.trim(),
-            stderr = stderr.trim()
+        val state = if (isServiceEnabled(enabledComponents, target)) "enabled" else "disabled"
+        AndroidAgentLogger.info(
+            "Agent accessibility action=audit outcome=completed state=$state " +
+                "reason=${reason.toSafeReason()} enabledServices=${enabledComponents.size}"
         )
     }
 
-    private fun shellQuote(value: String): String =
-        "'" + value.replace("'", "'\\''") + "'"
+    internal fun isServiceEnabled(
+        enabledComponents: List<AccessibilityServiceIdentity>,
+        target: AccessibilityServiceIdentity,
+    ): Boolean = enabledComponents.any { component -> component == target }
 
-    private fun String.toSafeRestoreReason(): String = when (this) {
+    private fun String.toSafeReason(): String = when (this) {
         Intent.ACTION_BOOT_COMPLETED -> "boot"
         Intent.ACTION_MY_PACKAGE_REPLACED -> "package_replaced"
         else -> "unknown"
     }
-
-    private data class ShellResult(
-        val exitCode: Int,
-        val stdout: String = "",
-        val stderr: String = ""
-    )
 }
+
+internal data class AccessibilityServiceIdentity(
+    val packageName: String,
+    val className: String,
+)

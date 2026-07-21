@@ -3,6 +3,7 @@ package fuck.andes.agent.runtime
 import android.content.Context
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.model.AgentModelExecutionException
+import fuck.andes.agent.overlay.AgentOverlayVisibilityPolicy
 import fuck.andes.agent.skill.SkillCompatibilityChecker
 import fuck.andes.agent.skill.SkillContext
 import fuck.andes.agent.skill.SkillRuntime
@@ -69,7 +70,14 @@ internal class AgentRuntimeRunExecutor(
                     request.config.terminalTools && currentPermissions().terminalTools
                 },
                 screenshotExcludedPackages = {
-                    entrySurfaceGuard?.consumeScreenshotExcludedPackages().orEmpty()
+                    entrySurfaceGuard?.currentScreenshotExcludedPackages().orEmpty()
+                },
+                beforeToolExecution = { toolName ->
+                    if (!AgentOverlayVisibilityPolicy.isForegroundOperationTool(toolName)) {
+                        true
+                    } else {
+                        entrySurfaceGuard?.dismissOnce() ?: true
+                    }
                 },
                 skillIndexService = skillIndexService,
                 skillLoader = skillLoader,

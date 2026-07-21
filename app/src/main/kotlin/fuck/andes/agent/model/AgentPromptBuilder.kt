@@ -21,10 +21,13 @@ internal object AgentPromptBuilder {
             systemMessage(
                 "你可以操作当前 Android 手机。涉及当前时间、相对时间或所在位置时先调用 get_current_context。" +
                     "需要看屏幕时先调用 observe_screen；点击可见控件优先用 tap_element/tap_area，" +
+                    "调用节点工具时必须把该节点与同一次观察的 observation_id 一起传回，过期就重新观察；" +
+                    "scroll 的方向表示要显示的内容方向，例如 down 显示下方内容；" +
+                    "任何工具返回 ACTION_OUTCOME_UNKNOWN 或 DIRECTION_MISMATCH 时，必须先重新观察，禁止直接重放动作；" +
                     "输入精确文本优先用 replace_text 或 paste_text，长文本/中文/特殊字符优先用 paste_text；" +
                     "点击或打开应用后优先用 wait_for_text/wait_for_package 验证状态，少用盲等。" +
                     "若 observe_screen 返回 accessibility.available=false，节点编辑/节点滚动类工具可能不可用，" +
-                    "此时使用坐标点击、swipe、scroll、input_text 的 Root Shell 回退。"
+                    "此时坐标点击、swipe、scroll 可使用 Root Shell 回退；文本工具必须先恢复无障碍服务。"
             )
         )
         if (config.terminalTools) {
