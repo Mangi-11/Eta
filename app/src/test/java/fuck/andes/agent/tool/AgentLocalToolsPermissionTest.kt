@@ -53,7 +53,14 @@ class AgentLocalToolsPermissionTest {
 
     @Test
     fun foregroundToolIsRejectedWhenEntrySurfaceIsNotReady() {
-        val tools = tools(beforeToolExecution = { false })
+        val tools = tools(
+            beforeToolExecution = {
+                ToolExecutionDecision.Reject(
+                    code = "ENTRY_SURFACE_NOT_READY",
+                    message = "入口窗口尚未确认关闭",
+                )
+            },
+        )
 
         val result = tools.execute(
             AgentModelClient.ToolCall(
@@ -64,6 +71,31 @@ class AgentLocalToolsPermissionTest {
         )
 
         assertEquals("ENTRY_SURFACE_NOT_READY", JSONObject(result.content).getString("code"))
+        tools.close()
+    }
+
+    @Test
+    fun foregroundToolPropagatesAccessibilityGateFailure() {
+        val tools = tools(
+            beforeToolExecution = {
+                ToolExecutionDecision.Reject(
+                    code = "ACCESSIBILITY_ROOT_ENABLE_FAILED",
+                    message = "Root 无法启用 Eta 无障碍服务",
+                )
+            },
+        )
+
+        val result = tools.execute(
+            AgentModelClient.ToolCall(
+                id = "call-1",
+                name = "scroll",
+                argumentsJson = "{\"direction\":\"down\"}",
+            ),
+        )
+        val json = JSONObject(result.content)
+
+        assertEquals("ACCESSIBILITY_ROOT_ENABLE_FAILED", json.getString("code"))
+        assertEquals("Root 无法启用 Eta 无障碍服务", json.getString("message"))
         tools.close()
     }
 
@@ -102,7 +134,9 @@ class AgentLocalToolsPermissionTest {
     private fun tools(
         terminalEnabled: () -> Boolean = { false },
         browserEnabled: () -> Boolean = { false },
-        beforeToolExecution: (String) -> Boolean = { true },
+        beforeToolExecution: (String) -> ToolExecutionDecision = {
+            ToolExecutionDecision.Allow
+        },
     ): AgentLocalTools =
         AgentLocalTools(
             context = RuntimeEnvironment.getApplication() as Context,

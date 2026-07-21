@@ -37,7 +37,9 @@ internal class AgentLocalTools(
         Prefs.isEnabled(Prefs.Keys.AGENT_TERMINAL_TOOLS)
     },
     private val screenshotExcludedPackages: () -> Set<String> = { emptySet() },
-    private val beforeToolExecution: (String) -> Boolean = { true },
+    private val beforeToolExecution: (String) -> ToolExecutionDecision = {
+        ToolExecutionDecision.Allow
+    },
     private val skillIndexService: SkillIndexService? = null,
     private val skillLoader: SkillLoader? = null,
 ) : AgentModelClient.ToolExecutor, AutoCloseable {
@@ -65,13 +67,16 @@ internal class AgentLocalTools(
                     ),
                 )
             }
-            if (!beforeToolExecution(toolCall.name)) {
-                return@runCatching textResult(
-                    errorResult(
-                        code = "ENTRY_SURFACE_NOT_READY",
-                        message = "入口窗口尚未确认关闭；本次工具未执行，请稍后重试",
-                    ),
-                )
+            when (val decision = beforeToolExecution(toolCall.name)) {
+                ToolExecutionDecision.Allow -> Unit
+                is ToolExecutionDecision.Reject -> {
+                    return@runCatching textResult(
+                        errorResult(
+                            code = decision.code,
+                            message = decision.message,
+                        ),
+                    )
+                }
             }
             when (toolCall.name) {
                 "get_current_context" -> textResult(DeviceContextTool.current(context))

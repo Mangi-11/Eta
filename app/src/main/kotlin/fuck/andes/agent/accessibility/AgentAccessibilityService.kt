@@ -6,6 +6,7 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -78,10 +79,19 @@ class AgentAccessibilityService : AccessibilityService() {
         instance = this
     }
 
+    override fun onUnbind(intent: Intent?): Boolean {
+        clearCurrentInstance()
+        return super.onUnbind(intent)
+    }
+
     override fun onDestroy() {
+        clearCurrentInstance()
+        super.onDestroy()
+    }
+
+    private fun clearCurrentInstance() {
         if (instance === this) instance = null
         signalWindowChanged()
-        super.onDestroy()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

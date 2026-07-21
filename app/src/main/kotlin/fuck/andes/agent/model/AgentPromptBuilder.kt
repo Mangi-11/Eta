@@ -26,8 +26,9 @@ internal object AgentPromptBuilder {
                     "任何工具返回 ACTION_OUTCOME_UNKNOWN 或 DIRECTION_MISMATCH 时，必须先重新观察，禁止直接重放动作；" +
                     "输入精确文本优先用 replace_text 或 paste_text，长文本/中文/特殊字符优先用 paste_text；" +
                     "点击或打开应用后优先用 wait_for_text/wait_for_package 验证状态，少用盲等。" +
-                    "若 observe_screen 返回 accessibility.available=false，节点编辑/节点滚动类工具可能不可用，" +
-                    "此时坐标点击、swipe、scroll 可使用 Root Shell 回退；文本工具必须先恢复无障碍服务。"
+                    "所有前台 GUI 工具执行前都会确认 Eta 无障碍服务；未连接时 Runtime 会尝试通过 Root 自动启用并等待绑定。" +
+                    "若工具返回 ACCESSIBILITY_ROOT_ENABLE_FAILED 或 ACCESSIBILITY_BIND_TIMEOUT，说明动作未执行，" +
+                    "不要改用坐标或 Shell 重放 GUI 动作。"
             )
         )
         if (config.terminalTools) {

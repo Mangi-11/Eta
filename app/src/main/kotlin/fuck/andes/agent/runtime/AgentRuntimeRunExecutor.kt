@@ -1,6 +1,7 @@
 package fuck.andes.agent.runtime
 
 import android.content.Context
+import fuck.andes.agent.accessibility.AgentAccessibilityKeeper
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.model.AgentModelExecutionException
 import fuck.andes.agent.overlay.AgentOverlayVisibilityPolicy
@@ -8,6 +9,7 @@ import fuck.andes.agent.skill.SkillCompatibilityChecker
 import fuck.andes.agent.skill.SkillContext
 import fuck.andes.agent.skill.SkillRuntime
 import fuck.andes.agent.tool.AgentLocalTools
+import fuck.andes.agent.tool.ToolExecutionDecision
 import fuck.andes.core.AndroidAgentLogger
 import fuck.andes.core.safeLogType
 
@@ -74,9 +76,22 @@ internal class AgentRuntimeRunExecutor(
                 },
                 beforeToolExecution = { toolName ->
                     if (!AgentOverlayVisibilityPolicy.isForegroundOperationTool(toolName)) {
-                        true
+                        ToolExecutionDecision.Allow
                     } else {
-                        entrySurfaceGuard?.dismissOnce() ?: true
+                        val accessibility =
+                            AgentAccessibilityKeeper.ensureEnabledForGuiOperation(appContext)
+                        when {
+                            !accessibility.available -> ToolExecutionDecision.Reject(
+                                code = accessibility.code,
+                                message = accessibility.message,
+                            )
+                            entrySurfaceGuard?.dismissOnce() == false ->
+                                ToolExecutionDecision.Reject(
+                                    code = "ENTRY_SURFACE_NOT_READY",
+                                    message = "入口窗口尚未确认关闭；本次工具未执行，请稍后重试",
+                                )
+                            else -> ToolExecutionDecision.Allow
+                        }
                     }
                 },
                 skillIndexService = skillIndexService,
