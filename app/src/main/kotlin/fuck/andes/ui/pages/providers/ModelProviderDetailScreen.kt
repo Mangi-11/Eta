@@ -1,6 +1,7 @@
 package fuck.andes.ui.pages.providers
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -51,6 +53,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -445,6 +448,9 @@ private fun ProviderModelsTab(
     var isFetching by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var editingModel by remember { mutableStateOf<Model?>(null) }
+    var selectionMode by remember(provider.id) { mutableStateOf(false) }
+    var selectedModelIds by remember(provider.id) { mutableStateOf(setOf<String>()) }
+    var showBatchDeleteDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -476,9 +482,15 @@ private fun ProviderModelsTab(
                                     message = null
                                     RemoteModelFetcher.fetch(provider)
                                         .onSuccess { models ->
-                                            ModelRepository.replaceModelsForProvider(provider.id, models)
+                                            val chatModels = models.filter(RemoteModelFetcher::isChatCapableModel)
+                                            ModelRepository.replaceModelsForProvider(provider.id, chatModels)
                                             RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                                            message = "已拉取 ${models.size} 个模型"
+                                            val filteredCount = models.size - chatModels.size
+                                            message = if (filteredCount > 0) {
+                                                "已拉取 ${chatModels.size} 个模型，过滤 $filteredCount 个非对话模型"
+                                            } else {
+                                                "已拉取 ${chatModels.size} 个模型"
+                                            }
                                         }
                                         .onFailure { throwable ->
                                             message = "失败：${throwable.message ?: throwable.javaClass.simpleName}"
@@ -510,6 +522,56 @@ private fun ProviderModelsTab(
                             style = MiuixTheme.textStyles.footnote2,
                             color = if (it.startsWith("失败")) StatusError else StatusSuccess,
                             modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        if (selectionMode) {
+            item(key = "selection_bar") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 4.dp),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "已选 ${selectedModelIds.size} 个",
+                            style = MiuixTheme.textStyles.body2,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            text = if (selectedModelIds.size == provider.models.size) "全不选" else "全选",
+                            onClick = {
+                                selectedModelIds = if (selectedModelIds.size == provider.models.size) {
+                                    emptySet()
+                                } else {
+                                    provider.models.mapTo(mutableSetOf()) { it.id }
+                                }
+                            },
+                        )
+                        TextButton(
+                            text = "删除",
+                            enabled = selectedModelIds.isNotEmpty(),
+                            colors = ButtonDefaults.textButtonColors(
+                                color = DeleteButtonBg,
+                                textColor = DeleteButtonFg,
+                            ),
+                            onClick = { showBatchDeleteDialog = true },
+                        )
+                        TextButton(
+                            text = "退出",
+                            onClick = {
+                                selectionMode = false
+                                selectedModelIds = emptySet()
+                            },
                         )
                     }
                 }
@@ -557,6 +619,19 @@ private fun ProviderModelsTab(
                             ModelListItem(
                                 model = model,
                                 isSelected = model.id == selectedModelId,
+                                selectionMode = selectionMode,
+                                checked = model.id in selectedModelIds,
+                                onToggleChecked = {
+                                    selectedModelIds = if (model.id in selectedModelIds) {
+                                        selectedModelIds - model.id
+                                    } else {
+                                        selectedModelIds + model.id
+                                    }
+                                },
+                                onEnterSelection = {
+                                    selectionMode = true
+                                    selectedModelIds = setOf(model.id)
+                                },
                                 onEdit = { editingModel = model },
                                 onSetCurrent = {
                                     scope.launch {
@@ -598,19 +673,61 @@ private fun ProviderModelsTab(
             }
         )
     }
+
+    if (showBatchDeleteDialog) {
+        OverlayDialog(
+            show = true,
+            title = "删除模型",
+            onDismissRequest = { showBatchDeleteDialog = false },
+        ) {
+            Text("确定删除选中的 ${selectedModelIds.size} 个模型吗？此操作不可恢复。")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(text = "取消", onClick = { showBatchDeleteDialog = false })
+                Spacer(modifier = Modifier.width(8.dp))
+                TextButton(
+                    text = "删除",
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    onClick = {
+                        scope.launch {
+                            val deletedCount = selectedModelIds.size
+                            ModelRepository.deleteModels(provider.id, selectedModelIds)
+                            RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+                            message = "已删除 $deletedCount 个模型"
+                            showBatchDeleteDialog = false
+                            selectionMode = false
+                            selectedModelIds = emptySet()
+                        }
+                    },
+                )
+            }
+        }
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ModelListItem(
     model: Model,
     isSelected: Boolean,
+    selectionMode: Boolean,
+    checked: Boolean,
+    onToggleChecked: () -> Unit,
+    onEnterSelection: () -> Unit,
     onEdit: () -> Unit,
     onSetCurrent: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onEdit)
+            .combinedClickable(
+                onClick = if (selectionMode) onToggleChecked else onEdit,
+                onLongClick = {
+                    if (selectionMode) onToggleChecked() else onEnterSelection()
+                },
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -629,12 +746,19 @@ private fun ModelListItem(
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        IconButton(onClick = onSetCurrent) {
-            Icon(
-                painter = painterResource(if (isSelected) LucideR.drawable.lucide_ic_check else LucideR.drawable.lucide_ic_circle),
-                contentDescription = if (isSelected) "当前模型" else "设为当前",
-                tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
+        if (selectionMode) {
+            Checkbox(
+                state = if (checked) ToggleableState.On else ToggleableState.Off,
+                onClick = onToggleChecked,
             )
+        } else {
+            IconButton(onClick = onSetCurrent) {
+                Icon(
+                    painter = painterResource(if (isSelected) LucideR.drawable.lucide_ic_check else LucideR.drawable.lucide_ic_circle),
+                    contentDescription = if (isSelected) "当前模型" else "设为当前",
+                    tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
+                )
+            }
         }
     }
 }

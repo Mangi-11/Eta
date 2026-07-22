@@ -45,6 +45,13 @@ internal object ModelRepository {
         }
     }
 
+    suspend fun deleteModels(providerId: String, modelIds: Set<String>) {
+        if (modelIds.isEmpty()) return
+        updateProviderModels(providerId) { models ->
+            models.filterNot { it.id in modelIds }
+        }
+    }
+
     suspend fun replaceModelsForProvider(providerId: String, newModels: List<Model>) {
         updateProviderModels(providerId) { existingModels ->
             val existingByModelId = existingModels.associateBy { it.modelId.trim().lowercase() }

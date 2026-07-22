@@ -1,5 +1,6 @@
 package fuck.andes.data.repository
 
+import fuck.andes.data.model.Model
 import fuck.andes.data.model.OpenAiCompatibleProviderSetting
 import fuck.andes.data.model.ProviderSourceTypes
 import fuck.andes.data.provider.OfficialModelCatalog
@@ -131,4 +132,46 @@ class RemoteModelFetcherTest {
         assertTrue(model.supportsReasoning)
         assertEquals(listOf("text", "image", "video"), model.inputModalities)
     }
+
+    @Test
+    fun keepsConversationalModelsFromRemoteCatalog() {
+        val chatIds = listOf(
+            "qwen3.7-plus",
+            "qwen3-vl-plus",
+            "kimi-k2.7-code",
+            "glm-5.2",
+            "gpt-5.5",
+            "step-3.7-flash",
+        )
+        chatIds.forEach { id ->
+            assertTrue(id, RemoteModelFetcher.isChatCapableModel(modelWithId(id)))
+        }
+    }
+
+    @Test
+    fun filtersNonConversationalModelsFromRemoteCatalog() {
+        val nonChatIds = listOf(
+            "fun-asr-flash-2026-06-15",
+            "paraformer-realtime-v2",
+            "qwen-tts-2026-05-20",
+            "cosyvoice-v3-plus",
+            "qwen-image-2.0-pro-2026-06-22",
+            "wanx2.1-t2v-turbo",
+            "text-embedding-v4",
+            "gte-rerank-v2",
+            "qwen-ocr",
+        )
+        nonChatIds.forEach { id ->
+            assertFalse(id, RemoteModelFetcher.isChatCapableModel(modelWithId(id)))
+        }
+    }
+
+    @Test
+    fun modelWithoutTextOutputIsNotChatCapable() {
+        val imageOnly = modelWithId("custom-model").copy(outputModalities = listOf("image"))
+        assertFalse(RemoteModelFetcher.isChatCapableModel(imageOnly))
+    }
+
+    private fun modelWithId(modelId: String): Model =
+        Model(id = modelId, modelId = modelId, displayName = modelId)
 }
