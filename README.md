@@ -98,6 +98,7 @@ Agent 的能力取决于你用什么模型。
 
 - **OpenAI-compatible** 与 **Anthropic** 双协议，支持 SSE 流式传输、流式工具调用、图片输入、推理内容
 - **内置提供商**：OpenAI、Anthropic、阿里百炼、DeepSeek、Kimi、MiMo、MiniMax、StepFun、硅基流动、OpenRouter
+- **厂商品牌图标**：已知提供商在列表中显示本地品牌原色图标，未知或自定义接口保留通用图标；素材来源与许可见 [第三方声明](docs/THIRD_PARTY_NOTICES.md)
 - **自定义提供商**：自定义 Base URL、API Key、请求头、body JSON
 - **模型管理**：内置官方目录、远程拉取列表、自定义模型、启停管理
 

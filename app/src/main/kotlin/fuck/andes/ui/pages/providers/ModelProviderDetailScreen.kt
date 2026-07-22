@@ -31,6 +31,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.R as LucideR
 import fuck.andes.FuckAndesApp
@@ -51,19 +52,19 @@ import fuck.andes.ui.components.StatusSuccess
 import fuck.andes.ui.navigation.NewProviderType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -191,9 +192,8 @@ private fun ProviderConfigTab(
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         overscrollEffect = null,
     ) {
-        item(key = "basic_and_protocol") {
-            SmallTitle(if (isNew) "新建提供商" else "连接配置")
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        item(key = "connection") {
+            ProviderSection(title = "连接配置") {
                 Column(modifier = Modifier.padding(16.dp)) {
                     TextField(
                         value = name,
@@ -229,7 +229,6 @@ private fun ProviderConfigTab(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
-
                     if (provider is AnthropicProviderSetting) {
                         Spacer(modifier = Modifier.height(12.dp))
                         TextField(
@@ -239,79 +238,113 @@ private fun ProviderConfigTab(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
-                    } else {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider()
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Endpoint 模式", style = MiuixTheme.textStyles.body1)
-                                Text(
-                                    "当前协议使用标准 Chat Completions",
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                            }
+                    }
+                }
+                if (provider !is AnthropicProviderSetting) {
+                    HorizontalDivider()
+                    BasicComponent(
+                        title = "Endpoint 模式",
+                        summary = "当前协议使用标准 Chat Completions",
+                        endActions = {
                             Text(
                                 text = "Chat Completions",
                                 color = MiuixTheme.colorScheme.primary,
-                                style = MiuixTheme.textStyles.body2
+                                style = MiuixTheme.textStyles.body2,
                             )
-                        }
-                    }
+                        },
+                    )
                 }
             }
         }
 
         item(key = "preferences_and_prompt") {
-            SmallTitle("偏好与策略")
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Column {
-                    SwitchPreference(
-                        title = "启用此 Provider",
-                        checked = isEnabled,
-                        onCheckedChange = { isEnabled = it }
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+            ProviderSection(title = "偏好与策略") {
+                SwitchPreference(
+                    title = "启用此 Provider",
+                    checked = isEnabled,
+                    onCheckedChange = { isEnabled = it }
+                )
+                HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                Column(modifier = Modifier.padding(16.dp)) {
                     TextField(
                         value = systemPrompt,
                         onValueChange = { systemPrompt = it },
-                        label = "系统提示词（留空使用默认手机 Agent 提示词）",
+                        label = "系统提示词",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
                             .height(120.dp),
                         singleLine = false,
+                    )
+                    Text(
+                        text = "留空使用默认手机 Agent 提示词",
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
             }
         }
 
         item(key = "actions") {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .padding(top = 12.dp),
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-                    Row(
+            ProviderSection(title = null, modifier = Modifier.padding(top = 12.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TextButton(
+                        text = if (isNew) "创建" else "保存配置",
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TextButton(
-                            text = if (isNew) "创建" else "保存配置",
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.textButtonColorsPrimary(),
-                            onClick = {
-                                scope.launch {
-                                    val built = buildUpdatedProvider(
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = {
+                            scope.launch {
+                                val built = buildUpdatedProvider(
+                                    source = provider,
+                                    name = name,
+                                    baseUrl = baseUrl,
+                                    apiKey = apiKey,
+                                    systemPrompt = systemPrompt,
+                                    isEnabled = isEnabled,
+                                    endpointMode = endpointMode,
+                                    anthropicVersion = anthropicVersion,
+                                )
+                                if (isNew) {
+                                    val added = ProviderRepository.addProvider(
+                                        built.withId(ProviderRepository.newId())
+                                    )
+                                    if (added.isEnabled) {
+                                        RuntimeConfigRepository.setSelectedProviderId(added.id)
+                                    }
+                                    val ok = RuntimeConfigRepository.syncToRemotePreferences(
+                                        FuckAndesApp.serviceInstance
+                                    )
+                                    status = if (ok) "已创建、设为当前并同步"
+                                    else "已创建并设为当前，LSPosed 服务未连接"
+                                    onCreated(added.id)
+                                } else {
+                                    ProviderRepository.updateProvider(built)
+                                    if (built.isEnabled) {
+                                        RuntimeConfigRepository.setSelectedProviderId(built.id)
+                                    }
+                                    val ok = RuntimeConfigRepository.syncToRemotePreferences(
+                                        FuckAndesApp.serviceInstance
+                                    )
+                                    status = when {
+                                        !built.isEnabled -> "已保存，Provider 未启用"
+                                        ok -> "已保存、设为当前并同步"
+                                        else -> "已保存并设为当前，LSPosed 服务未连接"
+                                    }
+                                }
+                            }
+                        },
+                    )
+                    TextButton(
+                        text = "测试连接",
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            scope.launch {
+                                status = "测试中..."
+                                status = testConnection(
+                                    buildUpdatedProvider(
                                         source = provider,
                                         name = name,
                                         baseUrl = baseUrl,
@@ -321,61 +354,12 @@ private fun ProviderConfigTab(
                                         endpointMode = endpointMode,
                                         anthropicVersion = anthropicVersion,
                                     )
-                                    if (isNew) {
-                                        val added = ProviderRepository.addProvider(
-                                            built.withId(ProviderRepository.newId())
-                                        )
-                                        if (added.isEnabled) {
-                                            RuntimeConfigRepository.setSelectedProviderId(added.id)
-                                        }
-                                        val ok = RuntimeConfigRepository.syncToRemotePreferences(
-                                            FuckAndesApp.serviceInstance
-                                        )
-                                        status = if (ok) "已创建、设为当前并同步"
-                                        else "已创建并设为当前，LSPosed 服务未连接"
-                                        onCreated(added.id)
-                                    } else {
-                                        ProviderRepository.updateProvider(built)
-                                        if (built.isEnabled) {
-                                            RuntimeConfigRepository.setSelectedProviderId(built.id)
-                                        }
-                                        val ok = RuntimeConfigRepository.syncToRemotePreferences(
-                                            FuckAndesApp.serviceInstance
-                                        )
-                                        status = when {
-                                            !built.isEnabled -> "已保存，Provider 未启用"
-                                            ok -> "已保存、设为当前并同步"
-                                            else -> "已保存并设为当前，LSPosed 服务未连接"
-                                        }
-                                    }
-                                }
-                            },
-                        )
-                        TextButton(
-                            text = "测试连接",
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                scope.launch {
-                                    status = "测试中..."
-                                    status = testConnection(
-                                        buildUpdatedProvider(
-                                            source = provider,
-                                            name = name,
-                                            baseUrl = baseUrl,
-                                            apiKey = apiKey,
-                                            systemPrompt = systemPrompt,
-                                            isEnabled = isEnabled,
-                                            endpointMode = endpointMode,
-                                            anthropicVersion = anthropicVersion,
-                                        )
-                                    )
-                                }
-                            },
-                        )
-                    }
+                                )
+                            }
+                        },
+                    )
                     if (!isNew) {
                         if (provider.isBuiltIn) {
-                            Spacer(modifier = Modifier.height(10.dp))
                             TextButton(
                                 text = "重置内置配置",
                                 modifier = Modifier.fillMaxWidth(),
@@ -388,7 +372,6 @@ private fun ProviderConfigTab(
                                 },
                             )
                         } else {
-                            Spacer(modifier = Modifier.height(10.dp))
                             TextButton(
                                 text = "删除提供商",
                                 modifier = Modifier.fillMaxWidth(),
@@ -405,7 +388,6 @@ private fun ProviderConfigTab(
                             text = message,
                             style = MiuixTheme.textStyles.footnote2,
                             color = if (message.startsWith("失败")) StatusError else StatusSuccess,
-                            modifier = Modifier.padding(top = 8.dp),
                         )
                     }
                 }
@@ -461,85 +443,82 @@ private fun ProviderModelsTab(
         overscrollEffect = null,
     ) {
         item(key = "actions") {
-            SmallTitle("模型管理")
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TextButton(
-                            text = if (isFetching) "拉取中..." else "从远端自动拉取",
-                            enabled = !isFetching,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                scope.launch {
-                                    isFetching = true
-                                    message = null
-                                    RemoteModelFetcher.fetch(provider)
-                                        .onSuccess { models ->
-                                            val chatModels = models.filter(RemoteModelFetcher::isChatCapableModel)
-                                            ModelRepository.replaceModelsForProvider(provider.id, chatModels)
-                                            RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                                            val filteredCount = models.size - chatModels.size
-                                            message = if (filteredCount > 0) {
-                                                "已拉取 ${chatModels.size} 个模型，过滤 $filteredCount 个非对话模型"
-                                            } else {
-                                                "已拉取 ${chatModels.size} 个模型"
-                                            }
-                                        }
-                                        .onFailure { throwable ->
-                                            message = "失败：${throwable.message ?: throwable.javaClass.simpleName}"
-                                        }
-                                    isFetching = false
-                                }
-                            },
+            ProviderSection(title = "模型管理") {
+                ArrowPreference(
+                    title = if (isFetching) "拉取中..." else "从远端自动拉取",
+                    summary = "读取 ${provider.baseUrl} 的 /models 列表",
+                    enabled = !isFetching,
+                    startAction = {
+                        ProviderRoundIcon(
+                            icon = LucideR.drawable.lucide_ic_cloud_download,
+                            tint = MiuixTheme.colorScheme.primary,
                         )
-                        TextButton(
-                            text = "添加自定义模型",
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                scope.launch {
-                                    val newModel = Model(
-                                        id = ModelRepository.newId(),
-                                        modelId = "",
-                                        displayName = "自定义模型",
-                                    )
-                                    ModelRepository.addModel(provider.id, newModel)
+                    },
+                    onClick = {
+                        scope.launch {
+                            isFetching = true
+                            message = null
+                            RemoteModelFetcher.fetch(provider)
+                                .onSuccess { models ->
+                                    val chatModels = models.filter(RemoteModelFetcher::isChatCapableModel)
+                                    ModelRepository.replaceModelsForProvider(provider.id, chatModels)
                                     RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                                    editingModel = newModel
+                                    val filteredCount = models.size - chatModels.size
+                                    message = if (filteredCount > 0) {
+                                        "已拉取 ${chatModels.size} 个模型，过滤 $filteredCount 个非对话模型"
+                                    } else {
+                                        "已拉取 ${chatModels.size} 个模型"
+                                    }
                                 }
-                            },
+                                .onFailure { throwable ->
+                                    message = "失败：${throwable.message ?: throwable.javaClass.simpleName}"
+                                }
+                            isFetching = false
+                        }
+                    },
+                )
+                ProviderDivider()
+                ArrowPreference(
+                    title = "添加自定义模型",
+                    summary = "手动填写展示名称与 Model ID",
+                    startAction = {
+                        ProviderRoundIcon(
+                            icon = LucideR.drawable.lucide_ic_plus,
+                            tint = MiuixTheme.colorScheme.primary,
                         )
-                    }
-                    message?.let {
-                        Text(
-                            text = it,
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = if (it.startsWith("失败")) StatusError else StatusSuccess,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
+                    },
+                    onClick = {
+                        scope.launch {
+                            val newModel = Model(
+                                id = ModelRepository.newId(),
+                                modelId = "",
+                                displayName = "自定义模型",
+                            )
+                            ModelRepository.addModel(provider.id, newModel)
+                            RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+                            editingModel = newModel
+                        }
+                    },
+                )
+                message?.let {
+                    HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                    Text(
+                        text = it,
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = if (it.startsWith("失败")) StatusError else StatusSuccess,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
                 }
             }
         }
 
         if (selectionMode) {
             item(key = "selection_bar") {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 4.dp),
-                ) {
+                ProviderSection(title = null, modifier = Modifier.padding(top = 12.dp)) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -566,33 +545,31 @@ private fun ProviderModelsTab(
                             ),
                             onClick = { showBatchDeleteDialog = true },
                         )
-                        TextButton(
-                            text = "退出",
+                        IconButton(
                             onClick = {
                                 selectionMode = false
                                 selectedModelIds = emptySet()
                             },
-                        )
+                        ) {
+                            Icon(
+                                painter = painterResource(LucideR.drawable.lucide_ic_x),
+                                contentDescription = "退出多选",
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            )
+                        }
                     }
                 }
             }
         }
 
-        item(key = "models_list_title") {
-            SmallTitle("模型列表 (共 ${provider.models.size} 个)")
-        }
-
-        if (provider.models.isEmpty()) {
-            item(key = "empty_models") {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp),
-                ) {
+        item(key = "models_list") {
+            ProviderSection(
+                title = "模型列表 (共 ${provider.models.size} 个)",
+                modifier = Modifier.padding(bottom = 24.dp),
+            ) {
+                if (provider.models.isEmpty()) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 24.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -601,46 +578,35 @@ private fun ProviderModelsTab(
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         )
                     }
-                }
-            }
-        } else {
-            item(key = "models_card") {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 24.dp),
-                ) {
-                    Column {
-                        provider.models.sortedBy { it.sortOrder }.forEachIndexed { index, model ->
-                            if (index > 0) {
-                                HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
-                            }
-                            ModelListItem(
-                                model = model,
-                                isSelected = model.id == selectedModelId,
-                                selectionMode = selectionMode,
-                                checked = model.id in selectedModelIds,
-                                onToggleChecked = {
-                                    selectedModelIds = if (model.id in selectedModelIds) {
-                                        selectedModelIds - model.id
-                                    } else {
-                                        selectedModelIds + model.id
-                                    }
-                                },
-                                onEnterSelection = {
-                                    selectionMode = true
-                                    selectedModelIds = setOf(model.id)
-                                },
-                                onEdit = { editingModel = model },
-                                onSetCurrent = {
-                                    scope.launch {
-                                        RuntimeConfigRepository.setSelectedModelId(model.id)
-                                        RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                                    }
-                                },
-                            )
+                } else {
+                    provider.models.sortedBy { it.sortOrder }.forEachIndexed { index, model ->
+                        if (index > 0) {
+                            HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                         }
+                        ModelListItem(
+                            model = model,
+                            isSelected = model.id == selectedModelId,
+                            selectionMode = selectionMode,
+                            checked = model.id in selectedModelIds,
+                            onToggleChecked = {
+                                selectedModelIds = if (model.id in selectedModelIds) {
+                                    selectedModelIds - model.id
+                                } else {
+                                    selectedModelIds + model.id
+                                }
+                            },
+                            onEnterSelection = {
+                                selectionMode = true
+                                selectedModelIds = setOf(model.id)
+                            },
+                            onEdit = { editingModel = model },
+                            onSetCurrent = {
+                                scope.launch {
+                                    RuntimeConfigRepository.setSelectedModelId(model.id)
+                                    RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -732,19 +698,31 @@ private fun ModelListItem(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(model.displayName, style = MiuixTheme.textStyles.headline1)
+            Text(
+                text = model.displayName,
+                style = MiuixTheme.textStyles.headline1,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 text = model.modelId,
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp),
             )
-            Text(
-                text = buildCapabilityLabel(model) + if (isSelected) " · 当前" else "",
-                style = MiuixTheme.textStyles.footnote2,
-                color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(top = 6.dp),
+            ) {
+                capabilityTags(model).forEach { tag ->
+                    TagChip(text = tag)
+                }
+                if (isSelected) {
+                    TagChip(text = "当前", tone = TagChipTone.Emphasized)
+                }
+            }
         }
         if (selectionMode) {
             Checkbox(
@@ -803,35 +781,49 @@ private fun ModelEditDialog(
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
         }
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
-            TextButton(text = "取消", onClick = onDismiss)
-            Spacer(modifier = Modifier.width(8.dp))
-            TextButton(
-                text = "设为当前",
-                onClick = {
-                    onUpdate(updated())
-                    onSetCurrent()
-                    onDismiss()
-                },
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            TextButton(
-                text = "删除",
-                colors = ButtonDefaults.textButtonColorsPrimary(),
-                onClick = {
-                    onDelete()
-                    onDismiss()
-                },
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            TextButton(
-                text = "保存",
-                colors = ButtonDefaults.textButtonColorsPrimary(),
-                onClick = {
-                    onUpdate(updated())
-                    onDismiss()
-                },
-            )
+        Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    text = "取消",
+                    modifier = Modifier.weight(1f),
+                    onClick = onDismiss,
+                )
+                TextButton(
+                    text = "删除",
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColors(
+                        color = DeleteButtonBg,
+                        textColor = DeleteButtonFg,
+                    ),
+                    onClick = {
+                        onDelete()
+                        onDismiss()
+                    },
+                )
+            }
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(
+                    text = "设为当前",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        onUpdate(updated())
+                        onSetCurrent()
+                        onDismiss()
+                    },
+                )
+                TextButton(
+                    text = "保存",
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    onClick = {
+                        onUpdate(updated())
+                        onDismiss()
+                    },
+                )
+            }
         }
     }
 }
@@ -875,23 +867,22 @@ private fun buildUpdatedProvider(
     }
 }
 
-private fun buildCapabilityLabel(model: Model): String {
-    val parts = buildList {
-        if (model.supportsVision) add("Vision")
-        if (model.supportsTools) add("Tools")
-        if (model.supportsReasoning) add("Reasoning")
-        model.contextWindow?.let { contextWindow ->
-            add(
-                if (contextWindow >= 1_000_000) {
-                    "1M context"
-                } else {
-                    "${contextWindow / 1000}K context"
-                }
-            )
-        }
+private fun capabilityTags(model: Model): List<String> = buildList {
+    if (model.supportsVision) add("Vision")
+    if (model.supportsTools) add("Tools")
+    if (model.supportsReasoning) add("Reasoning")
+    model.contextWindow?.let { contextWindow ->
+        add(
+            if (contextWindow >= 1_000_000) {
+                "1M context"
+            } else {
+                "${contextWindow / 1000}K context"
+            }
+        )
     }
-    return parts.joinToString(" · ").ifBlank { "基础文本" }
-}
+}.ifEmpty { listOf("基础文本") }
+
+private fun buildCapabilityLabel(model: Model): String = capabilityTags(model).joinToString(" · ")
 
 private suspend fun testConnection(provider: ProviderSetting): String =
     RemoteModelFetcher.fetch(provider)
