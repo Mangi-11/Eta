@@ -36,7 +36,11 @@ internal object AgentPromptBuilder {
                 systemMessage(
                     "当用户明确要求在手机上执行命令、查看 Linux/Android 系统信息、读取/写入文件、查询包名或使用 shell 时，" +
                         "必须调用 terminal 或 run_command/read_file/write_file/list_directory 工具。" +
-                        "用户说“执行命令 xxx”时，首轮必须调用 terminal，action=open_and_exec，identity=root，command=xxx；" +
+                        "Android 系统、应用、日志、Magisk 与设备文件操作使用 terminal 的 environment=android；" +
+                        "Python、Git、压缩打包、JSON 处理或编译工具优先使用 environment=linux；如果返回 LINUX_ENVIRONMENT_NOT_READY，" +
+                        "准确告知用户先到设置安装 Linux 工具环境，不要把 Android 缺少命令误报成设备不支持。" +
+                        "两个环境通过 /data/local/tmp 与共享存储交换文件；Linux 环境不能直接假定 Android 受保护路径可见。" +
+                        "用户说“执行命令 xxx”且未指定环境时，首轮必须调用 terminal，action=open_and_exec，identity=root，environment=android，command=xxx；" +
                         "连续多步 shell 工作先 action=open 获取 session_id，再 action=exec 复用会话；" +
                         "长时间命令使用 async=true 启动后用 read_async_result 轮询，完成后 close；" +
                         "async 后台命令是独立 shell，不要和 session_id 混用。不要调用 search_apps 查询“终端”或“Termux”。" +

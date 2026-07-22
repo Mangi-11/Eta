@@ -120,6 +120,22 @@ class AgentToolCatalogTest {
         assertEquals(20_000, tools.maxTextLength("paste_text"))
     }
 
+    @Test
+    fun terminalSeparatesAndroidAndLinuxEnvironments() {
+        val terminal = AgentToolCatalog.build(
+            terminalTools = true,
+            browserTools = false,
+        ).function("terminal")
+        val environment = terminal
+            .getJSONObject("parameters")
+            .getJSONObject("properties")
+            .getJSONObject("environment")
+
+        assertEquals(listOf("android", "linux"), environment.getJSONArray("enum").stringValues())
+        assertTrue(terminal.getString("description").contains("environment=android"))
+        assertTrue(terminal.getString("description").contains("environment=linux"))
+    }
+
     private fun JSONArray.toolNames(): List<String> =
         (0 until length()).map { index ->
             getJSONObject(index).getJSONObject("function").getString("name")

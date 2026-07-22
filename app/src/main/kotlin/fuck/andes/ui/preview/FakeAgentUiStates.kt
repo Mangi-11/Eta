@@ -226,7 +226,7 @@ internal object FakeAgentUiStates {
                 id = "terminal",
                 title = "终端与文件",
                 tools = listOf(
-                    ToolItemUi("terminal", "终端命令", "user/root 权限执行 shell"),
+                    ToolItemUi("terminal", "终端命令", "Android/Alpine 环境执行 shell"),
                     ToolItemUi("terminal_job", "后台任务", "异步 job 与读取输出"),
                 ),
             ),

@@ -4,6 +4,11 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
+internal enum class TerminalEnvironment(val wireName: String) {
+    ANDROID("android"),
+    LINUX("linux"),
+}
+
 /** 负责 Shell 进程的启动接纳、所有权识别、进程树终止与回收。 */
 internal class ShellProcessSupervisor(
     private val allowTreeFallback: Boolean = !isAndroidRuntime(),
@@ -35,14 +40,26 @@ internal class ShellProcessSupervisor(
         identity: String,
         command: String?,
         mergeStderr: Boolean,
+        environment: TerminalEnvironment = TerminalEnvironment.ANDROID,
+        linuxRootfsPath: String? = null,
     ): Process? {
         if (isClosing) return null
         require(identity == "root" || identity == "user") { "identity 仅支持 root/user" }
+        require(environment != TerminalEnvironment.LINUX || identity == "root") {
+            "Linux 工具环境仅支持 root identity"
+        }
         val ownershipFile = runCatching {
             File.createTempFile("eta-terminal-", ".owner")
         }.getOrNull() ?: return null
         val ownershipToken = UUID.randomUUID().toString().replace("-", "")
-        val launcher = buildTrackedShellLauncher(ownershipFile, ownershipToken, command)
+        val launcher = buildTrackedShellLauncher(
+            ownershipFile = ownershipFile,
+            ownershipToken = ownershipToken,
+            command = command,
+            identity = identity,
+            environment = environment,
+            linuxRootfsPath = linuxRootfsPath,
+        )
         val process = runCatching {
             val builder = if (identity == "root") {
                 ProcessBuilder("su", "-c", launcher)
@@ -131,14 +148,25 @@ internal class ShellProcessSupervisor(
         ownershipFile: File,
         ownershipToken: String,
         command: String?,
+        identity: String,
+        environment: TerminalEnvironment,
+        linuxRootfsPath: String?,
     ): String {
-        val payload = command
-            ?.let { value ->
-                val managedCommand =
-                    "$value\neta_status=${'$'}?\nwait\nexit ${'$'}eta_status"
-                "sh -c ${shellQuote(managedCommand)}"
-            }
-            ?: "sh"
+        val managedCommand = command?.let { value ->
+            "$value\neta_status=${'$'}?\nwait\nexit ${'$'}eta_status"
+        }
+        val payload = when (environment) {
+            TerminalEnvironment.ANDROID -> buildAndroidPayload(
+                identity = identity,
+                command = managedCommand,
+            )
+            TerminalEnvironment.LINUX -> buildLinuxPayload(
+                rootfsPath = requireNotNull(linuxRootfsPath) {
+                    "Linux 工具环境 rootfs 未配置"
+                },
+                command = managedCommand,
+            )
+        }
 
         val path = shellQuote(ownershipFile.absolutePath)
         val exportOwner = "export $PROCESS_OWNER_ENV=${shellQuote(ownershipToken)}"
@@ -171,6 +199,80 @@ internal class ShellProcessSupervisor(
         val safeSetsid = shellQuote(setsidCommand)
         return "$exportOwner; if command -v $safeSetsid >/dev/null 2>&1; then " +
             "exec $safeSetsid -w sh -c ${shellQuote(groupScript)}; else $fallback; fi"
+    }
+
+    /** Root 会话优先进入 Magisk/KernelSU/APatch BusyBox standalone ash，补齐 Android PATH 外的 applet。 */
+    internal fun buildAndroidPayload(identity: String, command: String?): String {
+        val shellArgument = command?.let { "-c ${shellQuote(it)}" }.orEmpty()
+        if (identity != "root") {
+            return "sh $shellArgument".trimEnd()
+        }
+        val discovery = AndroidBusyBox.discoveryScript()
+        return "$discovery; " +
+            "if [ -n \"${'$'}eta_busybox\" ]; then " +
+            "export ETA_BUSYBOX=\"${'$'}eta_busybox\" ASH_STANDALONE=1; " +
+            "\"${'$'}eta_busybox\" ash $shellArgument; " +
+            "else sh $shellArgument; fi"
+    }
+
+    /**
+     * Linux 工具环境始终在独立 mount namespace 中启动，避免 bind mount 泄漏到 Android 全局。
+     * chroot 不是安全沙箱；它只负责提供完整 Linux userland，Android 系统操作仍应走 android 环境。
+     */
+    internal fun buildLinuxPayload(rootfsPath: String, command: String?): String {
+        val rootfs = shellQuote(rootfsPath)
+        val mode = if (command == null) "session" else "command"
+        val payload = shellQuote(command.orEmpty())
+        val innerScript = """
+            eta_rootfs=${'$'}1
+            eta_busybox=${'$'}2
+            eta_mode=${'$'}3
+            eta_payload=${'$'}4
+            eta_mount_required() {
+              eta_source=${'$'}1
+              eta_target=${'$'}2
+              eta_options=${'$'}3
+              "${'$'}eta_busybox" mkdir -p "${'$'}eta_target" || exit 125
+              "${'$'}eta_busybox" mount -o "${'$'}eta_options" "${'$'}eta_source" "${'$'}eta_target" || exit 125
+            }
+            eta_mount_optional() {
+              eta_source=${'$'}1
+              eta_target=${'$'}2
+              eta_options=${'$'}3
+              "${'$'}eta_busybox" mkdir -p "${'$'}eta_target" 2>/dev/null || return 0
+              "${'$'}eta_busybox" mount -o "${'$'}eta_options" "${'$'}eta_source" "${'$'}eta_target" 2>/dev/null || true
+            }
+            "${'$'}eta_busybox" mount -t proc proc "${'$'}eta_rootfs/proc" || exit 125
+            eta_mount_required /dev "${'$'}eta_rootfs/dev" rbind
+            eta_mount_optional /sys "${'$'}eta_rootfs/sys" rbind
+            if [ -d /storage/emulated/0 ]; then
+              eta_mount_optional /storage/emulated/0 "${'$'}eta_rootfs/storage/emulated/0" bind
+            fi
+            [ -d /data/local/tmp ] || exit 125
+            eta_mount_required /data/local/tmp "${'$'}eta_rootfs/data/local/tmp" bind
+            if [ "${'$'}eta_mode" = command ]; then
+              exec "${'$'}eta_busybox" chroot "${'$'}eta_rootfs" /usr/bin/env -i \
+                HOME=/root USER=root LOGNAME=root SHELL=/bin/sh TERM=dumb NO_COLOR=1 \
+                LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+                PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+                /bin/sh -lc "${'$'}eta_payload"
+            fi
+            exec "${'$'}eta_busybox" chroot "${'$'}eta_rootfs" /usr/bin/env -i \
+              HOME=/root USER=root LOGNAME=root SHELL=/bin/sh TERM=dumb NO_COLOR=1 \
+              LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+              PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+              /bin/sh
+        """.trimIndent()
+        val discovery = AndroidBusyBox.discoveryScript()
+        return "$discovery; " +
+            "[ -n \"${'$'}eta_busybox\" ] || { echo 'ETA_LINUX_BUSYBOX_MISSING' >&2; exit 127; }; " +
+            "eta_rootfs=$rootfs; " +
+            "[ -f \"${'$'}eta_rootfs/${AlpineEnvironmentPaths.READY_MARKER}\" ] && " +
+            "[ -x \"${'$'}eta_rootfs/bin/busybox\" ] || " +
+            "{ echo 'ETA_LINUX_ENVIRONMENT_NOT_READY' >&2; exit 127; }; " +
+            "\"${'$'}eta_busybox\" unshare -m --propagation private " +
+            "\"${'$'}eta_busybox\" sh -c ${shellQuote(innerScript)} eta-linux " +
+            "\"${'$'}eta_rootfs\" \"${'$'}eta_busybox\" $mode $payload"
     }
 
     private fun terminateProcessTree(

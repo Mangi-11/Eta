@@ -16,6 +16,7 @@ import fuck.andes.agent.runtime.AgentAppContext
 import fuck.andes.agent.skill.SkillCompatibilityChecker
 import fuck.andes.agent.skill.SkillIndexService
 import fuck.andes.agent.skill.SkillLoader
+import fuck.andes.agent.terminal.AlpineEnvironmentPaths
 import fuck.andes.agent.terminal.RootShellTerminalController
 import fuck.andes.config.Prefs
 import fuck.andes.core.AgentLogger
@@ -45,7 +46,10 @@ internal class AgentLocalTools(
 ) : AgentModelClient.ToolExecutor, AutoCloseable {
 
     private val deviceController = RootShellDeviceController(logger, screenshotExcludedPackages)
-    private val terminalController = RootShellTerminalController(logger)
+    private val terminalController = RootShellTerminalController(
+        logger = logger,
+        linuxRootfsPath = AlpineEnvironmentPaths.rootfsDir(context).absolutePath,
+    )
     private val publishedObservation = AtomicReference(PublishedObservation())
     private val closed = AtomicBoolean(false)
 
@@ -490,7 +494,8 @@ internal class AgentLocalTools(
             async = args.optBoolean("async", false),
             offsetChars = args.optInt("offset_chars", 0),
             maxChars = args.optInt("max_chars", 8_000),
-            closeIfDone = args.optBoolean("close_if_done", false)
+            closeIfDone = args.optBoolean("close_if_done", false),
+            environment = args.optString("environment", "android"),
         )
     }
 

@@ -9,7 +9,7 @@ internal object AgentTerminalToolCatalog {
             .put(
                 AgentToolSchema.function(
                     name = "terminal",
-                    description = "Manage Android terminal sessions on the current device. Use open_and_exec for one-shot commands. Use open to create a persistent shell session and exec with session_id for multi-step terminal work. Use async=true without session_id for long-running independent shell commands, then read_async_result with job_id to stream output chunks. Use close to stop jobs or close sessions. identity can be user or root. This tool returns stdout, stderr, exit_code, session_id, and job_id when relevant.",
+                    description = "Manage terminal sessions on the current device. environment=android runs Android system commands and root operations; environment=linux runs the optional Eta Linux tool environment for Python, Git, archives, package management, and build tools. Use open_and_exec for one-shot commands. Use open to create a persistent shell session and exec with session_id for multi-step work. Use async=true without session_id for long-running independent commands, then read_async_result with job_id to stream output chunks. Use close to stop jobs or close sessions.",
                     parameters = JSONObject()
                         .put("type", "object")
                         .put(
@@ -35,7 +35,14 @@ internal object AgentTerminalToolCatalog {
                                     JSONObject()
                                         .put("type", "string")
                                         .put("enum", JSONArray().put("user").put("root"))
-                                        .put("description", "Use root when the task needs full Android/Linux device access. Default root.")
+                                        .put("description", "Execution identity. Linux environment requires root. Default root.")
+                                )
+                                .put(
+                                    "environment",
+                                    JSONObject()
+                                        .put("type", "string")
+                                        .put("enum", JSONArray().put("android").put("linux"))
+                                        .put("description", "android uses the native Android shell with BusyBox applets when available. linux uses the separately installed Alpine tool environment. Default android.")
                                 )
                                 .put(
                                     "command",

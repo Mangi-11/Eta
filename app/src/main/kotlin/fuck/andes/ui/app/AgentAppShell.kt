@@ -148,6 +148,7 @@ private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.Permissions -> "权限健康"
     is AppRoute.SystemEnhance -> "系统增强"
     is AppRoute.Settings -> "设置"
+    is AppRoute.LinuxEnvironment -> "Linux 工具环境"
     is AppRoute.ModelProviders -> "模型提供商"
     is AppRoute.ModelProviderDetail -> route.providerId.let { "Provider 详情" }
     is AppRoute.ModelProviderNew -> "新建提供商"

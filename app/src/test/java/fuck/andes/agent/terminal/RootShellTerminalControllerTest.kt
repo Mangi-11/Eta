@@ -1,6 +1,7 @@
 package fuck.andes.agent.terminal
 
 import fuck.andes.core.AgentLogger
+import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -148,6 +149,69 @@ class RootShellTerminalControllerTest {
             assertFalse(logs, logs.contains(cwd))
         } finally {
             controller.closeAll()
+        }
+    }
+
+    @Test
+    fun linuxEnvironmentRequiresInstallationAndRootIdentity() {
+        val missingController = RootShellTerminalController(
+            logger = NoopLogger,
+            linuxRootfsPath = File(temporaryFolder.root, "missing-rootfs").absolutePath,
+        )
+        try {
+            val missing = JSONObject(
+                missingController.terminalAction(
+                    action = "open_and_exec",
+                    command = "python3 --version",
+                    cwd = temporaryFolder.root.absolutePath,
+                    timeoutMs = 5_000,
+                    identity = "root",
+                    mergeStderr = false,
+                    sessionId = null,
+                    jobId = null,
+                    async = false,
+                    offsetChars = 0,
+                    maxChars = 8_000,
+                    closeIfDone = false,
+                    environment = "linux",
+                ),
+            )
+            assertFalse(missing.toString(), missing.getBoolean("ok"))
+            assertEquals("LINUX_ENVIRONMENT_NOT_READY", missing.getString("code"))
+        } finally {
+            missingController.closeAll()
+        }
+
+        val rootfs = temporaryFolder.newFolder("ready-rootfs")
+        File(rootfs, "bin").mkdirs()
+        File(rootfs, "bin/busybox").writeText("busybox")
+        File(rootfs, AlpineEnvironmentPaths.READY_MARKER).writeText("version=3.24.1\n")
+        val readyController = RootShellTerminalController(
+            logger = NoopLogger,
+            linuxRootfsPath = rootfs.absolutePath,
+        )
+        try {
+            val user = JSONObject(
+                readyController.terminalAction(
+                    action = "open_and_exec",
+                    command = "id",
+                    cwd = temporaryFolder.root.absolutePath,
+                    timeoutMs = 5_000,
+                    identity = "user",
+                    mergeStderr = false,
+                    sessionId = null,
+                    jobId = null,
+                    async = false,
+                    offsetChars = 0,
+                    maxChars = 8_000,
+                    closeIfDone = false,
+                    environment = "linux",
+                ),
+            )
+            assertFalse(user.toString(), user.getBoolean("ok"))
+            assertEquals("LINUX_ENVIRONMENT_REQUIRES_ROOT", user.getString("code"))
+        } finally {
+            readyController.closeAll()
         }
     }
 
