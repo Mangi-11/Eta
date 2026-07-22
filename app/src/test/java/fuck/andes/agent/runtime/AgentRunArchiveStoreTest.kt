@@ -1,5 +1,6 @@
 package fuck.andes.agent.runtime
 
+import fuck.andes.data.db.FuckAndesDatabase
 import android.content.Context
 import fuck.andes.agent.model.AgentModelClient
 import org.junit.Assert.assertEquals
@@ -18,6 +19,7 @@ class AgentRunArchiveStoreTest {
     @Before
     fun setUp() {
         context = RuntimeEnvironment.getApplication()
+        FuckAndesDatabase.closeForTests()
         context.deleteDatabase("fuck_andes.db")
     }
 

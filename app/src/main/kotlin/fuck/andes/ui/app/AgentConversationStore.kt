@@ -15,7 +15,6 @@ import fuck.andes.ui.model.ToolActivityMessageUi
 import fuck.andes.ui.model.ToolActivityStatusUi
 import fuck.andes.ui.model.ToolSummaryMessageUi
 import fuck.andes.ui.model.UserMessageUi
-import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -32,7 +31,7 @@ internal object AgentConversationStore {
     }
 
     data class Snapshot(
-        val selectedConversationId: String,
+        val selectedConversationId: String?,
         val conversationsById: Map<String, AgentChatHomeUiState>,
         val titles: Map<String, String>,
         val updatedAt: Map<String, Long>,
@@ -40,14 +39,14 @@ internal object AgentConversationStore {
 
     private val saveMutex = Mutex()
 
-    fun load(context: Context, defaultThinkingEnabled: Boolean): Snapshot =
+    fun load(context: Context): Snapshot =
         runBlocking(Dispatchers.IO) {
-            loadSnapshot(context.applicationContext, defaultThinkingEnabled)
+            loadSnapshot(context.applicationContext)
         }
 
     suspend fun save(
         context: Context,
-        selectedConversationId: String,
+        selectedConversationId: String?,
         conversationsById: Map<String, AgentChatHomeUiState>,
         titles: Map<String, String>,
         updatedAt: Map<String, Long>,
@@ -57,10 +56,11 @@ internal object AgentConversationStore {
             withContext(Dispatchers.IO) {
                 val sorted = conversationsById.entries
                     .sortedByDescending { (id, _) -> updatedAt[id] ?: 0L }
-                if (sorted.isEmpty()) return@withContext
 
                 val storedIds = sorted.mapTo(mutableSetOf()) { it.key }
-                val selected = selectedConversationId.takeIf { it in storedIds } ?: sorted.first().key
+                val selected = selectedConversationId
+                    ?.takeIf { it in storedIds }
+                    ?: sorted.firstOrNull()?.key
                 val now = System.currentTimeMillis()
                 val conversations = sorted.map { (id, state) ->
                     ConversationEntity(
@@ -84,19 +84,23 @@ internal object AgentConversationStore {
                     .replaceAll(
                         conversations = conversations,
                         messages = messages,
-                        state = ConversationStateEntity(selectedConversationId = selected),
+                        state = selected?.let { ConversationStateEntity(selectedConversationId = it) },
                     )
             }
         }
     }
 
-    private suspend fun loadSnapshot(
-        context: Context,
-        defaultThinkingEnabled: Boolean,
-    ): Snapshot {
+    private suspend fun loadSnapshot(context: Context): Snapshot {
         val dao = FuckAndesDatabase.get(context).conversationDao()
         val conversations = dao.conversations()
-        if (conversations.isEmpty()) return fallbackSnapshot(defaultThinkingEnabled)
+        if (conversations.isEmpty()) {
+            return Snapshot(
+                selectedConversationId = null,
+                conversationsById = emptyMap(),
+                titles = emptyMap(),
+                updatedAt = emptyMap(),
+            )
+        }
 
         val messagesByConversation = dao.messages().groupBy { it.conversationId }
         val states = linkedMapOf<String, AgentChatHomeUiState>()
@@ -295,26 +299,6 @@ internal object AgentConversationStore {
                 else -> null
             }
         }
-
-    private fun fallbackSnapshot(defaultThinkingEnabled: Boolean): Snapshot {
-        val id = newConversationId()
-        return Snapshot(
-            selectedConversationId = id,
-            conversationsById = mapOf(id to emptyChatState(defaultThinkingEnabled)),
-            titles = mapOf(id to "新对话"),
-            updatedAt = mapOf(id to System.currentTimeMillis()),
-        )
-    }
-
-    private fun emptyChatState(thinkingEnabled: Boolean): AgentChatHomeUiState =
-        AgentChatHomeUiState(
-            messages = emptyList(),
-            input = "",
-            isStreaming = false,
-            thinkingEnabled = thinkingEnabled,
-        )
-
-    private fun newConversationId(): String = "conv-${UUID.randomUUID()}"
 
     private const val TYPE_USER = "user"
     private const val TYPE_ASSISTANT = "assistant"

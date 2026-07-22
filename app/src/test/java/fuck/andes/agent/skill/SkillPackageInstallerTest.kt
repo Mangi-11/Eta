@@ -1,5 +1,6 @@
 package fuck.andes.agent.skill
 
+import fuck.andes.data.db.FuckAndesDatabase
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -30,6 +31,7 @@ class SkillPackageInstallerTest {
 
     @Before
     fun setUp() {
+        FuckAndesDatabase.closeForTests()
         RuntimeEnvironment.getApplication().deleteDatabase("fuck_andes.db")
     }
 

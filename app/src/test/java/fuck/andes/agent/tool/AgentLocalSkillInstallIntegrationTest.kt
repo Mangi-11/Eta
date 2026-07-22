@@ -32,6 +32,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import fuck.andes.data.db.FuckAndesDatabase
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -41,6 +42,7 @@ class AgentLocalSkillInstallIntegrationTest {
 
     @Before
     fun setUp() {
+        FuckAndesDatabase.closeForTests()
         RuntimeEnvironment.getApplication().deleteDatabase("fuck_andes.db")
     }
 

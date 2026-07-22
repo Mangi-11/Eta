@@ -48,13 +48,13 @@ internal interface ConversationDao {
     suspend fun replaceAll(
         conversations: List<ConversationEntity>,
         messages: List<ConversationMessageEntity>,
-        state: ConversationStateEntity,
+        state: ConversationStateEntity?,
     ) {
         deleteMessages()
         deleteConversations()
         deleteState()
         insertConversations(conversations)
         insertMessages(messages)
-        insertState(state)
+        state?.let { insertState(it) }
     }
 }

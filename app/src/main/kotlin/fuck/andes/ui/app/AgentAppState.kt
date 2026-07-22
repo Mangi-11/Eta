@@ -79,32 +79,24 @@ internal class AgentAppState(
     private var persistenceJob: Job? = null
     private val runtimeRecoveryInProgress = AtomicBoolean(false)
     private val defaultThinkingEnabled = remoteBooleanForUi(Prefs.Keys.AGENT_THINKING_ENABLED)
-    private val initialConversations = AgentConversationStore.load(appContext, defaultThinkingEnabled)
+    private val initialConversations = AgentConversationStore.load(appContext)
     private var skillNoticeSequence = 0L
     private var pendingSkillZipUri: Uri? = null
     private var pendingSkillZipSha256: String? = null
 
-    private var selectedConversationId: String = initialConversations.selectedConversationId
+    private var selectedConversationId: String? = initialConversations.selectedConversationId
     private var conversationsById: Map<String, AgentChatHomeUiState> = initialConversations.conversationsById
     private var conversationTitles: Map<String, String> = initialConversations.titles
     private var conversationUpdatedAt: Map<String, Long> = initialConversations.updatedAt
 
     var homeState by mutableStateOf(
-        conversationsById[selectedConversationId] ?: emptyChatState(defaultThinkingEnabled)
+        selectedConversationId?.let(conversationsById::get) ?: emptyChatState(defaultThinkingEnabled)
     )
         private set
 
     var conversationPaneState by mutableStateOf(
         ConversationPaneUiState(
-            conversations = listOf(
-                ConversationSummaryUi(
-                    id = selectedConversationId,
-                    title = "新对话",
-                    preview = "直接输入问题，必要时 Agent 会操作手机",
-                    timeLabel = "现在",
-                    mode = ConversationModeUi.Chat,
-                )
-            ),
+            conversations = emptyList(),
             selectedConversationId = selectedConversationId,
             searchQuery = "",
         )
@@ -263,7 +255,7 @@ internal class AgentAppState(
 
     fun updateThinkingEnabled(enabled: Boolean) {
         updateCurrentConversation(homeState.copy(thinkingEnabled = enabled))
-        persistConversations()
+        if (selectedConversationId != null) persistConversations()
     }
 
     fun updateSearchQuery(query: String) {
@@ -279,18 +271,13 @@ internal class AgentAppState(
     }
 
     fun createConversation() {
-        selectedConversationId = newConversationId()
-        val state = emptyChatState(defaultThinkingEnabled)
-        conversationsById = conversationsById + (selectedConversationId to state)
-        conversationTitles = conversationTitles + (selectedConversationId to "新对话")
-        conversationUpdatedAt = conversationUpdatedAt + (selectedConversationId to System.currentTimeMillis())
-        homeState = state
+        selectedConversationId = null
+        homeState = emptyChatState(defaultThinkingEnabled)
         conversationPaneState = conversationPaneState.copy(
-            selectedConversationId = selectedConversationId,
+            selectedConversationId = null,
             searchQuery = "",
         )
         refreshConversationSummaries()
-        persistConversations()
     }
 
     fun deleteConversation(conversationId: String) {
@@ -304,12 +291,8 @@ internal class AgentAppState(
                 selectedConversationId = nextId
                 homeState = conversationsById.getValue(nextId)
             } else {
-                selectedConversationId = newConversationId()
-                val state = emptyChatState(defaultThinkingEnabled)
-                conversationsById = conversationsById + (selectedConversationId to state)
-                conversationTitles = conversationTitles + (selectedConversationId to "新对话")
-                conversationUpdatedAt = conversationUpdatedAt + (selectedConversationId to System.currentTimeMillis())
-                homeState = state
+                selectedConversationId = null
+                homeState = emptyChatState(defaultThinkingEnabled)
             }
         }
         conversationPaneState = conversationPaneState.copy(selectedConversationId = selectedConversationId)
@@ -330,11 +313,13 @@ internal class AgentAppState(
         val prompt = homeState.input.trim()
         if (prompt.isBlank() || homeState.isStreaming) return
 
-        if (selectedConversationId.isExternalArchiveConversation()) {
+        if (selectedConversationId?.isExternalArchiveConversation() == true) {
             moveCurrentDraftToNewConversation()
         }
 
-        val conversationId = selectedConversationId
+        val conversationId = selectedConversationId ?: newConversationId().also {
+            selectedConversationId = it
+        }
         val history = homeState.history
         val thinkingEnabled = homeState.thinkingEnabled
         val pendingImages = homeState.pendingImages
@@ -353,11 +338,12 @@ internal class AgentAppState(
             },
         )
 
-        val title = conversationTitles[selectedConversationId]
+        val title = conversationTitles[conversationId]
             ?.takeUnless { it == "新对话" }
             ?: prompt.lineSequence().firstOrNull().orEmpty().trim().take(MAX_TITLE_CHARS).ifBlank { "新对话" }
 
-        conversationTitles = conversationTitles + (selectedConversationId to title)
+        conversationTitles = conversationTitles + (conversationId to title)
+        conversationPaneState = conversationPaneState.copy(selectedConversationId = conversationId)
         runConversationIds[runId] = conversationId
         currentRunId = runId
 
@@ -1099,7 +1085,7 @@ internal class AgentAppState(
         runId: String,
         transform: (List<AgentChatMessageUi>) -> List<AgentChatMessageUi>,
     ) {
-        val conversationId = conversationIdForRun(runId)
+        val conversationId = conversationIdForRun(runId) ?: return
         val state = conversationsById[conversationId] ?: return
         updateConversation(conversationId, state.copy(messages = transform(state.messages)))
     }
@@ -1108,29 +1094,30 @@ internal class AgentAppState(
         runId: String,
         additions: List<AgentModelClient.ConversationMessage>,
     ) {
-        val conversationId = conversationIdForRun(runId)
+        val conversationId = conversationIdForRun(runId) ?: return
         val state = conversationsById[conversationId] ?: return
         val outcome = AgentRuntimeHistoryReducer.apply(state, runId, additions)
         if (!outcome.alreadyApplied) updateConversation(conversationId, outcome.state)
     }
 
     private fun updateCurrentConversation(state: AgentChatHomeUiState) {
-        updateConversation(selectedConversationId, state)
+        val conversationId = selectedConversationId
+        if (conversationId == null) {
+            homeState = state
+        } else {
+            updateConversation(conversationId, state)
+        }
     }
 
     private fun moveCurrentDraftToNewConversation() {
         val draft = homeState
-        selectedConversationId = newConversationId()
-        val state = emptyChatState(defaultThinkingEnabled).copy(
+        selectedConversationId = null
+        homeState = emptyChatState(defaultThinkingEnabled).copy(
             input = draft.input,
             thinkingEnabled = draft.thinkingEnabled,
             pendingImages = draft.pendingImages,
         )
-        conversationsById = conversationsById + (selectedConversationId to state)
-        conversationTitles = conversationTitles + (selectedConversationId to "新对话")
-        conversationUpdatedAt = conversationUpdatedAt + (selectedConversationId to System.currentTimeMillis())
-        homeState = state
-        conversationPaneState = conversationPaneState.copy(selectedConversationId = selectedConversationId)
+        conversationPaneState = conversationPaneState.copy(selectedConversationId = null)
     }
 
     private fun updateConversation(conversationId: String, state: AgentChatHomeUiState) {
@@ -1142,16 +1129,15 @@ internal class AgentAppState(
     }
 
     private fun setConversationStreaming(runId: String, isStreaming: Boolean) {
-        val conversationId = conversationIdForRun(runId)
+        val conversationId = conversationIdForRun(runId) ?: return
         val state = conversationsById[conversationId] ?: return
         updateConversation(conversationId, state.copy(isStreaming = isStreaming))
     }
 
-    private fun conversationIdForRun(runId: String): String =
-        runConversationIds[runId] ?: selectedConversationId
+    private fun conversationIdForRun(runId: String): String? = runConversationIds[runId]
 
     private fun conversationStateForRun(runId: String): AgentChatHomeUiState {
-        val conversationId = conversationIdForRun(runId)
+        val conversationId = conversationIdForRun(runId) ?: return emptyChatState(defaultThinkingEnabled)
         return conversationsById[conversationId] ?: emptyChatState(defaultThinkingEnabled)
     }
 

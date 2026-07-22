@@ -5,6 +5,7 @@ import fuck.andes.agent.model.CustomHeaderFilter
 import fuck.andes.agent.model.ProviderUrls
 import fuck.andes.data.model.AnthropicProviderSetting
 import fuck.andes.data.model.Model
+import fuck.andes.data.model.ModelSource
 import fuck.andes.data.model.ProviderSetting
 import fuck.andes.data.provider.OfficialModelCatalog
 import java.util.UUID
@@ -138,6 +139,7 @@ internal object RemoteModelFetcher {
             modelId = modelId,
             displayName = string("display_name", "displayName", "name")?.trim().takeUnless { it.isNullOrBlank() }
                 ?: modelId,
+            source = ModelSource.REMOTE,
             ownedBy = string("owned_by", "ownedBy")?.trim().takeUnless { it.isNullOrBlank() } ?: defaultOwnedBy,
             contextWindow = int(
                 "context_window",

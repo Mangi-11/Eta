@@ -27,6 +27,7 @@ class SkillRecoveryJournalTest {
 
     @Before
     fun setUp() {
+        FuckAndesDatabase.closeForTests()
         RuntimeEnvironment.getApplication().deleteDatabase("fuck_andes.db")
     }
 

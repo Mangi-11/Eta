@@ -1,6 +1,7 @@
 package fuck.andes.ui.app
 
 import android.content.Context
+import fuck.andes.data.db.FuckAndesDatabase
 import fuck.andes.ui.model.AgentChatHomeUiState
 import fuck.andes.ui.model.AgentMessageUi
 import fuck.andes.ui.model.ThinkingMessageUi
@@ -14,6 +15,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -27,6 +32,7 @@ class AgentConversationStoreTest {
     @Before
     fun setUp() {
         context = RuntimeEnvironment.getApplication()
+        FuckAndesDatabase.closeForTests()
         context.deleteDatabase("fuck_andes.db")
     }
 
@@ -103,7 +109,7 @@ class AgentConversationStoreTest {
             )
         }
 
-        val snapshot = AgentConversationStore.load(context, defaultThinkingEnabled = false)
+        val snapshot = AgentConversationStore.load(context)
 
         assertEquals("conv-1", snapshot.selectedConversationId)
         assertEquals("屏幕分析", snapshot.titles.getValue("conv-1"))
@@ -167,7 +173,7 @@ class AgentConversationStoreTest {
             )
         }
 
-        val snapshot = AgentConversationStore.load(context, defaultThinkingEnabled = true)
+        val snapshot = AgentConversationStore.load(context)
 
         assertEquals(60, snapshot.conversationsById.size)
         val restored = snapshot.conversationsById.getValue("conv-0")
@@ -177,12 +183,63 @@ class AgentConversationStoreTest {
     }
 
     @Test
-    fun loadFallsBackWhenDatabaseIsEmpty() {
-        val snapshot = AgentConversationStore.load(context, defaultThinkingEnabled = true)
+    fun loadKeepsDatabaseEmptyUntilFirstMessageIsSent() {
+        val snapshot = AgentConversationStore.load(context)
 
-        assertEquals(1, snapshot.conversationsById.size)
-        val restored = snapshot.conversationsById.getValue(snapshot.selectedConversationId)
-        assertTrue(restored.messages.isEmpty())
-        assertTrue(restored.thinkingEnabled)
+        assertTrue(snapshot.conversationsById.isEmpty())
+        assertEquals(null, snapshot.selectedConversationId)
+    }
+
+    @Test
+    fun creatingConversationKeepsDraftOutOfHistoryAndDatabase() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        try {
+            val state = AgentAppState(context, scope)
+
+            state.createConversation()
+            state.updateInput("尚未发送的草稿")
+            state.createConversation()
+
+            assertEquals(null, state.conversationPaneState.selectedConversationId)
+            assertTrue(state.conversationPaneState.conversations.isEmpty())
+            assertTrue(
+                runBlocking {
+                    FuckAndesDatabase.get(context).conversationDao().conversations().isEmpty()
+                }
+            )
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun savingEmptySnapshotClearsPreviouslyPersistedConversations() {
+        runBlocking {
+            AgentConversationStore.save(
+                context = context,
+                selectedConversationId = "conv-1",
+                conversationsById = mapOf(
+                    "conv-1" to AgentChatHomeUiState(
+                        messages = listOf(UserMessageUi(id = "user-1", content = "hello")),
+                        input = "",
+                        isStreaming = false,
+                        thinkingEnabled = false,
+                    )
+                ),
+                titles = mapOf("conv-1" to "hello"),
+                updatedAt = mapOf("conv-1" to 1L),
+            )
+            AgentConversationStore.save(
+                context = context,
+                selectedConversationId = null,
+                conversationsById = emptyMap(),
+                titles = emptyMap(),
+                updatedAt = emptyMap(),
+            )
+        }
+
+        val snapshot = AgentConversationStore.load(context)
+        assertTrue(snapshot.conversationsById.isEmpty())
+        assertEquals(null, snapshot.selectedConversationId)
     }
 }

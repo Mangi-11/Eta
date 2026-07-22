@@ -1,6 +1,7 @@
 package fuck.andes.data.repository
 
 import fuck.andes.data.model.Model
+import fuck.andes.data.model.ModelSource
 import fuck.andes.data.model.OpenAiCompatibleProviderSetting
 import fuck.andes.data.model.ProviderSourceTypes
 import fuck.andes.data.provider.OfficialModelCatalog
@@ -41,6 +42,7 @@ class RemoteModelFetcherTest {
         assertTrue(models.first().supportsReasoning)
         assertEquals(400000, models.first().contextWindow)
         assertEquals("Qwen 3.7 Plus", models.last().displayName)
+        assertTrue(models.all { it.source == ModelSource.REMOTE })
     }
 
     @Test

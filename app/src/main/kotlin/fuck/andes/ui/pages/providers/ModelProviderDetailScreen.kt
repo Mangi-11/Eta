@@ -50,6 +50,7 @@ import fuck.andes.ui.components.MiuixScaffold
 import fuck.andes.ui.components.StatusError
 import fuck.andes.ui.components.StatusSuccess
 import fuck.andes.ui.navigation.NewProviderType
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -72,6 +73,33 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 private val DeleteButtonBg = Color(0xFFFFEBEE)
 private val DeleteButtonFg = Color(0xFFD32F2F)
+
+private data class ProviderConfigDraft(
+    val name: String,
+    val baseUrl: String,
+    val apiKey: String,
+    val systemPrompt: String,
+    val isEnabled: Boolean,
+    val endpointMode: String,
+    val anthropicVersion: String,
+) {
+    companion object {
+        fun from(provider: ProviderSetting): ProviderConfigDraft = ProviderConfigDraft(
+            name = provider.name,
+            baseUrl = provider.baseUrl,
+            apiKey = provider.apiKey,
+            systemPrompt = provider.systemPrompt.orEmpty(),
+            isEnabled = provider.isEnabled,
+            endpointMode = when (provider) {
+                is OpenAiCompatibleProviderSetting -> provider.endpointMode
+                is CustomProviderSetting -> provider.endpointMode
+                is AnthropicProviderSetting -> ""
+            },
+            anthropicVersion = (provider as? AnthropicProviderSetting)?.anthropicVersion
+                ?: AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION,
+        )
+    }
+}
 
 @Composable
 internal fun ModelProviderDetailScreen(
@@ -123,6 +151,7 @@ internal fun ModelProviderDetailScreen(
     val initial = provider ?: draft!!
     val isNew = provider == null
     var currentTab by remember { mutableIntStateOf(0) }
+    var configDraft by remember(initial.id) { mutableStateOf(ProviderConfigDraft.from(initial)) }
     val title = if (isNew) "新建提供商" else initial.name
 
     MiuixScaffold(title = title, onBack = onBack) { paddingValues, scrollBehavior ->
@@ -139,6 +168,8 @@ internal fun ModelProviderDetailScreen(
                 when (currentTab) {
                     0 -> ProviderConfigTab(
                         provider = initial,
+                        draft = configDraft,
+                        onDraftChange = { configDraft = it },
                         scope = scope,
                         isNew = isNew,
                         scrollBehavior = scrollBehavior,
@@ -157,32 +188,20 @@ internal fun ModelProviderDetailScreen(
 @Composable
 private fun ProviderConfigTab(
     provider: ProviderSetting,
+    draft: ProviderConfigDraft,
+    onDraftChange: (ProviderConfigDraft) -> Unit,
     scope: CoroutineScope,
     isNew: Boolean,
     scrollBehavior: ScrollBehavior,
     onCreated: (String) -> Unit,
     onDeleted: () -> Unit,
 ) {
-    var name by remember(provider.id) { mutableStateOf(provider.name) }
-    var baseUrl by remember(provider.id) { mutableStateOf(provider.baseUrl) }
-    var apiKey by remember(provider.id) { mutableStateOf(provider.apiKey) }
-    var systemPrompt by remember(provider.id) { mutableStateOf(provider.systemPrompt.orEmpty()) }
-    var isEnabled by remember(provider.id) { mutableStateOf(provider.isEnabled) }
-    var anthropicVersion by remember(provider.id) {
-        mutableStateOf((provider as? AnthropicProviderSetting)?.anthropicVersion ?: AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION)
-    }
-    var endpointMode by remember(provider.id) {
-        mutableStateOf(
-            when (provider) {
-                is OpenAiCompatibleProviderSetting -> provider.endpointMode
-                is CustomProviderSetting -> provider.endpointMode
-                is AnthropicProviderSetting -> ""
-            }
-        )
-    }
     var apiKeyVisible by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
+    var isWorking by remember { mutableStateOf(false) }
+    var creationCommitted by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -196,24 +215,24 @@ private fun ProviderConfigTab(
             ProviderSection(title = "连接配置") {
                 Column(modifier = Modifier.padding(16.dp)) {
                     TextField(
-                        value = name,
-                        onValueChange = { name = it },
+                        value = draft.name,
+                        onValueChange = { onDraftChange(draft.copy(name = it)) },
                         label = "名称",
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     TextField(
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
+                        value = draft.baseUrl,
+                        onValueChange = { onDraftChange(draft.copy(baseUrl = it)) },
                         label = "Base URL",
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     TextField(
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
+                        value = draft.apiKey,
+                        onValueChange = { onDraftChange(draft.copy(apiKey = it)) },
                         label = "API Key",
                         singleLine = true,
                         visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -232,8 +251,8 @@ private fun ProviderConfigTab(
                     if (provider is AnthropicProviderSetting) {
                         Spacer(modifier = Modifier.height(12.dp))
                         TextField(
-                            value = anthropicVersion,
-                            onValueChange = { anthropicVersion = it },
+                            value = draft.anthropicVersion,
+                            onValueChange = { onDraftChange(draft.copy(anthropicVersion = it)) },
                             label = "anthropic-version",
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
@@ -261,14 +280,14 @@ private fun ProviderConfigTab(
             ProviderSection(title = "偏好与策略") {
                 SwitchPreference(
                     title = "启用此 Provider",
-                    checked = isEnabled,
-                    onCheckedChange = { isEnabled = it }
+                    checked = draft.isEnabled,
+                    onCheckedChange = { onDraftChange(draft.copy(isEnabled = it)) }
                 )
                 HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                 Column(modifier = Modifier.padding(16.dp)) {
                     TextField(
-                        value = systemPrompt,
-                        onValueChange = { systemPrompt = it },
+                        value = draft.systemPrompt,
+                        onValueChange = { onDraftChange(draft.copy(systemPrompt = it)) },
                         label = "系统提示词",
                         modifier = Modifier
                             .fillMaxWidth()
@@ -292,69 +311,101 @@ private fun ProviderConfigTab(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     TextButton(
-                        text = if (isNew) "创建" else "保存配置",
+                        text = when {
+                            isWorking -> "保存中..."
+                            creationCommitted -> "已创建"
+                            isNew -> "创建"
+                            else -> "保存配置"
+                        },
+                        enabled = !isWorking && !creationCommitted,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                         onClick = {
+                            val validationError = validateProviderDraft(draft)
+                            if (validationError != null) {
+                                status = "失败：$validationError"
+                                return@TextButton
+                            }
                             scope.launch {
+                                isWorking = true
                                 val built = buildUpdatedProvider(
                                     source = provider,
-                                    name = name,
-                                    baseUrl = baseUrl,
-                                    apiKey = apiKey,
-                                    systemPrompt = systemPrompt,
-                                    isEnabled = isEnabled,
-                                    endpointMode = endpointMode,
-                                    anthropicVersion = anthropicVersion,
+                                    name = draft.name,
+                                    baseUrl = draft.baseUrl,
+                                    apiKey = draft.apiKey,
+                                    systemPrompt = draft.systemPrompt,
+                                    isEnabled = draft.isEnabled,
+                                    endpointMode = draft.endpointMode,
+                                    anthropicVersion = draft.anthropicVersion,
                                 )
-                                if (isNew) {
-                                    val added = ProviderRepository.addProvider(
-                                        built.withId(ProviderRepository.newId())
-                                    )
-                                    if (added.isEnabled) {
-                                        RuntimeConfigRepository.setSelectedProviderId(added.id)
+                                try {
+                                    if (isNew) {
+                                        val added = ProviderRepository.addProvider(
+                                            built.withId(ProviderRepository.newId())
+                                        )
+                                        if (added.isEnabled) {
+                                            RuntimeConfigRepository.setSelectedProviderId(added.id)
+                                        }
+                                        val ok = RuntimeConfigRepository.syncToRemotePreferences(
+                                            FuckAndesApp.serviceInstance
+                                        )
+                                        status = if (ok) "已创建、设为当前并同步"
+                                        else "已创建并设为当前，LSPosed 服务未连接"
+                                        creationCommitted = true
+                                        onCreated(added.id)
+                                    } else {
+                                        ProviderRepository.updateProvider(built)
+                                        if (built.isEnabled) {
+                                            RuntimeConfigRepository.setSelectedProviderId(built.id)
+                                        }
+                                        val ok = RuntimeConfigRepository.syncToRemotePreferences(
+                                            FuckAndesApp.serviceInstance
+                                        )
+                                        status = when {
+                                            !built.isEnabled -> "已保存，Provider 未启用"
+                                            ok -> "已保存、设为当前并同步"
+                                            else -> "已保存并设为当前，LSPosed 服务未连接"
+                                        }
                                     }
-                                    val ok = RuntimeConfigRepository.syncToRemotePreferences(
-                                        FuckAndesApp.serviceInstance
-                                    )
-                                    status = if (ok) "已创建、设为当前并同步"
-                                    else "已创建并设为当前，LSPosed 服务未连接"
-                                    onCreated(added.id)
-                                } else {
-                                    ProviderRepository.updateProvider(built)
-                                    if (built.isEnabled) {
-                                        RuntimeConfigRepository.setSelectedProviderId(built.id)
-                                    }
-                                    val ok = RuntimeConfigRepository.syncToRemotePreferences(
-                                        FuckAndesApp.serviceInstance
-                                    )
-                                    status = when {
-                                        !built.isEnabled -> "已保存，Provider 未启用"
-                                        ok -> "已保存、设为当前并同步"
-                                        else -> "已保存并设为当前，LSPosed 服务未连接"
-                                    }
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (throwable: Throwable) {
+                                    status = "失败：${throwable.message ?: "保存失败"}"
+                                } finally {
+                                    isWorking = false
                                 }
                             }
                         },
                     )
                     TextButton(
-                        text = "测试连接",
+                        text = if (isWorking) "处理中..." else "测试连接",
+                        enabled = !isWorking,
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
+                            val validationError = validateProviderDraft(draft)
+                            if (validationError != null) {
+                                status = "失败：$validationError"
+                                return@TextButton
+                            }
                             scope.launch {
+                                isWorking = true
                                 status = "测试中..."
-                                status = testConnection(
-                                    buildUpdatedProvider(
-                                        source = provider,
-                                        name = name,
-                                        baseUrl = baseUrl,
-                                        apiKey = apiKey,
-                                        systemPrompt = systemPrompt,
-                                        isEnabled = isEnabled,
-                                        endpointMode = endpointMode,
-                                        anthropicVersion = anthropicVersion,
+                                try {
+                                    status = testConnection(
+                                        buildUpdatedProvider(
+                                            source = provider,
+                                            name = draft.name,
+                                            baseUrl = draft.baseUrl,
+                                            apiKey = draft.apiKey,
+                                            systemPrompt = draft.systemPrompt,
+                                            isEnabled = draft.isEnabled,
+                                            endpointMode = draft.endpointMode,
+                                            anthropicVersion = draft.anthropicVersion,
+                                        )
                                     )
-                                )
+                                } finally {
+                                    isWorking = false
+                                }
                             }
                         },
                     )
@@ -362,18 +413,16 @@ private fun ProviderConfigTab(
                         if (provider.isBuiltIn) {
                             TextButton(
                                 text = "重置内置配置",
+                                enabled = !isWorking,
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = {
-                                    scope.launch {
-                                        ProviderRepository.resetBuiltIn(provider.id)
-                                        RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                                        status = "已重置"
-                                    }
+                                    showResetDialog = true
                                 },
                             )
                         } else {
                             TextButton(
                                 text = "删除提供商",
+                                enabled = !isWorking,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.textButtonColors(
                                     color = DeleteButtonBg,
@@ -398,20 +447,75 @@ private fun ProviderConfigTab(
     }
 
     if (showDeleteDialog) {
-        OverlayDialog(show = true, title = "删除 Provider", onDismissRequest = { showDeleteDialog = false }) {
+        OverlayDialog(show = true, title = "删除 Provider", onDismissRequest = { if (!isWorking) showDeleteDialog = false }) {
             Text("确定删除「${provider.name}」吗？此操作不可恢复。")
             Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
-                TextButton(text = "取消", onClick = { showDeleteDialog = false })
+                TextButton(text = "取消", enabled = !isWorking, onClick = { showDeleteDialog = false })
                 Spacer(modifier = Modifier.width(8.dp))
                 TextButton(
                     text = "删除",
+                    enabled = !isWorking,
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     onClick = {
                         scope.launch {
-                            ProviderRepository.deleteProvider(provider.id)
-                            RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                            showDeleteDialog = false
-                            onDeleted()
+                            isWorking = true
+                            try {
+                                ProviderRepository.deleteProvider(provider.id)
+                                RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+                                showDeleteDialog = false
+                                onDeleted()
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (throwable: Throwable) {
+                                status = "失败：${throwable.message ?: "删除失败"}"
+                                showDeleteDialog = false
+                            } finally {
+                                isWorking = false
+                            }
+                        }
+                    },
+                )
+            }
+        }
+    }
+
+    if (showResetDialog) {
+        OverlayDialog(
+            show = true,
+            title = "重置内置配置",
+            onDismissRequest = { if (!isWorking) showResetDialog = false },
+        ) {
+            Text("将恢复「${provider.name}」的默认配置和官方模型列表，API Key 会保留。确定继续吗？")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(
+                    text = "取消",
+                    enabled = !isWorking,
+                    onClick = { showResetDialog = false },
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                TextButton(
+                    text = if (isWorking) "重置中..." else "重置",
+                    enabled = !isWorking,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    onClick = {
+                        scope.launch {
+                            isWorking = true
+                            try {
+                                ProviderRepository.resetBuiltIn(provider.id)
+                                RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+                                status = "已重置"
+                                showResetDialog = false
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (throwable: Throwable) {
+                                status = "失败：${throwable.message ?: "重置失败"}"
+                                showResetDialog = false
+                            } finally {
+                                isWorking = false
+                            }
                         }
                     },
                 )
@@ -428,8 +532,12 @@ private fun ProviderModelsTab(
 ) {
     val selectedModelId by RuntimeConfigRepository.selectedModelIdFlow().collectAsState(initial = null)
     var isFetching by remember { mutableStateOf(false) }
+    var isMutatingModel by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var editingModel by remember { mutableStateOf<Model?>(null) }
+    var isCreatingModel by remember { mutableStateOf(false) }
+    var editorError by remember { mutableStateOf<String?>(null) }
+    var modelPendingDelete by remember { mutableStateOf<Model?>(null) }
     var selectionMode by remember(provider.id) { mutableStateOf(false) }
     var selectedModelIds by remember(provider.id) { mutableStateOf(setOf<String>()) }
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
@@ -447,7 +555,7 @@ private fun ProviderModelsTab(
                 ArrowPreference(
                     title = if (isFetching) "拉取中..." else "从远端自动拉取",
                     summary = "读取 ${provider.baseUrl} 的 /models 列表",
-                    enabled = !isFetching,
+                    enabled = !isFetching && !isMutatingModel,
                     startAction = {
                         ProviderRoundIcon(
                             icon = LucideR.drawable.lucide_ic_cloud_download,
@@ -458,22 +566,31 @@ private fun ProviderModelsTab(
                         scope.launch {
                             isFetching = true
                             message = null
-                            RemoteModelFetcher.fetch(provider)
-                                .onSuccess { models ->
-                                    val chatModels = models.filter(RemoteModelFetcher::isChatCapableModel)
-                                    ModelRepository.replaceModelsForProvider(provider.id, chatModels)
-                                    RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                                    val filteredCount = models.size - chatModels.size
-                                    message = if (filteredCount > 0) {
-                                        "已拉取 ${chatModels.size} 个模型，过滤 $filteredCount 个非对话模型"
-                                    } else {
-                                        "已拉取 ${chatModels.size} 个模型"
-                                    }
-                                }
-                                .onFailure { throwable ->
+                            try {
+                                val models = RemoteModelFetcher.fetch(provider).getOrElse { throwable ->
                                     message = "失败：${throwable.message ?: throwable.javaClass.simpleName}"
+                                    return@launch
                                 }
-                            isFetching = false
+                                val chatModels = models.filter(RemoteModelFetcher::isChatCapableModel)
+                                val sync = ModelRepository.syncRemoteModels(provider.id, chatModels)
+                                if (sync.applied) {
+                                    RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+                                }
+                                val filteredCount = models.size - chatModels.size
+                                message = if (!sync.applied) {
+                                    "远端未返回可用对话模型，已保留现有模型"
+                                } else if (filteredCount > 0) {
+                                    "已拉取 ${chatModels.size} 个模型，过滤 $filteredCount 个非对话模型"
+                                } else {
+                                    "已拉取 ${chatModels.size} 个模型"
+                                }
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (throwable: Throwable) {
+                                message = "失败：${throwable.message ?: "同步失败"}"
+                            } finally {
+                                isFetching = false
+                            }
                         }
                     },
                 )
@@ -481,6 +598,7 @@ private fun ProviderModelsTab(
                 ArrowPreference(
                     title = "添加自定义模型",
                     summary = "手动填写展示名称与 Model ID",
+                    enabled = !isFetching && !isMutatingModel,
                     startAction = {
                         ProviderRoundIcon(
                             icon = LucideR.drawable.lucide_ic_plus,
@@ -488,16 +606,13 @@ private fun ProviderModelsTab(
                         )
                     },
                     onClick = {
-                        scope.launch {
-                            val newModel = Model(
-                                id = ModelRepository.newId(),
-                                modelId = "",
-                                displayName = "自定义模型",
-                            )
-                            ModelRepository.addModel(provider.id, newModel)
-                            RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                            editingModel = newModel
-                        }
+                        editorError = null
+                        isCreatingModel = true
+                        editingModel = Model(
+                            id = "",
+                            modelId = "",
+                            displayName = "自定义模型",
+                        )
                     },
                 )
                 message?.let {
@@ -528,6 +643,7 @@ private fun ProviderModelsTab(
                         )
                         TextButton(
                             text = if (selectedModelIds.size == provider.models.size) "全不选" else "全选",
+                            enabled = !isFetching && !isMutatingModel,
                             onClick = {
                                 selectedModelIds = if (selectedModelIds.size == provider.models.size) {
                                     emptySet()
@@ -538,7 +654,7 @@ private fun ProviderModelsTab(
                         )
                         TextButton(
                             text = "删除",
-                            enabled = selectedModelIds.isNotEmpty(),
+                            enabled = selectedModelIds.isNotEmpty() && !isFetching && !isMutatingModel,
                             colors = ButtonDefaults.textButtonColors(
                                 color = DeleteButtonBg,
                                 textColor = DeleteButtonFg,
@@ -546,6 +662,7 @@ private fun ProviderModelsTab(
                             onClick = { showBatchDeleteDialog = true },
                         )
                         IconButton(
+                            enabled = !isFetching && !isMutatingModel,
                             onClick = {
                                 selectionMode = false
                                 selectedModelIds = emptySet()
@@ -585,6 +702,7 @@ private fun ProviderModelsTab(
                         }
                         ModelListItem(
                             model = model,
+                            enabled = !isFetching && !isMutatingModel,
                             isSelected = model.id == selectedModelId,
                             selectionMode = selectionMode,
                             checked = model.id in selectedModelIds,
@@ -599,7 +717,11 @@ private fun ProviderModelsTab(
                                 selectionMode = true
                                 selectedModelIds = setOf(model.id)
                             },
-                            onEdit = { editingModel = model },
+                            onEdit = {
+                                editorError = null
+                                isCreatingModel = false
+                                editingModel = model
+                            },
                             onSetCurrent = {
                                 scope.launch {
                                     RuntimeConfigRepository.setSelectedModelId(model.id)
@@ -618,53 +740,127 @@ private fun ProviderModelsTab(
     editingModel?.let { model ->
         ModelEditDialog(
             model = model,
-            onDismiss = { editingModel = null },
-            onUpdate = { updated ->
+            isNew = isCreatingModel,
+            isSaving = isMutatingModel,
+            error = editorError,
+            onDismiss = {
+                if (!isMutatingModel) editingModel = null
+            },
+            onSubmit = { updated, setCurrent ->
+                if (isMutatingModel) return@ModelEditDialog
                 scope.launch {
-                    ModelRepository.updateModel(provider.id, updated)
-                    RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+                    isMutatingModel = true
+                    editorError = null
+                    try {
+                        val saved = ModelRepository.saveModel(provider.id, updated)
+                        if (setCurrent) {
+                            RuntimeConfigRepository.setSelectedModelId(saved.id)
+                        }
+                        RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+                        editingModel = null
+                        message = if (setCurrent) "已保存并设为当前：${saved.displayName}" else "已保存：${saved.displayName}"
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (throwable: Throwable) {
+                        editorError = throwable.message ?: "保存失败"
+                    } finally {
+                        isMutatingModel = false
+                    }
                 }
             },
-            onDelete = {
-                scope.launch {
-                    ModelRepository.deleteModel(provider.id, model.id)
-                    RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                }
-            },
-            onSetCurrent = {
-                scope.launch {
-                    RuntimeConfigRepository.setSelectedModelId(model.id)
-                    RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+            onDelete = if (isCreatingModel) null else {
+                {
+                    modelPendingDelete = model
+                    editingModel = null
                 }
             }
         )
+    }
+
+    modelPendingDelete?.let { model ->
+        OverlayDialog(
+            show = true,
+            title = "删除模型",
+            onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
+        ) {
+            Text("确定删除「${model.displayName}」吗？此操作不可恢复。")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(
+                    text = "取消",
+                    enabled = !isMutatingModel,
+                    onClick = { modelPendingDelete = null },
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                TextButton(
+                    text = if (isMutatingModel) "删除中..." else "删除",
+                    enabled = !isMutatingModel,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    onClick = {
+                        scope.launch {
+                            isMutatingModel = true
+                            try {
+                                ModelRepository.deleteModel(provider.id, model.id)
+                                RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+                                message = "已删除：${model.displayName}"
+                                modelPendingDelete = null
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (throwable: Throwable) {
+                                message = "失败：${throwable.message ?: "删除失败"}"
+                                modelPendingDelete = null
+                            } finally {
+                                isMutatingModel = false
+                            }
+                        }
+                    },
+                )
+            }
+        }
     }
 
     if (showBatchDeleteDialog) {
         OverlayDialog(
             show = true,
             title = "删除模型",
-            onDismissRequest = { showBatchDeleteDialog = false },
+            onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
         ) {
             Text("确定删除选中的 ${selectedModelIds.size} 个模型吗？此操作不可恢复。")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 horizontalArrangement = Arrangement.End,
             ) {
-                TextButton(text = "取消", onClick = { showBatchDeleteDialog = false })
+                TextButton(
+                    text = "取消",
+                    enabled = !isMutatingModel,
+                    onClick = { showBatchDeleteDialog = false },
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 TextButton(
-                    text = "删除",
+                    text = if (isMutatingModel) "删除中..." else "删除",
+                    enabled = !isMutatingModel,
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     onClick = {
                         scope.launch {
                             val deletedCount = selectedModelIds.size
-                            ModelRepository.deleteModels(provider.id, selectedModelIds)
-                            RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
-                            message = "已删除 $deletedCount 个模型"
-                            showBatchDeleteDialog = false
-                            selectionMode = false
-                            selectedModelIds = emptySet()
+                            isMutatingModel = true
+                            try {
+                                ModelRepository.deleteModels(provider.id, selectedModelIds)
+                                RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+                                message = "已删除 $deletedCount 个模型"
+                                showBatchDeleteDialog = false
+                                selectionMode = false
+                                selectedModelIds = emptySet()
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (throwable: Throwable) {
+                                message = "失败：${throwable.message ?: "删除失败"}"
+                                showBatchDeleteDialog = false
+                            } finally {
+                                isMutatingModel = false
+                            }
                         }
                     },
                 )
@@ -677,6 +873,7 @@ private fun ProviderModelsTab(
 @Composable
 private fun ModelListItem(
     model: Model,
+    enabled: Boolean,
     isSelected: Boolean,
     selectionMode: Boolean,
     checked: Boolean,
@@ -689,6 +886,7 @@ private fun ModelListItem(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(
+                enabled = enabled,
                 onClick = if (selectionMode) onToggleChecked else onEdit,
                 onLongClick = {
                     if (selectionMode) onToggleChecked() else onEnterSelection()
@@ -728,9 +926,10 @@ private fun ModelListItem(
             Checkbox(
                 state = if (checked) ToggleableState.On else ToggleableState.Off,
                 onClick = onToggleChecked,
+                enabled = enabled,
             )
         } else {
-            IconButton(onClick = onSetCurrent) {
+            IconButton(onClick = onSetCurrent, enabled = enabled) {
                 Icon(
                     painter = painterResource(if (isSelected) LucideR.drawable.lucide_ic_check else LucideR.drawable.lucide_ic_circle),
                     contentDescription = if (isSelected) "当前模型" else "设为当前",
@@ -744,20 +943,26 @@ private fun ModelListItem(
 @Composable
 private fun ModelEditDialog(
     model: Model,
+    isNew: Boolean,
+    isSaving: Boolean,
+    error: String?,
     onDismiss: () -> Unit,
-    onUpdate: (Model) -> Unit,
-    onDelete: () -> Unit,
-    onSetCurrent: () -> Unit,
+    onSubmit: (Model, Boolean) -> Unit,
+    onDelete: (() -> Unit)?,
 ) {
-    var displayName by remember { mutableStateOf(model.displayName) }
-    var modelId by remember { mutableStateOf(model.modelId) }
+    var displayName by remember(model.id, isNew) { mutableStateOf(model.displayName) }
+    var modelId by remember(model.id, isNew) { mutableStateOf(model.modelId) }
 
     fun updated(): Model = model.copy(
         displayName = displayName.trim(),
         modelId = modelId.trim(),
     )
 
-    OverlayDialog(show = true, title = "编辑模型", onDismissRequest = onDismiss) {
+    OverlayDialog(
+        show = true,
+        title = if (isNew) "添加模型" else "编辑模型",
+        onDismissRequest = { if (!isSaving) onDismiss() },
+    ) {
         Column {
             TextField(
                 value = displayName,
@@ -780,48 +985,52 @@ private fun ModelEditDialog(
                 style = MiuixTheme.textStyles.footnote2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
+            error?.let { message ->
+                Text(
+                    text = message,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = StatusError,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
         Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(
                     text = "取消",
+                    enabled = !isSaving,
                     modifier = Modifier.weight(1f),
                     onClick = onDismiss,
                 )
-                TextButton(
-                    text = "删除",
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColors(
-                        color = DeleteButtonBg,
-                        textColor = DeleteButtonFg,
-                    ),
-                    onClick = {
-                        onDelete()
-                        onDismiss()
-                    },
-                )
+                onDelete?.let { delete ->
+                    TextButton(
+                        text = "删除",
+                        enabled = !isSaving,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColors(
+                            color = DeleteButtonBg,
+                            textColor = DeleteButtonFg,
+                        ),
+                        onClick = delete,
+                    )
+                }
             }
             Row(
                 modifier = Modifier.padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 TextButton(
-                    text = "设为当前",
+                    text = "保存并设为当前",
+                    enabled = !isSaving,
                     modifier = Modifier.weight(1f),
-                    onClick = {
-                        onUpdate(updated())
-                        onSetCurrent()
-                        onDismiss()
-                    },
+                    onClick = { onSubmit(updated(), true) },
                 )
                 TextButton(
-                    text = "保存",
+                    text = if (isSaving) "保存中..." else "保存",
+                    enabled = !isSaving,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
-                    onClick = {
-                        onUpdate(updated())
-                        onDismiss()
-                    },
+                    onClick = { onSubmit(updated(), false) },
                 )
             }
         }
@@ -865,6 +1074,15 @@ private fun buildUpdatedProvider(
             anthropicVersion = anthropicVersion.trim().ifBlank { AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION },
         )
     }
+}
+
+private fun validateProviderDraft(draft: ProviderConfigDraft): String? {
+    if (draft.name.isBlank()) return "名称不能为空"
+    val uri = runCatching { java.net.URI(draft.baseUrl.trim()) }.getOrNull()
+    if (uri == null || uri.scheme !in setOf("http", "https") || uri.host.isNullOrBlank()) {
+        return "Base URL 必须是有效的 HTTP(S) 地址"
+    }
+    return null
 }
 
 private fun capabilityTags(model: Model): List<String> = buildList {

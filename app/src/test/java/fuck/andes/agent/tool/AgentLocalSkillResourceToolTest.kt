@@ -1,5 +1,6 @@
 package fuck.andes.agent.tool
 
+import fuck.andes.data.db.FuckAndesDatabase
 import android.content.Context
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.skill.SkillIndexService
@@ -27,6 +28,7 @@ class AgentLocalSkillResourceToolTest {
 
     @Before
     fun setUp() {
+        FuckAndesDatabase.closeForTests()
         RuntimeEnvironment.getApplication().deleteDatabase("fuck_andes.db")
     }
 
