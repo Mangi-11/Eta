@@ -89,13 +89,14 @@ class SmoothTextRevealPolicyTest {
     }
 
     @Test
-    fun catchUpStillAdvancesAtMostOneGraphemePerFrame() {
+    fun catchUpAdvancesMultipleGraphemesWithinSpeedCap() {
+        // 240 字/秒的速度上限 × 单帧最大 50ms，一帧最多推进 12 个字素。
         assertEquals(
-            4f,
+            15f,
             advanceSmoothReveal(
                 current = 3f,
                 target = 100f,
-                elapsedSeconds = 1f,
+                elapsedSeconds = 0.05f,
                 totalBacklog = 1_000f,
             ),
             FLOAT_TOLERANCE,

@@ -991,13 +991,18 @@ internal class AgentAppState(
 
     private fun updateAssistantUsage(runId: String, round: Int, usage: TokenUsageUi) {
         if (usage.isEmpty) return
-        replaceAssistantMessage(
-            runId = runId,
-            round = round,
-            content = currentAssistantContent(runId, round),
-            isStreaming = true,
-            usage = usage,
-        )
+        // 只补充 token 用量。不能触碰 isStreaming：Usage 事件紧跟在文本块结束之后，
+        // 若把 isStreaming 改回 true，流式渲染会在流式/静态两种视图间反复切换，整段重渲染。
+        updateMessages(runId) { messages ->
+            val assistantId = assistantMessageId(runId, round)
+            messages.map { message ->
+                if (message is AgentMessageUi && message.id == assistantId) {
+                    message.copy(usage = usage)
+                } else {
+                    message
+                }
+            }
+        }
     }
 
     private fun insertSupplementMessage(runId: String, index: Int, text: String) {
@@ -1017,13 +1022,6 @@ internal class AgentAppState(
         refreshConversationSummaries()
         persistConversations()
     }
-
-    private fun currentAssistantContent(runId: String, round: Int): String =
-        conversationStateForRun(runId).messages
-            .filterIsInstance<AgentMessageUi>()
-            .firstOrNull { it.id == assistantMessageId(runId, round) }
-            ?.content
-            .orEmpty()
 
     private fun replaceAssistantMessage(
         runId: String,

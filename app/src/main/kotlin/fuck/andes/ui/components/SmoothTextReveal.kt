@@ -138,16 +138,12 @@ internal class SmoothTextRevealCoordinator {
         layoutResult: TextLayoutResult,
     ) {
         if (text != record.text) {
-            val boundaries = graphemeBoundaries(text)
-            if (record.text.isNotEmpty() && !text.startsWith(record.text)) {
-                val commonPrefixEnd = commonUtf16PrefixLength(record.text, text)
-                val preservedGraphemes = boundaries.indexOfLast { it <= commonPrefixEnd }
-                    .coerceAtLeast(0)
-                record.progress = minOf(record.progress, preservedGraphemes.toFloat())
-            }
+            // 流式文本只追加不修改，但行内语法闭合（**粗体**、`code`、链接折叠等）会让
+            // 渲染文本丢掉标记字符而变短或错位。此时进度只能保持单调前进：一旦回退，
+            // 已显现的文字会消失并重新打字，表现为输出反复闪烁。
             record.text = text
-            record.boundaries = boundaries
-            record.targetCount = boundaries.lastIndex.toFloat()
+            record.boundaries = graphemeBoundaries(text)
+            record.targetCount = record.boundaries.lastIndex.toFloat()
             record.progress = record.progress.coerceAtMost(record.targetCount)
         }
         if (record.layoutResult !== layoutResult) {
@@ -448,8 +444,9 @@ internal fun advanceSmoothReveal(
     totalBacklog: Float,
 ): Float {
     if (current >= target) return target
-    val advance = (smoothRevealSpeed(totalBacklog) * elapsedSeconds)
-        .coerceIn(0f, MAX_GRAPHEME_ADVANCE_PER_FRAME)
+    // 帧间隔已在调用侧限制在 MAX_FRAME_DELTA_SECONDS 内，单帧推进量由自适应速度决定。
+    // 不能再加每帧 1 字素的硬上限，否则积压时追赶速度失效，输出会稳定滞后于模型。
+    val advance = (smoothRevealSpeed(totalBacklog) * elapsedSeconds).coerceAtLeast(0f)
     return (current + advance).coerceAtMost(target)
 }
 
@@ -458,4 +455,3 @@ private const val MAX_FRAME_DELTA_SECONDS = 0.05f
 private const val BASE_REVEAL_GRAPHEMES_PER_SECOND = 48f
 private const val MAX_REVEAL_GRAPHEMES_PER_SECOND = 240f
 private const val TARGET_CATCH_UP_SECONDS = 0.20f
-private const val MAX_GRAPHEME_ADVANCE_PER_FRAME = 1f

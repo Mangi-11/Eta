@@ -587,16 +587,20 @@ private fun StreamingMarkdown(
                     markdownState.append(target.content.substring(parsedLength, batchEnd))
                     parsedLength = batchEnd
 
-                    // 先给 Compose 一次重组与排版机会，再等待这一小批文字真正显现完。
-                    // 因此服务端即使突然返回大段文本，也不会提前撑高整条消息。
+                    // 每小批之后让出一拍，给 Compose 一次重组与排版机会。
+                    // 消息高度由显现进度驱动，无需等显现完成，解析可以持续领先，
+                    // 否则供给被显现速度串行卡住，快速模型下输出会明显滞后、卡顿。
                     delay(StreamingMarkdownLayoutSettleMillis)
-                    if (!revealCoordinator.drained.value) {
-                        revealCoordinator.drained.filter { it }.first()
-                    }
                     continue
                 }
 
-                fullyRevealed = !target.isStreaming
+                if (!target.isStreaming) {
+                    // 流已结束：等剩余文字显现完再切到静态渲染，避免结尾整段跳出。
+                    if (!revealCoordinator.drained.value) {
+                        revealCoordinator.drained.filter { it }.first()
+                    }
+                    fullyRevealed = true
+                }
                 target = appendTargets.receive()
                 fullyRevealed = false
             }
