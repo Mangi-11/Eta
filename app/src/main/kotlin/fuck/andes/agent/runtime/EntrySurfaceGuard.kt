@@ -17,6 +17,7 @@ internal class EntrySurfaceGuard private constructor(
 ) {
     private val triggered = AtomicBoolean(false)
     private val dismissalCompleted = AtomicBoolean(false)
+    // 无障碍窗口可能早于退场 Surface 消失；必须由关闭后的首张截图消费，不能在关闭确认时清除。
     private val screenshotExclusionPending = AtomicBoolean(targetPackageName != null)
 
     val wasTriggered: Boolean
@@ -44,7 +45,6 @@ internal class EntrySurfaceGuard private constructor(
                     )
                     return false
                 }
-                screenshotExclusionPending.set(false)
                 dismissalCompleted.set(true)
                 logger.debug {
                     "Agent runtime entry surface already gone before foreground operation " +
@@ -69,7 +69,6 @@ internal class EntrySurfaceGuard private constructor(
         val completed = if (packageName == null) actionResult.ok else windowGone
 
         if (completed) {
-            screenshotExclusionPending.set(false)
             dismissalCompleted.set(true)
             logger.debug {
                 "Agent runtime entry surface dismissed before foreground operation " +
@@ -85,9 +84,13 @@ internal class EntrySurfaceGuard private constructor(
         return completed
     }
 
-    fun currentScreenshotExcludedPackages(): Set<String> {
+    fun consumeScreenshotExcludedPackages(): Set<String> {
         val packageName = targetPackageName ?: return emptySet()
-        return if (screenshotExclusionPending.get()) setOf(packageName) else emptySet()
+        return if (screenshotExclusionPending.compareAndSet(true, false)) {
+            setOf(packageName)
+        } else {
+            emptySet()
+        }
     }
 
     companion object {

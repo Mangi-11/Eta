@@ -21,7 +21,7 @@ class EntrySurfaceGuardTest {
     }
 
     @Test
-    fun breenoGuardOwnsAOneShotScreenshotExclusion() {
+    fun breenoGuardKeepsExclusionUntilTheFirstScreenshotConsumesIt() {
         val guard = EntrySurfaceGuard.from(
             handoff = handoff(source = "breeno", dismiss = true),
             logger = NoOpLogger,
@@ -29,8 +29,8 @@ class EntrySurfaceGuardTest {
 
         assertNotNull(guard)
         assertEquals("com.heytap.speechassist", guard?.targetPackageName)
-        assertEquals(setOf("com.heytap.speechassist"), guard?.currentScreenshotExcludedPackages())
-        assertEquals(setOf("com.heytap.speechassist"), guard?.currentScreenshotExcludedPackages())
+        assertEquals(setOf("com.heytap.speechassist"), guard?.consumeScreenshotExcludedPackages())
+        assertTrue(guard?.consumeScreenshotExcludedPackages().orEmpty().isEmpty())
     }
 
     @Test
@@ -42,7 +42,7 @@ class EntrySurfaceGuardTest {
 
         assertNotNull(guard)
         assertNull(guard?.targetPackageName)
-        assertTrue(guard?.currentScreenshotExcludedPackages().orEmpty().isEmpty())
+        assertTrue(guard?.consumeScreenshotExcludedPackages().orEmpty().isEmpty())
     }
 
     @Test

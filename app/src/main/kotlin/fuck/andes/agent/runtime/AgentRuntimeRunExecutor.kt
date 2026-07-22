@@ -92,7 +92,7 @@ internal class AgentRuntimeRunExecutor(
                     request.config.terminalTools && currentPermissions().terminalTools
                 },
                 screenshotExcludedPackages = {
-                    entrySurfaceGuard?.currentScreenshotExcludedPackages().orEmpty()
+                    entrySurfaceGuard?.consumeScreenshotExcludedPackages().orEmpty()
                 },
                 beforeToolExecution = { toolName ->
                     if (!AgentOverlayVisibilityPolicy.isForegroundOperationTool(toolName)) {
