@@ -277,12 +277,18 @@ private fun AgentChatMessages(
         }
     }
 
+    // 流式跟随只应响应「尾部内容真的变了」：新条目（bottomItemIndex）或尾部条目内容
+    // （tailEntry，逐 token 变化时 equals 变化）。绝不能把 isAtBottom 列为重启 key——
+    // 视口内任何高度动画（如展开思考块）都会让 canScrollForward 逐帧翻转，形成
+    // 「高度增长 → 离开底部 → scrollToItem 硬跳回底部」的逐帧反馈环，表现为整体剧烈抖动。
+    val tailEntry = timelineEntries.lastOrNull()
+
     LaunchedEffect(
         bottomPadding,
         bottomItemIndex,
+        tailEntry,
         keepBottomAnchored,
         isUserDragging,
-        isAtBottom,
     ) {
         if (keepBottomAnchored && !isUserDragging) {
             scrollState.scrollToItem(bottomItemIndex)
