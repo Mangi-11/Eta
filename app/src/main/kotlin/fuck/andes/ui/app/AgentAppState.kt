@@ -53,6 +53,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -63,6 +64,8 @@ internal class AgentAppState(
     private val appContext = context.applicationContext
     private val runConversationIds = mutableMapOf<String, String>()
     private val runMessageProjector = AgentRunMessageProjector()
+    private val runEventCoalescer = AgentRunEventCoalescer()
+    private val runEventFlushJobs = mutableMapOf<String, Job>()
     private var currentRunId: String? = null
     private var currentRunJob: Job? = null
     private val persistenceLock = Any()
@@ -402,7 +405,7 @@ internal class AgentAppState(
                         payload = conversationId,
                     ),
                 ),
-                onEvent = { event -> applyRunEvent(runId, event) },
+                onEvent = { event -> enqueueRunEvent(runId, event) },
             )
             withContext(Dispatchers.Main) {
                 applyRunResult(runId, result, acknowledgeRuntimeResult = true)
@@ -439,6 +442,7 @@ internal class AgentAppState(
         currentRunJob?.cancel()
         currentRunJob = null
         currentRunId = null
+        flushPendingRunDelta(runId)
         scope.launch(Dispatchers.IO) {
             AgentRuntimeClient(appContext, AndroidAgentLogger).cancelRun(runId)
         }
@@ -510,6 +514,37 @@ internal class AgentAppState(
         }
     }
 
+    private fun enqueueRunEvent(runId: String, event: AgentEvent) {
+        if (event is AgentEvent.AssistantBlockDelta) {
+            if (event.kind == AgentEvent.AssistantBlockKind.TOOL_CALL || event.delta.isEmpty()) return
+
+            runEventCoalescer.append(runId, event)?.let { ready ->
+                applyRunEvent(runId, ready)
+            }
+            scheduleRunDeltaFlush(runId)
+            return
+        }
+
+        flushPendingRunDelta(runId)
+        applyRunEvent(runId, event)
+    }
+
+    private fun scheduleRunDeltaFlush(runId: String) {
+        if (runEventFlushJobs[runId]?.isActive == true) return
+        runEventFlushJobs[runId] = scope.launch {
+            delay(STREAM_UI_UPDATE_INTERVAL_MS)
+            runEventFlushJobs.remove(runId)
+            flushPendingRunDelta(runId)
+        }
+    }
+
+    private fun flushPendingRunDelta(runId: String) {
+        runEventFlushJobs.remove(runId)?.cancel()
+        runEventCoalescer.flush(runId)?.let { event ->
+            applyRunEvent(runId, event)
+        }
+    }
+
     private fun applyRunEvent(runId: String, event: AgentEvent) {
         when (event) {
             is AgentEvent.AssistantBlockStart -> {
@@ -521,7 +556,7 @@ internal class AgentAppState(
             }
 
             is AgentEvent.AssistantBlockDelta -> {
-                updateRunTrace(runId) { messages ->
+                updateMessages(runId) { messages ->
                     when (event.kind) {
                         AgentEvent.AssistantBlockKind.TEXT ->
                             runMessageProjector.appendTextDelta(runId, event.round, event.delta, messages)
@@ -612,6 +647,7 @@ internal class AgentAppState(
         result: AgentRuntimeWire.RunResult,
         acknowledgeRuntimeResult: Boolean = false,
     ) {
+        flushPendingRunDelta(runId)
         if (runId == currentRunId) {
             currentRunId = null
             currentRunJob = null
@@ -888,6 +924,7 @@ internal class AgentAppState(
         const val HANDOFF_SOURCE = "agent_ui"
         const val MAX_TITLE_CHARS = 24
         const val MAX_PREVIEW_CHARS = 48
+        const val STREAM_UI_UPDATE_INTERVAL_MS = 50L
 
         fun emptyChatState(thinkingEnabled: Boolean): AgentChatHomeUiState =
             AgentChatHomeUiState(

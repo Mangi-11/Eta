@@ -11,6 +11,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -149,7 +150,6 @@ fun AgentChatBody(
         pendingImages = pendingImages,
         showEmptySuggestions = !isKeyboardVisible,
         keepBottomAnchored = keepBottomAnchored,
-        isKeyboardVisible = isKeyboardVisible,
         onBottomAnchorChanged = { keepBottomAnchored = it },
         onInputChange = onInputChange,
         onThinkingChange = onThinkingChange,
@@ -180,7 +180,6 @@ private fun AgentChatScaffold(
     pendingImages: List<PendingImageUi>,
     showEmptySuggestions: Boolean,
     keepBottomAnchored: Boolean,
-    isKeyboardVisible: Boolean,
     onBottomAnchorChanged: (Boolean) -> Unit,
     onInputChange: (String) -> Unit,
     onThinkingChange: (Boolean) -> Unit,
@@ -233,7 +232,6 @@ private fun AgentChatScaffold(
                 scrollState = scrollState,
                 bottomPadding = bottomPadding,
                 keepBottomAnchored = keepBottomAnchored,
-                isKeyboardVisible = isKeyboardVisible,
                 onBottomAnchorChanged = onBottomAnchorChanged,
                 onSuggestionClick = onSuggestionClick,
                 onRunTraceClick = onRunTraceClick,
@@ -251,7 +249,6 @@ private fun AgentChatMessages(
     scrollState: LazyListState,
     bottomPadding: Dp,
     keepBottomAnchored: Boolean,
-    isKeyboardVisible: Boolean,
     onBottomAnchorChanged: (Boolean) -> Unit,
     onSuggestionClick: (String) -> Unit,
     onRunTraceClick: () -> Unit,
@@ -259,32 +256,36 @@ private fun AgentChatMessages(
     currentBrowserMessageId: String?,
 ) {
     val timelineEntries = remember(visibleMessages) { visibleMessages.toTimelineEntries() }
-    val density = LocalDensity.current
-    val bottomPaddingPx = with(density) { bottomPadding.roundToPx() }
     val bottomItemIndex = timelineEntries.size
-    val bottomAnchorKey = visibleMessages.lastOrNull()?.bottomAnchorKey()
-    val isAtBottom by remember(scrollState, bottomPaddingPx) {
-        derivedStateOf { scrollState.isScrolledToBottom(bottomPaddingPx) }
+    val isUserDragging by scrollState.interactionSource.collectIsDraggedAsState()
+    val isAtBottom by remember(scrollState) {
+        derivedStateOf { !scrollState.canScrollForward }
     }
 
     LaunchedEffect(
-        isKeyboardVisible,
+        isUserDragging,
         isAtBottom,
-        scrollState.isScrollInProgress,
+        keepBottomAnchored,
     ) {
-        if (!isKeyboardVisible || scrollState.isScrollInProgress || isAtBottom) {
-            onBottomAnchorChanged(isAtBottom)
+        val next = resolveKeepBottomAnchored(
+            current = keepBottomAnchored,
+            isUserDragging = isUserDragging,
+            isAtBottom = isAtBottom,
+        )
+        if (next != keepBottomAnchored) {
+            onBottomAnchorChanged(next)
         }
     }
 
     LaunchedEffect(
         bottomPadding,
-        visibleMessages.size,
-        bottomAnchorKey,
+        bottomItemIndex,
         keepBottomAnchored,
+        isUserDragging,
+        isAtBottom,
     ) {
-        if (keepBottomAnchored) {
-            scrollState.requestScrollToItem(bottomItemIndex)
+        if (keepBottomAnchored && !isUserDragging) {
+            scrollState.scrollToItem(bottomItemIndex)
         }
     }
 
@@ -436,24 +437,14 @@ private fun AgentChatBottomBar(
 
 private const val ChatBottomSentinelKey = "agent-chat-bottom-sentinel"
 
-private fun LazyListState.isScrolledToBottom(bottomPaddingPx: Int): Boolean {
-    val layoutInfo = layoutInfo
-    if (layoutInfo.totalItemsCount == 0) return true
-    val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull() ?: return false
-    val lastItemIndex = layoutInfo.totalItemsCount - 1
-    val visibleBottom = layoutInfo.viewportEndOffset - bottomPaddingPx
-    return lastVisibleItem.index >= lastItemIndex &&
-        lastVisibleItem.offset + lastVisibleItem.size <= visibleBottom + 2
-}
-
-private fun AgentChatMessageUi.bottomAnchorKey(): String = when (this) {
-    is UserMessageUi -> "$id:${content.hashCode()}:${images.size}"
-    is AgentMessageUi -> "$id:${content.hashCode()}:$isStreaming:${usage.hashCode()}"
-    is ThinkingMessageUi -> "$id:${content.hashCode()}:$isStreaming:$elapsedSeconds:$collapsed"
-    is RunTraceMessageUi -> "$id:${capabilities.size}"
-    is ToolSummaryMessageUi -> "$id:${tools.hashCode()}"
-    is ToolActivityMessageUi -> "$id:$toolName:$status:${argumentsSummary.hashCode()}:${resultSummary.hashCode()}:$imageCount"
-    is SuggestionChipsMessageUi -> "$id:${prompts.hashCode()}"
+internal fun resolveKeepBottomAnchored(
+    current: Boolean,
+    isUserDragging: Boolean,
+    isAtBottom: Boolean,
+): Boolean = when {
+    isUserDragging -> isAtBottom
+    isAtBottom -> true
+    else -> current
 }
 
 @Composable
