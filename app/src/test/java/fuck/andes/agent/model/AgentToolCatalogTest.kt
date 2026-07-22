@@ -27,7 +27,11 @@ class AgentToolCatalogTest {
         )
 
         assertEquals(base.size, baseTools.size)
-        assertTrue(base.containsAll(setOf("observe_screen", "skills_list", "skills_read")))
+        assertTrue(
+            base.containsAll(
+                setOf("observe_screen", "skills_list", "skills_read", "skills_read_resource"),
+            ),
+        )
         assertFalse("browser_use" in base)
         assertFalse("terminal" in base)
 

@@ -1,7 +1,9 @@
 package fuck.andes.ui.app
 
 import android.content.ComponentName
+import android.content.ContentResolver
 import android.content.Context
+import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.runtime.getValue
@@ -38,6 +40,9 @@ import fuck.andes.ui.model.PermissionHealthUiState
 import fuck.andes.ui.model.PermissionStatusUi
 import fuck.andes.ui.model.PendingImageUi
 import fuck.andes.ui.model.SkillItemUi
+import fuck.andes.ui.model.SkillNoticeUi
+import fuck.andes.ui.model.SkillReplacementUi
+import fuck.andes.ui.model.canDeleteUserSkill
 import fuck.andes.ui.model.SystemEnhanceItemUi
 import fuck.andes.ui.model.SystemEnhanceSectionUi
 import fuck.andes.ui.model.SystemEnhanceStatusUi
@@ -60,8 +65,10 @@ import kotlinx.coroutines.withContext
 internal class AgentAppState(
     context: Context,
     private val scope: CoroutineScope,
+    skillZipImportGateway: SkillZipImportGateway? = null,
 ) {
     private val appContext = context.applicationContext
+    private val skillZipImportGateway = skillZipImportGateway ?: CoreSkillZipImportGateway(appContext)
     private val runConversationIds = mutableMapOf<String, String>()
     private val runMessageProjector = AgentRunMessageProjector()
     private val runEventCoalescer = AgentRunEventCoalescer()
@@ -73,6 +80,9 @@ internal class AgentAppState(
     private val runtimeRecoveryInProgress = AtomicBoolean(false)
     private val defaultThinkingEnabled = remoteBooleanForUi(Prefs.Keys.AGENT_THINKING_ENABLED)
     private val initialConversations = AgentConversationStore.load(appContext, defaultThinkingEnabled)
+    private var skillNoticeSequence = 0L
+    private var pendingSkillZipUri: Uri? = null
+    private var pendingSkillZipSha256: String? = null
 
     private var selectedConversationId: String = initialConversations.selectedConversationId
     private var conversationsById: Map<String, AgentChatHomeUiState> = initialConversations.conversationsById
@@ -465,8 +475,22 @@ internal class AgentAppState(
 
     fun refreshSkills() {
         scope.launch(Dispatchers.IO) {
-            val indexService = SkillRuntime.createIndexService(appContext)
-            val entries = indexService.listSkillsForManagement(forceRefresh = true)
+            val entries = runCatching {
+                SkillRuntime.createIndexService(appContext)
+                    .listSkillsForManagement(forceRefresh = true)
+            }.getOrElse {
+                withContext(Dispatchers.Main) {
+                    skillsState = skillsState.copy(
+                        isLoading = false,
+                        notice = skillsState.notice ?: newSkillNotice(
+                            title = "无法读取技能",
+                            message = "技能列表暂时不可用，请稍后重试。",
+                            isError = true,
+                        ),
+                    )
+                }
+                return@launch
+            }
             val items = entries.map { entry ->
                 val capabilities = buildList {
                     if (entry.hasScripts) add("scripts")
@@ -485,32 +509,166 @@ internal class AgentAppState(
                 )
             }
             withContext(Dispatchers.Main) {
-                skillsState = AgentSkillsUiState(skills = items, isLoading = false)
+                skillsState = skillsState.copy(skills = items, isLoading = false)
             }
         }
     }
 
     fun toggleSkill(skillId: String, enabled: Boolean) {
+        if (skillsState.isImporting || skillsState.busySkillId != null) return
+        skillsState = skillsState.copy(busySkillId = skillId)
         scope.launch(Dispatchers.IO) {
-            val indexService = SkillRuntime.createIndexService(appContext)
-            indexService.setSkillEnabled(skillId, enabled)
+            val succeeded = runCatching {
+                SkillRuntime.createIndexService(appContext).setSkillEnabled(skillId, enabled)
+            }.isSuccess
+            withContext(Dispatchers.Main) {
+                skillsState = skillsState.copy(
+                    busySkillId = null,
+                    notice = if (succeeded) {
+                        skillsState.notice
+                    } else {
+                        newSkillNotice(
+                            title = "无法更新技能",
+                            message = "技能开关未发生变化，请稍后重试。",
+                            isError = true,
+                        )
+                    },
+                )
+            }
             refreshSkills()
         }
     }
 
     fun deleteSkill(skillId: String) {
+        if (skillsState.isImporting || skillsState.busySkillId != null) return
+        val skill = skillsState.skills.firstOrNull { it.id == skillId }
+            ?.takeIf { it.canDeleteUserSkill }
+            ?: return
+        val skillName = skill.name.safeSkillDisplayName()
+        skillsState = skillsState.copy(busySkillId = skillId, notice = null)
         scope.launch(Dispatchers.IO) {
-            val indexService = SkillRuntime.createIndexService(appContext)
-            indexService.deleteSkill(skillId)
+            val succeeded = runCatching {
+                SkillRuntime.createIndexService(appContext).deleteSkill(skillId)
+            }.getOrDefault(false)
+            withContext(Dispatchers.Main) {
+                skillsState = skillsState.copy(
+                    busySkillId = null,
+                    notice = if (succeeded) {
+                        newSkillNotice(
+                            title = "技能已删除",
+                            message = "「$skillName」已从 Eta 删除。",
+                            isError = false,
+                        )
+                    } else {
+                        newSkillNotice(
+                            title = "无法删除技能",
+                            message = "删除未完成。Eta 会在刷新技能列表时尝试恢复，请确认状态后再重试。",
+                            isError = true,
+                        )
+                    },
+                )
+            }
             refreshSkills()
         }
     }
 
-    fun reinstallBuiltin(skillId: String) {
+    fun importSkillZip(uriValue: String) {
+        if (skillsState.isImporting || skillsState.busySkillId != null) return
+        val uri = runCatching { Uri.parse(uriValue) }.getOrNull()
+            ?.takeIf { it.scheme == ContentResolver.SCHEME_CONTENT }
+        if (uri == null) {
+            skillsState = skillsState.copy(
+                notice = newSkillNotice(
+                    title = "无法读取技能包",
+                    message = "请选择由系统文件选择器提供的 ZIP 文件。",
+                    isError = true,
+                ),
+            )
+            return
+        }
+        pendingSkillZipUri = uri
+        pendingSkillZipSha256 = null
+        launchSkillZipImport(
+            uri = uri,
+            replaceUserSkill = false,
+            expectedReplacementId = null,
+            expectedArchiveSha256 = null,
+        )
+    }
+
+    fun confirmSkillZipReplacement() {
+        if (skillsState.isImporting || skillsState.busySkillId != null) return
+        val uri = pendingSkillZipUri
+        if (uri == null) {
+            pendingSkillZipSha256 = null
+            skillsState = skillsState.copy(
+                replacement = null,
+                notice = newSkillNotice(
+                    title = "无法继续安装",
+                    message = "技能包已不可用，请重新选择 ZIP 文件。",
+                    isError = true,
+                ),
+            )
+            return
+        }
+        val replacementId = skillsState.replacement?.id
+        val archiveSha256 = pendingSkillZipSha256
+        if (replacementId == null || archiveSha256 == null) {
+            pendingSkillZipUri = null
+            pendingSkillZipSha256 = null
+            skillsState = skillsState.copy(
+                replacement = null,
+                notice = newSkillNotice(
+                    title = "无法继续安装",
+                    message = "替换确认已失效，请重新选择 ZIP 文件。",
+                    isError = true,
+                ),
+            )
+            return
+        }
+        launchSkillZipImport(
+            uri = uri,
+            replaceUserSkill = true,
+            expectedReplacementId = replacementId,
+            expectedArchiveSha256 = archiveSha256,
+        )
+    }
+
+    fun cancelSkillZipReplacement() {
+        if (skillsState.isImporting) return
+        pendingSkillZipUri = null
+        pendingSkillZipSha256 = null
+        skillsState = skillsState.copy(replacement = null)
+    }
+
+    private fun launchSkillZipImport(
+        uri: Uri,
+        replaceUserSkill: Boolean,
+        expectedReplacementId: String?,
+        expectedArchiveSha256: String?,
+    ) {
+        skillsState = skillsState.copy(
+            isImporting = true,
+            replacement = null,
+            notice = null,
+        )
         scope.launch(Dispatchers.IO) {
-            val indexService = SkillRuntime.createIndexService(appContext)
-            indexService.installBuiltinSkill(skillId)
-            refreshSkills()
+            val outcome = runCatching {
+                skillZipImportGateway.installLocalZip(
+                    openStream = {
+                        appContext.contentResolver.openInputStream(uri)
+                            ?: error("无法打开所选内容")
+                    },
+                    replaceUserSkill = replaceUserSkill,
+                    expectedReplacementId = expectedReplacementId,
+                    expectedArchiveSha256 = expectedArchiveSha256,
+                )
+            }.getOrElse {
+                SkillZipImportOutcome.Failure(SkillZipImportOutcome.FailureCode.READ_FAILED)
+            }
+            withContext(Dispatchers.Main) {
+                applySkillZipImportOutcome(outcome)
+            }
         }
     }
 
@@ -544,6 +702,154 @@ internal class AgentAppState(
             applyRunEvent(runId, event)
         }
     }
+
+    private fun applySkillZipImportOutcome(outcome: SkillZipImportOutcome) {
+        when (outcome) {
+            is SkillZipImportOutcome.Success -> {
+                val installed = outcome.skills.singleOrNull()
+                pendingSkillZipUri = null
+                pendingSkillZipSha256 = null
+                skillsState = skillsState.copy(
+                    isImporting = false,
+                    replacement = null,
+                    notice = if (installed == null) {
+                        skillZipFailureNotice(SkillZipImportOutcome.FailureCode.MULTIPLE_SKILLS)
+                    } else {
+                        newSkillNotice(
+                            title = "技能已安装",
+                            message = "「${installed.name.safeSkillDisplayName()}」已启用，将从下一轮对话开始可用。",
+                            isError = false,
+                        )
+                    },
+                )
+                if (installed != null) refreshSkills()
+            }
+
+            is SkillZipImportOutcome.Conflict -> {
+                val conflict = outcome.skills.singleOrNull()
+                val archiveSha256 = outcome.archiveSha256
+                if (
+                    conflict != null &&
+                    conflict.source == "user" &&
+                    conflict.replaceAllowed &&
+                    archiveSha256 != null
+                ) {
+                    val existingName = skillsState.skills
+                        .firstOrNull { it.id == conflict.id && it.installed }
+                        ?.name
+                        .orEmpty()
+                        .ifBlank { conflict.name }
+                    pendingSkillZipSha256 = archiveSha256
+                    skillsState = skillsState.copy(
+                        isImporting = false,
+                        replacement = SkillReplacementUi(
+                            id = conflict.id,
+                            name = existingName.safeSkillDisplayName(),
+                        ),
+                        notice = null,
+                    )
+                } else {
+                    pendingSkillZipUri = null
+                    pendingSkillZipSha256 = null
+                    skillsState = skillsState.copy(
+                        isImporting = false,
+                        replacement = null,
+                        notice = skillZipFailureNotice(
+                            if (conflict?.source == "builtin") {
+                                SkillZipImportOutcome.FailureCode.BUILTIN_CONFLICT
+                            } else if (conflict != null && conflict.replaceAllowed) {
+                                SkillZipImportOutcome.FailureCode.PACKAGE_CHANGED
+                            } else if (conflict != null && !conflict.replaceAllowed) {
+                                SkillZipImportOutcome.FailureCode.TARGET_NOT_REPLACEABLE
+                            } else {
+                                SkillZipImportOutcome.FailureCode.MULTIPLE_SKILLS
+                            },
+                        ),
+                    )
+                }
+            }
+
+            is SkillZipImportOutcome.Failure -> {
+                pendingSkillZipUri = null
+                pendingSkillZipSha256 = null
+                skillsState = skillsState.copy(
+                    isImporting = false,
+                    replacement = null,
+                    notice = skillZipFailureNotice(outcome.code),
+                )
+                if (outcome.code == SkillZipImportOutcome.FailureCode.RECOVERY_REQUIRED) {
+                    refreshSkills()
+                }
+            }
+        }
+    }
+
+    private fun skillZipFailureNotice(code: SkillZipImportOutcome.FailureCode): SkillNoticeUi {
+        val message = when (code) {
+            SkillZipImportOutcome.FailureCode.INVALID_ARCHIVE -> "所选文件不是有效的 ZIP 技能包。"
+            SkillZipImportOutcome.FailureCode.ARCHIVE_LIMIT_EXCEEDED -> "技能包超过安全大小或文件数量限制。"
+            SkillZipImportOutcome.FailureCode.UNSAFE_ARCHIVE -> "技能包包含不安全的文件路径，未进行安装。"
+            SkillZipImportOutcome.FailureCode.NO_SKILL -> "ZIP 中没有找到 SKILL.md。"
+            SkillZipImportOutcome.FailureCode.MULTIPLE_SKILLS -> "本地 ZIP 必须只包含一个技能。"
+            SkillZipImportOutcome.FailureCode.INVALID_SKILL -> "SKILL.md 缺少必要信息或格式无效。"
+            SkillZipImportOutcome.FailureCode.PACKAGE_CHANGED -> "ZIP 内容已变化，请重新选择并确认要替换的技能。"
+            SkillZipImportOutcome.FailureCode.BUILTIN_CONFLICT -> "同名内置技能受保护，不能由 ZIP 替换。"
+            SkillZipImportOutcome.FailureCode.TARGET_NOT_REPLACEABLE ->
+                "同名目标不是可安全替换的用户技能，现有文件未被覆盖。"
+            SkillZipImportOutcome.FailureCode.READ_FAILED -> "无法读取所选文件，请重新选择。"
+            SkillZipImportOutcome.FailureCode.STORAGE_FAILED -> "无法保存技能，原有技能已自动恢复。"
+            SkillZipImportOutcome.FailureCode.RECOVERY_REQUIRED ->
+                "安装失败且自动恢复未完整完成。Eta 已在应用私有目录保留恢复备份，请先检查技能列表并停止继续安装。"
+        }
+        return newSkillNotice(
+            title = "无法安装技能",
+            message = message,
+            isError = true,
+        )
+    }
+
+    fun reinstallBuiltin(skillId: String) {
+        if (skillsState.isImporting || skillsState.busySkillId != null) return
+        skillsState = skillsState.copy(busySkillId = skillId)
+        scope.launch(Dispatchers.IO) {
+            val succeeded = runCatching {
+                SkillRuntime.createIndexService(appContext).installBuiltinSkill(skillId)
+            }.isSuccess
+            withContext(Dispatchers.Main) {
+                skillsState = skillsState.copy(
+                    busySkillId = null,
+                    notice = if (succeeded) {
+                        skillsState.notice
+                    } else {
+                        newSkillNotice(
+                            title = "无法恢复技能",
+                            message = "内置技能未发生变化，请稍后重试。",
+                            isError = true,
+                        )
+                    },
+                )
+            }
+            if (succeeded) refreshSkills()
+        }
+    }
+
+    fun dismissSkillNotice() {
+        skillsState = skillsState.copy(notice = null)
+    }
+
+    private fun newSkillNotice(
+        title: String,
+        message: String,
+        isError: Boolean,
+    ): SkillNoticeUi = SkillNoticeUi(
+        id = ++skillNoticeSequence,
+        title = title,
+        message = message,
+        isError = isError,
+    )
+
+    private fun String.safeSkillDisplayName(): String =
+        lineSequence().firstOrNull().orEmpty().trim().ifBlank { "未命名技能" }.take(80)
 
     private fun applyRunEvent(runId: String, event: AgentEvent) {
         when (event) {

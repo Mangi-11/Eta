@@ -9,12 +9,23 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.LinkOption
 
 private const val BUILTIN_SKILL_MANIFEST_ASSET = "builtin_skills/manifest.json"
-private const val BUILTIN_SOURCE = "builtin"
-private const val USER_SOURCE = "user"
+internal const val BUILTIN_SKILL_SOURCE = "builtin"
+internal const val USER_SKILL_SOURCE = "user"
+private const val BUILTIN_SOURCE = BUILTIN_SKILL_SOURCE
+private const val USER_SOURCE = USER_SKILL_SOURCE
 private const val INSTALL_STATE_INSTALLED = "installed"
 private const val INSTALL_STATE_REMOVED_BUILTIN = "removed_builtin"
+
+internal fun isSafeBuiltinSkillInstallation(targetDir: File): Boolean {
+    val skillFile = File(targetDir, "SKILL.md")
+    return !Files.isSymbolicLink(targetDir.toPath()) &&
+        !Files.isSymbolicLink(skillFile.toPath()) &&
+        skillFile.isFile
+}
 
 /** 内置技能 manifest 条目。 */
 private data class BuiltinSkillAsset(
@@ -45,20 +56,20 @@ private class SkillRegistryStore(
     private val appContext = context.applicationContext
 
     fun read(): LinkedHashMap<String, SkillRegistryEntry> {
-        return runCatching {
-            runBlocking(Dispatchers.IO) {
-                FuckAndesDatabase.get(appContext)
-                    .skillDao()
-                    .registryEntries()
-                    .associateTo(linkedMapOf()) { entity ->
-                        entity.skillId to SkillRegistryEntry(
-                            enabled = entity.enabled,
-                            source = entity.source.ifBlank { USER_SOURCE },
-                            installState = entity.installState.ifBlank { INSTALL_STATE_INSTALLED },
-                        )
-                    }
+        return runCatching { readStrict() }.getOrElse { linkedMapOf() }
+    }
+
+    fun readStrict(): LinkedHashMap<String, SkillRegistryEntry> = runBlocking(Dispatchers.IO) {
+        FuckAndesDatabase.get(appContext)
+            .skillDao()
+            .registryEntries()
+            .associateTo(linkedMapOf()) { entity ->
+                entity.skillId to SkillRegistryEntry(
+                    enabled = entity.enabled,
+                    source = entity.source.ifBlank { USER_SOURCE },
+                    installState = entity.installState.ifBlank { INSTALL_STATE_INSTALLED },
+                )
             }
-        }.getOrElse { linkedMapOf() }
     }
 
     fun write(entries: Map<String, SkillRegistryEntry>) {
@@ -144,8 +155,8 @@ private class BuiltinSkillAssetStore(
             val entry = registry[builtin.id]
             if (entry?.installState == INSTALL_STATE_REMOVED_BUILTIN) return@forEach
             if (entry?.source == USER_SOURCE) return@forEach
-            val targetSkillFile = File(File(skillsRoot, builtin.id), "SKILL.md")
-            if (!targetSkillFile.isFile) {
+            val targetDir = File(skillsRoot, builtin.id)
+            if (!isSafeBuiltinSkillInstallation(targetDir)) {
                 installBuiltinInternal(builtin)
             }
             if (entry?.source == BUILTIN_SOURCE && entry.installState == INSTALL_STATE_INSTALLED) {
@@ -173,7 +184,11 @@ private class BuiltinSkillAssetStore(
 
     private fun installBuiltinInternal(builtin: BuiltinSkillAsset) {
         val targetDir = File(skillsRoot, builtin.id)
-        if (targetDir.exists()) targetDir.deleteRecursively()
+        if (Files.exists(targetDir.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+            if (!deleteSkillPathWithoutFollowingLinks(skillsRoot, targetDir)) {
+                error("无法安全清理内置 Skill 目录：${builtin.id}")
+            }
+        }
         copyAssetRecursively(context.assets, builtin.assetPath, targetDir)
     }
 
@@ -211,20 +226,34 @@ class SkillIndexService(
     @Volatile
     private var cachedManagementEntries: List<SkillIndexEntry>? = null
 
+    /**
+     * 所有可读写索引的入口都先在同一把跨进程锁内完成待处理文件事务与 Room 快照恢复。
+     * 仅能读取文件、不具备 registry 恢复能力的 Loader 会由锁实现保持 fail-closed。
+     */
+    internal fun <T> withMutationLock(block: () -> T): T = SkillMutationLock.withLock(
+        skillsRoot = skillsRoot,
+        recoveryHandler = ::restoreRecoveredRegistry,
+        block = block,
+    )
+
     fun seedBuiltinSkillsIfNeeded() {
-        if (builtinsSeeded) return
-        synchronized(indexLock) {
-            seedBuiltinSkillsLocked()
+        withMutationLock {
+            if (builtinsSeeded) return@withMutationLock
+            synchronized(indexLock) {
+                seedBuiltinSkillsLocked()
+            }
         }
     }
 
     fun listSkillsForManagement(forceRefresh: Boolean = false): List<SkillIndexEntry> =
-        synchronized(indexLock) {
-            if (forceRefresh) builtinsSeeded = false
-            seedBuiltinSkillsLocked()
-            if (forceRefresh) cachedManagementEntries = null
-            cachedManagementEntries ?: buildManagementEntries().also {
-                cachedManagementEntries = it
+        withMutationLock {
+            synchronized(indexLock) {
+                if (forceRefresh) builtinsSeeded = false
+                seedBuiltinSkillsLocked()
+                if (forceRefresh) cachedManagementEntries = null
+                cachedManagementEntries ?: buildManagementEntries().also {
+                    cachedManagementEntries = it
+                }
             }
         }
 
@@ -242,53 +271,178 @@ class SkillIndexService(
     }
 
     fun setSkillEnabled(skillId: String, enabled: Boolean): SkillIndexEntry {
-        synchronized(indexLock) {
-            val entry = listSkillsForManagement().firstOrNull { it.id == skillId && it.installed }
-                ?: throw IllegalArgumentException("未找到已安装 skill：$skillId")
-            registryStore.set(
-                entry.id,
-                SkillRegistryEntry(enabled = enabled, source = entry.source, installState = INSTALL_STATE_INSTALLED),
-            )
-            invalidateIndexLocked()
-            return entry.copy(enabled = enabled)
+        return withMutationLock {
+            synchronized(indexLock) {
+                val entry = listSkillsForManagement().firstOrNull { it.id == skillId && it.installed }
+                    ?: throw IllegalArgumentException("未找到已安装 skill：$skillId")
+                registryStore.set(
+                    entry.id,
+                    SkillRegistryEntry(enabled = enabled, source = entry.source, installState = INSTALL_STATE_INSTALLED),
+                )
+                invalidateIndexLocked()
+                entry.copy(enabled = enabled)
+            }
         }
     }
 
     fun deleteSkill(skillId: String): Boolean {
-        synchronized(indexLock) {
-            val entry = listSkillsForManagement().firstOrNull { it.id == skillId && it.installed } ?: return false
-            val targetDir = File(entry.rootPath)
-            if (entry.source == BUILTIN_SOURCE) {
-                if (targetDir.exists()) {
-                    targetDir.deleteRecursively()
-                    if (targetDir.exists()) return false
+        return withMutationLock {
+            synchronized(indexLock) {
+                val entry = listSkillsForManagement().firstOrNull { it.id == skillId && it.installed }
+                    ?: return@synchronized false
+                val targetDir = managedSkillDirectory(entry) ?: return@synchronized false
+                val registrySnapshot = captureRegistryRecoverySnapshots(listOf(entry.id)).single()
+                val operation = runCatching {
+                    createSkillRecoveryOperationDirectory(skillsRoot)
+                }.getOrElse { return@synchronized false }
+                val workRoot = skillInstallerWorkRoot(skillsRoot)
+                val backupRoot = File(operation, "backup")
+                if (!backupRoot.mkdir()) {
+                    deleteSkillPathWithoutFollowingLinks(workRoot, operation)
+                    return@synchronized false
                 }
-                registryStore.set(
-                    entry.id,
-                    SkillRegistryEntry(
-                        enabled = false,
-                        source = BUILTIN_SOURCE,
-                        installState = INSTALL_STATE_REMOVED_BUILTIN,
-                    ),
-                )
-                invalidateIndexLocked()
-                return true
+                val backupDir = File(backupRoot, entry.id)
+                var registryMutationStarted = false
+                try {
+                    val journal = PendingSkillRecoveryJournal.begin(
+                        skillsRoot = skillsRoot,
+                        operationDirectory = operation,
+                        records = listOf(
+                            SkillRecoveryRecord(
+                                id = entry.id,
+                                originalTargetExisted = true,
+                                registrySnapshot = registrySnapshot,
+                            )
+                        ),
+                    )
+                    moveSkillDirectoryAtomically(targetDir, backupDir)
+                    journal.markBackupCompleted(entry.id)
+                    registryMutationStarted = true
+                    if (entry.source == BUILTIN_SOURCE) {
+                        registryStore.set(
+                            entry.id,
+                            SkillRegistryEntry(
+                                enabled = false,
+                                source = BUILTIN_SOURCE,
+                                installState = INSTALL_STATE_REMOVED_BUILTIN,
+                            ),
+                        )
+                    } else {
+                        registryStore.remove(entry.id)
+                    }
+                    invalidateIndexLocked()
+                    journal.clear()
+                    true
+                } catch (error: Exception) {
+                    val journalExists = Files.exists(
+                        File(operation, JOURNAL_FILE_NAME).toPath(),
+                        LinkOption.NOFOLLOW_LINKS,
+                    )
+                    val rollbackComplete = !journalExists || runCatching {
+                        val recovered = recoverPendingSkillOperations(skillsRoot)
+                        restoreRecoveredRegistry(recovered)
+                        completeRecoveredSkillOperations(skillsRoot, recovered)
+                    }.isSuccess
+                    if (!rollbackComplete) {
+                        throw SkillRecoveryRequiredException(
+                            "Skill 删除失败，且文件或 registry 尚未完整恢复",
+                            error,
+                        )
+                    }
+                    invalidateIndexLocked()
+                    if (registryMutationStarted) throw error
+                    false
+                } finally {
+                    if (!Files.exists(
+                            File(operation, JOURNAL_FILE_NAME).toPath(),
+                            LinkOption.NOFOLLOW_LINKS,
+                        )
+                    ) {
+                        // 成功删除时备份内可能含历史 symlink，必须只 unlink，不能递归跟随。
+                        deleteSkillPathWithoutFollowingLinks(workRoot, operation)
+                    }
+                }
             }
-            val deleted = !targetDir.exists() || targetDir.deleteRecursively()
-            registryStore.remove(entry.id)
-            invalidateIndexLocked()
-            return deleted
         }
     }
 
     fun installBuiltinSkill(skillId: String): SkillIndexEntry {
-        synchronized(indexLock) {
-            builtinStore.installBuiltin(skillId, registryStore)
-            invalidateIndexLocked()
-            return findInstalledSkill(skillId)
-                ?: throw IllegalStateException("安装内置 skill 后索引失败：$skillId")
+        return withMutationLock {
+            synchronized(indexLock) {
+                builtinStore.installBuiltin(skillId, registryStore)
+                invalidateIndexLocked()
+                findInstalledSkill(skillId)
+                    ?: throw IllegalStateException("安装内置 skill 后索引失败：$skillId")
+            }
         }
     }
+
+    /** 文件提交成功后，以单次 Room 事务登记用户 Skill，并同步清除索引缓存。 */
+    internal fun registerInstalledUserSkills(skillIds: List<String>) {
+        withMutationLock {
+            synchronized(indexLock) {
+                require(skillIds.none { builtinStore.findBuiltin(it) != null }) {
+                    "不能把内置 Skill 登记为用户 Skill"
+                }
+                val registry = registryStore.readStrict()
+                skillIds.distinct().forEach { skillId ->
+                    registry[skillId] = SkillRegistryEntry(
+                        enabled = true,
+                        source = USER_SOURCE,
+                        installState = INSTALL_STATE_INSTALLED,
+                    )
+                }
+                registryStore.write(registry)
+                invalidateIndexLocked()
+            }
+        }
+    }
+
+    /** 在正式目录发生任何移动前，持久化事务涉及 id 的完整旧 registry 状态。 */
+    internal fun captureRegistryRecoverySnapshots(
+        skillIds: List<String>,
+    ): List<SkillRegistryRecoverySnapshot> = synchronized(indexLock) {
+        val registry = registryStore.readStrict()
+        skillIds.distinct().map { skillId ->
+            val entry = registry[skillId]
+            if (entry == null) {
+                SkillRegistryRecoverySnapshot(skillId = skillId, entryExisted = false)
+            } else {
+                SkillRegistryRecoverySnapshot(
+                    skillId = skillId,
+                    entryExisted = true,
+                    enabled = entry.enabled,
+                    source = entry.source,
+                    installState = entry.installState,
+                )
+            }
+        }
+    }
+
+    /** 文件恢复完成后，以单次 Room 事务还原全部旧快照；失败时调用方保留 journal。 */
+    internal fun restoreRecoveredRegistry(recovered: List<RecoveredSkillOperation>) {
+        if (recovered.isEmpty()) return
+        synchronized(indexLock) {
+            val registry = registryStore.readStrict()
+            recovered.flatMap { it.records }.forEach { record ->
+                val snapshot = record.registrySnapshot
+                if (snapshot.entryExisted) {
+                    registry[snapshot.skillId] = SkillRegistryEntry(
+                        enabled = snapshot.enabled,
+                        source = snapshot.source,
+                        installState = snapshot.installState,
+                    )
+                } else {
+                    registry.remove(snapshot.skillId)
+                }
+            }
+            registryStore.write(registry)
+            invalidateIndexLocked()
+        }
+    }
+
+    internal fun isBuiltinSkillId(skillId: String): Boolean =
+        synchronized(indexLock) { builtinStore.findBuiltin(skillId) != null }
 
     private fun seedBuiltinSkillsLocked() {
         if (builtinsSeeded) return
@@ -326,9 +480,16 @@ class SkillIndexService(
         builtinAssets: Map<String, BuiltinSkillAsset>,
     ): List<SkillIndexEntry> {
         if (!skillsRoot.exists()) return emptyList()
+        val canonicalRoot = skillsRoot.canonicalFile.toPath()
         return skillsRoot.walkTopDown()
-            .onEnter { dir -> dir.name != ".git" }
-            .filter { it.isFile && it.name == "SKILL.md" }
+            .onEnter { dir ->
+                dir.name != ".git" &&
+                    !Files.isSymbolicLink(dir.toPath()) &&
+                    runCatching { dir.canonicalFile.toPath().startsWith(canonicalRoot) }.getOrDefault(false)
+            }
+            .filter {
+                it.isFile && it.name == "SKILL.md" && !Files.isSymbolicLink(it.toPath())
+            }
             .mapNotNull { skillFile ->
                 buildInstalledEntry(skillFile.parentFile ?: return@mapNotNull null, registry, builtinAssets)
             }
@@ -341,8 +502,12 @@ class SkillIndexService(
         registry: Map<String, SkillRegistryEntry>,
         builtinAssets: Map<String, BuiltinSkillAsset>,
     ): SkillIndexEntry? {
+        val canonicalRoot = skillsRoot.canonicalFile.toPath()
         val canonicalDir = skillDir.canonicalFile
+        val canonicalPath = canonicalDir.toPath()
+        if (!canonicalPath.startsWith(canonicalRoot) || canonicalPath == canonicalRoot) return null
         val skillFile = File(canonicalDir, "SKILL.md")
+        if (Files.isSymbolicLink(skillFile.toPath())) return null
         val parsed = SkillParser.parseSkillFile(skillFile) ?: return null
         val frontmatter = parsed.frontmatter
         val id = SkillParser.sanitizeSkillId(canonicalDir.name, frontmatter["name"])
@@ -394,6 +559,17 @@ class SkillIndexService(
         BUILTIN_SOURCE -> 0
         else -> 2
     }
+
+    private fun managedSkillDirectory(entry: SkillIndexEntry): File? {
+        val canonicalRoot = skillsRoot.canonicalFile.toPath()
+        val requested = File(entry.rootPath)
+        if (Files.isSymbolicLink(requested.toPath())) return null
+        val canonical = runCatching { requested.canonicalFile }.getOrNull() ?: return null
+        val candidatePath = canonical.toPath()
+        return canonical.takeIf {
+            candidatePath.startsWith(canonicalRoot) && candidatePath != canonicalRoot && it.isDirectory
+        }
+    }
 }
 
 // =====================================================================================
@@ -401,20 +577,31 @@ class SkillIndexService(
 // =====================================================================================
 
 class SkillLoader(private val skillsRoot: File) {
+    private val canonicalSkillsRoot = skillsRoot.canonicalFile
+    private val resourceReader = SkillResourceReader(skillsRoot)
 
-    fun load(entry: SkillIndexEntry, triggerReason: String): ResolvedSkillContext? {
+    fun load(entry: SkillIndexEntry, triggerReason: String): ResolvedSkillContext? =
+        SkillMutationLock.withLock(skillsRoot) {
+            loadAfterRecovery(entry, triggerReason)
+        }
+
+    private fun loadAfterRecovery(
+        entry: SkillIndexEntry,
+        triggerReason: String,
+    ): ResolvedSkillContext? {
         if (!entry.installed) return null
-        val skillDir = File(entry.rootPath)
-        val parsed = SkillParser.parseSkillFile(File(skillDir, "SKILL.md")) ?: return null
-        val referencesDir = File(skillDir, "references")
-        val loadedReferences = if (referencesDir.isDirectory) {
-            referencesDir.listFiles()
-                ?.filter { it.isFile }
-                ?.map { it.absolutePath }
-                ?.sorted()
-                ?: emptyList()
-        } else {
-            emptyList()
+        val requestedRoot = File(entry.rootPath)
+        if (Files.isSymbolicLink(requestedRoot.toPath())) return null
+        val skillDir = runCatching { requestedRoot.canonicalFile }.getOrNull() ?: return null
+        val rootPath = canonicalSkillsRoot.toPath()
+        val skillPath = skillDir.toPath()
+        if (!skillPath.startsWith(rootPath) || skillPath == rootPath) return null
+        val skillFile = File(skillDir, "SKILL.md")
+        if (Files.isSymbolicLink(skillFile.toPath())) return null
+        val parsed = SkillParser.parseSkillFile(skillFile) ?: return null
+        val loadedReferences = when (val resources = resourceReader.listResources(entry, "references")) {
+            is SkillResourceListResult.Success -> resources.resources.map { it.relativePath }
+            is SkillResourceListResult.Failure -> emptyList()
         }
         return ResolvedSkillContext(
             skillId = entry.id,
@@ -476,4 +663,13 @@ object SkillRuntime {
 
     fun createLoader(context: Context): SkillLoader =
         SkillLoader(skillsRoot(context))
+
+    fun createPackageInstaller(context: Context): SkillPackageInstaller =
+        SkillPackageInstaller(
+            skillsRoot = skillsRoot(context),
+            indexService = createIndexService(context),
+        )
+
+    fun createResourceReader(context: Context): SkillResourceReader =
+        SkillResourceReader(skillsRoot(context))
 }

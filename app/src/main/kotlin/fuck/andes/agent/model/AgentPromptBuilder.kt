@@ -92,7 +92,7 @@ internal object AgentPromptBuilder {
             appendLine()
             append(
                 "只把上面的索引当作目录；需要某个 skill 的具体步骤、脚本或引用时，先调用 skills_read 读取对应 SKILL.md，" +
-                    "不要凭索引臆测正文细节。"
+                    "正文引用其他文本资源时再调用 skills_read_resource；不要为了读取 Skill 资源而开启终端，也不要凭索引臆测正文细节。"
             )
         }
         return systemMessage(body)

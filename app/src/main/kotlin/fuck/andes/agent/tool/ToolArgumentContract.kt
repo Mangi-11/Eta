@@ -13,6 +13,7 @@ internal object ToolArgumentContract {
         STRING("string"),
         INTEGER("integer"),
         BOOLEAN("boolean"),
+        STRING_ARRAY("array of strings"),
     }
 
     private data class Field(
@@ -22,6 +23,13 @@ internal object ToolArgumentContract {
         val values: Set<String> = emptySet(),
         val minimum: Int? = null,
         val maximum: Int? = null,
+        val minimumItems: Int? = null,
+        val maximumItems: Int? = null,
+        val nonBlank: Boolean = false,
+        val maximumLength: Int? = null,
+        val maximumItemLength: Int? = null,
+        val maximumTotalCharacters: Int? = null,
+        val uniqueItems: Boolean = false,
     )
 
     private val contracts = mapOf(
@@ -86,6 +94,62 @@ internal object ToolArgumentContract {
                 values = setOf("notifications", "quick_settings"),
             ),
         ),
+        "skills_inspect_github" to listOf(
+            Field(
+                "repository",
+                Kind.STRING,
+                required = true,
+                nonBlank = true,
+                maximumLength = 500,
+            ),
+            Field("ref", Kind.STRING, nonBlank = true, maximumLength = 200),
+            Field("path", Kind.STRING, nonBlank = true, maximumLength = 1_000),
+        ),
+        "skills_read_resource" to listOf(
+            Field(
+                "skillId",
+                Kind.STRING,
+                required = true,
+                nonBlank = true,
+                maximumLength = 500,
+            ),
+            Field(
+                "relativePath",
+                Kind.STRING,
+                required = true,
+                nonBlank = true,
+                maximumLength = 1_000,
+            ),
+            Field("maxChars", Kind.INTEGER, minimum = 512, maximum = 64_000),
+        ),
+        "skills_install_from_github" to listOf(
+            Field(
+                "repository",
+                Kind.STRING,
+                required = true,
+                nonBlank = true,
+                maximumLength = 500,
+            ),
+            Field("ref", Kind.STRING, nonBlank = true, maximumLength = 200),
+            Field(
+                "paths",
+                Kind.STRING_ARRAY,
+                required = true,
+                minimumItems = 1,
+                maximumItems = 20,
+                nonBlank = true,
+                maximumItemLength = 1_000,
+                maximumTotalCharacters = 10_000,
+                uniqueItems = true,
+            ),
+            Field("replaceExisting", Kind.BOOLEAN),
+            Field(
+                "expectedReplacementId",
+                Kind.STRING,
+                nonBlank = true,
+                maximumLength = 500,
+            ),
+        ),
     )
 
     fun validate(toolName: String, args: JSONObject): Issue? {
@@ -108,6 +172,50 @@ internal object ToolArgumentContract {
                 }
                 if (field.maximum != null && number > field.maximum) {
                     return Issue(field.name, "参数 ${field.name} 不能大于 ${field.maximum}")
+                }
+            }
+            if (field.kind == Kind.STRING && field.nonBlank && (value as String).isBlank()) {
+                return Issue(field.name, "参数 ${field.name} 不能为空")
+            }
+            if (
+                field.kind == Kind.STRING &&
+                field.maximumLength != null &&
+                (value as String).length > field.maximumLength
+            ) {
+                return Issue(field.name, "参数 ${field.name} 不能超过 ${field.maximumLength} 个字符")
+            }
+            if (field.kind == Kind.STRING_ARRAY) {
+                val array = value as org.json.JSONArray
+                if (field.minimumItems != null && array.length() < field.minimumItems) {
+                    return Issue(field.name, "参数 ${field.name} 至少需要 ${field.minimumItems} 项")
+                }
+                if (field.maximumItems != null && array.length() > field.maximumItems) {
+                    return Issue(field.name, "参数 ${field.name} 最多支持 ${field.maximumItems} 项")
+                }
+                if (field.nonBlank && (0 until array.length()).any { array.getString(it).isBlank() }) {
+                    return Issue(field.name, "参数 ${field.name} 不能包含空字符串")
+                }
+                val items = (0 until array.length()).map(array::getString)
+                if (
+                    field.maximumItemLength != null &&
+                    items.any { it.length > field.maximumItemLength }
+                ) {
+                    return Issue(
+                        field.name,
+                        "参数 ${field.name} 的单项不能超过 ${field.maximumItemLength} 个字符",
+                    )
+                }
+                if (
+                    field.maximumTotalCharacters != null &&
+                    items.sumOf(String::length) > field.maximumTotalCharacters
+                ) {
+                    return Issue(
+                        field.name,
+                        "参数 ${field.name} 的总长度不能超过 ${field.maximumTotalCharacters} 个字符",
+                    )
+                }
+                if (field.uniqueItems && items.distinct().size != items.size) {
+                    return Issue(field.name, "参数 ${field.name} 不能包含重复项")
                 }
             }
             if (
@@ -137,6 +245,16 @@ internal object ToolArgumentContract {
         if (toolName == "paste_text" && args.optString("text").isEmpty()) {
             return Issue("text", "paste_text 的 text 不能为空")
         }
+        if (
+            toolName == "skills_install_from_github" &&
+            args.optBoolean("replaceExisting", false) &&
+            (!args.has("expectedReplacementId") || args.isNull("expectedReplacementId"))
+        ) {
+            return Issue(
+                "expectedReplacementId",
+                "replaceExisting=true 时必须提供上一轮冲突的 expectedReplacementId",
+            )
+        }
         return null
     }
 
@@ -147,6 +265,8 @@ internal object ToolArgumentContract {
             number.isFinite() && number % 1.0 == 0.0 &&
                 number >= Int.MIN_VALUE.toDouble() && number <= Int.MAX_VALUE.toDouble()
         }
+        Kind.STRING_ARRAY -> value is org.json.JSONArray &&
+            (0 until value.length()).all { value.opt(it) is String }
     }
 
     private fun coordinateFields(vararg names: String): List<Field> =

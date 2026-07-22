@@ -15,13 +15,26 @@ import fuck.andes.agent.overlay.GestureIndicator
 import fuck.andes.agent.runtime.AgentAppContext
 import fuck.andes.agent.skill.SkillCompatibilityChecker
 import fuck.andes.agent.skill.SkillIndexService
+import fuck.andes.agent.skill.SkillInstallIntentGate
+import fuck.andes.agent.skill.SkillInstallErrorCode
+import fuck.andes.agent.skill.SkillInstallResult
 import fuck.andes.agent.skill.SkillLoader
+import fuck.andes.agent.skill.SkillPackageInstaller
+import fuck.andes.agent.skill.SkillParser
+import fuck.andes.agent.skill.SkillResourceReader
+import fuck.andes.agent.skill.SkillResourceReadResult
+import fuck.andes.agent.skill.GitHubSkillRepositoryParser
+import fuck.andes.agent.skill.GitHubSkillInspection
+import fuck.andes.agent.skill.GitHubSkillRepository
+import fuck.andes.agent.skill.GitHubSkillSourceException
+import fuck.andes.agent.skill.PublicGitHubSkillSource
 import fuck.andes.agent.terminal.AlpineEnvironmentPaths
 import fuck.andes.agent.terminal.RootShellTerminalController
 import fuck.andes.config.Prefs
 import fuck.andes.core.AgentLogger
 import fuck.andes.core.HookSupport
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONArray
@@ -43,6 +56,12 @@ internal class AgentLocalTools(
     },
     private val skillIndexService: SkillIndexService? = null,
     private val skillLoader: SkillLoader? = null,
+    private val skillResourceReader: SkillResourceReader? = null,
+    private val topLevelUserPrompt: String = "",
+    private val githubSkillSource: PublicGitHubSkillSource? = null,
+    private val skillPackageInstaller: SkillPackageInstaller? = null,
+    runAvailableSkillIds: Set<String> = emptySet(),
+    private val pendingSkillConflict: PendingSkillConflictCapability? = null,
 ) : AgentModelClient.ToolExecutor, AutoCloseable {
 
     private val deviceController = RootShellDeviceController(logger, screenshotExcludedPackages)
@@ -52,12 +71,20 @@ internal class AgentLocalTools(
     )
     private val publishedObservation = AtomicReference(PublishedObservation())
     private val closed = AtomicBoolean(false)
+    private val runAvailableSkillIds = runAvailableSkillIds
+        .mapTo(mutableSetOf(), SkillParser::normalizeSkillLookup)
+    private val mutatedSkillIds = ConcurrentHashMap.newKeySet<String>()
+    private val skillTreeMutationUncertain = AtomicBoolean(false)
+    private val inspectedGitHubSnapshots =
+        ConcurrentHashMap<String, GitHubInspectionSnapshot>()
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         publishedObservation.set(PublishedObservation())
         AgentBrowserSession.interruptAgentAction(browserRunId)
         terminalController.interruptAll()
+        githubSkillSource?.close()
+        inspectedGitHubSnapshots.clear()
     }
 
     override fun execute(toolCall: AgentModelClient.ToolCall): AgentModelClient.ToolResult =
@@ -115,6 +142,10 @@ internal class AgentLocalTools(
                 "list_directory" -> textResult(terminalTool { listDirectory(args) })
                 "skills_list" -> textResult(skillsList(args))
                 "skills_read" -> textResult(skillsRead(args))
+                "skills_read_resource" -> textResult(skillsReadResource(args))
+                "skills_list_curated" -> textResult(skillsListCurated())
+                "skills_inspect_github" -> textResult(skillsInspectGitHub(args))
+                "skills_install_from_github" -> textResult(skillsInstallFromGitHub(args))
                 else -> textResult(
                     errorResult(
                         code = "UNKNOWN_TOOL",
@@ -638,12 +669,14 @@ internal class AgentLocalTools(
     // ==================== Skills tools ====================
 
     private fun skillsList(args: JSONObject): String {
+        if (skillTreeMutationUncertain.get()) return nextTurnRequired("Skill 树")
         val indexService = skillIndexService
             ?: return errorResult("SKILLS_UNAVAILABLE", "技能服务未初始化")
         val query = args.optString("query").trim().lowercase()
         val limit = args.optInt("limit", 50).coerceIn(1, 200)
         val entries = indexService.listInstalledSkills()
             .filter { entry -> SkillCompatibilityChecker.evaluate(entry).available }
+            .filter { entry -> isVisibleInCurrentRun(entry.id) }
             .filter { entry ->
                 if (query.isBlank()) true
                 else listOf(entry.id, entry.name, entry.description, entry.skillFilePath, entry.rootPath)
@@ -678,6 +711,7 @@ internal class AgentLocalTools(
     }
 
     private fun skillsRead(args: JSONObject): String {
+        if (skillTreeMutationUncertain.get()) return nextTurnRequired("Skill 树")
         val indexService = skillIndexService
             ?: return errorResult("SKILLS_UNAVAILABLE", "技能服务未初始化")
         val loader = skillLoader
@@ -687,6 +721,7 @@ internal class AgentLocalTools(
         val maxChars = args.optInt("maxChars", 16_000).coerceIn(512, 64_000)
         val entry = indexService.findInstalledSkill(skillId)
             ?: return errorResult("NOT_FOUND", "未找到 skill：$skillId")
+        if (!isVisibleInCurrentRun(entry.id)) return nextTurnRequired(entry.id)
         val compat = SkillCompatibilityChecker.evaluate(entry)
         if (!compat.available) return errorResult("INCOMPATIBLE", compat.reason ?: "当前环境不可用")
         val resolved = loader.load(entry, "agent 主动读取 skill")
@@ -715,6 +750,406 @@ internal class AgentLocalTools(
             .toString()
     }
 
+    private fun skillsReadResource(args: JSONObject): String {
+        if (skillTreeMutationUncertain.get()) return nextTurnRequired("Skill 树")
+        val indexService = skillIndexService
+            ?: return errorResult("SKILLS_UNAVAILABLE", "技能服务未初始化")
+        val reader = skillResourceReader
+            ?: return errorResult("SKILLS_UNAVAILABLE", "Skill 资源读取器未初始化")
+        val skillId = args.getString("skillId").trim()
+        val relativePath = args.getString("relativePath").trim()
+        val maxChars = args.optInt("maxChars", 16_000).coerceIn(512, 64_000)
+        val entry = indexService.findInstalledSkill(skillId)
+            ?: return errorResult("NOT_FOUND", "未找到已启用 Skill：$skillId")
+        if (!isVisibleInCurrentRun(entry.id)) return nextTurnRequired(entry.id)
+        val compatibility = SkillCompatibilityChecker.evaluate(entry)
+        if (!compatibility.available) {
+            return errorResult(
+                "INCOMPATIBLE",
+                compatibility.reason ?: "当前环境不可用",
+            )
+        }
+        return when (val result = reader.readText(entry, relativePath)) {
+            is SkillResourceReadResult.Success -> {
+                val truncated = result.text.length > maxChars
+                val visibleText = if (truncated) {
+                    result.text.take(maxChars).let { prefix ->
+                        if (prefix.lastOrNull()?.isHighSurrogate() == true) {
+                            prefix.dropLast(1)
+                        } else {
+                            prefix
+                        }
+                    }
+                } else {
+                    result.text
+                }
+                JSONObject()
+                    .put("ok", true)
+                    .put("skillId", entry.id)
+                    .put("relativePath", result.relativePath)
+                    .put("text", visibleText)
+                    .put("truncated", truncated)
+                    .put("totalChars", result.text.length)
+                    .toString()
+            }
+            is SkillResourceReadResult.Failure -> errorResult(
+                code = result.error.code.name,
+                message = result.error.message,
+            )
+        }
+    }
+
+    private fun skillsListCurated(): String {
+        requireSkillDiscoveryAuthorization()?.let { return it }
+        val source = githubSkillSource
+            ?: return errorResult("SKILL_INSTALLER_UNAVAILABLE", "GitHub Skill 服务未初始化")
+        return skillSourceResult {
+            val inspection = source.listCurated()
+            rememberInspection(
+                repository = GitHubSkillRepositoryParser.parse(inspection.repository),
+                inspection = inspection,
+                rememberDefault = true,
+            )
+            inspectionResult(inspection)
+        }
+    }
+
+    private fun skillsInspectGitHub(args: JSONObject): String {
+        requireSkillDiscoveryAuthorization()?.let { return it }
+        val source = githubSkillSource
+            ?: return errorResult("SKILL_INSTALLER_UNAVAILABLE", "GitHub Skill 服务未初始化")
+        return skillSourceResult {
+            val repository = GitHubSkillRepositoryParser.resolve(
+                repository = args.getString("repository"),
+                explicitRef = args.optString("ref").takeIf { args.has("ref") },
+                explicitPath = args.optString("path").takeIf { args.has("path") },
+            )
+            val inspection = source.inspect(repository)
+            rememberInspection(
+                repository = repository,
+                inspection = inspection,
+                rememberDefault = repository.ref == null,
+            )
+            inspectionResult(inspection)
+        }
+    }
+
+    private fun skillsInstallFromGitHub(args: JSONObject): String {
+        val authorization = SkillInstallIntentGate.evaluate(topLevelUserPrompt)
+        if (!authorization.installAllowed) {
+            return errorResult(
+                "USER_AUTHORIZATION_REQUIRED",
+                "当前用户输入没有明确授权安装或更新 Skill",
+            )
+        }
+        val replaceExisting = args.optBoolean("replaceExisting", false)
+        if (replaceExisting && !authorization.replaceAllowed) {
+            return errorResult(
+                "SKILL_REPLACE_CONFIRMATION_REQUIRED",
+                "替换已有用户 Skill 需要当前用户输入明确确认覆盖",
+            )
+        }
+        return skillSourceResult {
+            val requestedRepository = GitHubSkillRepositoryParser.resolve(
+                repository = args.getString("repository"),
+                explicitRef = args.optString("ref").takeIf { args.has("ref") },
+                explicitPath = null,
+            )
+            val pathsJson = args.getJSONArray("paths")
+            val selectedPaths = (0 until pathsJson.length()).map { index ->
+                GitHubSkillRepositoryParser.normalizeRelativePath(pathsJson.getString(index))
+            }
+            if (replaceExisting && selectedPaths.size != 1) {
+                return@skillSourceResult errorResult(
+                    "SKILL_REPLACE_SCOPE_TOO_BROAD",
+                    "一次确认只能替换一个 Skill 路径；请逐个确认并重试",
+                )
+            }
+            val expectedReplacementId = args.optString("expectedReplacementId").trim()
+            val repository = if (replaceExisting) {
+                validateReplacementReplay(
+                    requestedRepository = requestedRepository,
+                    selectedPaths = selectedPaths,
+                    expectedReplacementId = expectedReplacementId,
+                )?.let { return@skillSourceResult it }
+                requestedRepository.copy(ref = pendingSkillConflict!!.commitSha)
+            } else {
+                val snapshot = inspectedGitHubSnapshots[
+                    inspectionKey(requestedRepository.slug, requestedRepository.ref)
+                ] ?: return@skillSourceResult errorResult(
+                    "SKILL_INSPECTION_REQUIRED",
+                    "安装前必须在本轮先检查同一仓库与 ref 的 Skill 候选",
+                )
+                val invalidSelection = selectedPaths.firstOrNull {
+                    it !in snapshot.candidatesByPath
+                }
+                if (invalidSelection != null) {
+                    return@skillSourceResult errorResult(
+                        "INVALID_SKILL_SELECTION",
+                        "所选路径不在本轮检查返回的候选中：$invalidSelection",
+                    )
+                }
+                val snapshotPrefix = snapshot.prefix
+                if (
+                    snapshotPrefix != null &&
+                    selectedPaths.any {
+                        it != snapshotPrefix && !it.startsWith("$snapshotPrefix/")
+                    }
+                ) {
+                    return@skillSourceResult errorResult(
+                        "INVALID_SKILL_SELECTION",
+                        "所选路径不在本轮检查的目录范围内",
+                    )
+                }
+                SkillCandidateSelectionGate.validate(
+                    prompt = topLevelUserPrompt,
+                    candidates = snapshot.candidatesByPath.map { (path, name) ->
+                        SkillCandidateSelectionGate.Candidate(path = path, name = name)
+                    },
+                    selectedPaths = selectedPaths,
+                )?.let { denial ->
+                    return@skillSourceResult errorResult(
+                        "SKILL_SELECTION_CONFIRMATION_REQUIRED",
+                        denial.message,
+                    )
+                }
+                requestedRepository.copy(ref = snapshot.commitSha)
+            }
+            val prefix = requestedRepository.path?.takeUnless { it == "." }
+            if (
+                prefix != null &&
+                selectedPaths.any { it != prefix && !it.startsWith("$prefix/") }
+            ) {
+                return@skillSourceResult errorResult(
+                    "INVALID_SKILL_SELECTION",
+                    "所选路径不在 GitHub URL 指定目录内",
+                )
+            }
+            val source = githubSkillSource
+                ?: return@skillSourceResult errorResult(
+                    "SKILL_INSTALLER_UNAVAILABLE",
+                    "GitHub Skill 服务未初始化",
+                )
+            val installer = skillPackageInstaller
+                ?: return@skillSourceResult errorResult(
+                    "SKILL_INSTALLER_UNAVAILABLE",
+                    "Skill 安装器未初始化",
+                )
+            source.downloadArchive(repository).use { archive ->
+                if (closed.get()) {
+                    return@skillSourceResult errorResult(
+                        "SKILL_INSTALL_CANCELLED",
+                        "Skill 安装已取消，未提交文件",
+                    )
+                }
+                val result = installer.installRepositoryZip(
+                    openStream = { archive.file.inputStream() },
+                    selectedPaths = selectedPaths,
+                    replaceUserSkills = replaceExisting,
+                    expectedReplacementIds = if (replaceExisting) {
+                        setOf(expectedReplacementId)
+                    } else {
+                        emptySet()
+                    },
+                    isCancelled = closed::get,
+                )
+                installResult(
+                    result = result,
+                    repository = archive.repository,
+                    ref = archive.ref,
+                    commitSha = archive.commitSha,
+                    selectedPaths = selectedPaths,
+                )
+            }
+        }
+    }
+
+    private fun requireSkillDiscoveryAuthorization(): String? {
+        val authorization = SkillInstallIntentGate.evaluate(topLevelUserPrompt)
+        return if (authorization.discoveryAllowed) {
+            null
+        } else {
+            errorResult(
+                "USER_AUTHORIZATION_REQUIRED",
+                "当前用户输入没有请求浏览或安装 Skill",
+            )
+        }
+    }
+
+    private fun inspectionResult(
+        inspection: fuck.andes.agent.skill.GitHubSkillInspection,
+    ): String {
+        val installedIds = skillIndexService
+            ?.listSkillsForManagement()
+            .orEmpty()
+            .filter { it.installed }
+            .mapTo(mutableSetOf()) { SkillParser.normalizeSkillLookup(it.id) }
+        val items = JSONArray()
+        inspection.candidates.forEach { candidate ->
+            items.put(
+                JSONObject()
+                    .put("name", candidate.name)
+                    .put("path", candidate.path)
+                    .put(
+                        "installed",
+                        SkillParser.normalizeSkillLookup(candidate.name) in installedIds,
+                    ),
+            )
+        }
+        return JSONObject()
+            .put("ok", true)
+            .put("repository", inspection.repository)
+            .put("ref", inspection.ref)
+            .put("commitSha", inspection.commitSha)
+            .put("prefix", inspection.prefix ?: JSONObject.NULL)
+            .put("count", inspection.candidates.size)
+            .put("items", items)
+            .toString()
+    }
+
+    private fun rememberInspection(
+        repository: GitHubSkillRepository,
+        inspection: GitHubSkillInspection,
+        rememberDefault: Boolean,
+    ) {
+        val snapshot = GitHubInspectionSnapshot(
+            commitSha = inspection.commitSha,
+            prefix = inspection.prefix,
+            candidatesByPath = inspection.candidates.associate { it.path to it.name },
+        )
+        inspectedGitHubSnapshots[inspectionKey(repository.slug, repository.ref)] = snapshot
+        inspectedGitHubSnapshots[inspectionKey(repository.slug, inspection.ref)] = snapshot
+        inspectedGitHubSnapshots[inspectionKey(repository.slug, inspection.commitSha)] = snapshot
+        if (rememberDefault) {
+            inspectedGitHubSnapshots[inspectionKey(repository.slug, null)] = snapshot
+        }
+    }
+
+    private fun inspectionKey(repository: String, ref: String?): String =
+        "${repository.lowercase(Locale.ROOT)}@${ref.orEmpty()}"
+
+    private fun validateReplacementReplay(
+        requestedRepository: GitHubSkillRepository,
+        selectedPaths: List<String>,
+        expectedReplacementId: String,
+    ): String? {
+        val pending = pendingSkillConflict ?: return errorResult(
+            "SKILL_REPLACE_CAPABILITY_REQUIRED",
+            "没有可供本轮确认的上一轮 Skill 冲突",
+        )
+        if (
+            !requestedRepository.slug.equals(pending.repository, ignoreCase = true) ||
+            requestedRepository.ref != pending.commitSha ||
+            selectedPaths.singleOrNull() != pending.selectedPath ||
+            expectedReplacementId != pending.expectedReplacementId
+        ) {
+            return errorResult(
+                "SKILL_REPLACE_CAPABILITY_MISMATCH",
+                "覆盖参数必须精确重放上一轮冲突的仓库、commitSha、路径与 Skill ID",
+            )
+        }
+        val explicitTarget = explicitReplacementTarget(topLevelUserPrompt)
+        if (
+            explicitTarget != null &&
+            SkillParser.normalizeSkillLookup(explicitTarget) !in setOf(
+                SkillParser.normalizeSkillLookup(pending.expectedReplacementId),
+                SkillParser.normalizeSkillLookup(pending.expectedReplacementName),
+            )
+        ) {
+            return errorResult(
+                "SKILL_REPLACE_CONFIRMATION_MISMATCH",
+                "当前确认指定的 Skill 与上一轮唯一冲突不一致",
+            )
+        }
+        return null
+    }
+
+    private fun explicitReplacementTarget(prompt: String): String? {
+        val match = EXPLICIT_REPLACEMENT_TARGETS.firstNotNullOfOrNull { it.find(prompt) }
+            ?: return null
+        val candidate = match.groupValues[1].trim().trim('`', '"', '\'', '「', '」', '『', '』')
+        return candidate.takeUnless {
+            SkillParser.normalizeSkillLookup(it) in GENERIC_REPLACEMENT_TARGETS
+        }
+    }
+
+    private fun isVisibleInCurrentRun(skillId: String): Boolean {
+        val normalized = SkillParser.normalizeSkillLookup(skillId)
+        return normalized in runAvailableSkillIds && normalized !in mutatedSkillIds
+    }
+
+    private fun nextTurnRequired(skillId: String): String = errorResult(
+        "NEXT_TURN_REQUIRED",
+        "Skill $skillId 在本轮已安装或变更，将从下一轮对话开始可用",
+    )
+
+    private fun installResult(
+        result: SkillInstallResult,
+        repository: String,
+        ref: String,
+        commitSha: String,
+        selectedPaths: List<String>,
+    ): String = when (result) {
+        is SkillInstallResult.Success -> {
+            val installed = JSONArray()
+            result.installed.forEach { skill ->
+                mutatedSkillIds += SkillParser.normalizeSkillLookup(skill.id)
+                installed.put(
+                    JSONObject()
+                        .put("id", skill.id)
+                        .put("name", skill.name),
+                )
+            }
+            JSONObject()
+                .put("ok", true)
+                .put("repository", repository)
+                .put("ref", ref)
+                .put("commitSha", commitSha)
+                .put("selectedPaths", JSONArray(selectedPaths))
+                .put("installed", installed)
+                .put("available", "next_turn")
+                .put("scriptsExecuted", false)
+                .put("message", "Skill 已安装并启用，将从下一轮对话开始可用；安装过程未执行脚本")
+                .toString()
+        }
+        is SkillInstallResult.Conflict -> {
+            val conflicts = JSONArray()
+            result.conflicts.forEach { conflict ->
+                conflicts.put(
+                    JSONObject()
+                        .put("id", conflict.id)
+                        .put("name", conflict.name)
+                        .put("replaceAllowed", conflict.replaceAllowed),
+                )
+            }
+            JSONObject()
+                .put("ok", false)
+                .put("code", "SKILL_CONFLICT")
+                .put("message", "Skill 已存在；用户 Skill 需先获得明确替换确认，内置 Skill 不可覆盖")
+                .put("repository", repository)
+                .put("ref", ref)
+                .put("commitSha", commitSha)
+                .put("selectedPaths", JSONArray(selectedPaths))
+                .put("conflicts", conflicts)
+                .toString()
+        }
+        is SkillInstallResult.Failure -> {
+            if (result.error.code == SkillInstallErrorCode.COMMIT_FAILED) {
+                skillTreeMutationUncertain.set(true)
+            }
+            errorResult(
+                code = result.error.code.name,
+                message = result.error.message,
+            )
+        }
+    }
+
+    private inline fun skillSourceResult(block: () -> String): String = try {
+        block()
+    } catch (failure: GitHubSkillSourceException) {
+        errorResult(failure.code, failure.message ?: "GitHub Skill 请求失败")
+    }
+
     private fun errorResult(code: String, message: String): String =
         JSONObject()
             .put("ok", false)
@@ -734,6 +1169,12 @@ internal class AgentLocalTools(
         val coordinateSpace: RootShellDeviceController.CoordinateSpace? = null,
     )
 
+    private data class GitHubInspectionSnapshot(
+        val commitSha: String,
+        val prefix: String?,
+        val candidatesByPath: Map<String, String>,
+    )
+
     private fun showTap(x: Int, y: Int) {
         GestureIndicator.showTap(context, x, y)
     }
@@ -751,4 +1192,32 @@ internal class AgentLocalTools(
         val appName: String,
         val isSystemApp: Boolean = false
     )
+
+    private companion object {
+        val EXPLICIT_REPLACEMENT_TARGETS = listOf(
+            Regex(
+                "(?:确认|同意|允许|强制)(?:替换|覆盖)\\s*" +
+                    "(?:(?:已有|现有|原有)\\s*)?(?:名为\\s*)?[`“”\"'「」『』]?" +
+                    "([A-Za-z0-9][A-Za-z0-9._ -]{0,100}?)[`“”\"'「」『』]?" +
+                    "(?:\\s*的)?(?:\\s+skills?\\b|\\s*技能)",
+                RegexOption.IGNORE_CASE,
+            ),
+            Regex(
+                "(?:confirm(?:ed)?|yes[, ]+|force)\\s+(?:the\\s+)?" +
+                    "(?:replace(?:ment)?|overwrite)(?:\\s+of)?\\s+" +
+                    "(?:(?:existing|installed)\\s+)?" +
+                    "[`“”\"']?([A-Za-z0-9][A-Za-z0-9._ -]{0,100}?)[`“”\"']?\\s+skills?",
+                RegexOption.IGNORE_CASE,
+            ),
+        )
+        val GENERIC_REPLACEMENT_TARGETS = setOf(
+            SkillParser.normalizeSkillLookup("已有"),
+            SkillParser.normalizeSkillLookup("现有"),
+            SkillParser.normalizeSkillLookup("原有"),
+            SkillParser.normalizeSkillLookup("这个"),
+            SkillParser.normalizeSkillLookup("该"),
+            SkillParser.normalizeSkillLookup("existing"),
+            SkillParser.normalizeSkillLookup("installed"),
+        )
+    }
 }

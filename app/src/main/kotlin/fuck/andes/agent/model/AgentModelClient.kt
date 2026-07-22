@@ -4,6 +4,7 @@ import fuck.andes.agent.runtime.AgentEvent
 import fuck.andes.agent.runtime.AgentRunCancelledException
 import fuck.andes.agent.runtime.AgentRunController
 import fuck.andes.agent.skill.SkillContext
+import fuck.andes.agent.skill.SkillInstallIntentGate
 import fuck.andes.config.Prefs
 import fuck.andes.data.model.AnthropicProviderSetting
 import fuck.andes.data.model.CustomBody
@@ -70,9 +71,12 @@ internal object AgentModelClient {
         config.validate()
         val messages = AgentPromptBuilder.buildInitialMessages(config, prompt, images, history, skillContext)
         val transcriptStartIndex = messages.length()
+        val skillInstallAuthorization = SkillInstallIntentGate.evaluate(prompt)
         val tools = AgentToolCatalog.build(
             terminalTools = config.terminalTools,
             browserTools = config.browserTools,
+            skillGitHubDiscovery = skillInstallAuthorization.discoveryAllowed,
+            skillGitHubInstall = skillInstallAuthorization.installAllowed,
         )
         onEvent(
             AgentEvent.RunStarted(

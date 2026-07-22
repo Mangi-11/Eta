@@ -4,11 +4,15 @@ import android.content.Context
 import fuck.andes.agent.accessibility.AgentAccessibilityKeeper
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.model.AgentModelExecutionException
+import fuck.andes.agent.model.AgentHttpClient
 import fuck.andes.agent.overlay.AgentOverlayVisibilityPolicy
 import fuck.andes.agent.skill.SkillCompatibilityChecker
 import fuck.andes.agent.skill.SkillContext
+import fuck.andes.agent.skill.SkillInstallIntentGate
 import fuck.andes.agent.skill.SkillRuntime
+import fuck.andes.agent.skill.PublicGitHubSkillSource
 import fuck.andes.agent.tool.AgentLocalTools
+import fuck.andes.agent.tool.PendingSkillConflictCapabilityParser
 import fuck.andes.agent.tool.ToolExecutionDecision
 import fuck.andes.core.AndroidAgentLogger
 import fuck.andes.core.safeLogType
@@ -57,10 +61,26 @@ internal class AgentRuntimeRunExecutor(
             entrySurfaceGuard = EntrySurfaceGuard.from(request.handoff, AndroidAgentLogger)
             val skillIndexService = SkillRuntime.createIndexService(appContext)
             val skillLoader = SkillRuntime.createLoader(appContext)
+            val skillResourceReader = SkillRuntime.createResourceReader(appContext)
+            val skillInstallAuthorization = SkillInstallIntentGate.evaluate(request.prompt)
+            val skillPackageInstaller = if (skillInstallAuthorization.installAllowed) {
+                SkillRuntime.createPackageInstaller(appContext)
+            } else {
+                null
+            }
+            val githubSkillSource = if (skillInstallAuthorization.discoveryAllowed) {
+                PublicGitHubSkillSource(
+                    cacheRoot = appContext.cacheDir,
+                    baseClient = AgentHttpClient.client,
+                )
+            } else {
+                null
+            }
             val skillContext = SkillContext(
                 installedSkills = skillIndexService.listInstalledSkills()
                     .filter { SkillCompatibilityChecker.evaluate(it).available },
             )
+            val pendingSkillConflict = PendingSkillConflictCapabilityParser.parse(request.history)
             val executor = AgentLocalTools(
                 context = appContext,
                 logger = AndroidAgentLogger,
@@ -96,6 +116,12 @@ internal class AgentRuntimeRunExecutor(
                 },
                 skillIndexService = skillIndexService,
                 skillLoader = skillLoader,
+                skillResourceReader = skillResourceReader,
+                topLevelUserPrompt = request.prompt,
+                githubSkillSource = githubSkillSource,
+                skillPackageInstaller = skillPackageInstaller,
+                runAvailableSkillIds = skillContext.installedSkills.mapTo(mutableSetOf()) { it.id },
+                pendingSkillConflict = pendingSkillConflict,
             )
             toolExecutor = executor
             toolsBinding = runController.register(executor::close)
