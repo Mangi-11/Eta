@@ -140,6 +140,30 @@ class AgentImageCodecTest {
         }
     }
 
+    @Test
+    fun pickedAttachmentPreviewDoesNotReopenThePickerUri() {
+        val context = RuntimeEnvironment.getApplication()
+        val sourceFile = File(context.cacheDir, "picked-image-${System.nanoTime()}.jpg")
+        val bitmap = patternedBitmap(width = 1_200, height = 800)
+        FileOutputStream(sourceFile).use { output ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output)
+        }
+        bitmap.recycle()
+
+        val attachment = AgentImageCodec.fromReference(
+            context = context,
+            value = sourceFile.absolutePath,
+            source = "user_attach",
+        ) ?: error("无法读取测试图片")
+        assertTrue(sourceFile.delete())
+
+        val preview = AgentImageCodec.previewFromReference(context, attachment)
+            ?: error("无法从已读取的附件生成预览")
+
+        assertEquals("image/jpeg", preview.mimeType)
+        assertTrue(maxOf(preview.width!!, preview.height!!) <= 512)
+    }
+
     private fun patternedBitmap(width: Int, height: Int): Bitmap =
         Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
             val canvas = Canvas(bitmap)

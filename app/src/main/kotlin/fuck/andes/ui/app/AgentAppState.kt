@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -311,7 +312,8 @@ internal class AgentAppState(
 
     fun sendCurrentMessage() {
         val prompt = homeState.input.trim()
-        if (prompt.isBlank() || homeState.isStreaming) return
+        val pendingImages = homeState.pendingImages
+        if ((prompt.isBlank() && pendingImages.isEmpty()) || homeState.isStreaming) return
 
         if (selectedConversationId?.isExternalArchiveConversation() == true) {
             moveCurrentDraftToNewConversation()
@@ -322,7 +324,6 @@ internal class AgentAppState(
         }
         val history = homeState.history
         val thinkingEnabled = homeState.thinkingEnabled
-        val pendingImages = homeState.pendingImages
         val runId = "run-${UUID.randomUUID()}"
         val imageDataUrls = pendingImages.map { it.dataUrl }
         val userMessage = UserMessageUi(id = "user-$runId", content = prompt, images = imageDataUrls)
@@ -411,12 +412,22 @@ internal class AgentAppState(
 
     fun attachImage(uri: String) {
         scope.launch(Dispatchers.IO) {
-            val image = AgentImageCodec.fromTransferReference(
+            val image = AgentImageCodec.fromReference(
                 context = appContext,
                 value = uri,
                 source = "user_attach",
-            ) ?: return@launch
-            val preview = AgentImageCodec.previewFromReference(appContext, image) ?: return@launch
+            )
+            if (image == null) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        appContext,
+                        "无法读取这张图片，文件可能过大或格式不受支持",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+                return@launch
+            }
+            val preview = AgentImageCodec.previewFromReference(appContext, image) ?: image
             val pending = PendingImageUi(
                 id = "img-${UUID.randomUUID()}",
                 uri = uri,
