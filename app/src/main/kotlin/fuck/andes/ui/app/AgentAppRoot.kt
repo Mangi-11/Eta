@@ -66,6 +66,7 @@ import fuck.andes.ui.screens.enhance.SystemEnhanceScreen
 import fuck.andes.ui.screens.home.AgentHomeScreen
 import fuck.andes.ui.screens.permissions.PermissionHealthScreen
 import fuck.andes.ui.screens.skills.AgentSkillsScreen
+import fuck.andes.ui.screens.terminal.LinuxEnvironmentScreen
 import fuck.andes.ui.screens.tools.AgentToolsScreen
 
 /**
@@ -243,6 +244,10 @@ fun AgentAppRoot() {
                     onAction = { action ->
                         when (action) {
                             AgentSkillsAction.NavigateBack -> popRoute()
+                            is AgentSkillsAction.ImportZip -> agentState.importSkillZip(action.uri)
+                            AgentSkillsAction.ConfirmZipReplacement -> agentState.confirmSkillZipReplacement()
+                            AgentSkillsAction.CancelZipReplacement -> agentState.cancelSkillZipReplacement()
+                            AgentSkillsAction.DismissNotice -> agentState.dismissSkillNotice()
                             is AgentSkillsAction.ToggleSkill -> agentState.toggleSkill(action.skillId, action.enabled)
                             is AgentSkillsAction.DeleteSkill -> agentState.deleteSkill(action.skillId)
                             is AgentSkillsAction.ReinstallBuiltin -> agentState.reinstallBuiltin(action.skillId)
@@ -356,6 +361,12 @@ fun AgentAppRoot() {
                     context = context,
                     onNavigate = { route -> pushRoute(route) },
                     onBack = ::popRoute
+                )
+            }
+            entry<AppRoute.LinuxEnvironment> {
+                LinuxEnvironmentScreen(
+                    context = context,
+                    onBack = ::popRoute,
                 )
             }
             entry<AppRoute.ModelProviders> {

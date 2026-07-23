@@ -4,10 +4,13 @@ import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
 import android.os.Parcel
+import android.os.ParcelFileDescriptor
 import fuck.andes.agent.model.AgentConversationCodec
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.data.model.CustomBody
 import fuck.andes.data.model.CustomHeader
+import java.io.Closeable
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -17,11 +20,11 @@ import kotlinx.serialization.json.Json
  * 入口进程通过 bind + Messenger 与模块自身进程的 [AgentRuntimeService] 通信：
  * 发送一次运行请求，接收事件流和最终结果。
  *
- * 不引入 AIDL：消息体只用 [Bundle]（Int/Boolean/String/ArrayList），跨进程传递无序列化门槛。
+ * 不引入 AIDL：结构化字段使用 [Bundle]，图片正文使用 [ParcelFileDescriptor]，避免占用 Binder 事务缓冲区。
  */
 internal object AgentRuntimeWire {
     internal class PayloadTooLargeException(sizeBytes: Int) : IllegalArgumentException(
-        "Agent Runtime 请求跨进程数据过大（$sizeBytes bytes）；请减少图片数量或分辨率后重试"
+        "Agent Runtime 请求元数据过大（$sizeBytes bytes）；请缩短输入或会话历史后重试"
     )
 
     /** bind 获取服务端 Messenger 的 Intent action。 */
@@ -48,6 +51,9 @@ internal object AgentRuntimeWire {
 
     /** service -> client：返回一组尚未确认展示的最终结果。 */
     const val MSG_DRAIN_RESULTS_RESPONSE = 7
+
+    /** service -> client：请求图片已经摄取，入口进程可以关闭文件描述符并删除临时文件。 */
+    const val MSG_REQUEST_INGESTED = 8
 
     private const val MODULE_PACKAGE = "fuck.andes"
     private const val SERVICE_CLASS = "fuck.andes.agent.runtime.AgentRuntimeService"
@@ -79,6 +85,8 @@ internal object AgentRuntimeWire {
     private const val KEY_TOOL_CALLS_JSON = "tool_calls_json"
     private const val KEY_ROLE = "role"
     private const val KEY_DATA_URL = "data_url"
+    private const val KEY_IMAGE_URL = "image_url"
+    private const val KEY_IMAGE_FD = "image_fd"
     private const val KEY_MIME_TYPE = "mime_type"
     private const val KEY_BYTES = "bytes"
     private const val KEY_WIDTH = "width"
@@ -116,6 +124,32 @@ internal object AgentRuntimeWire {
         val handoff: EntryHandoff? = null
     )
 
+    /**
+     * 单张图片在 IPC 层的表示。远程 URL 可直接放入 Bundle，本地或内联图片只传只读文件描述符。
+     */
+    data class WireImage(
+        val remoteUrl: String? = null,
+        val fileDescriptor: ParcelFileDescriptor? = null,
+        val mimeType: String,
+        val bytes: Int,
+        val width: Int? = null,
+        val height: Int? = null,
+        val source: String = "unknown",
+    )
+
+    /** 接收端在后台完成图片物化前持有文件描述符；关闭后不可再次使用。 */
+    class IncomingRunRequest internal constructor(
+        val request: RunRequest,
+        val images: List<WireImage>,
+    ) : Closeable {
+        private val closed = AtomicBoolean(false)
+
+        override fun close() {
+            if (!closed.compareAndSet(false, true)) return
+            images.forEach { image -> runCatching { image.fileDescriptor?.close() } }
+        }
+    }
+
     data class RunResult(
         val runId: String,
         val ok: Boolean,
@@ -147,7 +181,41 @@ internal object AgentRuntimeWire {
         encodeDefaults = false
     }
 
-    fun toBundle(request: RunRequest): Bundle = Bundle().apply {
+    fun toBundle(request: RunRequest, images: List<WireImage>): Bundle {
+        require(images.size == request.images.size) { "图片传输项与请求图片数量不一致" }
+        val imageBundles = images.map { image ->
+            require((image.remoteUrl == null) xor (image.fileDescriptor == null)) {
+                "图片传输项必须且只能包含远程 URL 或文件描述符"
+            }
+            Bundle().apply {
+                image.remoteUrl?.let { putString(KEY_IMAGE_URL, it) }
+                image.fileDescriptor?.let { putParcelable(KEY_IMAGE_FD, it) }
+                putString(KEY_MIME_TYPE, image.mimeType)
+                putInt(KEY_BYTES, image.bytes)
+                image.width?.let { putInt(KEY_WIDTH, it) }
+                image.height?.let { putInt(KEY_HEIGHT, it) }
+                putString(KEY_SOURCE, image.source)
+            }
+        }
+        return requestBundle(request, imageBundles)
+    }
+
+    /** 兼容旧客户端与协议测试；新请求不得通过 Binder 内联图片正文。 */
+    fun toLegacyBundle(request: RunRequest): Bundle = requestBundle(
+        request = request,
+        imageBundles = request.images.map { image ->
+            Bundle().apply {
+                putString(KEY_DATA_URL, image.reference)
+                putString(KEY_MIME_TYPE, image.mimeType)
+                putInt(KEY_BYTES, image.bytes)
+                image.width?.let { putInt(KEY_WIDTH, it) }
+                image.height?.let { putInt(KEY_HEIGHT, it) }
+                putString(KEY_SOURCE, image.source)
+            }
+        },
+    )
+
+    private fun requestBundle(request: RunRequest, imageBundles: List<Bundle>): Bundle = Bundle().apply {
         putString(KEY_RUN_ID, request.runId)
         putString(KEY_PROMPT, request.prompt)
         putString(KEY_PROVIDER_ID, request.config.providerId)
@@ -183,21 +251,73 @@ internal object AgentRuntimeWire {
         )
         putParcelableArrayList(
             KEY_IMAGES,
-            ArrayList(request.images.map { image ->
-                Bundle().apply {
-                    putString(KEY_DATA_URL, image.dataUrl)
-                    putString(KEY_MIME_TYPE, image.mimeType)
-                    putInt(KEY_BYTES, image.bytes)
-                    image.width?.let { putInt(KEY_WIDTH, it) }
-                    image.height?.let { putInt(KEY_HEIGHT, it) }
-                    putString(KEY_SOURCE, image.source)
-                }
-            })
+            ArrayList(imageBundles)
         )
     }.also(::requireStartRequestWithinBinderBudget)
 
+    fun incomingRunRequestFromBundle(bundle: Bundle): IncomingRunRequest {
+        val images = mutableListOf<WireImage>()
+        try {
+            bundle.getParcelableArrayList(KEY_IMAGES, Bundle::class.java).orEmpty().forEach { image ->
+                val descriptor = image.getParcelable(KEY_IMAGE_FD, ParcelFileDescriptor::class.java)
+                val reference = image.getString(KEY_IMAGE_URL)
+                    ?: image.getString(KEY_DATA_URL) // 兼容升级前仍内联 data URL 的入口进程。
+                require((reference == null) xor (descriptor == null)) {
+                    "图片传输项必须且只能包含引用或文件描述符"
+                }
+                images += WireImage(
+                    remoteUrl = reference,
+                    fileDescriptor = descriptor,
+                    mimeType = image.getString(KEY_MIME_TYPE).orEmpty(),
+                    bytes = image.getInt(KEY_BYTES),
+                    width = image.optionalInt(KEY_WIDTH),
+                    height = image.optionalInt(KEY_HEIGHT),
+                    source = image.getString(KEY_SOURCE).orEmpty(),
+                )
+            }
+            return IncomingRunRequest(
+                request = requestFromBundle(bundle, images = emptyList()),
+                images = images,
+            )
+        } catch (throwable: Throwable) {
+            closeImageDescriptors(bundle)
+            throw throwable
+        }
+    }
+
+    /** 拒绝或解析失败的请求不会进入 [IncomingRunRequest]，需显式释放其中的描述符。 */
+    fun closeImageDescriptors(bundle: Bundle?) {
+        runCatching {
+            bundle?.getParcelableArrayList(KEY_IMAGES, Bundle::class.java).orEmpty().forEach { image ->
+                image.getParcelable(KEY_IMAGE_FD, ParcelFileDescriptor::class.java)?.close()
+            }
+        }
+    }
+
+    /** 只用于无文件描述符的旧协议读取。 */
     fun runRequestFromBundle(bundle: Bundle): RunRequest =
-        RunRequest(
+        incomingRunRequestFromBundle(bundle).use { incoming ->
+            require(incoming.images.none { it.fileDescriptor != null }) {
+                "包含文件描述符的请求必须先在 Runtime 后台物化"
+            }
+            incoming.request.copy(
+                images = incoming.images.map { image ->
+                    AgentModelClient.ModelImage(
+                        reference = image.remoteUrl.orEmpty(),
+                        mimeType = image.mimeType,
+                        bytes = image.bytes,
+                        width = image.width,
+                        height = image.height,
+                        source = image.source,
+                    )
+                },
+            )
+        }
+
+    private fun requestFromBundle(
+        bundle: Bundle,
+        images: List<AgentModelClient.ModelImage>,
+    ): RunRequest = RunRequest(
             runId = bundle.getString(KEY_RUN_ID).orEmpty(),
             prompt = bundle.getString(KEY_PROMPT).orEmpty(),
             config = AgentModelClient.ModelConfig(
@@ -236,16 +356,7 @@ internal object AgentRuntimeWire {
                     toolCallsJson = message.getString(KEY_TOOL_CALLS_JSON).orEmpty(),
                 )
             },
-            images = bundle.getParcelableArrayList(KEY_IMAGES, Bundle::class.java).orEmpty().map { image ->
-                AgentModelClient.ModelImage(
-                    dataUrl = image.getString(KEY_DATA_URL).orEmpty(),
-                    mimeType = image.getString(KEY_MIME_TYPE).orEmpty(),
-                    bytes = image.getInt(KEY_BYTES),
-                    width = image.optionalInt(KEY_WIDTH),
-                    height = image.optionalInt(KEY_HEIGHT),
-                    source = image.getString(KEY_SOURCE).orEmpty()
-                )
-            },
+            images = images,
             handoff = bundle.getBundle(KEY_HANDOFF)?.let(::entryHandoffFromBundle)
         )
 

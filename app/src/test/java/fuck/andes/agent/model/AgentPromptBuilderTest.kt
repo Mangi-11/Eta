@@ -5,6 +5,7 @@ import fuck.andes.agent.skill.SkillIndexEntry
 import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,7 +13,7 @@ class AgentPromptBuilderTest {
     @Test
     fun messagesKeepSystemHistoryAndCurrentImageInputInStableOrder() {
         val image = AgentModelClient.ModelImage(
-            dataUrl = "data:image/png;base64,AA==",
+            reference = "data:image/png;base64,AA==",
             mimeType = "image/png",
             bytes = 1,
         )
@@ -36,6 +37,8 @@ class AgentPromptBuilderTest {
             messages.roles(),
         )
         assertEquals("自定义系统约束", messages.getJSONObject(0).getString("content"))
+        assertTrue(messages.systemContents().any { it.contains("Root 自动启用并等待绑定") })
+        assertTrue(messages.systemContents().any { it.contains("不要改用坐标或 Shell 重放") })
         assertTrue(messages.getJSONObject(2).getString("content").contains("open_and_exec"))
         assertFalse(messages.systemContents().any { it.contains("网页浏览、读取") })
         assertEquals("旧问题", messages.getJSONObject(3).getString("content"))
@@ -44,7 +47,7 @@ class AgentPromptBuilderTest {
         val currentContent = messages.getJSONObject(5).getJSONArray("content")
         assertEquals("当前问题", currentContent.getJSONObject(0).getString("text"))
         assertEquals(
-            image.dataUrl,
+            image.reference,
             currentContent.getJSONObject(1).getJSONObject("image_url").getString("url"),
         )
     }
@@ -84,6 +87,25 @@ class AgentPromptBuilderTest {
         assertTrue(skillMessage.contains("description=检查屏幕 并输出 结论"))
         assertTrue(skillMessage.contains("先调用 skills_read"))
         assertEquals("读取网页", messages.getJSONObject(3).getString("content"))
+    }
+
+    @Test
+    fun localImageReferenceCannotLeakIntoProviderRequest() {
+        val image = AgentModelClient.ModelImage(
+            reference = "content://example.test/image/1",
+            mimeType = "image/png",
+            bytes = 128,
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            AgentPromptBuilder.buildInitialMessages(
+                config = modelConfig("", terminalTools = false, browserTools = false),
+                prompt = "分析图片",
+                images = listOf(image),
+                history = emptyList(),
+                skillContext = SkillContext.EMPTY,
+            )
+        }
     }
 
     private fun modelConfig(

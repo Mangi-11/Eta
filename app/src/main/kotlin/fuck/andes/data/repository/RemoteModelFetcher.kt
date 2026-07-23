@@ -5,6 +5,7 @@ import fuck.andes.agent.model.CustomHeaderFilter
 import fuck.andes.agent.model.ProviderUrls
 import fuck.andes.data.model.AnthropicProviderSetting
 import fuck.andes.data.model.Model
+import fuck.andes.data.model.ModelSource
 import fuck.andes.data.model.ProviderSetting
 import fuck.andes.data.provider.OfficialModelCatalog
 import java.util.UUID
@@ -98,6 +99,38 @@ internal object RemoteModelFetcher {
             body
         }
 
+    /**
+     * 判断远端目录中的模型是否可用于 Agent 对话。
+     *
+     * OpenAI 兼容平台的 /models 会混入语音识别、语音合成、图像/视频生成、
+     * embedding、rerank 等非对话模型（例如阿里百炼一次返回数百个）。这些模型
+     * 无法参与 Agent 的文本工具调用循环，拉取时按 id 命名特征与输出模态过滤掉。
+     */
+    internal fun isChatCapableModel(model: Model): Boolean {
+        if (model.outputModalities.isNotEmpty() &&
+            model.outputModalities.none { it.equals(Model.TEXT_MODALITY, ignoreCase = true) }
+        ) {
+            return false
+        }
+        val id = model.modelId.lowercase()
+        return NON_CHAT_MODEL_ID_MARKERS.none { it in id }
+    }
+
+    private val NON_CHAT_MODEL_ID_MARKERS = listOf(
+        // 语音识别
+        "asr", "whisper", "paraformer", "sensevoice", "gummy",
+        // 语音合成与声音模型
+        "tts", "speech", "voice", "cosyvoice", "sambert",
+        // 向量与排序
+        "embedding", "rerank",
+        // 图像生成与理解外的图像专用模型
+        "image", "dall-e", "flux", "stable-diffusion", "wanx", "hidream",
+        // 视频生成
+        "video", "veo-",
+        // 其他非对话专用模型
+        "ocr", "music", "moderation",
+    )
+
     private fun JsonObject.toModel(defaultOwnedBy: String?): Model? {
         val modelId = string("id")?.trim().orEmpty()
         if (modelId.isBlank()) return null
@@ -106,6 +139,7 @@ internal object RemoteModelFetcher {
             modelId = modelId,
             displayName = string("display_name", "displayName", "name")?.trim().takeUnless { it.isNullOrBlank() }
                 ?: modelId,
+            source = ModelSource.REMOTE,
             ownedBy = string("owned_by", "ownedBy")?.trim().takeUnless { it.isNullOrBlank() } ?: defaultOwnedBy,
             contextWindow = int(
                 "context_window",

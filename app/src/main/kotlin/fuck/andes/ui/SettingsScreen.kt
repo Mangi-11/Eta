@@ -196,10 +196,22 @@ internal fun SettingsScreen(
                         context = context,
                         prefs = prefs,
                         title = "启用终端/文件工具",
-                        summary = "允许 Agent 使用 user/root shell，并读取或写入手机文件",
+                        summary = "允许 Agent 使用 Android user/root shell，并读取或写入手机文件",
                         key = Prefs.Keys.AGENT_TERMINAL_TOOLS,
                         icon = LucideR.drawable.lucide_ic_square_terminal,
                         iconTint = ColorOSAmberYellow,
+                    )
+                    PrefDivider()
+                    ArrowPreference(
+                        title = "Linux 工具环境",
+                        summary = "安装 Python、Git、jq、zip 等通用命令，当前约 120 MB",
+                        startAction = {
+                            TintedIcon(
+                                icon = LucideR.drawable.lucide_ic_square_terminal,
+                                tint = ColorOSVividGreen,
+                            )
+                        },
+                        onClick = { onNavigate(AppRoute.LinuxEnvironment) },
                     )
                     PrefDivider()
                     ArrowPreference(

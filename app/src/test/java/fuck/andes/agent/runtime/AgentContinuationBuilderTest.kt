@@ -9,7 +9,7 @@ class AgentContinuationBuilderTest {
     @Test
     fun continuationPreservesPromptImagesAndFullTranscript() {
         val image = AgentModelClient.ModelImage(
-            dataUrl = "data:image/png;base64,AA==",
+            reference = "data:image/png;base64,AA==",
             mimeType = "image/png",
             bytes = 1,
         )

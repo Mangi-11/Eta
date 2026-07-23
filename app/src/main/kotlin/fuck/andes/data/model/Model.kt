@@ -21,6 +21,7 @@ data class Model(
     val supportsTemperature: Boolean? = null,
     val customHeaders: List<CustomHeader> = emptyList(),
     val customBody: List<CustomBody> = emptyList(),
+    val source: ModelSource = ModelSource.MANUAL,
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val supportsVision: Boolean
@@ -36,4 +37,11 @@ data class Model(
         const val TEXT_MODALITY = "text"
         const val IMAGE_MODALITY = "image"
     }
+}
+
+@Serializable
+enum class ModelSource {
+    MANUAL,
+    REMOTE,
+    CATALOG,
 }

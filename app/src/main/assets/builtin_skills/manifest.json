@@ -19,6 +19,16 @@
       "hasReferences": false,
       "hasAssets": false,
       "hasEvals": false
+    },
+    {
+      "id": "skill-installer",
+      "name": "skill-installer",
+      "description": "从 curated 目录或公共 GitHub 仓库发现并安装 Skills。仅在用户明确请求列出可安装项、安装、更新，或调用 $skill-installer 时使用。",
+      "assetPath": "builtin_skills/skill-installer",
+      "hasScripts": false,
+      "hasReferences": false,
+      "hasAssets": false,
+      "hasEvals": false
     }
   ]
 }

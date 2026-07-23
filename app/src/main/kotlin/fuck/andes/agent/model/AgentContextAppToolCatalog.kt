@@ -93,7 +93,7 @@ internal object AgentContextAppToolCatalog {
             .put(
                 AgentToolSchema.function(
                     name = "observe_screen",
-                    description = "观察当前手机屏幕，返回前台应用、屏幕尺寸、可见 UI 节点。需要视觉判断时设置 include_screenshot=true。",
+                    description = "观察当前手机屏幕，返回前台应用、屏幕尺寸、observation_id 与可见 UI 节点。节点动作必须原样携带同一次观察的 observation_id；树被截断时可把 max_nodes 提高到 120 后重试。",
                     parameters = JSONObject()
                         .put("type", "object")
                         .put(

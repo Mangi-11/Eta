@@ -257,7 +257,7 @@ class AgentModelClientLoopTest {
                     images = if (call.id == "call-1") {
                         listOf(
                             AgentModelClient.ModelImage(
-                                dataUrl = "data:image/png;base64,AA==",
+                                reference = "data:image/png;base64,AA==",
                                 mimeType = "image/png",
                                 bytes = 1,
                             )
@@ -275,7 +275,93 @@ class AgentModelClientLoopTest {
             provider.requests[1].roleSuffix(4),
         )
         assertFalse(result.transcript.any { it.contentJson.contains("base64") })
-        assertTrue(result.transcript.any { it.contentJson.contains("未写入持久会话") })
+        assertFalse(result.transcript.any { it.contentJson.contains("未写入持久会话") })
+    }
+
+    @Test
+    fun toolScreenshotIsConsumedByExactlyOneModelRequest() {
+        val screenshot = "data:image/png;base64,c2NyZWVu"
+        val provider = ScriptedProvider(
+            assistant(
+                finishReason = "tool_calls",
+                toolCalls = listOf(toolCall("observe", "observe_screen", "{}")),
+            ),
+            assistant(
+                finishReason = "tool_calls",
+                toolCalls = listOf(toolCall("tap", "tap", "{\"x\":10,\"y\":20}")),
+            ),
+            assistant(content = "完成", finishReason = "stop"),
+        )
+
+        val result = AgentModelClient.complete(
+            config = modelConfig(),
+            prompt = "观察后点击",
+            toolExecutor = AgentModelClient.ToolExecutor { call ->
+                AgentModelClient.ToolResult(
+                    content = JSONObject().put("ok", true).toString(),
+                    images = if (call.name == "observe_screen") {
+                        listOf(
+                            AgentModelClient.ModelImage(
+                                reference = screenshot,
+                                mimeType = "image/png",
+                                bytes = 6,
+                                source = "screen",
+                            )
+                        )
+                    } else {
+                        emptyList()
+                    },
+                )
+            },
+            provider = provider,
+        )
+
+        assertFalse(provider.requests[0].toString().contains(screenshot))
+        assertTrue(provider.requests[1].toString().contains(screenshot))
+        assertFalse(provider.requests[2].toString().contains(screenshot))
+        assertFalse(result.transcript.any { it.contentJson.contains(screenshot) })
+    }
+
+    @Test
+    fun newerToolImageReplacesThePreviousTransientObservation() {
+        val firstImage = "data:image/png;base64,Zmlyc3Q="
+        val secondImage = "data:image/png;base64,c2Vjb25k"
+        val provider = ScriptedProvider(
+            assistant(
+                finishReason = "tool_calls",
+                toolCalls = listOf(toolCall("observe-1", "observe_screen", "{}")),
+            ),
+            assistant(
+                finishReason = "tool_calls",
+                toolCalls = listOf(toolCall("observe-2", "observe_screen", "{}")),
+            ),
+            assistant(content = "完成", finishReason = "stop"),
+        )
+        var observationIndex = 0
+
+        AgentModelClient.complete(
+            config = modelConfig(),
+            prompt = "连续观察",
+            toolExecutor = AgentModelClient.ToolExecutor {
+                val reference = if (observationIndex++ == 0) firstImage else secondImage
+                AgentModelClient.ToolResult(
+                    content = JSONObject().put("ok", true).toString(),
+                    images = listOf(
+                        AgentModelClient.ModelImage(
+                            reference = reference,
+                            mimeType = "image/png",
+                            bytes = 6,
+                            source = "screen",
+                        )
+                    ),
+                )
+            },
+            provider = provider,
+        )
+
+        assertTrue(provider.requests[1].toString().contains(firstImage))
+        assertFalse(provider.requests[2].toString().contains(firstImage))
+        assertTrue(provider.requests[2].toString().contains(secondImage))
     }
 
     @Test

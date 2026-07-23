@@ -15,6 +15,8 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
@@ -42,6 +44,7 @@ import fuck.andes.core.AndroidAgentLogger
 import fuck.andes.core.ModuleConfig
 import fuck.andes.core.safeLogType
 import kotlin.concurrent.thread
+import top.yukonga.miuix.kmp.squircle.LocalSquircleEnabled
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
@@ -65,6 +68,14 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     @Volatile
     private var activeSession: AgentRuntimeSession? = null
+    private var startRequestGeneration = 0L
+    private var pendingStartRequest: PendingStartRequest? = null
+
+    private data class PendingStartRequest(
+        val generation: Long,
+        val incoming: AgentRuntimeWire.IncomingRunRequest,
+        val replyTo: Messenger?,
+    )
 
     private var windowManager: WindowManager? = null
     private var glowView: ComposeView? = null
@@ -116,6 +127,21 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     }
 
     override fun onDestroy() {
+        startRequestGeneration++
+        pendingStartRequest?.let { pending ->
+            pending.incoming.close()
+            sendRequestIngestedTo(pending.replyTo, pending.incoming.request.runId)
+            sendResultTo(
+                pending.replyTo,
+                AgentRuntimeWire.RunResult(
+                    runId = pending.incoming.request.runId,
+                    ok = false,
+                    content = "",
+                    error = "Agent Runtime 服务已停止",
+                ),
+            )
+        }
+        pendingStartRequest = null
         activeSession?.cancel("Agent Runtime 服务已停止")
         activeSession = null
         mainHandler.removeCallbacksAndMessages(null)
@@ -138,7 +164,12 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     private inner class IncomingHandler : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
-            if (!isMessageSenderAllowed(msg)) return
+            if (!isMessageSenderAllowed(msg)) {
+                if (msg.what == AgentRuntimeWire.MSG_START_RUN) {
+                    AgentRuntimeWire.closeImageDescriptors(msg.data)
+                }
+                return
+            }
             when (msg.what) {
                 AgentRuntimeWire.MSG_START_RUN -> {
                     val data = msg.data
@@ -146,8 +177,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         finishWithFailure("Agent Runtime 请求缺少消息体", msg.replyTo)
                         return
                     }
-                    val request = runCatching {
-                        AgentRuntimeWire.runRequestFromBundle(data)
+                    val incoming = runCatching {
+                        AgentRuntimeWire.incomingRunRequestFromBundle(data)
                     }.getOrElse { throwable ->
                         AndroidAgentLogger.warnThrottled("runtime_invalid_start_request") {
                             "Agent runtime rejected invalid start request: type=${throwable.safeLogType()}"
@@ -155,19 +186,13 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         finishWithFailure("Agent Runtime 请求格式无效", msg.replyTo)
                         return
                     }
-                    if (request.runId.isBlank() || (request.prompt.isBlank() && request.images.isEmpty())) {
+                    val request = incoming.request
+                    if (request.runId.isBlank() || (request.prompt.isBlank() && incoming.images.isEmpty())) {
+                        incoming.close()
                         finishWithFailure("Agent Runtime 请求缺少 runId 或用户输入", msg.replyTo)
                         return
                     }
-                    val permissions = AgentRuntimePolicy.permissions(
-                        Prefs.remotePreferencesForUi(FuckAndesApp.serviceInstance)
-                    )
-                    startRun(
-                        request.copy(
-                            config = AgentRuntimePolicy.constrain(request.config, permissions),
-                        ),
-                        msg.replyTo,
-                    )
+                    ingestRunRequest(incoming, msg.replyTo)
                 }
 
                 AgentRuntimeWire.MSG_CANCEL -> {
@@ -185,6 +210,62 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                 AgentRuntimeWire.MSG_DRAIN_RESULTS -> {
                     sendDrainedResults(msg.replyTo)
                 }
+            }
+        }
+    }
+
+    private fun ingestRunRequest(
+        incoming: AgentRuntimeWire.IncomingRunRequest,
+        replyTo: Messenger?,
+    ) {
+        val generation = ++startRequestGeneration
+        pendingStartRequest?.let { previous ->
+            previous.incoming.close()
+            sendRequestIngestedTo(previous.replyTo, previous.incoming.request.runId)
+            sendResultTo(
+                previous.replyTo,
+                AgentRuntimeWire.RunResult(
+                    runId = previous.incoming.request.runId,
+                    ok = false,
+                    content = "",
+                    error = "已被新的 Agent 任务替换",
+                ),
+            )
+        }
+        val pending = PendingStartRequest(generation, incoming, replyTo)
+        pendingStartRequest = pending
+        thread(name = "agent-runtime-image-ingest") {
+            val materialized = runCatching {
+                AgentRuntimeImageTransfer.materialize(incoming)
+            }
+            mainHandler.post {
+                if (generation != startRequestGeneration || pendingStartRequest !== pending) return@post
+                pendingStartRequest = null
+                sendRequestIngestedTo(replyTo, incoming.request.runId)
+                materialized.fold(
+                    onSuccess = { request ->
+                        val permissions = AgentRuntimePolicy.permissions(
+                            Prefs.remotePreferencesForUi(FuckAndesApp.serviceInstance)
+                        )
+                        startRun(
+                            request.copy(
+                                config = AgentRuntimePolicy.constrain(request.config, permissions),
+                            ),
+                            replyTo,
+                        )
+                    },
+                    onFailure = { throwable ->
+                        AndroidAgentLogger.warnThrottled("runtime_image_ingest_failed") {
+                            "Agent runtime image ingest failed: type=${throwable.safeLogType()}"
+                        }
+                        finishWithFailure(
+                            (throwable as? AgentRuntimeImageTransfer.ImageTransferException)
+                                ?.message
+                                ?: "Agent Runtime 无法读取图片",
+                            replyTo,
+                        )
+                    },
+                )
             }
         }
     }
@@ -380,6 +461,21 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         }
     }
 
+    private fun sendRequestIngestedTo(
+        target: Messenger?,
+        runId: String,
+    ) {
+        runCatching {
+            val msg = Message.obtain(null, AgentRuntimeWire.MSG_REQUEST_INGESTED)
+            msg.data = AgentRuntimeWire.ackBundle(runId)
+            target?.send(msg)
+        }.onFailure { throwable ->
+            AndroidAgentLogger.warnThrottled("runtime_ingest_ack_failed") {
+                "Agent runtime ingest acknowledgement failed: type=${throwable.safeLogType()}"
+            }
+        }
+    }
+
     private fun sendDrainedResults(replyTo: Messenger?) {
         runCatching {
             val msg = Message.obtain(null, AgentRuntimeWire.MSG_DRAIN_RESULTS_RESPONSE)
@@ -456,6 +552,22 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     private fun cancelRun(runId: String) {
         if (runId.isBlank()) return
+        pendingStartRequest?.takeIf { pending -> pending.incoming.request.runId == runId }?.let { pending ->
+            startRequestGeneration++
+            pendingStartRequest = null
+            pending.incoming.close()
+            sendRequestIngestedTo(pending.replyTo, runId)
+            sendResultTo(
+                pending.replyTo,
+                AgentRuntimeWire.RunResult(
+                    runId = runId,
+                    ok = false,
+                    content = "",
+                    error = "已停止",
+                ),
+            )
+            return
+        }
         val session = activeSession ?: return
         if (runId != session.runId) {
             AndroidAgentLogger.debug { "Agent runtime ignored stale cancel request" }
@@ -545,14 +657,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         windowManager = wm
 
         // ── 氛围光窗口：全屏触摸穿透，彩虹光圈，截图时被 takeScreenshotOfWindow 过滤 ─
-        val glow = ComposeView(overlayContext()).apply {
-            setViewTreeLifecycleOwner(this@AgentRuntimeService)
-            setViewTreeSavedStateRegistryOwner(this@AgentRuntimeService)
-            setContent {
-                MiuixTheme(colors = if (isNightMode()) darkColorScheme() else lightColorScheme()) {
-                    AgentOverlayGlow(state = state.value)
-                }
-            }
+        val glow = createOverlayComposeView {
+            AgentOverlayGlow(state = state.value)
         }
         val glowLp = glowLayoutParams()
         runCatching { wm.addView(glow, glowLp) }.onFailure { throwable ->
@@ -564,17 +670,11 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         glowParams = glowLp
 
         // ── 光球窗口：始终显示，右侧中下 ──────────────────────────────
-        val orb = ComposeView(overlayContext()).apply {
-            setViewTreeLifecycleOwner(this@AgentRuntimeService)
-            setViewTreeSavedStateRegistryOwner(this@AgentRuntimeService)
-            setContent {
-                MiuixTheme(colors = if (isNightMode()) darkColorScheme() else lightColorScheme()) {
-                    AgentOverlayOrb(
-                        state = state.value,
-                        onToggleCollapse = ::toggleCollapse,
-                    )
-                }
-            }
+        val orb = createOverlayComposeView {
+            AgentOverlayOrb(
+                state = state.value,
+                onToggleCollapse = ::toggleCollapse,
+            )
         }
         val orbLp = orbLayoutParams()
         runCatching { wm.addView(orb, orbLp) }.onFailure { throwable ->
@@ -607,22 +707,16 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     private fun showBubble(wm: WindowManager) {
         if (bubbleView != null) return
-        val bubble = ComposeView(overlayContext()).apply {
-            setViewTreeLifecycleOwner(this@AgentRuntimeService)
-            setViewTreeSavedStateRegistryOwner(this@AgentRuntimeService)
-            setContent {
-                MiuixTheme(colors = if (isNightMode()) darkColorScheme() else lightColorScheme()) {
-                    AgentOverlayBubble(
-                        state = state.value,
-                        onCollapse = ::toggleCollapse,
-                        onPause = ::requestPause,
-                        onResume = ::requestResume,
-                        onStop = ::requestStop,
-                        onSupplementModeChange = ::setBubbleInputMode,
-                        onSupplement = ::requestSupplement,
-                    )
-                }
-            }
+        val bubble = createOverlayComposeView {
+            AgentOverlayBubble(
+                state = state.value,
+                onCollapse = ::toggleCollapse,
+                onPause = ::requestPause,
+                onResume = ::requestResume,
+                onStop = ::requestStop,
+                onSupplementModeChange = ::setBubbleInputMode,
+                onSupplement = ::requestSupplement,
+            )
         }
         val lp = bubbleLayoutParams()
         runCatching { wm.addView(bubble, lp) }.onFailure { throwable ->
@@ -637,17 +731,11 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     private fun showResultCard(wm: WindowManager) {
         if (resultCardView != null) return
-        val card = ComposeView(overlayContext()).apply {
-            setViewTreeLifecycleOwner(this@AgentRuntimeService)
-            setViewTreeSavedStateRegistryOwner(this@AgentRuntimeService)
-            setContent {
-                MiuixTheme(colors = if (isNightMode()) darkColorScheme() else lightColorScheme()) {
-                    AgentResultCard(
-                        state = state.value,
-                        onClose = ::dismissAndStop,
-                    )
-                }
-            }
+        val card = createOverlayComposeView {
+            AgentResultCard(
+                state = state.value,
+                onClose = ::dismissAndStop,
+            )
         }
         val lp = resultCardLayoutParams()
         runCatching { wm.addView(card, lp) }.onFailure { throwable ->
@@ -659,6 +747,21 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         resultCardView = card
         resultCardParams = lp
     }
+
+    private fun createOverlayComposeView(content: @Composable () -> Unit): ComposeView =
+        ComposeView(overlayContext()).apply {
+            setViewTreeLifecycleOwner(this@AgentRuntimeService)
+            setViewTreeSavedStateRegistryOwner(this@AgentRuntimeService)
+            setContent {
+                MiuixTheme(colors = if (isNightMode()) darkColorScheme() else lightColorScheme()) {
+                    // 部分 ROM 会给 TYPE_ACCESSIBILITY_OVERLAY 分配软件 Canvas；Miuix 的
+                    // RuntimeShader 只检查系统版本，因此系统浮层统一使用其普通圆角回退。
+                    CompositionLocalProvider(LocalSquircleEnabled provides false) {
+                        content()
+                    }
+                }
+            }
+        }
 
     @Suppress("unused")
     private fun handleDrag(dx: Float, dy: Float) {
@@ -675,7 +778,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
@@ -691,7 +795,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
@@ -709,7 +814,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             WindowManager.LayoutParams.MATCH_PARENT,
             resultCardWindowHeightPx(),
             overlayType(),
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
@@ -745,7 +851,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             WindowManager.LayoutParams.MATCH_PARENT,
             realHeight,
             overlayType(),
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,

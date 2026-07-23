@@ -18,13 +18,11 @@ internal object BreenoRequestImages {
     private const val MAX_INPUT_CHARS = 9 * 1024 * 1024
     private const val MAX_URI_CHARS = 16 * 1024
     private const val MAX_LEADING_WHITESPACE = 256
-    private const val MAX_RUNTIME_IMAGE_PARCEL_BYTES = 512L * 1024L
-    private const val PARCEL_IMAGE_OVERHEAD_BYTES = 160L
     private const val PARCEL_STRING_BYTES_PER_CHAR = 2L
     private val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif")
 
     enum class FailureCode(val value: String) {
-        IPC_IMAGE_BUDGET_EXCEEDED("image_ipc_budget_exceeded"),
+        IMAGE_DATA_LIMIT_EXCEEDED("image_data_limit_exceeded"),
         IMAGE_COUNT_LIMIT_EXCEEDED("image_count_limit_exceeded"),
         IMAGE_INPUT_LIMIT_EXCEEDED("image_input_limit_exceeded"),
         IMAGE_REFERENCE_CACHE_LIMIT_EXCEEDED("image_reference_cache_limit_exceeded"),
@@ -40,8 +38,8 @@ internal object BreenoRequestImages {
             val code: FailureCode,
             val message: String,
             val imageCount: Int,
-            val estimatedParcelBytes: Long,
-            val maxParcelBytes: Long,
+            val estimatedBytes: Long,
+            val maxBytes: Long,
         ) : Resolution
     }
 
@@ -160,8 +158,8 @@ internal object BreenoRequestImages {
                         code = FailureCode.IMAGE_REFERENCE_CACHE_LIMIT_EXCEEDED,
                         message = "图片引用数据过大，无法安全暂存，请重新选择图片或使用远程图片链接",
                         imageCount = snapshot.inputCount.coerceAtLeast(1),
-                        estimatedParcelBytes = estimatedBytesForChars(snapshot.estimatedChars),
-                        maxParcelBytes = estimatedBytesForChars(maxEstimatedChars),
+                        estimatedBytes = estimatedBytesForChars(snapshot.estimatedChars),
+                        maxBytes = estimatedBytesForChars(maxEstimatedChars),
                     ),
                 )
                 entryChars = storedSnapshot.estimatedChars + aliasChars
@@ -298,7 +296,7 @@ internal object BreenoRequestImages {
         )
     }
 
-    /** 必须从后台线程调用；这里才会解析 JSON、读取 URI/文件并执行 Base64 编码。 */
+    /** 必须从后台线程调用；这里解析 JSON 与图片引用，真正的跨进程正文由文件描述符承载。 */
     fun resolve(context: Context?, snapshot: Snapshot): Resolution {
         snapshot.failure?.let { return it }
         if (snapshot.isEmpty) return Resolution.Success(emptyList())
@@ -322,25 +320,14 @@ internal object BreenoRequestImages {
                 code = FailureCode.IMAGE_COUNT_LIMIT_EXCEEDED,
                 message = "一次最多支持 $MAX_IMAGES 张图片，请减少图片数量后再试",
                 imageCount = candidates.size,
-                estimatedParcelBytes = 0,
-                maxParcelBytes = MAX_RUNTIME_IMAGE_PARCEL_BYTES,
+                estimatedBytes = 0,
+                maxBytes = 0,
             )
-        }
-        var candidateCount = 0
-        for (candidate in candidates.values) {
-            candidateCount++
-            val estimatedParcelBytes = estimateCandidateParcelBytes(candidate)
-            if (estimatedParcelBytes > MAX_RUNTIME_IMAGE_PARCEL_BYTES) {
-                return ipcBudgetFailure(
-                    imageCount = candidateCount,
-                    estimatedParcelBytes = estimatedParcelBytes,
-                )
-            }
         }
         val resolvedImages = ArrayList<AgentModelClient.ModelImage>(candidates.size)
         for (candidate in candidates.values) {
             val image = try {
-                AgentImageCodec.fromReference(context, candidate.value, candidate.source)
+                AgentImageCodec.fromTransferReference(context, candidate.value, candidate.source)
             } catch (_: Exception) {
                 null
             }
@@ -352,13 +339,9 @@ internal object BreenoRequestImages {
         val images = resolvedImages
             .asSequence()
             .distinctBy { image ->
-                "${image.mimeType}:${image.bytes}:${image.width}x${image.height}:${image.dataUrl.take(80)}"
+                "${image.mimeType}:${image.bytes}:${image.width}x${image.height}:${image.reference.take(80)}"
             }
             .toList()
-        val estimatedParcelBytes = estimateParcelBytes(images)
-        if (estimatedParcelBytes > MAX_RUNTIME_IMAGE_PARCEL_BYTES) {
-            return ipcBudgetFailure(images.size, estimatedParcelBytes)
-        }
         return Resolution.Success(images)
     }
 
@@ -367,8 +350,8 @@ internal object BreenoRequestImages {
             code = FailureCode.IMAGE_REFERENCE_UNREADABLE,
             message = "无法读取请求中的全部图片，请重新选择图片后再试",
             imageCount = imageCount,
-            estimatedParcelBytes = 0,
-            maxParcelBytes = MAX_RUNTIME_IMAGE_PARCEL_BYTES,
+            estimatedBytes = 0,
+            maxBytes = 0,
         )
 
     private fun inputLimitFailure(inputCount: Int): Resolution.Failure =
@@ -376,8 +359,8 @@ internal object BreenoRequestImages {
             code = FailureCode.IMAGE_INPUT_LIMIT_EXCEEDED,
             message = "图片输入结构超过安全上限，请减少图片数量或简化图片数据后再试",
             imageCount = inputCount.coerceAtLeast(1),
-            estimatedParcelBytes = 0,
-            maxParcelBytes = MAX_RUNTIME_IMAGE_PARCEL_BYTES,
+            estimatedBytes = 0,
+            maxBytes = 0,
         )
 
     fun summary(images: List<AgentModelClient.ModelImage>): String =
@@ -411,42 +394,17 @@ internal object BreenoRequestImages {
         return if (items.hasNext()) inputLimitFailure(index + 1) else null
     }
 
-    private fun estimateParcelBytes(images: List<AgentModelClient.ModelImage>): Long =
-        images.sumOf { image ->
-            PARCEL_IMAGE_OVERHEAD_BYTES +
-                estimateParcelStringBytes(image.dataUrl) +
-                estimateParcelStringBytes(image.mimeType) +
-                estimateParcelStringBytes(image.source)
-        }
-
-    private fun estimateCandidateParcelBytes(candidate: Candidate): Long =
-        PARCEL_IMAGE_OVERHEAD_BYTES +
-            estimateParcelStringBytes(candidate.value) +
-            estimateParcelStringBytes("image/*") +
-            estimateParcelStringBytes(candidate.source)
-
-    private fun ipcBudgetFailure(
-        imageCount: Int,
-        estimatedParcelBytes: Long,
-    ): Resolution.Failure = Resolution.Failure(
-        code = FailureCode.IPC_IMAGE_BUDGET_EXCEEDED,
-        message = "图片数据超过跨进程传输上限，请缩小图片或改用远程图片链接",
-        imageCount = imageCount,
-        estimatedParcelBytes = estimatedParcelBytes,
-        maxParcelBytes = MAX_RUNTIME_IMAGE_PARCEL_BYTES,
-    )
-
     private fun oversizedReferenceFailure(valueChars: Int, source: String): Resolution.Failure =
-        ipcBudgetFailure(
+        Resolution.Failure(
+            code = FailureCode.IMAGE_DATA_LIMIT_EXCEEDED,
+            message = "图片输入数据超过安全上限，请缩小图片后重试",
             imageCount = 1,
-            estimatedParcelBytes = PARCEL_IMAGE_OVERHEAD_BYTES +
-                (valueChars.toLong() + 1L) * PARCEL_STRING_BYTES_PER_CHAR +
-                estimateParcelStringBytes("image/*") +
-                estimateParcelStringBytes(source),
+            estimatedBytes = estimateStringBytes(valueChars.toLong() + source.length),
+            maxBytes = estimateStringBytes(MAX_INPUT_CHARS.toLong()),
         )
 
-    private fun estimateParcelStringBytes(value: String): Long =
-        (value.length.toLong() + 1L) * PARCEL_STRING_BYTES_PER_CHAR
+    private fun estimateStringBytes(chars: Long): Long =
+        (chars + 1L) * PARCEL_STRING_BYTES_PER_CHAR
 
     private fun addInput(
         inputs: MutableList<Input>,

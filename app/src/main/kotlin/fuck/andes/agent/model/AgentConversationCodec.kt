@@ -105,16 +105,24 @@ internal object AgentConversationCodec {
                 .put("text", text)
         )
         images.forEach { image ->
+            require(image.reference.isProviderImageReference()) {
+                "模型图片尚未在 Agent Runtime 中物化"
+            }
             content.put(
                 JSONObject()
                     .put("type", "image_url")
-                    .put("image_url", JSONObject().put("url", image.dataUrl))
+                    .put("image_url", JSONObject().put("url", image.reference))
             )
         }
         return JSONObject()
             .put("role", "user")
             .put("content", content)
     }
+
+    private fun String.isProviderImageReference(): Boolean =
+        startsWith("https://", ignoreCase = true) ||
+            startsWith("http://", ignoreCase = true) ||
+            startsWith("data:image/", ignoreCase = true)
 
     fun assistantHistoryMessage(
         source: JSONObject,

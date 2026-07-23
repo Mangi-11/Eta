@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -36,11 +37,17 @@ internal interface ProviderDao {
     @Query("SELECT * FROM provider_models WHERE provider_id = :providerId ORDER BY sort_order ASC")
     fun modelsFlow(providerId: String): Flow<List<ProviderModelEntity>>
 
+    @Query("SELECT * FROM provider_models WHERE provider_id = :providerId ORDER BY sort_order ASC")
+    suspend fun models(providerId: String): List<ProviderModelEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertProvider(provider: ProviderEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertProviders(providers: List<ProviderEntity>)
+
+    @Update
+    suspend fun updateProvider(provider: ProviderEntity): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertModels(models: List<ProviderModelEntity>)
@@ -58,6 +65,17 @@ internal interface ProviderDao {
     ) {
         upsertProvider(provider)
         deleteModelsForProvider(provider.id)
+        if (models.isNotEmpty()) {
+            upsertModels(models)
+        }
+    }
+
+    @Transaction
+    suspend fun replaceModels(
+        providerId: String,
+        models: List<ProviderModelEntity>,
+    ) {
+        deleteModelsForProvider(providerId)
         if (models.isNotEmpty()) {
             upsertModels(models)
         }

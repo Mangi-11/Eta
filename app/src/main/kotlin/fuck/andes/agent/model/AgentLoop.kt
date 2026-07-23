@@ -44,6 +44,7 @@ internal class AgentLoop(
 
     private val toolCallValidator = AgentToolCallValidator(tools)
     private val accumulatedReasoning = StringBuilder()
+    private var pendingToolImageMessage: JSONObject? = null
 
     fun reasoningSnapshot(): String = accumulatedReasoning.toString().trim()
 
@@ -58,21 +59,26 @@ internal class AgentLoop(
             onEvent(AgentEvent.RoundStarted(round = round, messageCount = messages.length()))
 
             val reasoningLengthBeforeRound = accumulatedReasoning.length
-            val providerResponse = provider.complete(
-                request = ProviderRequest(
-                    config = config,
-                    messages = messages,
-                    tools = tools,
-                ),
-                runController = runController,
-            ) { providerEvent ->
-                if (
-                    providerEvent is ProviderEvent.BlockDelta &&
-                    providerEvent.kind == AssistantBlockKind.THINKING
-                ) {
-                    accumulatedReasoning.append(providerEvent.delta)
+            val providerResponse = try {
+                provider.complete(
+                    request = ProviderRequest(
+                        config = config,
+                        messages = messages,
+                        tools = tools,
+                    ),
+                    runController = runController,
+                ) { providerEvent ->
+                    if (
+                        providerEvent is ProviderEvent.BlockDelta &&
+                        providerEvent.kind == AssistantBlockKind.THINKING
+                    ) {
+                        accumulatedReasoning.append(providerEvent.delta)
+                    }
+                    providerEvent.toAgentEvent(round)?.let(onEvent)
                 }
-                providerEvent.toAgentEvent(round)?.let(onEvent)
+            } finally {
+                // 截图只供紧接着的一次推理消费；成功、失败或取消后都不进入后续上下文与归档。
+                discardPendingToolImageMessage()
             }
 
             runController.throwIfCancelled()
@@ -286,27 +292,46 @@ internal class AgentLoop(
         round: Int,
         outcomes: List<ToolOutcome>,
     ) {
-        // Provider 要求同一 assistant 批次的全部 tool result 连续出现；图片观察放在批次之后。
+        // Provider 要求同一 assistant 批次的全部 tool result 连续出现；图片观察统一放在批次之后。
         outcomes.forEach { outcome ->
             messages.put(AgentConversationCodec.toolResultMessage(outcome.call, outcome.result))
         }
-        outcomes.forEach { outcome ->
-            val images = outcome.result.images
-            if (images.isEmpty()) return@forEach
-            messages.put(
-                AgentConversationCodec.userMessage(
-                    text = "Observation image(s) returned by tool ${outcome.call.name}.",
-                    images = images,
-                )
-            )
+
+        val imageOutcomes = outcomes.filter { outcome -> outcome.result.images.isNotEmpty() }
+        if (imageOutcomes.isEmpty()) return
+
+        // 工具截图是瞬时观察，不是会话资产。下一次推理消费后立即删除。
+        discardPendingToolImageMessage()
+        val images = imageOutcomes.flatMap { outcome -> outcome.result.images }
+        val toolNames = imageOutcomes
+            .map { outcome -> outcome.call.name }
+            .distinct()
+            .joinToString(", ")
+        pendingToolImageMessage = AgentConversationCodec.userMessage(
+            text = "Latest observation image(s) returned by tool(s): $toolNames.",
+            images = images,
+        ).also(messages::put)
+
+        imageOutcomes.forEach { outcome ->
             onEvent(
                 AgentEvent.ToolImagesAttached(
                     round = round,
                     toolName = outcome.call.name,
-                    imageCount = images.size,
-                    imageBytes = images.sumOf { it.bytes },
+                    imageCount = outcome.result.images.size,
+                    imageBytes = outcome.result.images.sumOf { it.bytes },
                 )
             )
+        }
+    }
+
+    private fun discardPendingToolImageMessage() {
+        val pending = pendingToolImageMessage ?: return
+        pendingToolImageMessage = null
+        for (index in messages.length() - 1 downTo 0) {
+            if (messages.optJSONObject(index) === pending) {
+                messages.remove(index)
+                return
+            }
         }
     }
 

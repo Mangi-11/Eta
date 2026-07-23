@@ -1,8 +1,10 @@
 package fuck.andes.agent.runtime
 
+import fuck.andes.agent.accessibility.PackageWindowVisibility
 import fuck.andes.core.AgentLogger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -19,7 +21,7 @@ class EntrySurfaceGuardTest {
     }
 
     @Test
-    fun breenoGuardOwnsAOneShotScreenshotExclusion() {
+    fun breenoGuardKeepsExclusionUntilTheFirstScreenshotConsumesIt() {
         val guard = EntrySurfaceGuard.from(
             handoff = handoff(source = "breeno", dismiss = true),
             logger = NoOpLogger,
@@ -41,6 +43,42 @@ class EntrySurfaceGuardTest {
         assertNotNull(guard)
         assertNull(guard?.targetPackageName)
         assertTrue(guard?.consumeScreenshotExcludedPackages().orEmpty().isEmpty())
+    }
+
+    @Test
+    fun knownEntryAlreadyGoneMustNotSendBackIntoUnderlyingApp() {
+        assertEquals(
+            EntrySurfaceDismissPolicy.Decision.ALREADY_GONE,
+            EntrySurfaceDismissPolicy.decide(
+                targetPackageName = "com.heytap.speechassist",
+                visibility = PackageWindowVisibility.GONE,
+            ),
+        )
+        assertEquals(
+            EntrySurfaceDismissPolicy.Decision.SEND_BACK,
+            EntrySurfaceDismissPolicy.decide(
+                targetPackageName = "com.heytap.speechassist",
+                visibility = PackageWindowVisibility.VISIBLE,
+            ),
+        )
+        assertEquals(
+            EntrySurfaceDismissPolicy.Decision.SEND_BACK,
+            EntrySurfaceDismissPolicy.decide(
+                targetPackageName = null,
+                visibility = null,
+            ),
+        )
+    }
+
+    @Test
+    fun unknownVisibilityDefersWithoutClearingScreenshotExclusion() {
+        assertEquals(
+            EntrySurfaceDismissPolicy.Decision.DEFER,
+            EntrySurfaceDismissPolicy.decide(
+                targetPackageName = "com.heytap.speechassist",
+                visibility = PackageWindowVisibility.UNKNOWN,
+            ),
+        )
     }
 
     private fun handoff(source: String, dismiss: Boolean) =

@@ -12,6 +12,7 @@ import fuck.andes.data.model.CustomBody
 import fuck.andes.data.model.CustomHeader
 import fuck.andes.data.model.CustomProviderSetting
 import fuck.andes.data.model.Model
+import fuck.andes.data.model.ModelSource
 import fuck.andes.data.model.OpenAiCompatibleProviderSetting
 import fuck.andes.data.model.OpenAiEndpointMode
 import fuck.andes.data.model.ProviderSetting
@@ -73,6 +74,7 @@ internal data class ProviderModelEntity(
     @ColumnInfo(name = "supports_temperature") val supportsTemperature: Boolean?,
     @ColumnInfo(name = "custom_headers_json") val customHeadersJson: String,
     @ColumnInfo(name = "custom_body_json") val customBodyJson: String,
+    val source: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
 
@@ -205,6 +207,7 @@ private fun Model.toEntity(providerId: String): ProviderModelEntity =
         supportsTemperature = supportsTemperature,
         customHeadersJson = ProviderJson.encodeHeaders(customHeaders),
         customBodyJson = ProviderJson.encodeBody(customBody),
+        source = source.name.lowercase(),
         createdAt = createdAt,
     )
 
@@ -231,6 +234,9 @@ private fun ProviderModelEntity.toDomain(): Model =
         supportsTemperature = supportsTemperature,
         customHeaders = ProviderJson.decodeHeaders(customHeadersJson),
         customBody = ProviderJson.decodeBody(customBodyJson),
+        source = runCatching { ModelSource.valueOf(source.uppercase()) }.getOrDefault(
+            if (isBuiltIn) ModelSource.CATALOG else ModelSource.MANUAL
+        ),
         createdAt = createdAt,
     )
 

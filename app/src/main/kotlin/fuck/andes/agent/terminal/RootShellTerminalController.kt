@@ -14,6 +14,7 @@ import org.json.JSONObject
 
 internal class RootShellTerminalController(
     private val logger: AgentLogger,
+    private val linuxRootfsPath: String? = null,
     private val processSupervisor: ShellProcessSupervisor = ShellProcessSupervisor(),
 ) : AutoCloseable {
     private companion object {
@@ -39,6 +40,7 @@ internal class RootShellTerminalController(
             cwd = cwd,
             timeoutSeconds = timeoutSeconds,
             identity = "root",
+            environment = TerminalEnvironment.ANDROID,
             mergeStderr = false,
             toolName = "run_command"
         )
@@ -49,7 +51,8 @@ internal class RootShellTerminalController(
         cwd: String?,
         timeoutMs: Int,
         identity: String,
-        mergeStderr: Boolean
+        mergeStderr: Boolean,
+        environment: String = TerminalEnvironment.ANDROID.wireName,
     ): String {
         val timeoutSeconds = ((timeoutMs.coerceIn(1, MAX_TIMEOUT_SECONDS * 1000) + 999) / 1000)
             .coerceIn(1, MAX_TIMEOUT_SECONDS)
@@ -58,6 +61,7 @@ internal class RootShellTerminalController(
             cwd = cwd,
             timeoutSeconds = timeoutSeconds,
             identity = identity.ifBlank { "root" },
+            environment = normalizeEnvironment(environment),
             mergeStderr = mergeStderr,
             toolName = "terminal"
         )
@@ -75,15 +79,17 @@ internal class RootShellTerminalController(
         async: Boolean,
         offsetChars: Int,
         maxChars: Int,
-        closeIfDone: Boolean
+        closeIfDone: Boolean,
+        environment: String = TerminalEnvironment.ANDROID.wireName,
     ): String {
         return when (action.lowercase()) {
-            "open" -> openSession(identity = identity, cwd = cwd)
+            "open" -> openSession(identity = identity, cwd = cwd, environment = environment)
             "exec" -> execInTerminal(
                 command = command,
                 cwd = cwd,
                 timeoutMs = timeoutMs,
                 identity = identity,
+                environment = environment,
                 mergeStderr = mergeStderr,
                 sessionId = sessionId,
                 async = async
@@ -93,6 +99,7 @@ internal class RootShellTerminalController(
                 cwd = cwd,
                 timeoutMs = timeoutMs,
                 identity = identity,
+                environment = environment,
                 mergeStderr = mergeStderr,
                 sessionId = sessionId,
                 async = async
@@ -111,17 +118,23 @@ internal class RootShellTerminalController(
         }
     }
 
-    private fun openSession(identity: String, cwd: String?): String {
+    private fun openSession(identity: String, cwd: String?, environment: String): String {
         val normalizedIdentity = normalizeIdentity(identity.ifBlank { "root" })
+        val normalizedEnvironment = normalizeEnvironment(environment)
+        environmentPreflight(normalizedIdentity, normalizedEnvironment)?.let { return it }
         val safeCwd = normalizeCwd(cwd)
         val id = "term_" + UUID.randomUUID().toString().take(8)
-        val process = startSessionProcess(normalizedIdentity)
-            ?: return errorJson("PROCESS_START_FAILED", "无法启动 $normalizedIdentity terminal session")
+        val process = startSessionProcess(normalizedIdentity, normalizedEnvironment)
+            ?: return errorJson(
+                "PROCESS_START_FAILED",
+                "无法启动 ${normalizedEnvironment.wireName}/$normalizedIdentity terminal session",
+            )
         val stdout = ByteArrayOutputCollector()
         val stderr = ByteArrayOutputCollector()
         val session = TerminalSession(
             id = id,
             identity = normalizedIdentity,
+            environment = normalizedEnvironment,
             cwd = safeCwd,
             createdAt = System.currentTimeMillis(),
             process = process,
@@ -162,6 +175,7 @@ internal class RootShellTerminalController(
             .put("action", "open")
             .put("session_id", id)
             .put("identity", normalizedIdentity)
+            .put("environment", normalizedEnvironment.wireName)
             .put("cwd", session.cwd)
             .toString()
     }
@@ -171,6 +185,7 @@ internal class RootShellTerminalController(
         cwd: String?,
         timeoutMs: Int,
         identity: String,
+        environment: String,
         mergeStderr: Boolean,
         sessionId: String?,
         async: Boolean
@@ -180,6 +195,8 @@ internal class RootShellTerminalController(
                 ?: return errorJson("SESSION_NOT_FOUND", "未找到 terminal session：$id")
         }
         val effectiveIdentity = session?.identity ?: normalizeIdentity(identity.ifBlank { "root" })
+        val effectiveEnvironment = session?.environment ?: normalizeEnvironment(environment)
+        environmentPreflight(effectiveIdentity, effectiveEnvironment)?.let { return it }
         val effectiveCwd = cwd?.takeIf { it.isNotBlank() } ?: session?.cwd
         if (async) {
             if (session != null) {
@@ -193,6 +210,7 @@ internal class RootShellTerminalController(
                 cwd = effectiveCwd,
                 timeoutMs = timeoutMs,
                 identity = effectiveIdentity,
+                environment = effectiveEnvironment,
                 mergeStderr = mergeStderr,
                 sessionId = session?.id
             )
@@ -211,6 +229,7 @@ internal class RootShellTerminalController(
             timeoutSeconds = ((timeoutMs.coerceIn(1, MAX_TIMEOUT_SECONDS * 1000) + 999) / 1000)
                 .coerceIn(1, MAX_TIMEOUT_SECONDS),
             identity = effectiveIdentity,
+            environment = effectiveEnvironment,
             mergeStderr = mergeStderr,
             toolName = "terminal"
         )
@@ -222,6 +241,7 @@ internal class RootShellTerminalController(
         cwd: String?,
         timeoutMs: Int,
         identity: String,
+        environment: TerminalEnvironment,
         mergeStderr: Boolean,
         sessionId: String?
     ): String {
@@ -229,6 +249,7 @@ internal class RootShellTerminalController(
         if (trimmed.isBlank()) return errorJson("INVALID_ARGUMENT", "command 不能为空")
         require(trimmed.length <= MAX_COMMAND_CHARS) { "command 过长：${trimmed.length}" }
         val normalizedIdentity = normalizeIdentity(identity)
+        environmentPreflight(normalizedIdentity, environment)?.let { return it }
         val safeCwd = normalizeCwd(cwd)
         val setup = if (safeCwd == DEFAULT_CWD) "mkdir -p ${shellQuote(DEFAULT_CWD)} && " else ""
         val fullCommand = "${setup}cd ${shellQuote(safeCwd)} && export TERM=dumb NO_COLOR=1 && $trimmed"
@@ -236,6 +257,8 @@ internal class RootShellTerminalController(
             identity = normalizedIdentity,
             command = fullCommand,
             mergeStderr = mergeStderr,
+            environment = environment,
+            linuxRootfsPath = linuxRootfsPath,
         ) ?: return errorJson(
             if (processSupervisor.isClosing) "TERMINAL_CLOSED" else "PROCESS_START_FAILED",
             if (processSupervisor.isClosing) "terminal controller 已关闭" else "无法启动 terminal process",
@@ -251,6 +274,7 @@ internal class RootShellTerminalController(
             command = trimmed,
             cwd = safeCwd,
             identity = normalizedIdentity,
+            environment = environment,
             mergeStderr = mergeStderr,
             sessionId = sessionId,
             startedAt = System.currentTimeMillis(),
@@ -284,7 +308,8 @@ internal class RootShellTerminalController(
         }
         logger.info(
             "Agent terminal action=open_and_exec outcome=started async=true " +
-                "identity=$normalizedIdentity timeoutMs=${job.timeoutMs} commandChars=${trimmed.length}"
+                "identity=$normalizedIdentity environment=${environment.wireName} " +
+                "timeoutMs=${job.timeoutMs} commandChars=${trimmed.length}"
         )
         return JSONObject()
             .put("ok", true)
@@ -294,6 +319,7 @@ internal class RootShellTerminalController(
             .put("job_id", id)
             .put("session_id", sessionId ?: JSONObject.NULL)
             .put("identity", normalizedIdentity)
+            .put("environment", environment.wireName)
             .put("cwd", safeCwd)
             .put("running", true)
             .toString()
@@ -323,6 +349,7 @@ internal class RootShellTerminalController(
             .put("action", "read_async_result")
             .put("job_id", job.id)
             .put("session_id", job.sessionId ?: JSONObject.NULL)
+            .put("environment", job.environment.wireName)
             .put("running", !done)
             .put("exit_code", job.exitCode ?: JSONObject.NULL)
             .put("timed_out", job.timedOut)
@@ -445,7 +472,8 @@ internal class RootShellTerminalController(
         }
         val logMessage =
             "Agent terminal action=exec outcome=$outcome session=true " +
-                "identity=${session.identity} timeoutMs=$timeout commandChars=${trimmed.length} " +
+                "identity=${session.identity} environment=${session.environment.wireName} " +
+                "timeoutMs=$timeout commandChars=${trimmed.length} " +
                 "exitCode=${result.exitCode}"
         if (result.exitCode == 0) {
             logger.info(logMessage)
@@ -469,6 +497,7 @@ internal class RootShellTerminalController(
             .put("action", "exec")
             .put("session_id", session.id)
             .put("identity", session.identity)
+            .put("environment", session.environment.wireName)
             .put("cwd", session.cwd)
             .put("exit_code", result.exitCode)
             .put("timed_out", result.timedOut)
@@ -572,6 +601,7 @@ internal class RootShellTerminalController(
         cwd: String?,
         timeoutSeconds: Int,
         identity: String,
+        environment: TerminalEnvironment,
         mergeStderr: Boolean,
         toolName: String
     ): String {
@@ -579,15 +609,17 @@ internal class RootShellTerminalController(
         if (trimmed.isBlank()) return errorJson("INVALID_ARGUMENT", "command 不能为空")
         require(trimmed.length <= MAX_COMMAND_CHARS) { "command 过长：${trimmed.length}" }
         val normalizedIdentity = normalizeIdentity(identity)
+        environmentPreflight(normalizedIdentity, environment)?.let { return it }
         val safeCwd = normalizeCwd(cwd)
         val timeout = timeoutSeconds.coerceIn(1, MAX_TIMEOUT_SECONDS)
         val setup = if (safeCwd == DEFAULT_CWD) "mkdir -p ${shellQuote(DEFAULT_CWD)} && " else ""
         val fullCommand = "${setup}cd ${shellQuote(safeCwd)} && export TERM=dumb NO_COLOR=1 && $trimmed"
-        val result = if (normalizedIdentity == "root") {
-            runSuText(fullCommand, timeoutSeconds = timeout.toLong())
-        } else {
-            runShText(fullCommand, timeoutSeconds = timeout.toLong())
-        }
+        val result = runText(
+            identity = normalizedIdentity,
+            command = fullCommand,
+            timeoutSeconds = timeout.toLong(),
+            environment = environment,
+        )
         val outcome = when (result.exitCode) {
             0 -> "succeeded"
             -2 -> "timed_out"
@@ -596,6 +628,7 @@ internal class RootShellTerminalController(
         val action = if (toolName == "terminal") "open_and_exec" else "run_command"
         val logMessage =
             "Agent terminal action=$action outcome=$outcome identity=$normalizedIdentity " +
+                "environment=${environment.wireName} " +
                 "timeoutSeconds=$timeout commandChars=${trimmed.length} exitCode=${result.exitCode}"
         if (result.exitCode == 0) {
             logger.info(logMessage)
@@ -614,6 +647,7 @@ internal class RootShellTerminalController(
             .put("tool", toolName)
             .put("action", if (toolName == "terminal") "open_and_exec" else JSONObject.NULL)
             .put("identity", normalizedIdentity)
+            .put("environment", environment.wireName)
             .put("cwd", safeCwd)
             .put("exit_code", result.exitCode)
             .put("timed_out", result.exitCode == -2)
@@ -717,6 +751,27 @@ internal class RootShellTerminalController(
         return normalized
     }
 
+    private fun normalizeEnvironment(environment: String): TerminalEnvironment =
+        when (environment.ifBlank { TerminalEnvironment.ANDROID.wireName }.lowercase()) {
+            TerminalEnvironment.ANDROID.wireName -> TerminalEnvironment.ANDROID
+            TerminalEnvironment.LINUX.wireName -> TerminalEnvironment.LINUX
+            else -> throw IllegalArgumentException("environment 仅支持 android/linux")
+        }
+
+    private fun environmentPreflight(
+        identity: String,
+        environment: TerminalEnvironment,
+    ): String? = when {
+        environment == TerminalEnvironment.LINUX && identity != "root" ->
+            errorJson("LINUX_ENVIRONMENT_REQUIRES_ROOT", "Linux 工具环境仅支持 root identity")
+        environment == TerminalEnvironment.LINUX && !AlpineEnvironmentPaths.rootfsReady(linuxRootfsPath) ->
+            errorJson(
+                "LINUX_ENVIRONMENT_NOT_READY",
+                "Linux 工具环境尚未安装，请先在设置中完成环境配置",
+            )
+        else -> null
+    }
+
     private fun normalizeCwd(cwd: String?): String =
         normalizePath(cwd?.trim().orEmpty().ifBlank { DEFAULT_CWD })
 
@@ -734,20 +789,46 @@ internal class RootShellTerminalController(
         return normalized
     }
 
-    private fun startSessionProcess(identity: String): Process? =
-        processSupervisor.startShellProcess(identity = identity, command = null, mergeStderr = false)
+    private fun startSessionProcess(
+        identity: String,
+        environment: TerminalEnvironment,
+    ): Process? =
+        processSupervisor.startShellProcess(
+            identity = identity,
+            command = null,
+            mergeStderr = false,
+            environment = environment,
+            linuxRootfsPath = linuxRootfsPath,
+        )
 
-    private fun runSuText(command: String, timeoutSeconds: Long): ShellTextResult {
-        val result = runProcess("root", command, timeoutSeconds, stdin = null)
+    private fun runText(
+        identity: String,
+        command: String,
+        timeoutSeconds: Long,
+        environment: TerminalEnvironment,
+    ): ShellTextResult {
+        val result = runProcess(
+            identity = identity,
+            command = command,
+            timeoutSeconds = timeoutSeconds,
+            stdin = null,
+            environment = environment,
+        )
         return ShellTextResult(
             exitCode = result.exitCode,
             output = result.output.decodeToString().trimEnd(),
-            stderr = result.stderr.decodeToString().trimEnd()
+            stderr = result.stderr.decodeToString().trimEnd(),
         )
     }
 
-    private fun runShText(command: String, timeoutSeconds: Long): ShellTextResult {
-        val result = runProcess("user", command, timeoutSeconds, stdin = null)
+    private fun runSuText(command: String, timeoutSeconds: Long): ShellTextResult {
+        val result = runProcess(
+            identity = "root",
+            command = command,
+            timeoutSeconds = timeoutSeconds,
+            stdin = null,
+            environment = TerminalEnvironment.ANDROID,
+        )
         return ShellTextResult(
             exitCode = result.exitCode,
             output = result.output.decodeToString().trimEnd(),
@@ -756,7 +837,13 @@ internal class RootShellTerminalController(
     }
 
     private fun runSuTextWithStdin(command: String, stdin: ByteArray, timeoutSeconds: Long): ShellTextResult {
-        val result = runProcess("root", command, timeoutSeconds, stdin)
+        val result = runProcess(
+            identity = "root",
+            command = command,
+            timeoutSeconds = timeoutSeconds,
+            stdin = stdin,
+            environment = TerminalEnvironment.ANDROID,
+        )
         return ShellTextResult(
             exitCode = result.exitCode,
             output = result.output.decodeToString().trimEnd(),
@@ -765,7 +852,13 @@ internal class RootShellTerminalController(
     }
 
     private fun runSuBytes(command: String, timeoutSeconds: Long): ShellBytesResult {
-        val result = runProcess("root", command, timeoutSeconds, stdin = null)
+        val result = runProcess(
+            identity = "root",
+            command = command,
+            timeoutSeconds = timeoutSeconds,
+            stdin = null,
+            environment = TerminalEnvironment.ANDROID,
+        )
         return ShellBytesResult(result.exitCode, result.output, result.stderr.decodeToString().trimEnd())
     }
 
@@ -774,11 +867,14 @@ internal class RootShellTerminalController(
         command: String,
         timeoutSeconds: Long,
         stdin: ByteArray?,
+        environment: TerminalEnvironment,
     ): ProcessBytesResult {
         val process = processSupervisor.startShellProcess(
             identity = identity,
             command = command,
             mergeStderr = false,
+            environment = environment,
+            linuxRootfsPath = linuxRootfsPath,
         ) ?: return ProcessBytesResult(
             if (processSupervisor.isClosing) -3 else -1,
             ByteArray(0),
@@ -848,6 +944,7 @@ internal class RootShellTerminalController(
     private class TerminalSession(
         val id: String,
         val identity: String,
+        val environment: TerminalEnvironment,
         var cwd: String,
         val createdAt: Long,
         val process: Process,
@@ -872,6 +969,7 @@ internal class RootShellTerminalController(
         val command: String,
         val cwd: String,
         val identity: String,
+        val environment: TerminalEnvironment,
         val mergeStderr: Boolean,
         val sessionId: String?,
         val startedAt: Long,

@@ -28,13 +28,17 @@ internal class AgentRuntimeClient(
     ): AgentRuntimeWire.RunResult {
         val resultLatch = CountDownLatch(1)
         val resultRef = AtomicReference<AgentRuntimeWire.RunResult?>()
+        val preparedImagesRef = AtomicReference<AgentRuntimeImageTransfer.PreparedImages?>()
         val clientMessenger = Messenger(
             ClientHandler(
                 onEvent = onEvent,
                 onResult = { result ->
                     resultRef.set(result)
                     resultLatch.countDown()
-                }
+                },
+                onRequestIngested = {
+                    preparedImagesRef.getAndSet(null)?.close()
+                },
             )
         )
 
@@ -54,7 +58,9 @@ internal class AgentRuntimeClient(
             lease.binder.linkToDeath(deathRecipient, 0)
             val msg = Message.obtain(null, AgentRuntimeWire.MSG_START_RUN)
             msg.replyTo = clientMessenger
-            msg.data = AgentRuntimeWire.toBundle(request)
+            val preparedImages = AgentRuntimeImageTransfer.prepare(context, request.images)
+            preparedImagesRef.set(preparedImages)
+            msg.data = AgentRuntimeWire.toBundle(request, preparedImages.images)
             serviceMessenger.send(msg)
             if (!resultLatch.await(RUN_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
                 runCatching {
@@ -86,10 +92,12 @@ internal class AgentRuntimeClient(
                 content = "",
                 error = when (throwable) {
                     is AgentRuntimeWire.PayloadTooLargeException -> throwable.message
+                    is AgentRuntimeImageTransfer.ImageTransferException -> throwable.message
                     else -> "Agent Runtime 请求发送失败（${throwable.safeLogType()}）"
                 },
             )
         } finally {
+            preparedImagesRef.getAndSet(null)?.close()
             runCatching { lease.binder.unlinkToDeath(deathRecipient, 0) }
             lease.close()
         }
@@ -150,7 +158,8 @@ internal class AgentRuntimeClient(
 
     private class ClientHandler(
         private val onEvent: (AgentEvent) -> Unit,
-        private val onResult: (AgentRuntimeWire.RunResult) -> Unit
+        private val onResult: (AgentRuntimeWire.RunResult) -> Unit,
+        private val onRequestIngested: () -> Unit,
     ) : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
             when (msg.what) {
@@ -161,6 +170,8 @@ internal class AgentRuntimeClient(
                 AgentRuntimeWire.MSG_RESULT -> {
                     onResult(AgentRuntimeWire.runResultFromBundle(msg.data ?: return))
                 }
+
+                AgentRuntimeWire.MSG_REQUEST_INGESTED -> onRequestIngested()
             }
         }
     }

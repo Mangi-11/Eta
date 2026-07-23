@@ -583,8 +583,8 @@ internal object BreenoHooks {
                         is BreenoRequestImages.Resolution.Failure -> {
                             logger.warnThrottled("breeno_${resolution.code.value}") {
                                 "图片处理失败: code=${resolution.code.value}, images=${resolution.imageCount}, " +
-                                    "estimated=${resolution.estimatedParcelBytes}, " +
-                                    "limit=${resolution.maxParcelBytes}"
+                                    "estimated=${resolution.estimatedBytes}, " +
+                                    "limit=${resolution.maxBytes}"
                             }
                             error(resolution.message)
                         }

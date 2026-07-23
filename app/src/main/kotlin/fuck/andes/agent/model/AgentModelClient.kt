@@ -4,6 +4,7 @@ import fuck.andes.agent.runtime.AgentEvent
 import fuck.andes.agent.runtime.AgentRunCancelledException
 import fuck.andes.agent.runtime.AgentRunController
 import fuck.andes.agent.skill.SkillContext
+import fuck.andes.agent.skill.SkillInstallIntentGate
 import fuck.andes.config.Prefs
 import fuck.andes.data.model.AnthropicProviderSetting
 import fuck.andes.data.model.CustomBody
@@ -70,9 +71,12 @@ internal object AgentModelClient {
         config.validate()
         val messages = AgentPromptBuilder.buildInitialMessages(config, prompt, images, history, skillContext)
         val transcriptStartIndex = messages.length()
+        val skillInstallAuthorization = SkillInstallIntentGate.evaluate(prompt)
         val tools = AgentToolCatalog.build(
             terminalTools = config.terminalTools,
             browserTools = config.browserTools,
+            skillGitHubDiscovery = skillInstallAuthorization.discoveryAllowed,
+            skillGitHubInstall = skillInstallAuthorization.installAllowed,
         )
         onEvent(
             AgentEvent.RunStarted(
@@ -183,8 +187,9 @@ internal object AgentModelClient {
         val images: List<ModelImage> = emptyList()
     )
 
+    /** 图片引用：入口侧可为本地 URI/路径，进入模型协议前必须解析为远程 URL 或 data URL。 */
     data class ModelImage(
-        val dataUrl: String,
+        val reference: String,
         val mimeType: String,
         val bytes: Int,
         val width: Int? = null,

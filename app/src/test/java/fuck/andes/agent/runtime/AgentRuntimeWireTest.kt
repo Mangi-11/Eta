@@ -1,21 +1,28 @@
 package fuck.andes.agent.runtime
 
+import android.graphics.Bitmap
 import android.os.Parcel
+import android.util.Base64
+import fuck.andes.agent.media.AgentImageCodec
 import fuck.andes.agent.model.AgentModelClient
+import java.io.File
+import java.io.FileOutputStream
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class AgentRuntimeWireTest {
     @Test
-    fun oversizedImageRequestIsRejectedBeforeMessengerSend() {
+    fun oversizedLegacyInlineImageRequestIsRejectedBeforeMessengerSend() {
         val request = AgentRuntimeWire.RunRequest(
             runId = "run-large-image",
             prompt = "分析图片",
@@ -27,7 +34,7 @@ class AgentRuntimeWireTest {
             ),
             images = listOf(
                 AgentModelClient.ModelImage(
-                    dataUrl = "data:image/png;base64,${"A".repeat(500_000)}",
+                    reference = "data:image/png;base64,${"A".repeat(500_000)}",
                     mimeType = "image/png",
                     bytes = 375_000,
                 )
@@ -35,7 +42,101 @@ class AgentRuntimeWireTest {
         )
 
         assertThrows(AgentRuntimeWire.PayloadTooLargeException::class.java) {
-            AgentRuntimeWire.toBundle(request)
+            AgentRuntimeWire.toLegacyBundle(request)
+        }
+    }
+
+    @Test
+    fun largeImageBodyUsesFileDescriptorAndStaysOutOfBinderBundle() {
+        val imageBytes = ByteArray(600_000) { index -> (index % 251).toByte() }
+        val dataUrl = "data:image/png;base64,${Base64.encodeToString(imageBytes, Base64.NO_WRAP)}"
+        val request = AgentRuntimeWire.RunRequest(
+            runId = "run-large-image",
+            prompt = "分析图片",
+            config = AgentModelClient.ModelConfig(
+                baseUrl = "https://example.invalid/v1",
+                apiKey = "test-key",
+                model = "test-model",
+                systemPrompt = "",
+            ),
+            images = listOf(
+                AgentModelClient.ModelImage(
+                    reference = dataUrl,
+                    mimeType = "image/png",
+                    bytes = imageBytes.size,
+                    source = "test",
+                )
+            ),
+        )
+
+        AgentRuntimeImageTransfer.prepare(
+            RuntimeEnvironment.getApplication(),
+            request.images,
+        ).use { prepared ->
+            val bundle = AgentRuntimeWire.toBundle(request, prepared.images)
+            val parcel = Parcel.obtain()
+            try {
+                parcel.writeBundle(bundle)
+                assertTrue(parcel.dataSize() < 64_000)
+            } finally {
+                parcel.recycle()
+            }
+
+            val materialized = AgentRuntimeImageTransfer.materialize(
+                AgentRuntimeWire.incomingRunRequestFromBundle(bundle)
+            )
+            assertEquals(request.copy(images = emptyList()), materialized.copy(images = emptyList()))
+            assertEquals(request.images.single().reference, materialized.images.single().reference)
+            assertEquals(request.images.single().mimeType, materialized.images.single().mimeType)
+            assertEquals(request.images.single().bytes, materialized.images.single().bytes)
+            assertEquals(request.images.single().source, materialized.images.single().source)
+        }
+    }
+
+    @Test
+    fun localImageReferenceIsNotBase64EncodedUntilRuntimeIngestsIt() {
+        val context = RuntimeEnvironment.getApplication()
+        val sourceFile = File(context.cacheDir, "runtime-wire-source-${System.nanoTime()}.png")
+        FileOutputStream(sourceFile).use { output ->
+            Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888).compress(
+                Bitmap.CompressFormat.PNG,
+                100,
+                output,
+            )
+        }
+        try {
+            val image = AgentImageCodec.fromTransferReference(
+                context = context,
+                value = sourceFile.absolutePath,
+                source = "test_local",
+            ) ?: error("测试图片解析失败")
+            assertEquals(sourceFile.absolutePath, image.reference)
+            val request = AgentRuntimeWire.RunRequest(
+                runId = "run-local-image",
+                prompt = "分析本地图片",
+                config = AgentModelClient.ModelConfig(
+                    baseUrl = "https://example.invalid/v1",
+                    apiKey = "test-key",
+                    model = "test-model",
+                    systemPrompt = "",
+                ),
+                images = listOf(image),
+            )
+
+            AgentRuntimeImageTransfer.prepare(context, request.images).use { prepared ->
+                assertNull(prepared.images.single().remoteUrl)
+                assertTrue(prepared.images.single().fileDescriptor != null)
+                val materialized = AgentRuntimeImageTransfer.materialize(
+                    AgentRuntimeWire.incomingRunRequestFromBundle(
+                        AgentRuntimeWire.toBundle(request, prepared.images)
+                    )
+                )
+                assertTrue(materialized.images.single().reference.startsWith("data:image/"))
+                assertTrue(materialized.images.single().reference.contains(";base64,"))
+                assertEquals(sourceFile.length().toInt(), materialized.images.single().bytes)
+            }
+        } finally {
+            sourceFile.delete()
         }
     }
 
@@ -99,7 +200,7 @@ class AgentRuntimeWireTest {
             ),
             images = listOf(
                 AgentModelClient.ModelImage(
-                    dataUrl = "data:image/png;base64,abc",
+                    reference = "data:image/png;base64,abc",
                     mimeType = "image/png",
                     bytes = 123,
                     width = 1080,
@@ -124,7 +225,7 @@ class AgentRuntimeWireTest {
             ),
         )
 
-        val bundle = AgentRuntimeWire.toBundle(request)
+        val bundle = AgentRuntimeWire.toLegacyBundle(request)
         assertEquals(true, bundle.containsKey("browser_tools"))
         assertEquals(true, bundle.getBoolean("browser_tools"))
         val roundTripped = AgentRuntimeWire.runRequestFromBundle(bundle)
@@ -146,7 +247,7 @@ class AgentRuntimeWireTest {
             ),
             images = emptyList(),
         )
-        val legacyBundle = AgentRuntimeWire.toBundle(request).apply {
+        val legacyBundle = AgentRuntimeWire.toLegacyBundle(request).apply {
             remove("browser_tools")
         }
 

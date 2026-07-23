@@ -24,7 +24,7 @@ class BreenoRequestImagesTest {
 
         val images = resolveImages(snapshot)
 
-        assertEquals(listOf("https://example.test/presigned"), images.map { it.dataUrl })
+        assertEquals(listOf("https://example.test/presigned"), images.map { it.reference })
     }
 
     @Test
@@ -46,7 +46,7 @@ class BreenoRequestImagesTest {
         assertEquals(2, snapshot.inputCount)
         assertEquals(
             listOf("https://example.test/resized", "https://example.test/original"),
-            resolveImages(snapshot).map { it.dataUrl },
+            resolveImages(snapshot).map { it.reference },
         )
     }
 
@@ -165,7 +165,7 @@ class BreenoRequestImagesTest {
     }
 
     @Test
-    fun oversizedInlineImageReturnsStructuredIpcFailure() {
+    fun inlineImageIsNoLongerRejectedByBinderStringBudget() {
         val snapshot = BreenoRequestImages.captureText(
             text = "data:image/png;base64," + "A".repeat(300_000),
             source = "image.data",
@@ -173,13 +173,8 @@ class BreenoRequestImagesTest {
 
         val resolution = BreenoRequestImages.resolve(null, snapshot)
 
-        assertTrue(resolution is BreenoRequestImages.Resolution.Failure)
-        resolution as BreenoRequestImages.Resolution.Failure
-        assertEquals(
-            BreenoRequestImages.FailureCode.IPC_IMAGE_BUDGET_EXCEEDED,
-            resolution.code,
-        )
-        assertTrue(resolution.estimatedParcelBytes > resolution.maxParcelBytes)
+        assertTrue(resolution is BreenoRequestImages.Resolution.Success)
+        assertEquals(1, (resolution as BreenoRequestImages.Resolution.Success).images.size)
     }
 
     @Test
@@ -191,7 +186,7 @@ class BreenoRequestImagesTest {
 
         assertEquals(
             "https://example.test/image-without-extension",
-            resolveImages(snapshot).single().dataUrl,
+            resolveImages(snapshot).single().reference,
         )
     }
 

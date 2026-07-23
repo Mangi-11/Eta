@@ -9,9 +9,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Rect
+import android.os.SystemClock
 import java.io.IOException
 import java.io.StringReader
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.concurrent.thread
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,9 +27,26 @@ internal class RootShellDeviceController(
     data class Observation(
         val content: String,
         val image: AgentModelClient.ModelImage?,
-        val nodes: List<UiNode>,
-        val coordinateSpace: CoordinateSpace?
+        val elementObservation: ElementObservation?,
+        val coordinateSpace: CoordinateSpace?,
     )
+
+    data class ElementObservation(
+        val id: String,
+        val source: ElementSource,
+        val packageName: String,
+        val windowId: Int?,
+        val nodes: List<UiNode>,
+        val maxNodes: Int,
+        val truncated: Boolean,
+        val treeSignature: String = "",
+        internal val accessibilitySnapshot: AgentAccessibilityService.NodeSnapshot? = null,
+    )
+
+    enum class ElementSource(val wireName: String) {
+        ACCESSIBILITY("accessibility"),
+        UIAUTOMATOR("uiautomator"),
+    }
 
     data class CoordinateSpace(
         val screenWidth: Int,
@@ -51,18 +70,22 @@ internal class RootShellDeviceController(
 
     data class ScreenPoint(val x: Int, val y: Int)
 
+    fun screenDimensions(): Pair<Int, Int> = screenSize()
+
     data class UiNode(
         val index: Int,
         val text: String,
         val desc: String,
         val className: String,
         val packageName: String,
+        val viewId: String,
         val bounds: Rect,
         val clickable: Boolean,
         val longClickable: Boolean,
         val scrollable: Boolean,
         val focused: Boolean,
         val editable: Boolean,
+        val password: Boolean,
         val enabled: Boolean
     ) {
         val centerX: Int get() = bounds.centerX()
@@ -70,17 +93,51 @@ internal class RootShellDeviceController(
     }
 
     fun observe(includeScreenshot: Boolean, includeUiTree: Boolean, maxNodes: Int): Observation {
-        val display = screenSize()
-        val focus = focusedWindow()
         val accessibility = AgentAccessibilityService.current()
-        val nodes = if (includeUiTree) {
-            accessibility?.observe(maxNodes.coerceIn(1, 120))?.map { it.toUiNode() }
-                ?.takeIf { it.isNotEmpty() }
-                ?: dumpUiNodes(maxNodes.coerceIn(1, 120))
+        val nodeLimit = maxNodes.coerceIn(1, 120)
+        val display = screenSize()
+        val focus = accessibility
+            ?.currentPackageName()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { packageName ->
+                JSONObject()
+                    .put("package", packageName)
+                    .put("component", packageName)
+                    .put("source", "accessibility")
+            }
+            ?: focusedWindow()
+        val elementObservation = if (includeUiTree) {
+            val accessibilitySnapshot = accessibility?.captureNodeSnapshot(nodeLimit)
+            if (accessibilitySnapshot != null) {
+                ElementObservation(
+                    id = accessibilitySnapshot.id,
+                    source = ElementSource.ACCESSIBILITY,
+                    packageName = accessibilitySnapshot.packageName,
+                    windowId = accessibilitySnapshot.windowId,
+                    nodes = accessibilitySnapshot.nodes.map { it.toUiNode() },
+                    maxNodes = nodeLimit,
+                    truncated = accessibilitySnapshot.truncated,
+                    accessibilitySnapshot = accessibilitySnapshot,
+                )
+            } else {
+                val rootNodes = dumpUiNodes(nodeLimit)
+                ElementObservation(
+                    id = "u${ROOT_OBSERVATION_IDS.incrementAndGet()}",
+                    source = ElementSource.UIAUTOMATOR,
+                    packageName = rootNodes.firstOrNull()?.packageName.orEmpty(),
+                    windowId = null,
+                    nodes = rootNodes,
+                    maxNodes = nodeLimit,
+                    truncated = rootNodes.size >= nodeLimit,
+                    treeSignature = uiTreeSignature(rootNodes),
+                )
+            }
         } else {
-            emptyList()
+            null
         }
-        val image = if (includeScreenshot) captureScreenshot() else null
+        val nodes = elementObservation?.nodes.orEmpty()
+        val capture = if (includeScreenshot) captureScreenshot() else ScreenCapture.notRequested()
+        val image = capture.image
         val coordinateSpace = if (image?.width != null && image.height != null) {
             CoordinateSpace(
                 screenWidth = display.first,
@@ -140,13 +197,18 @@ internal class RootShellDeviceController(
                 }
             )
             .put("focus", focus)
+            .put("observation_id", elementObservation?.id ?: JSONObject.NULL)
+            .put("observation_source", elementObservation?.source?.wireName ?: JSONObject.NULL)
+            .put("window_id", elementObservation?.windowId ?: JSONObject.NULL)
+            .put("node_limit", elementObservation?.maxNodes ?: 0)
+            .put("ui_tree_truncated", elementObservation?.truncated ?: false)
             .put("ui_nodes", nodes.toJsonArray())
             .put(
                 "screenshot",
                 if (image == null) {
-                    JSONObject().put("attached", false)
+                    capture.toJson().put("attached", false)
                 } else {
-                    JSONObject()
+                    capture.toJson()
                         .put("attached", true)
                         .put("mime_type", image.mimeType)
                         .put("bytes", image.bytes)
@@ -154,15 +216,19 @@ internal class RootShellDeviceController(
                         .put("height", image.height)
                 }
             )
-        return Observation(json.toString(), image, nodes, coordinateSpace)
+        return Observation(json.toString(), image, elementObservation, coordinateSpace)
     }
 
     fun tap(x: Int, y: Int): String {
         validatePoint(x, y)
         AgentAccessibilityService.current()?.let { service ->
-            if (service.gestureTap(x.toFloat(), y.toFloat())) {
+            val result = service.gestureTap(x.toFloat(), y.toFloat())
+            if (result.ok) {
                 waitForUiSettle("tap")
-                return okJson("tap", "accessibility")
+                return nodeActionJson("tap", result)
+            }
+            if (!GestureFallbackPolicy.mayFallbackToRoot(result.code)) {
+                return nodeActionJson("tap", result)
             }
         }
         return inputCommand("input tap $x $y", "tap")
@@ -172,9 +238,13 @@ internal class RootShellDeviceController(
         validatePoint(x, y)
         val duration = durationMs.coerceIn(300, 3_000)
         AgentAccessibilityService.current()?.let { service ->
-            if (service.gestureTap(x.toFloat(), y.toFloat(), duration.toLong())) {
+            val result = service.gestureTap(x.toFloat(), y.toFloat(), duration.toLong())
+            if (result.ok) {
                 waitForUiSettle("long_press")
-                return okJson("long_press", "accessibility")
+                return nodeActionJson("long_press", result.copy(method = "GESTURE_LONG_PRESS"))
+            }
+            if (!GestureFallbackPolicy.mayFallbackToRoot(result.code)) {
+                return nodeActionJson("long_press", result)
             }
         }
         return inputCommand("input swipe $x $y $x $y $duration", "long_press")
@@ -185,97 +255,187 @@ internal class RootShellDeviceController(
         validatePoint(x2, y2)
         val duration = durationMs.coerceIn(100, 2_000)
         AgentAccessibilityService.current()?.let { service ->
-            if (service.gestureSwipe(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), duration.toLong())) {
+            val result = service.gestureSwipe(
+                x1.toFloat(),
+                y1.toFloat(),
+                x2.toFloat(),
+                y2.toFloat(),
+                duration.toLong(),
+            )
+            if (result.ok) {
                 waitForUiSettle("swipe")
-                return okJson("swipe", "accessibility")
+                return nodeActionJson("swipe", result)
+            }
+            if (!GestureFallbackPolicy.mayFallbackToRoot(result.code)) {
+                return nodeActionJson("swipe", result)
             }
         }
         return inputCommand("input swipe $x1 $y1 $x2 $y2 $duration", "swipe")
     }
 
     fun scroll(direction: String): String {
-        val (width, height) = screenSize()
-        val cx = width / 2
-        val cy = height / 2
-        val horizontal = (width * 0.32f).toInt()
-        val vertical = (height * 0.28f).toInt()
-        return when (direction.lowercase()) {
-            "up" -> swipe(cx, cy + vertical, cx, cy - vertical, 450)
-            "down" -> swipe(cx, cy - vertical, cx, cy + vertical, 450)
-            "left" -> swipe(cx + horizontal, cy, cx - horizontal, cy, 450)
-            "right" -> swipe(cx - horizontal, cy, cx + horizontal, cy, 450)
-            else -> errorJson("INVALID_ARGUMENT", "direction 仅支持 up/down/left/right")
+        val parsed = ScrollDirection.parse(direction)
+            ?: return scrollErrorJson(
+                "scroll",
+                null,
+                "INVALID_ARGUMENT",
+                "direction 仅支持 up/down/left/right",
+            )
+        AgentAccessibilityService.current()?.let { service ->
+            return scrollActionJson("scroll", service.scrollCurrent(parsed))
         }
+        val beforeNodes = dumpUiNodes(120)
+        val targetBounds = beforeNodes
+            .asSequence()
+            .filter(UiNode::scrollable)
+            .maxByOrNull { node -> node.bounds.width().toLong() * node.bounds.height().toLong() }
+            ?.bounds
+            ?: screenContentBounds()
+        return rootScroll(
+            tool = "scroll",
+            direction = parsed,
+            bounds = targetBounds,
+            beforeNodes = beforeNodes,
+            maxNodes = 120,
+            targetIndex = null,
+        )
     }
 
     fun inputText(text: String): String {
-        val clipped = text.take(1_000)
-        if (clipped.isBlank()) return errorJson("INVALID_ARGUMENT", "text 不能为空")
-        AgentAccessibilityService.current()?.let { service ->
-            if (service.inputTextFocused(clipped, append = true)) {
-                waitForUiSettle("input_text")
-                return okJson("input_text", "accessibility")
-            }
+        if (text.isEmpty()) return errorJson("INVALID_ARGUMENT", "text 不能为空")
+        if (text.length > MAX_INPUT_TEXT_CHARS) {
+            return errorJson("TEXT_TOO_LONG", "input_text 最多支持 $MAX_INPUT_TEXT_CHARS 个字符")
         }
-        val encoded = clipped
-            .replace("\\", "\\\\")
-            .replace(" ", "%s")
-            .replace("'", "'\\''")
-        return inputCommand("input text '$encoded'", "input_text")
+        AgentAccessibilityService.current()?.let { service ->
+            val result = service.inputTextFocused(text)
+            if (result.ok) {
+                waitForUiSettle("input_text")
+                return nodeActionJson("input_text", result)
+            }
+            return nodeActionJson("input_text", result)
+        }
+        return errorJson(
+            "ACCESSIBILITY_UNAVAILABLE",
+            "input_text 需要无障碍服务确认真实输入焦点；本次未发送任何按键",
+        )
     }
 
-    fun replaceText(text: String, index: Int?): String {
-        val clipped = text.take(4_000)
+    fun replaceText(
+        text: String,
+        index: Int?,
+        observation: ElementObservation?,
+    ): String {
+        if (text.length > MAX_REPLACE_TEXT_CHARS) {
+            return errorJson("TEXT_TOO_LONG", "replace_text 最多支持 $MAX_REPLACE_TEXT_CHARS 个字符")
+        }
         AgentAccessibilityService.current()?.let { service ->
-            if (service.setTextNode(index, clipped)) {
+            val snapshot = observation?.accessibilitySnapshot
+            val result = service.setTextNode(snapshot, index, text)
+            if (result.ok) {
                 waitForUiSettle("replace_text")
-                return okJson("replace_text", "accessibility")
+                return nodeActionJson("replace_text", result)
             }
-            return errorJson("ACCESSIBILITY_ACTION_FAILED", "未找到可编辑节点或文本替换失败")
+            return nodeActionJson("replace_text", result)
         }
         return errorJson("ACCESSIBILITY_UNAVAILABLE", "replace_text 需要先启用 Eta 设备控制无障碍服务")
     }
 
-    fun clearText(index: Int?): String =
-        replaceText("", index).let { result ->
+    fun clearText(index: Int?, observation: ElementObservation?): String =
+        replaceText("", index, observation).let { result ->
             val json = JSONObject(result)
-            if (json.optBoolean("ok")) json.put("tool", "clear_text").toString() else result
+            json.put("tool", "clear_text").toString()
         }
 
-    fun tapElement(index: Int): String {
-        AgentAccessibilityService.current()?.let { service ->
-            if (service.clickNode(index)) {
+    fun tapElement(observation: ElementObservation, index: Int): String {
+        val snapshot = observation.accessibilitySnapshot
+        if (snapshot != null) {
+            val service = AgentAccessibilityService.current()
+                ?: return errorJson("ACCESSIBILITY_UNAVAILABLE", "无障碍服务已断开，请重新观察屏幕")
+            val result = service.clickNode(snapshot, index)
+            if (result.ok) {
                 waitForUiSettle("tap")
-                return okJson("tap_element", "accessibility")
+                return nodeActionJson("tap_element", result)
             }
+            return nodeActionJson("tap_element", result)
         }
-        return errorJson("ACCESSIBILITY_ACTION_FAILED", "无障碍点击节点失败")
+        val resolved = resolveUiAutomatorNode(observation, index)
+            ?: return errorJson("STALE_NODE", "无法在当前界面唯一确认目标节点，请重新观察屏幕")
+        val node = resolved.node
+        return tap(node.centerX, node.centerY).rewriteTool("tap_element")
     }
 
-    fun longPressElement(index: Int): String {
-        AgentAccessibilityService.current()?.let { service ->
-            if (service.longClickNode(index)) {
+    fun longPressElement(
+        observation: ElementObservation,
+        index: Int,
+        durationMs: Int,
+    ): String {
+        val snapshot = observation.accessibilitySnapshot
+        if (snapshot != null) {
+            val service = AgentAccessibilityService.current()
+                ?: return errorJson("ACCESSIBILITY_UNAVAILABLE", "无障碍服务已断开，请重新观察屏幕")
+            val result = service.longClickNode(snapshot, index, durationMs.toLong())
+            if (result.ok) {
                 waitForUiSettle("long_press")
-                return okJson("long_press_element", "accessibility")
+                return nodeActionJson("long_press_element", result)
             }
+            return nodeActionJson("long_press_element", result)
         }
-        return errorJson("ACCESSIBILITY_ACTION_FAILED", "无障碍长按节点失败")
+        val resolved = resolveUiAutomatorNode(observation, index)
+            ?: return errorJson("STALE_NODE", "无法在当前界面唯一确认目标节点，请重新观察屏幕")
+        val node = resolved.node
+        return longPress(node.centerX, node.centerY, durationMs).rewriteTool("long_press_element")
     }
 
-    fun scrollElement(index: Int, direction: String): String {
-        val normalized = direction.lowercase()
-        val forward = when (normalized) {
-            "down", "right", "forward" -> true
-            "up", "left", "backward" -> false
-            else -> return errorJson("INVALID_ARGUMENT", "direction 仅支持 up/down/left/right/forward/backward")
+    fun scrollElement(
+        observation: ElementObservation,
+        index: Int,
+        direction: String,
+    ): String {
+        val parsed = ScrollDirection.parse(direction)
+            ?: return scrollErrorJson(
+                "scroll_element",
+                null,
+                "INVALID_ARGUMENT",
+                "direction 仅支持 up/down/left/right",
+            )
+        val snapshot = observation.accessibilitySnapshot
+        if (snapshot != null) {
+            val service = AgentAccessibilityService.current()
+                ?: return scrollErrorJson(
+                    "scroll_element",
+                    parsed,
+                    "ACCESSIBILITY_UNAVAILABLE",
+                    "无障碍服务已断开，请重新观察屏幕",
+                )
+            return scrollActionJson(
+                tool = "scroll_element",
+                result = service.scrollNode(snapshot, index, parsed),
+            )
         }
-        AgentAccessibilityService.current()?.let { service ->
-            if (service.scrollNode(index, forward)) {
-                waitForUiSettle("swipe")
-                return okJson("scroll_element", "accessibility")
-            }
+        val resolved = resolveUiAutomatorNode(observation, index)
+            ?: return scrollErrorJson(
+                "scroll_element",
+                parsed,
+                "STALE_NODE",
+                "无法在当前界面唯一确认滚动目标，请重新观察屏幕",
+            )
+        val node = resolved.node
+        if (!node.scrollable) {
+            return scrollErrorJson(
+                "scroll_element",
+                parsed,
+                "NOT_SCROLLABLE",
+                "指定节点不可滚动",
+            )
         }
-        return errorJson("ACCESSIBILITY_ACTION_FAILED", "无障碍滚动节点失败")
+        return rootScroll(
+            tool = "scroll_element",
+            direction = parsed,
+            bounds = node.bounds,
+            beforeNodes = resolved.currentNodes,
+            maxNodes = observation.maxNodes,
+            targetIndex = index,
+        )
     }
 
     fun pressKey(button: String): String {
@@ -283,19 +443,29 @@ internal class RootShellDeviceController(
         AgentAccessibilityService.current()?.let { service ->
             when (normalized) {
                 "BACK", "HOME", "RECENTS", "NOTIFICATIONS", "QUICK_SETTINGS" -> {
-                    if (service.globalAction(normalized)) {
+                    val actionResult = service.globalActionResult(normalized)
+                    if (actionResult.ok) {
                         waitForUiSettle("press_key")
                         return okJson("press_key", "accessibility").let {
                             JSONObject(it).put("button", normalized).toString()
                         }
                     }
-                }
-                "ENTER" -> {
-                    if (service.imeEnter()) {
-                        waitForUiSettle("press_key")
-                        return okJson("press_key", "accessibility").let {
+                    if (actionResult.code == "ACTION_OUTCOME_UNKNOWN") {
+                        return nodeActionJson("press_key", actionResult).let {
                             JSONObject(it).put("button", normalized).toString()
                         }
+                    }
+                }
+                "ENTER" -> {
+                    val result = service.imeEnter()
+                    if (result.ok) {
+                        waitForUiSettle("press_key")
+                        return nodeActionJson("press_key", result).let {
+                            JSONObject(it).put("button", normalized).toString()
+                        }
+                    }
+                    return nodeActionJson("press_key", result).let {
+                        JSONObject(it).put("button", normalized).toString()
                     }
                 }
             }
@@ -306,6 +476,14 @@ internal class RootShellDeviceController(
             "ENTER" -> 66
             "RECENTS" -> 187
             "PASTE" -> 279
+            "NOTIFICATIONS" -> return inputCommand(
+                "cmd statusbar expand-notifications",
+                "press_key",
+            ).let { JSONObject(it).put("button", normalized).toString() }
+            "QUICK_SETTINGS" -> return inputCommand(
+                "cmd statusbar expand-settings",
+                "press_key",
+            ).let { JSONObject(it).put("button", normalized).toString() }
             else -> return errorJson("INVALID_ARGUMENT", "button 仅支持 BACK/HOME/ENTER/RECENTS/PASTE/NOTIFICATIONS/QUICK_SETTINGS")
         }
         return inputCommand("input keyevent $keyCode", "press_key")
@@ -330,7 +508,7 @@ internal class RootShellDeviceController(
         while (System.currentTimeMillis() <= deadline) {
             attempts++
             val nodes = AgentAccessibilityService.current()
-                ?.observe(120)
+                ?.queryNodes(120)
                 ?.map { it.toUiNode() }
                 ?.takeIf { it.isNotEmpty() }
                 ?: dumpUiNodes(120)
@@ -339,11 +517,15 @@ internal class RootShellDeviceController(
                 haystacks.any { value -> matches(value, needle, matchMode) }
             }
             if (match != null) {
+                val matchedNode = match.toJson()
+                matchedNode.remove("index")
+                matchedNode.put("actionable", false)
                 return JSONObject()
                     .put("ok", true)
                     .put("tool", "wait_for_text")
                     .put("attempts", attempts)
-                    .put("matched_node", match.toJson())
+                    .put("matched_node", matchedNode)
+                    .put("note", "等待查询不会发布元素快照；如需节点动作，请重新调用 observe_screen")
                     .toString()
             }
             Thread.sleep(350)
@@ -376,7 +558,7 @@ internal class RootShellDeviceController(
                     .toString()
             }
             val focus = focusedWindow()
-            if (focus.optString("component").contains(target)) {
+            if (focus.optString("package") == target) {
                 return JSONObject()
                     .put("ok", true)
                     .put("tool", "wait_for_package")
@@ -398,42 +580,73 @@ internal class RootShellDeviceController(
     }
 
     fun clipboardSet(context: Context, text: String): String {
-        val clipped = text.take(20_000)
-        val ok = AgentAccessibilityService.current()?.copyToClipboard(clipped) ?: runCatching {
+        if (text.length > MAX_CLIPBOARD_TEXT_CHARS) {
+            return errorJson("TEXT_TOO_LONG", "剪贴板文本最多支持 $MAX_CLIPBOARD_TEXT_CHARS 个字符")
+        }
+        val serviceResult = AgentAccessibilityService.current()?.copyToClipboard(text)
+        val ok = serviceResult?.ok ?: runCatching {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("fuck_andes_agent", clipped))
-            clipboard.hasPrimaryClip()
+            clipboard.setPrimaryClip(ClipData.newPlainText("fuck_andes_agent", text))
+            true
         }.getOrDefault(false)
-        return JSONObject()
+        val json = JSONObject()
             .put("ok", ok)
             .put("tool", "set_clipboard")
-            .put("chars", clipped.length)
-            .toString()
+            .put("chars", text.length)
+        if (!ok) {
+            json
+                .put("code", serviceResult?.code?.ifBlank { null } ?: "CLIPBOARD_WRITE_FAILED")
+                .put(
+                    "message",
+                    serviceResult?.message?.ifBlank { null } ?: "写入系统剪贴板失败",
+                )
+        }
+        return json.toString()
     }
 
     fun clipboardGet(context: Context): String {
-        val text = AgentAccessibilityService.current()?.getClipboardText() ?: runCatching {
+        val serviceResult = AgentAccessibilityService.current()?.readClipboard()
+        val result = serviceResult ?: run {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
-        }.getOrNull().orEmpty()
-        return JSONObject()
-            .put("ok", text.isNotBlank())
-            .put("tool", "get_clipboard")
-            .put("text", text.take(8_000))
-            .put("truncated", text.length > 8_000)
-            .toString()
-    }
-
-    fun pasteText(context: Context, text: String): String {
-        val setResult = JSONObject(clipboardSet(context, text))
-        if (!setResult.optBoolean("ok")) return setResult.put("tool", "paste_text").toString()
-        AgentAccessibilityService.current()?.let { service ->
-            if (service.pasteFocused()) {
-                waitForUiSettle("input_text")
-                return okJson("paste_text", "accessibility")
+            val clip = runCatching { clipboard.primaryClip }.getOrNull()
+            if (clip == null || clip.itemCount <= 0) {
+                AgentAccessibilityService.ClipboardReadResult.failure()
+            } else {
+                AgentAccessibilityService.ClipboardReadResult(
+                    ok = true,
+                    text = clip.getItemAt(0).coerceToText(context)?.toString().orEmpty(),
+                )
             }
         }
-        return inputCommand("input keyevent 279", "paste_text")
+        val json = JSONObject()
+            .put("ok", result.ok)
+            .put("tool", "get_clipboard")
+            .put("text", result.text.take(8_000))
+            .put("truncated", result.text.length > 8_000)
+        if (!result.ok) {
+            json
+                .put("code", result.code)
+                .put("message", "剪贴板为空，或当前应用无权读取剪贴板")
+        }
+        return json.toString()
+    }
+
+    fun pasteText(text: String): String {
+        if (text.length > MAX_CLIPBOARD_TEXT_CHARS) {
+            return errorJson("TEXT_TOO_LONG", "paste_text 最多支持 $MAX_CLIPBOARD_TEXT_CHARS 个字符")
+        }
+        AgentAccessibilityService.current()?.let { service ->
+            val result = service.pasteText(text)
+            if (result.ok) {
+                waitForUiSettle("input_text")
+                return nodeActionJson("paste_text", result)
+            }
+            return nodeActionJson("paste_text", result)
+        }
+        return errorJson(
+            "ACCESSIBILITY_UNAVAILABLE",
+            "paste_text 需要无障碍服务确认真实输入焦点；本次未修改剪贴板",
+        )
     }
 
     fun openSystemPanel(panel: String): String {
@@ -444,9 +657,15 @@ internal class RootShellDeviceController(
             else -> return errorJson("INVALID_ARGUMENT", "panel 仅支持 notifications/quick_settings")
         }
         AgentAccessibilityService.current()?.let { service ->
-            if (service.globalAction(accessibilityAction)) {
+            val actionResult = service.globalActionResult(accessibilityAction)
+            if (actionResult.ok) {
                 waitForUiSettle("press_key")
                 return okJson("open_system_panel", "accessibility").let {
+                    JSONObject(it).put("panel", normalized).toString()
+                }
+            }
+            if (actionResult.code == "ACTION_OUTCOME_UNKNOWN") {
+                return nodeActionJson("open_system_panel", actionResult).let {
                     JSONObject(it).put("panel", normalized).toString()
                 }
             }
@@ -458,27 +677,84 @@ internal class RootShellDeviceController(
         return inputCommand(command, "open_system_panel")
     }
 
-    private fun captureScreenshot(): AgentModelClient.ModelImage? {
+    private fun captureScreenshot(): ScreenCapture {
         val excludedPackages = screenshotExcludedPackages()
         // 优先用无障碍截图：takeScreenshotOfWindow 逐窗口过滤 TYPE_ACCESSIBILITY_OVERLAY，
         // 天然排除浮层（glow/orb/bubble 等），对 Agent 透明
         val service = AgentAccessibilityService.current()
         if (service != null) {
-            val bitmap = runCatching {
+            val captureStartedAt = SystemClock.elapsedRealtime()
+            val result = runCatching {
                 service.captureScreenshotExcludingOverlays(excludedPackages)
             }.getOrNull()
+            val bitmap = result?.bitmap
             if (bitmap != null) {
-                val image = AgentImageCodec.fromBitmap(bitmap, source = "screen")
-                bitmap.recycle()
-                if (image.bytes > 0) return image
+                val capturedAt = SystemClock.elapsedRealtime()
+                val image = try {
+                    runCatching {
+                        AgentImageCodec.fromScreenBitmap(bitmap, source = "screen")
+                    }.onFailure { throwable ->
+                        logger.warn(
+                            "Agent device action=encode_screenshot outcome=failed " +
+                                "source=accessibility type=${throwable.javaClass.simpleName}"
+                        )
+                    }.getOrNull()
+                } finally {
+                    bitmap.recycle()
+                }
+                if (image != null) {
+                    logger.debug {
+                        "Agent device action=capture_screenshot outcome=completed source=accessibility " +
+                            "capture_ms=${capturedAt - captureStartedAt} " +
+                            "encode_ms=${SystemClock.elapsedRealtime() - capturedAt} " +
+                            "image=${image.width}x${image.height} bytes=${image.bytes}"
+                    }
+                }
+                if (image != null && image.bytes > 0) {
+                    return ScreenCapture(
+                        image = image,
+                        source = "accessibility",
+                        complete = result.complete,
+                        partial = result.partial,
+                        expectedWindows = result.expectedWindows,
+                        capturedWindows = result.capturedWindows,
+                        missingWindowIds = result.missingWindowIds,
+                        failureCodes = result.failureCodes,
+                        timedOut = result.timedOut,
+                        criticalWindowMissing = result.criticalWindowMissing,
+                    )
+                }
+            }
+            if (result?.criticalWindowMissing == true) {
+                logger.warn(
+                    "Agent device action=capture_screenshot outcome=failed " +
+                        "reason=critical_window_missing failures=${result.failureCodes.size}"
+                )
+                return ScreenCapture(
+                    image = null,
+                    source = "accessibility",
+                    complete = false,
+                    partial = false,
+                    expectedWindows = result.expectedWindows,
+                    capturedWindows = result.capturedWindows,
+                    missingWindowIds = result.missingWindowIds,
+                    failureCodes = result.failureCodes,
+                    timedOut = result.timedOut,
+                    criticalWindowMissing = true,
+                )
             }
         }
-        if (excludedPackages.isNotEmpty()) {
+        if (
+            !ScreenshotOutcomePolicy.mayFallbackToRoot(
+                excludedPackagesPresent = excludedPackages.isNotEmpty(),
+                criticalWindowMissing = false,
+            )
+        ) {
             logger.warn(
                 "Agent device action=capture_screenshot outcome=failed " +
                     "reason=package_exclusion_unavailable excludedPackages=${excludedPackages.size}"
             )
-            return null
+            return ScreenCapture.failed(source = "accessibility")
         }
         logger.debug {
             "Agent device action=capture_screenshot outcome=fallback source=root"
@@ -491,9 +767,30 @@ internal class RootShellDeviceController(
                     "exitCode=${result.exitCode} outputBytes=${result.output.size} " +
                     "errorChars=${result.stderr.length}"
             )
-            return null
+            return ScreenCapture.failed(source = "root")
         }
-        return AgentImageCodec.fromBytes(result.output, source = "screen")
+        val encodeStartedAt = SystemClock.elapsedRealtime()
+        val image = runCatching {
+            AgentImageCodec.fromScreenBytes(result.output, source = "screen")
+        }.onFailure { throwable ->
+            logger.warn(
+                "Agent device action=encode_screenshot outcome=failed source=root " +
+                    "type=${throwable.javaClass.simpleName}"
+            )
+        }.getOrNull() ?: return ScreenCapture.failed(source = "root")
+        logger.debug {
+            "Agent device action=capture_screenshot outcome=completed source=root " +
+                "encode_ms=${SystemClock.elapsedRealtime() - encodeStartedAt} " +
+                "image=${image.width}x${image.height} bytes=${image.bytes}"
+        }
+        return ScreenCapture(
+            image = image,
+            source = "root",
+            complete = true,
+            partial = false,
+            expectedWindows = 1,
+            capturedWindows = 1,
+        )
     }
 
     private fun dumpUiNodes(maxNodes: Int): List<UiNode> {
@@ -535,12 +832,14 @@ internal class RootShellDeviceController(
                             desc = desc,
                             className = parser.attr("class"),
                             packageName = parser.attr("package"),
+                            viewId = parser.attr("resource-id"),
                             bounds = bounds,
                             clickable = clickable,
                             longClickable = parser.attr("long-clickable").toBoolean(),
                             scrollable = scrollable,
                             focused = focused,
                             editable = parser.attr("class").contains("EditText", ignoreCase = true),
+                            password = parser.attr("password").toBoolean(),
                             enabled = enabled
                         )
                     }
@@ -553,32 +852,202 @@ internal class RootShellDeviceController(
 
     private fun focusedWindow(): JSONObject {
         val result = runSuText("dumpsys window", timeoutSeconds = 8)
-        val focusLine = result.output.lineSequence().firstOrNull {
-            it.contains("mCurrentFocus=") || it.contains("mFocusedApp=")
-        }.orEmpty().trim()
-        val component = focusLine.substringAfter(" ", "").substringBefore("}").trim()
+        val focused = FocusedWindowParser.parse(result.output)
         return JSONObject()
-            .put("raw", focusLine.take(240))
-            .put("component", component)
+            .put("raw", focused?.rawLine?.take(240).orEmpty())
+            .put("component", focused?.component.orEmpty())
+            .put("package", focused?.packageName.orEmpty())
     }
 
     private fun screenSize(): Pair<Int, Int> {
+        AgentAccessibilityService.current()?.displaySize()?.let { return it }
         val result = runSuText("wm size", timeoutSeconds = 5)
-        val match = Regex("""Physical size:\s*(\d+)x(\d+)""").find(result.output)
-        require(match != null) { "无法读取屏幕尺寸：${result.output.take(160)}" }
-        return match.groupValues[1].toInt() to match.groupValues[2].toInt()
+        return AndroidDisplaySizeParser.parse(result.output)
+            ?: error("无法读取屏幕尺寸：${result.output.take(160)}")
     }
+
+    private fun screenContentBounds(): Rect {
+        val (width, height) = screenSize()
+        return Rect(
+            0,
+            (height * 0.1f).toInt(),
+            width,
+            (height * 0.9f).toInt(),
+        )
+    }
+
+    private fun rootScroll(
+        tool: String,
+        direction: ScrollDirection,
+        bounds: Rect,
+        beforeNodes: List<UiNode>,
+        maxNodes: Int,
+        targetIndex: Int?,
+    ): String {
+        val startedAt = SystemClock.elapsedRealtime()
+        val gesture = direction.gestureWithin(bounds)
+            ?: return scrollErrorJson(
+                tool,
+                direction,
+                "INVALID_NODE_BOUNDS",
+                "滚动区域过小或不在屏幕内",
+            )
+        val result = runSuText(
+            "input swipe ${gesture.start.x} ${gesture.start.y} " +
+                "${gesture.end.x} ${gesture.end.y} 300",
+            timeoutSeconds = 8,
+        )
+        val commandOutcome = ShellActionOutcomePolicy.classify(result.exitCode)
+        if (commandOutcome == ShellActionOutcomePolicy.Outcome.FAILED) {
+            return scrollErrorJson(
+                tool,
+                direction,
+                "COMMAND_FAILED",
+                result.output.ifBlank { "exit=${result.exitCode}" },
+            )
+        }
+        if (commandOutcome == ShellActionOutcomePolicy.Outcome.SUCCEEDED) {
+            Thread.sleep(450L)
+        }
+        val afterNodes = dumpUiNodes(maxNodes)
+        val inferredDelta = inferRootScrollDelta(beforeNodes, afterNodes, bounds, direction)
+        val evidence = ScrollEvidenceContract.classify(
+            direction = direction,
+            delta = inferredDelta,
+            movementSource = inferredDelta?.let { ScrollMovementSource.ANCHOR_MOTION },
+            atBoundary = false,
+        )
+        val moved = evidence == ScrollEvidence.MOVED_BY_ANCHOR_MOTION
+        val json = JSONObject()
+            .put("ok", moved)
+            .put("tool", tool)
+            .put("direction", direction.name.lowercase())
+            .put("moved", moved)
+            .put("at_boundary", JSONObject.NULL)
+            .put("executor", "root")
+            .put("method", "INPUT_SWIPE")
+            .put("verified_by", if (moved) "ui_node_motion" else "none")
+            .put("elapsed_ms", SystemClock.elapsedRealtime() - startedAt)
+        inferredDelta?.let { delta ->
+            if (direction.axis == ScrollAxis.VERTICAL) {
+                json.put("delta_y", delta)
+            } else {
+                json.put("delta_x", delta)
+            }
+        }
+        if (targetIndex != null) json.put("target_index", targetIndex)
+        if (!moved) {
+            if (commandOutcome == ShellActionOutcomePolicy.Outcome.TIMED_OUT) {
+                json
+                    .put("code", "ACTION_OUTCOME_UNKNOWN")
+                    .put(
+                        "message",
+                        "Root 滚动命令超时，动作可能已经执行但位移无法确认；请先重新观察",
+                    )
+            } else if (evidence == ScrollEvidence.DIRECTION_MISMATCH) {
+                json
+                    .put("code", "DIRECTION_MISMATCH")
+                    .put("message", "界面向请求方向的反方向移动")
+            } else {
+                json
+                    .put("code", "ACTION_OUTCOME_UNKNOWN")
+                    .put(
+                        "message",
+                        "滚动手势已发出，但无法确认方向或位移；请先重新观察，禁止直接重试",
+                    )
+            }
+        }
+        return json.toString()
+    }
+
+    private fun resolveUiAutomatorNode(
+        observation: ElementObservation,
+        index: Int,
+    ): ResolvedUiAutomatorNode? {
+        if (observation.source != ElementSource.UIAUTOMATOR) return null
+        val original = observation.nodes.firstOrNull { node -> node.index == index } ?: return null
+        val currentNodes = dumpUiNodes(observation.maxNodes)
+        if (uiTreeSignature(currentNodes) != observation.treeSignature) return null
+        val current = currentNodes.firstOrNull { node -> node.index == index } ?: return null
+        val matched = current.takeIf { candidate ->
+            candidate.packageName == original.packageName &&
+                candidate.className == original.className &&
+                candidate.viewId == original.viewId &&
+                candidate.text == original.text &&
+                candidate.desc == original.desc &&
+                candidate.bounds == original.bounds &&
+                candidate.clickable == original.clickable &&
+                candidate.longClickable == original.longClickable &&
+                candidate.scrollable == original.scrollable &&
+                candidate.editable == original.editable &&
+                candidate.password == original.password &&
+                candidate.enabled == original.enabled
+        }
+        return matched?.let { node -> ResolvedUiAutomatorNode(node, currentNodes) }
+    }
+
+    /**
+     * Root 滚动只能用滚动前后都唯一存在的稳定节点证明方向；任意树变化不足以证明滚动。
+     * 屏幕内容向上移动代表滚动位置向下，因此最后要反转节点位移符号。
+     */
+    private fun inferRootScrollDelta(
+        beforeNodes: List<UiNode>,
+        afterNodes: List<UiNode>,
+        region: Rect,
+        direction: ScrollDirection,
+    ): Int? {
+        if (beforeNodes.isEmpty() || afterNodes.isEmpty()) return null
+
+        fun UiNode.motionKey(): String? {
+            if (viewId.isBlank() && text.isBlank() && desc.isBlank()) return null
+            return "$packageName|$className|$viewId|$text|$desc"
+        }
+
+        fun uniqueNodes(nodes: List<UiNode>): Map<String, UiNode> = nodes
+            .asSequence()
+            .filter { node -> Rect.intersects(node.bounds, region) }
+            .mapNotNull { node -> node.motionKey()?.let { key -> key to node } }
+            .groupBy({ pair -> pair.first }, { pair -> pair.second })
+            .mapNotNull { (key, matches) ->
+                matches.singleOrNull()?.let { node -> key to node }
+            }
+            .toMap()
+
+        val before = uniqueNodes(beforeNodes)
+        val after = uniqueNodes(afterNodes)
+        val contentDeltas = before.mapNotNull { (key, oldNode) ->
+            val newNode = after[key] ?: return@mapNotNull null
+            val oldAxis = if (direction.axis == ScrollAxis.VERTICAL) oldNode.centerY else oldNode.centerX
+            val newAxis = if (direction.axis == ScrollAxis.VERTICAL) newNode.centerY else newNode.centerX
+            newAxis - oldAxis
+        }
+        return RootScrollMotionContract.inferScrollDelta(contentDeltas)
+    }
+
+    private fun uiTreeSignature(nodes: List<UiNode>, region: Rect? = null): String =
+        nodes.asSequence()
+            .filter { node -> region == null || Rect.intersects(node.bounds, region) }
+            .joinToString(separator = "\u001f") { node ->
+            "${node.packageName}|${node.className}|${node.viewId}|${node.text}|" +
+                "${node.desc}|${node.bounds.toShortString()}"
+        }
 
     private fun inputCommand(command: String, tool: String): String {
         val result = runSuText(command, timeoutSeconds = 8)
-        return if (result.exitCode == 0) {
-            waitForUiSettle(tool)
-            JSONObject()
-                .put("ok", true)
-                .put("tool", tool)
-                .toString()
-        } else {
-            errorJson("COMMAND_FAILED", result.output.ifBlank { "exit=${result.exitCode}" })
+        return when (ShellActionOutcomePolicy.classify(result.exitCode)) {
+            ShellActionOutcomePolicy.Outcome.SUCCEEDED -> {
+                waitForUiSettle(tool)
+                JSONObject()
+                    .put("ok", true)
+                    .put("tool", tool)
+                    .toString()
+            }
+            ShellActionOutcomePolicy.Outcome.TIMED_OUT -> errorJson(
+                "ACTION_OUTCOME_UNKNOWN",
+                "Root 动作命令超时，动作可能已经执行；请先重新观察，避免重复操作",
+            )
+            ShellActionOutcomePolicy.Outcome.FAILED ->
+                errorJson("COMMAND_FAILED", result.output.ifBlank { "exit=${result.exitCode}" })
         }
     }
 
@@ -611,6 +1080,7 @@ internal class RootShellDeviceController(
             .put("desc", desc)
             .put("class", className)
             .put("package", packageName)
+            .put("view_id", viewId)
             .put("bounds", bounds.toShortString())
             .put("center", JSONObject().put("x", centerX).put("y", centerY))
             .put("clickable", clickable)
@@ -618,6 +1088,7 @@ internal class RootShellDeviceController(
             .put("scrollable", scrollable)
             .put("focused", focused)
             .put("editable", editable)
+            .put("password", password)
             .put("enabled", enabled)
 
     private fun XmlPullParser.attr(name: String): String =
@@ -672,7 +1143,11 @@ internal class RootShellDeviceController(
             process.destroyForcibly()
             outputThread.join(500)
             stderrThread?.join(500)
-            return ProcessBytesResult(-2, output.bytes(), "命令执行超时".toByteArray())
+            return ProcessBytesResult(
+                ShellActionOutcomePolicy.PROCESS_TIMEOUT_EXIT_CODE,
+                output.bytes(),
+                "命令执行超时".toByteArray(),
+            )
         }
 
         outputThread.join(500)
@@ -686,6 +1161,68 @@ internal class RootShellDeviceController(
             .put("code", code)
             .put("message", message.take(240))
             .toString()
+
+    private fun scrollErrorJson(
+        tool: String,
+        direction: ScrollDirection?,
+        code: String,
+        message: String,
+    ): String = JSONObject()
+        .put("ok", false)
+        .put("tool", tool)
+        .put("direction", direction?.name?.lowercase() ?: JSONObject.NULL)
+        .put("moved", false)
+        .put("at_boundary", JSONObject.NULL)
+        .put("code", code)
+        .put("message", message.take(240))
+        .toString()
+
+    private fun nodeActionJson(
+        tool: String,
+        result: AgentAccessibilityService.NodeActionResult,
+    ): String {
+        val json = JSONObject()
+            .put("ok", result.ok)
+            .put("tool", tool)
+            .put("executor", "accessibility")
+        if (result.method.isNotBlank()) json.put("method", result.method)
+        if (result.clipboardWritten) json.put("clipboard_written", true)
+        result.verified?.let { verified -> json.put("verified", verified) }
+        if (!result.ok) {
+            json
+                .put("code", result.code)
+                .put("message", result.message.take(240))
+        }
+        return json.toString()
+    }
+
+    private fun scrollActionJson(
+        tool: String,
+        result: AgentAccessibilityService.ScrollActionResult,
+    ): String {
+        val json = JSONObject()
+            .put("ok", result.ok)
+            .put("tool", tool)
+            .put("direction", result.direction.name.lowercase())
+            .put("moved", result.moved)
+            .put("at_boundary", result.atBoundary ?: JSONObject.NULL)
+            .put("executor", "accessibility")
+            .put("method", result.method)
+            .put("verified_by", result.verifiedBy)
+            .put("elapsed_ms", result.elapsedMs)
+        result.deltaX?.let { json.put("delta_x", it) }
+        result.deltaY?.let { json.put("delta_y", it) }
+        result.targetIndex?.let { json.put("target_index", it) }
+        if (!result.ok) {
+            json
+                .put("code", result.code)
+                .put("message", result.message.take(240))
+        }
+        return json.toString()
+    }
+
+    private fun String.rewriteTool(tool: String): String =
+        runCatching { JSONObject(this).put("tool", tool).toString() }.getOrDefault(this)
 
     private fun okJson(tool: String, executor: String): String =
         JSONObject()
@@ -709,18 +1246,89 @@ internal class RootShellDeviceController(
             desc = desc,
             className = className,
             packageName = packageName,
+            viewId = viewId,
             bounds = bounds,
             clickable = clickable,
             longClickable = longClickable,
             scrollable = scrollable,
             focused = focused,
             editable = editable,
+            password = password,
             enabled = enabled
         )
 
     private data class ShellTextResult(val exitCode: Int, val output: String)
     private data class ShellBytesResult(val exitCode: Int, val output: ByteArray, val stderr: String)
     private data class ProcessBytesResult(val exitCode: Int, val output: ByteArray, val stderr: ByteArray)
+    private data class ResolvedUiAutomatorNode(
+        val node: UiNode,
+        val currentNodes: List<UiNode>,
+    )
+
+    private data class ScreenCapture(
+        val image: AgentModelClient.ModelImage?,
+        val source: String,
+        val complete: Boolean,
+        val partial: Boolean,
+        val expectedWindows: Int,
+        val capturedWindows: Int,
+        val missingWindowIds: List<Int> = emptyList(),
+        val failureCodes: Map<Int, Int> = emptyMap(),
+        val timedOut: Boolean = false,
+        val criticalWindowMissing: Boolean = false,
+        val requested: Boolean = true,
+    ) {
+        fun toJson(): JSONObject {
+            val failures = JSONArray()
+            failureCodes.forEach { (windowId, errorCode) ->
+                failures.put(
+                    JSONObject()
+                        .put("window_id", windowId)
+                        .put("error_code", errorCode),
+                )
+            }
+            return JSONObject()
+                .put("requested", requested)
+                .put("source", source)
+                .put(
+                    "quality",
+                    ScreenshotOutcomePolicy.classify(
+                        requested = requested,
+                        hasImage = image != null,
+                        complete = complete,
+                    ).wireName,
+                )
+                .put("complete", complete)
+                .put("partial", partial)
+                .put("expected_windows", expectedWindows)
+                .put("captured_windows", capturedWindows)
+                .put("missing_window_ids", JSONArray(missingWindowIds))
+                .put("failures", failures)
+                .put("timed_out", timedOut)
+                .put("critical_window_missing", criticalWindowMissing)
+        }
+
+        companion object {
+            fun notRequested(): ScreenCapture = ScreenCapture(
+                image = null,
+                source = "none",
+                complete = false,
+                partial = false,
+                expectedWindows = 0,
+                capturedWindows = 0,
+                requested = false,
+            )
+
+            fun failed(source: String): ScreenCapture = ScreenCapture(
+                image = null,
+                source = source,
+                complete = false,
+                partial = false,
+                expectedWindows = 0,
+                capturedWindows = 0,
+            )
+        }
+    }
 
     private class ByteArrayOutputCollector {
         private val output = java.io.ByteArrayOutputStream()
@@ -739,5 +1347,12 @@ internal class RootShellDeviceController(
         }
 
         fun bytes(): ByteArray = output.toByteArray()
+    }
+
+    companion object {
+        private const val MAX_INPUT_TEXT_CHARS = 1_000
+        private const val MAX_REPLACE_TEXT_CHARS = 4_000
+        private const val MAX_CLIPBOARD_TEXT_CHARS = 20_000
+        private val ROOT_OBSERVATION_IDS = AtomicLong(0)
     }
 }

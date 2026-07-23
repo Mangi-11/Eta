@@ -5,7 +5,7 @@ import androidx.compose.runtime.Immutable
 @Immutable
 data class ConversationPaneUiState(
     val conversations: List<ConversationSummaryUi>,
-    val selectedConversationId: String,
+    val selectedConversationId: String?,
     val searchQuery: String,
 )
 

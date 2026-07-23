@@ -39,6 +39,10 @@ sealed interface AgentToolsAction {
 
 sealed interface AgentSkillsAction {
     data object NavigateBack : AgentSkillsAction
+    data class ImportZip(val uri: String) : AgentSkillsAction
+    data object ConfirmZipReplacement : AgentSkillsAction
+    data object CancelZipReplacement : AgentSkillsAction
+    data object DismissNotice : AgentSkillsAction
     data class ToggleSkill(val skillId: String, val enabled: Boolean) : AgentSkillsAction
     data class DeleteSkill(val skillId: String) : AgentSkillsAction
     data class ReinstallBuiltin(val skillId: String) : AgentSkillsAction

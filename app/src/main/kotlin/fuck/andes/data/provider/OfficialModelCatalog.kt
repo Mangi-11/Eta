@@ -1,6 +1,7 @@
 package fuck.andes.data.provider
 
 import fuck.andes.data.model.Model
+import fuck.andes.data.model.ModelSource
 import fuck.andes.data.model.ProviderSetting
 import fuck.andes.data.model.ProviderSourceTypes
 
@@ -261,6 +262,7 @@ internal object OfficialModelCatalog {
             displayName = displayName,
             ownedBy = ownedBy,
             isBuiltIn = true,
+            source = ModelSource.CATALOG,
             contextWindow = contextWindow,
             inputModalities = inputModalities,
             outputModalities = outputModalities,

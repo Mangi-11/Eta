@@ -12,7 +12,7 @@ class AgentConversationCodecTest {
                 text = "屏幕观察",
                 images = listOf(
                     AgentModelClient.ModelImage(
-                        dataUrl = "data:image/png;base64,${"A".repeat(20_000)}",
+                        reference = "data:image/png;base64,${"A".repeat(20_000)}",
                         mimeType = "image/png",
                         bytes = 15_000,
                     )

@@ -11,7 +11,6 @@ import fuck.andes.data.model.AnthropicProviderSetting
 import fuck.andes.data.model.CustomProviderSetting
 import fuck.andes.data.model.Model
 import fuck.andes.data.model.OpenAiCompatibleProviderSetting
-import fuck.andes.data.model.OpenAiEndpointMode
 import fuck.andes.data.model.ProviderSetting
 import fuck.andes.data.model.Settings
 import fuck.andes.data.model.selectedOrFirstModel
@@ -66,37 +65,17 @@ internal object ProviderRepository {
         return added
     }
 
-    suspend fun addCustomOpenAiProvider(): ProviderSetting =
-        addProvider(
-            CustomProviderSetting(
-                id = newId(),
-                name = "自定义 OpenAI-compatible",
-                baseUrl = "https://api.example.com/v1",
-                endpointMode = OpenAiEndpointMode.CHAT_COMPLETIONS,
-                models = listOf(
-                    Model(
-                        id = newId(),
-                        modelId = "model-id",
-                        displayName = "自定义模型",
-                    )
-                )
-            )
-        )
-
-    suspend fun addAnthropicProvider(): ProviderSetting =
-        addProvider(
-            seedOfficialModelsIfEmpty(
-                AnthropicProviderSetting(
-                    id = newId(),
-                    name = "自定义 Anthropic",
-                    baseUrl = "https://api.anthropic.com",
-                )
-            )
-        )
-
     suspend fun updateProvider(provider: ProviderSetting) {
-        replaceProvider(provider)
+        require(dao().updateProvider(provider.toEntity()) == 1) { "Provider 不存在" }
         repairSelection()
+    }
+
+    internal suspend fun replaceModels(providerId: String, models: List<Model>) {
+        val provider = requireNotNull(providerById(providerId)) { "Provider 不存在" }
+        dao().replaceModels(
+            providerId = providerId,
+            models = provider.withModels(models).toModelEntities(),
+        )
     }
 
     suspend fun deleteProvider(id: String) {

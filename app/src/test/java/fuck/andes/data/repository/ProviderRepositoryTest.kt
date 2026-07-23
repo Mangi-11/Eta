@@ -2,9 +2,11 @@ package fuck.andes.data.repository
 
 import android.content.Context
 import fuck.andes.data.datastore.SettingsDataStore
+import fuck.andes.data.db.FuckAndesDatabase
 import fuck.andes.data.model.AnthropicProviderSetting
 import fuck.andes.data.model.CustomHeader
 import fuck.andes.data.model.OpenAiCompatibleProviderSetting
+import fuck.andes.data.model.ModelSource
 import fuck.andes.data.model.ProviderSetting
 import fuck.andes.data.provider.BuiltinProviders
 import kotlinx.coroutines.runBlocking
@@ -25,6 +27,7 @@ class ProviderRepositoryTest {
     @Before
     fun setUp() {
         context = RuntimeEnvironment.getApplication()
+        FuckAndesDatabase.closeForTests()
         context.deleteDatabase("fuck_andes.db")
         SettingsDataStore.init(context)
         ProviderRepository.init(context)
@@ -43,6 +46,10 @@ class ProviderRepositoryTest {
         assertEquals(
             listOf("gpt-5.5"),
             providers.getValue(BuiltinProviders.OPENAI_ID).models.map { it.modelId },
+        )
+        assertEquals(
+            listOf(ModelSource.CATALOG),
+            providers.getValue(BuiltinProviders.OPENAI_ID).models.map { it.source },
         )
         assertEquals(
             listOf("claude-fable-5", "claude-opus-4-8", "claude-sonnet-5"),
@@ -69,6 +76,10 @@ class ProviderRepositoryTest {
         }
 
         ProviderRepository.updateProvider(updated)
+        ModelRepository.saveModel(
+            provider.id,
+            updated.models.first(),
+        )
 
         val restored = ProviderRepository.providerById(BuiltinProviders.OPENAI_ID)!!
         assertEquals(listOf("x-provider"), restored.customHeaders.map { it.name })

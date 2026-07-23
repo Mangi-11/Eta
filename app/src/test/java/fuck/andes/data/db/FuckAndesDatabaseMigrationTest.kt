@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
+import fuck.andes.data.model.ModelSource
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -19,7 +20,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class FuckAndesDatabaseMigrationTest {
     @Test
-    fun migration6To9PreservesRunsAndAddsDeliveryMetadata() {
+    fun migration6To10PreservesDataAndAddsRunMetrics() {
         val context = RuntimeEnvironment.getApplication() as Context
         val databaseName = "migration-${UUID.randomUUID()}.db"
         createVersion6Database(context, databaseName)
@@ -29,15 +30,21 @@ class FuckAndesDatabaseMigrationTest {
                 FuckAndesDatabase.MIGRATION_6_7,
                 FuckAndesDatabase.MIGRATION_7_8,
                 FuckAndesDatabase.MIGRATION_8_9,
+                FuckAndesDatabase.MIGRATION_9_10,
             )
             .build()
         try {
-            val (result, archive, conversation) = runBlocking(Dispatchers.IO) {
-                Triple(
-                    database.runtimeRunDao().runtimeResults().single(),
-                    database.runtimeRunDao().archivedRuns().single().run,
-                    database.conversationDao().conversations().single(),
-                )
+            val result = runBlocking(Dispatchers.IO) {
+                database.runtimeRunDao().runtimeResults().single()
+            }
+            val archive = runBlocking(Dispatchers.IO) {
+                database.runtimeRunDao().archivedRuns().single().run
+            }
+            val conversations = runBlocking(Dispatchers.IO) {
+                database.conversationDao().conversations()
+            }
+            val provider = runBlocking(Dispatchers.IO) {
+                database.providerDao().providerById("provider-1")!!.toDomain()
             }
 
             assertEquals("保留的结果", result.content)
@@ -48,7 +55,14 @@ class FuckAndesDatabaseMigrationTest {
             assertEquals("[]", archive.transcriptJson)
             assertEquals(null, archive.runOutputTokens)
             assertEquals(null, archive.runElapsedMs)
-            assertEquals("[]", conversation.appliedRuntimeRunIdsJson)
+            assertEquals(setOf("conv-1", "conv-custom-empty"), conversations.mapTo(mutableSetOf()) { it.id })
+            assertEquals("[]", conversations.first { it.id == "conv-1" }.appliedRuntimeRunIdsJson)
+            assertEquals(null, runBlocking(Dispatchers.IO) { database.conversationDao().state() })
+            assertEquals(listOf("built-in", "manual"), provider.models.map { it.modelId })
+            assertEquals(
+                listOf(ModelSource.CATALOG, ModelSource.MANUAL),
+                provider.models.map { it.source },
+            )
         } finally {
             database.close()
             context.deleteDatabase(databaseName)
@@ -70,6 +84,30 @@ class FuckAndesDatabaseMigrationTest {
                                 "(id, title, thinking_enabled, history_json, created_at, updated_at) " +
                                 "VALUES ('conv-1', '保留的对话', 0, '[]', 1, 1)"
                         )
+                        db.execSQL(
+                            "INSERT INTO conversations " +
+                                "(id, title, thinking_enabled, history_json, created_at, updated_at) " +
+                                "VALUES ('conv-bug-empty', '新对话', 0, '[]', 2, 2)"
+                        )
+                        db.execSQL(
+                            "INSERT INTO conversations " +
+                                "(id, title, thinking_enabled, history_json, created_at, updated_at) " +
+                                "VALUES ('conv-custom-empty', '用户命名', 0, '[]', 3, 3)"
+                        )
+                        db.execSQL(
+                            "INSERT INTO conversation_state (id, selected_conversation_id) " +
+                                "VALUES ('main', 'conv-bug-empty')"
+                        )
+                        db.execSQL(
+                            "INSERT INTO model_providers " +
+                                "(id, type, name, base_url, api_key, is_enabled, is_built_in, sort_order, " +
+                                "system_prompt, custom_headers_json, custom_body_json, created_at, endpoint_mode, anthropic_version) " +
+                                "VALUES ('provider-1', 'openai_compatible', 'Provider', 'https://example.com/v1', '', 1, 0, 0, " +
+                                "NULL, '[]', '[]', 1, 'chat_completions', '2023-06-01')"
+                        )
+                        db.execSQL(providerModelInsert("built-in-id", "built-in", 1, 0))
+                        db.execSQL(providerModelInsert("manual-id", "manual", 0, 1))
+                        db.execSQL(providerModelInsert("blank-id", "", 0, 2))
                         db.execSQL(
                             "INSERT INTO runtime_results " +
                                 "(run_id, handoff_id, handoff_source, handoff_payload, " +
@@ -102,6 +140,14 @@ class FuckAndesDatabaseMigrationTest {
     }
 
     private companion object {
+        fun providerModelInsert(id: String, modelId: String, builtIn: Int, sortOrder: Int): String =
+            "INSERT INTO provider_models " +
+                "(id, provider_id, model_id, display_name, is_enabled, is_built_in, sort_order, owned_by, " +
+                "context_window, input_modalities_json, output_modalities_json, attachment, tool_call, reasoning, " +
+                "structured_output, supports_temperature, custom_headers_json, custom_body_json, created_at) " +
+                "VALUES ('$id', 'provider-1', '$modelId', 'Model', 1, $builtIn, $sortOrder, NULL, NULL, " +
+                "'[\"text\"]', '[\"text\"]', NULL, NULL, NULL, NULL, NULL, '[]', '[]', 1)"
+
         val VERSION_6_SCHEMA = listOf(
             "CREATE TABLE conversations (id TEXT NOT NULL, title TEXT NOT NULL, thinking_enabled INTEGER NOT NULL, history_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(id))",
             "CREATE TABLE conversation_messages (id TEXT NOT NULL, conversation_id TEXT NOT NULL, sort_index INTEGER NOT NULL, type TEXT NOT NULL, content TEXT NOT NULL, images_json TEXT NOT NULL, render_markdown INTEGER, context_tokens INTEGER, input_tokens INTEGER, output_tokens INTEGER, reasoning_tokens INTEGER, cached_tokens INTEGER, elapsed_seconds INTEGER, tool_name TEXT, tool_status TEXT, arguments_summary TEXT, result_summary TEXT, image_count INTEGER NOT NULL, tools_json TEXT NOT NULL, PRIMARY KEY(id), FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON UPDATE NO ACTION ON DELETE CASCADE)",
