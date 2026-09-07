@@ -105,7 +105,7 @@ class AgentTraceFormatterTest {
 
         assertEquals("git status --short", formatter.displayCommand(terminal))
         assertEquals("pm list packages | head", formatter.displayCommand(runCommand))
-        assertTrue(formatter.summarizeArguments(terminal).contains("Alpine"))
+        assertEquals("终端 · 单次执行 · Linux · root", formatter.summarizeArguments(terminal))
         assertFalse(formatter.summarizeArguments(terminal).contains("git status"))
         assertNull(
             formatter.displayCommand(
@@ -121,6 +121,23 @@ class AgentTraceFormatterTest {
                 )
             )
         )
+    }
+
+    @Test
+    fun terminalSummaryPreservesExplicitEnvironmentNames() {
+        listOf("android" to "Android", "alpine" to "Alpine", "debian" to "Debian")
+            .forEach { (environment, label) ->
+                val summary = formatter.summarizeArguments(
+                    AgentModelClient.ToolCall(
+                        id = "terminal-environment",
+                        name = "terminal",
+                        argumentsJson =
+                            """{"action":"open_and_exec","environment":"$environment"}""",
+                    ),
+                )
+
+                assertEquals("终端 · 单次执行 · $label · root", summary)
+            }
     }
 
     @Test
