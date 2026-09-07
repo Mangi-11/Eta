@@ -67,6 +67,7 @@ import io.github.mangi.eta.systemizer.RootManager
 import io.github.mangi.eta.systemizer.SystemizerInstallResult
 import io.github.mangi.eta.ui.app.EnhancementSettingsHistory
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
+import io.github.mangi.eta.ui.components.LanguagePreference
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.PreferenceIcon
@@ -523,6 +524,8 @@ internal fun SettingsScreen(
                         },
                         onClick = { onNavigate(AppRoute.AppearanceSettings) },
                     )
+
+                    LanguagePreference()
 
                     ArrowPreference(
                         title = stringResource(R.string.data_backup_title),

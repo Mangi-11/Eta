@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
+  <string name="settings_language">語言</string>
+  <string name="settings_language_system">跟隨系統</string>
   <string name="app_name">Eta</string>
   <string name="xposed_description">系統級 AI Agent，接管小布與超級小愛，解鎖 Gemini 與圈選搜尋，整合瀏覽器、終端機與裝置工具。</string>
   <string name="agent_accessibility_label">Eta Agent</string>
