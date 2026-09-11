@@ -7,7 +7,7 @@
   <string name="agent_accessibility_label">Eta Agent</string>
   <string name="agent_accessibility_description">Read screen content and perform taps, swipes, text input, and other actions to help the agent complete tasks.</string>
   <string name="notification_history_service_label">Eta notification history</string>
-  <string name="voice_interaction_service_label">Eta assistant</string>
+  <string name="voice_interaction_service_label">Eta</string>
   <string name="recognition_service_label">Eta speech recognition</string>
   <string name="action_back">Back</string>
   <string name="action_cancel">Cancel</string>
@@ -299,7 +299,7 @@
   <string name="ui_apk_analysis_95ad17">APK analysis</string>
   <string name="ui_agent_and_local_tools_can_still_be_used_but_the_syst_b14479">Agent and local tools remain available. System assistant takeover, Gemini, and Circle to Search settings cannot be changed right now.</string>
   <string name="ui_endpoint_mode_3c8546">Endpoint mode</string>
-  <string name="ui_eta_system_assistant_003e9b">Eta system assistant</string>
+  <string name="ui_eta_system_assistant_003e9b">Digital assistant app</string>
   <string name="ui_lsposed_service_is_not_connected_44734d">LSPosed service is not connected</string>
   <string name="ui_linux_tool_environment_314d22">Linux tool environment</string>
   <string name="ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac">The entire contents of MEMORY.md will be deleted and the memory switch will remain in its current state.</string>
@@ -310,7 +310,6 @@
   <string name="ui_bright_screen_evokes_automatic_voice_input_4358fe">Bright screen evokes automatic voice input</string>
   <string name="ui_only_take_over_with_agent_prefix_d17556">Only take over with /agent prefix</string>
   <string name="ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d">Only check the ranges actually supported by the model or gateway; unsupported combinations will clearly report an error before requesting.</string>
-  <string name="ui_valid_only_for_gemini_and_eta_d5b63d">Valid only for Gemini and Eta</string>
   <string name="ui_preferences_and_strategies_2abd3c">Preferences and Strategies</string>
   <string name="ui_stop_a17f70">stop</string>
   <string name="ui_allow_sensitive_device_operation_3d42ea">Allow sensitive device operation</string>
@@ -878,8 +877,6 @@
   <string name="settings_open_assistant_failed">Couldn\'t open default assistant settings</string>
   <string name="settings_model_not_selected">No model selected</string>
   <string name="settings_not_configured">Not configured</string>
-  <string name="settings_default_assistant_active">Set as default digital assistant</string>
-  <string name="settings_select_default_assistant">Select Eta as the default digital assistant</string>
   <string name="status_authorized">Authorized</string>
   <string name="status_unauthorized">Not authorized</string>
   <string name="status_enabled">Enabled</string>

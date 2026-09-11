@@ -7,7 +7,7 @@
   <string name="agent_accessibility_label">Eta Agent</string>
   <string name="agent_accessibility_description">读取屏幕内容并执行点击、滑动、文字输入等操作，协助 Agent 完成任务。</string>
   <string name="notification_history_service_label">Eta 通知历史</string>
-  <string name="voice_interaction_service_label">Eta 系统助手</string>
+  <string name="voice_interaction_service_label">Eta</string>
   <string name="recognition_service_label">Eta 语音识别</string>
   <string name="action_back">返回</string>
   <string name="action_cancel">取消</string>
@@ -280,7 +280,7 @@
   <string name="ui_apk_analysis_95ad17">APK 分析</string>
   <string name="ui_agent_and_local_tools_can_still_be_used_but_the_syst_b14479">Agent 与本地工具仍可使用，系统助手接管、Gemini 和一圈即搜设置暂不可修改</string>
   <string name="ui_endpoint_mode_3c8546">Endpoint 模式</string>
-  <string name="ui_eta_system_assistant_003e9b">Eta 系统助手</string>
+  <string name="ui_eta_system_assistant_003e9b">数字助理应用</string>
   <string name="ui_lsposed_service_is_not_connected_44734d">LSPosed 服务未连接</string>
   <string name="ui_linux_tool_environment_314d22">Linux 工具环境</string>
   <string name="ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac">MEMORY.md 的全部内容将被删除，记忆开关保持当前状态。</string>
@@ -291,7 +291,6 @@
   <string name="ui_bright_screen_evokes_automatic_voice_input_4358fe">亮屏唤起自动语音输入</string>
   <string name="ui_only_take_over_with_agent_prefix_d17556">仅以 /agent 前缀接管</string>
   <string name="ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d">仅勾选模型或网关实际支持的档位；不支持的组合会在请求前明确报错。</string>
-  <string name="ui_valid_only_for_gemini_and_eta_d5b63d">仅对 Gemini 和 Eta 生效</string>
   <string name="ui_preferences_and_strategies_2abd3c">偏好与策略</string>
   <string name="ui_stop_a17f70">停止</string>
   <string name="ui_allow_sensitive_device_operation_3d42ea">允许敏感设备操作</string>
@@ -869,8 +868,6 @@
   <string name="settings_open_assistant_failed">无法打开默认助理设置</string>
   <string name="settings_model_not_selected">未选择模型</string>
   <string name="settings_not_configured">未配置</string>
-  <string name="settings_default_assistant_active">已设为默认数字助理</string>
-  <string name="settings_select_default_assistant">选择 Eta 作为默认数字助理</string>
   <string name="status_authorized">已授权</string>
   <string name="status_unauthorized">未授权</string>
   <string name="status_enabled">已启用</string>
