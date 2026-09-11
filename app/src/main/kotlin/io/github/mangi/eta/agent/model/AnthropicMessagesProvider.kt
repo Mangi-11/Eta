@@ -40,7 +40,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
                 if (config.apiKey.isNotBlank()) {
                     add("x-api-key", config.apiKey)
                 }
-                CustomHeaderFilter.mergeInto(this, config.customHeaders)
+                ProviderRequestHeaders.mergeInto(this, config.baseUrl, config.customHeaders, request.sessionId)
             }
             .build()
         val httpRequest = Request.Builder()

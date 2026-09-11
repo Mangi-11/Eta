@@ -49,6 +49,23 @@ internal object CustomHeaderFilter {
     fun sanitize(headers: List<CustomHeader>): List<CustomHeader> =
         headers.filterNot { isForbidden(it.name) }
 
+    fun validationError(headers: List<CustomHeader>): String? {
+        val names = mutableSetOf<String>()
+        headers.forEachIndexed { index, header ->
+            val name = header.name.trim()
+            val prefix = "第 ${index + 1} 个请求头"
+            if (isForbidden(name)) return "${prefix}名称为空或由系统管理"
+            if (!name.matches(Regex("[!#$%&'*+.^_`|~0-9A-Za-z-]+"))) {
+                return "${prefix}名称包含无效字符"
+            }
+            if (header.value.any { it != '\t' && it !in ' '..'~' }) {
+                return "${prefix}值只能包含可打印的 ASCII 字符或制表符"
+            }
+            if (!names.add(name.lowercase())) return "${prefix}名称重复（不区分大小写）"
+        }
+        return null
+    }
+
     /**
      * 将自定义 header 合并到 OkHttp Headers Builder，后添加的覆盖先添加的同名 header。
      */
@@ -57,8 +74,7 @@ internal object CustomHeaderFilter {
         headers: List<CustomHeader>
     ) {
         sanitize(headers).forEach { header ->
-            builder.removeAll(header.name)
-            builder.add(header.name, header.value)
+            builder.set(header.name.trim(), header.value)
         }
     }
 

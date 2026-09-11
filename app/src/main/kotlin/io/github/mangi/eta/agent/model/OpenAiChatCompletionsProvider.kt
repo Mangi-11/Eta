@@ -46,7 +46,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
                     add("Authorization", "Bearer ${config.apiKey}")
                 }
             }
-            .also { CustomHeaderFilter.mergeInto(it, config.customHeaders) }
+            .also { ProviderRequestHeaders.mergeInto(it, config.baseUrl, config.customHeaders, request.sessionId) }
             .build()
 
         val requestBody = buildRequestJson(config, request.messages, request.tools)

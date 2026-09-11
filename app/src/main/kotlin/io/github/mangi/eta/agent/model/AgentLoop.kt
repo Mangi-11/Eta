@@ -23,6 +23,7 @@ internal class AgentLoop(
     private val onEvent: (AgentEvent) -> Unit,
     private val toolsForRound: (() -> JSONArray)? = null,
     private val modelRetry: AgentModelRetry = AgentModelRetry(),
+    private val sessionId: String = java.util.UUID.randomUUID().toString(),
 ) {
     data class Result(
         val content: String,
@@ -57,7 +58,7 @@ internal class AgentLoop(
             val completedRound = try {
                 modelRetry.complete(
                     initialRound = round,
-                    request = ProviderRequest(config, messages, roundTools),
+                    request = ProviderRequest(config, messages, roundTools, sessionId),
                     provider = provider,
                     controller = runController,
                     onEvent = onEvent,

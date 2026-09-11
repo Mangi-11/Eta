@@ -25,6 +25,29 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class AgentRuntimeWireTest {
     @Test
+    fun modelSessionSurvivesIpcAndLegacyRequestsUseConversationIdentity() {
+        val request = AgentRuntimeWire.RunRequest(
+            runId = "run-session", prompt = "测试",
+            config = AgentModelClient.ModelConfig(
+                baseUrl = "https://example.invalid/v1", apiKey = "test-key",
+                model = "test-model", systemPrompt = "", reasoningEffort = ReasoningEffort.OFF,
+            ),
+            images = emptyList(),
+            modelSessionId = "stable-session",
+            handoff = AgentRuntimeWire.EntryHandoff(
+                id = "handoff", source = AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE,
+                payload = AgentUiHandoffPayload("conversation-1").toJson(),
+            ),
+        )
+        val bundle = AgentRuntimeWire.toLegacyBundle(request)
+        assertEquals(request, AgentRuntimeWire.runRequestFromBundle(bundle))
+        bundle.remove("model_session_id")
+        assertEquals("conversation-1", AgentRuntimeWire.runRequestFromBundle(bundle).effectiveModelSessionId)
+        bundle.remove("handoff")
+        assertEquals("run-session", AgentRuntimeWire.runRequestFromBundle(bundle).effectiveModelSessionId)
+    }
+
+    @Test
     fun retryEventSurvivesIpcAndArchiveJson() {
         val event = AgentEvent.ModelRetryScheduled(7, 2, 3, 4_000, "MODEL_TIMEOUT")
         assertEquals(event, AgentRuntimeWire.eventFromBundle(AgentRuntimeWire.eventToBundle(event)))

@@ -35,6 +35,7 @@ internal object AgentContinuationBuilder {
         }
         return request.copy(
             runId = newRunId,
+            modelSessionId = request.effectiveModelSessionId,
             prompt = supplement,
             images = emptyList(),
             history = baseHistory,

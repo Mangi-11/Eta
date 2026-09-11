@@ -35,7 +35,8 @@ internal enum class EndpointKind {
 internal data class ProviderRequest(
     val config: AgentModelClient.ModelConfig,
     val messages: JSONArray,
-    val tools: JSONArray
+    val tools: JSONArray,
+    val sessionId: String = java.util.UUID.randomUUID().toString(),
 )
 
 internal data class ProviderResponse(

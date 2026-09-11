@@ -14,6 +14,7 @@ class ProviderComponentsTest {
     @Test
     fun providerDraftSaverPreservesUnsavedConfiguration() {
         val draft = ProviderConfigDraft(
+            headers = listOf(ProviderHeaderDraft(header = io.github.mangi.eta.data.model.CustomHeader("User-Agent", "test-client"))),
             name = "临时提供商",
             baseUrl = "https://api.example.com/v1",
             apiKey = "temporary-key",

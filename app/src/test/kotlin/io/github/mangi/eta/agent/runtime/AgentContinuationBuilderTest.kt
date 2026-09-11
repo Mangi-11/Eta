@@ -49,6 +49,7 @@ class AgentContinuationBuilderTest {
             createdAt = 123L,
         )
 
+        assertEquals("conversation-1", continuation.effectiveModelSessionId)
         assertEquals("run-next", continuation.runId)
         assertEquals("继续检查", continuation.prompt)
         assertTrue(continuation.images.isEmpty())
@@ -71,6 +72,17 @@ class AgentContinuationBuilderTest {
             payload.promptSupplement,
         )
         assertTrue(payload.supplements.isEmpty())
+    }
+
+    @Test
+    fun entryContinuationKeepsInitialSessionAcrossRuns() {
+        val request = AgentRuntimeWire.RunRequest(
+            runId = "entry-run", prompt = "开始", config = modelConfig(), images = emptyList(),
+        )
+        val continuation = AgentContinuationBuilder.build(
+            request, AgentModelClient.ModelResponse.Text("完成"), "继续", newRunId = "next-run",
+        )
+        assertEquals("entry-run", continuation.effectiveModelSessionId)
     }
 
     private fun modelConfig(): AgentModelClient.ModelConfig =

@@ -189,6 +189,7 @@ internal class AgentRuntimeRunExecutor(
             timing.preparationFinished(skillContext.installedSkills.size)
             val completedResponse = AgentModelClient.complete(
                 config = request.config,
+                sessionId = request.effectiveModelSessionId,
                 capabilitiesProvider = { AgentToolCapabilities.capture(appContext) },
                 prompt = request.prompt,
                 toolExecutor = routingExecutor,
