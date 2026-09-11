@@ -2,6 +2,7 @@ package io.github.mangi.eta.ui.markdown
 
 import com.mikepenz.markdown.model.ReferenceLinkHandlerImpl
 import com.mikepenz.markdown.model.State
+import com.mikepenz.markdown.model.parseMarkdown
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.parser.MarkdownParser
 
@@ -31,17 +32,31 @@ internal class StreamingGfmParserSession {
             source = source,
             isComplete = isComplete,
         )
-        val root = parser.buildMarkdownTreeFromString(renderedSource)
+        // 终态直接交给静态视图，链接索引也必须随这次后台解析完成，不能在切换时重解析。
+        val parsedState = if (isComplete) {
+            when (val parsed = parseMarkdown(
+                content = renderedSource,
+                lookupLinks = true,
+                flavour = flavour,
+                parser = parser,
+            )) {
+                is State.Success -> parsed
+                is State.Error -> throw parsed.result
+                is State.Loading -> error("Synchronous Markdown parsing returned Loading")
+            }
+        } else {
+            State.Success(
+                node = parser.buildMarkdownTreeFromString(renderedSource),
+                content = renderedSource,
+                linksLookedUp = false,
+                referenceLinkHandler = referenceLinkHandler,
+            )
+        }
         return StreamingGfmSnapshot(
             originalSource = source,
             renderedSource = renderedSource,
             isComplete = isComplete,
-            state = State.Success(
-                node = root,
-                content = renderedSource,
-                linksLookedUp = false,
-                referenceLinkHandler = referenceLinkHandler,
-            ),
+            state = parsedState,
         )
     }
 }
@@ -51,7 +66,10 @@ internal data class StreamingGfmSnapshot(
     val renderedSource: String,
     val isComplete: Boolean,
     val state: State.Success,
-)
+) {
+    fun completedStateFor(content: String): State.Success? =
+        state.takeIf { isComplete && originalSource == content }
+}
 
 /**
  * 为真实 EOF 和“暂时没有更多字符”的流式 EOF 建立不同语义。

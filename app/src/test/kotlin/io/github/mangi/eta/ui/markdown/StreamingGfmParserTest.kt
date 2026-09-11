@@ -7,6 +7,8 @@ import org.intellij.markdown.flavours.gfm.GFMElementTypes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -115,6 +117,51 @@ class StreamingGfmParserTest {
 
         assertEquals(source, snapshot.renderedSource)
         assertTrue(snapshot.isComplete)
+    }
+
+    @Test
+    fun stableHandoffKeepsTheCompletedTreeAndFormattedBlocks() {
+        val parser = StreamingGfmParserSession()
+        parser.parse("## 结果\n\n```kotlin\nval answer = 42", isComplete = false)
+        val content = "## 结果\n\n```kotlin\nval answer = 42\n```\n\n**完成**"
+        val snapshot = parser.parse(content, isComplete = true)
+        val stableState = snapshot.completedStateFor(content)
+
+        assertSame(snapshot.state, stableState)
+        assertEquals(content, stableState!!.content)
+        assertNotNull(stableState.node.findRecursively(MarkdownElementTypes.ATX_2))
+        assertNotNull(stableState.node.findRecursively(MarkdownElementTypes.CODE_FENCE))
+        assertNotNull(stableState.node.findRecursively(MarkdownElementTypes.STRONG))
+    }
+
+    @Test
+    fun unfinishedOrOutdatedSnapshotCannotBeUsedForStableHandoff() {
+        val parser = StreamingGfmParserSession()
+        val content = "回复内容"
+
+        assertNull(parser.parse(content, isComplete = false).completedStateFor(content))
+        val completed = parser.parse(content, isComplete = true)
+        assertNull(completed.completedStateFor("回复内容和新补充"))
+        assertNull(completed.completedStateFor("修正后的内容"))
+    }
+
+    @Test
+    fun completedSnapshotIncludesReferenceLinksBeforeStableHandoff() {
+        val content = "查看 [文档][eta]\n\n[eta]: https://example.com/docs"
+        val snapshot = StreamingGfmParserSession().parse(content, isComplete = true)
+
+        assertTrue(snapshot.state.linksLookedUp)
+        assertEquals("https://example.com/docs", snapshot.state.referenceLinkHandler.find("[eta]"))
+    }
+
+    @Test
+    fun correctedSnapshotDoesNotRetainOrMutatePreviousLinkDefinitions() {
+        val parser = StreamingGfmParserSession()
+        val original = parser.parse("[文档][eta]\n\n[eta]: https://example.com/docs", isComplete = true)
+        val replacement = parser.parse("[文档][eta]", isComplete = true)
+
+        assertEquals("", replacement.state.referenceLinkHandler.find("[eta]"))
+        assertEquals("https://example.com/docs", original.state.referenceLinkHandler.find("[eta]"))
     }
 
     private fun ASTNode.findRecursively(type: IElementType): ASTNode? {

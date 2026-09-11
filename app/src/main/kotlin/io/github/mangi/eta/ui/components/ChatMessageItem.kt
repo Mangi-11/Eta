@@ -680,8 +680,12 @@ private fun AgentMessageBlock(
     } else {
         null
     }
-    LaunchedEffect(retainedStreamingState, streamingRevealComplete, message.content) {
-        retainedStreamingState?.revealedContent = message.content.takeIf { streamingRevealComplete }
+    val completedMarkdownState = (streamingState ?: retainedStreamingState)
+        ?.snapshot?.completedStateFor(message.content)
+    val revealComplete = streamingRevealComplete && !message.isStreaming &&
+        (streamingState == null || completedMarkdownState != null)
+    LaunchedEffect(retainedStreamingState, revealComplete, message.content) {
+        retainedStreamingState?.revealedContent = message.content.takeIf { revealComplete }
     }
     LaunchedEffect(copied) {
         if (copied) {
@@ -701,7 +705,7 @@ private fun AgentMessageBlock(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            streamingState != null && !streamingRevealComplete -> {
+            streamingState != null && !revealComplete -> {
                 StreamingMarkdown(
                     state = streamingState,
                     content = message.content,
@@ -714,6 +718,7 @@ private fun AgentMessageBlock(
                 SelectionContainer {
                     StableMarkdown(
                         content = message.content,
+                        parsedState = completedMarkdownState,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -733,7 +738,7 @@ private fun AgentMessageBlock(
             showCopyAction &&
             !message.isStreaming &&
             message.content.isNotBlank() &&
-            (!keepStreamingMarkdown || streamingRevealComplete)
+            revealComplete
         ) {
             Row(
                 modifier = Modifier
@@ -806,14 +811,17 @@ private fun StableMarkdown(
     content: String,
     modifier: Modifier = Modifier,
     tone: ChatMarkdownTone = ChatMarkdownTone.Answer,
-    markdownState: MarkdownState = rememberMarkdownState(
+    markdownState: MarkdownState? = null,
+    parsedState: State.Success? = null,
+) {
+    // 流式终态已有完整 AST，直接复用，避免新解析器的 Loading 原文先撑高页面再缩回。
+    val state = parsedState ?: (markdownState ?: rememberMarkdownState(
         content = content,
         retainState = true,
-    ),
-) {
+    )).state.collectAsState().value
     val components = remember { chatMarkdownComponents() }
     Markdown(
-        markdownState = markdownState,
+        state = state,
         colors = chatMarkdownColors(tone),
         typography = chatMarkdownTypography(tone),
         padding = chatMarkdownPadding(),
