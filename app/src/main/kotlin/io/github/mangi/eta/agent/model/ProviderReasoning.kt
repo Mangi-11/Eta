@@ -291,7 +291,7 @@ internal object ProviderReasoning {
             "当前模型不支持 ${effort.displayName} thinking effort"
         }
         require(!capabilities.mandatory || effort != ReasoningEffort.OFF) {
-            "当前模型强制启用推理，不能选择 Off"
+            "当前模型强制启用思考，不能选择 Off"
         }
         return effort
     }

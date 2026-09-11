@@ -55,7 +55,7 @@ internal class AgentModelRetry(
                 onEvent(AgentEvent.ModelRetryScheduled(round, retries, MAX_RETRIES, delayMs.toInt(), classified.code))
                 waitBeforeRetry(controller, delayMs)
                 controller.throwIfCancelled()
-                // 展示保留失败尝试，模型上下文与最终推理摘要只接纳成功尝试。
+                // 展示保留失败尝试，模型上下文与最终思考摘要只接纳成功尝试。
                 discardAttemptReasoning()
                 round += 1
             }

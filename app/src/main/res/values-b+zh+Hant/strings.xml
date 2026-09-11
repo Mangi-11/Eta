@@ -189,11 +189,11 @@
   <plurals name="overlay_preparing_tools">
     <item quantity="other">正在準備 %d 個工具</item>
   </plurals>
-  <string name="overlay_reasoning_round">第 %1$d 輪推理</string>
+  <string name="overlay_reasoning_round">第 %1$d 輪思考</string>
   <string name="overlay_requesting_model">正在請求模型</string>
   <string name="overlay_model_responded">模型已回應</string>
   <string name="overlay_generating_tool_arguments">正在產生工具參數</string>
-  <string name="overlay_reasoning">正在推理</string>
+  <string name="overlay_reasoning">正在思考</string>
   <string name="overlay_preparing_answer">正在整理回答</string>
   <string name="overlay_planning_tools">預計執行：%1$s</string>
   <string name="overlay_supplement_received">已收到補充內容，繼續執行</string>
@@ -271,7 +271,7 @@
   <string name="conversation_section_pinned">已釘選</string>
   <string name="conversation_section_today">今天</string>
   <string name="conversation_dock_models">模型</string>
-  <string name="conversation_preview_reasoning">Eta 正在推理</string>
+  <string name="conversation_preview_reasoning">Eta 正在思考</string>
   <string name="conversation_preview_tool_call">工具呼叫：%1$s</string>
   <string name="conversation_preview_empty">直接輸入問題，Eta 會在需要時操作手機</string>
   <string name="ui_core_memory_user_name_long_term_preferences_aa6ff9"># 核心記憶
@@ -346,7 +346,7 @@
   <string name="ui_support_anthropic_claude_official_or_compatible_api_de3f80">支援 Anthropic Claude 官方或相容 API</string>
   <string name="ui_support_chatgpt_deepseek_kimi_glm_qwen_etc_b31d02">支援 ChatGPT、DeepSeek、Kimi、GLM、Qwen 等服務</string>
   <string name="ui_supports_files_and_folders_under_internal_storage_or_520786">支援任意本機絕對路徑下的檔案和資料夾</string>
-  <string name="ui_support_thinking_5b9e4c">支援推理</string>
+  <string name="ui_support_thinking_5b9e4c">支援思考</string>
   <string name="ui_new_anthropic_db6098">新增 Anthropic</string>
   <string name="ui_added_openai_compatible_6bd471">新增 OpenAI-compatible</string>
   <string name="ui_add_new_provider_74df54">新增供應商</string>
@@ -404,7 +404,7 @@
   <string name="ui_reset_built_in_configuration_35b6ec">重設內建設定</string>
   <string name="ui_reset_browser_session_791b36">重設瀏覽器工作階段</string>
   <string name="ui_lock_screen_evokes_automatic_voice_input_1cde18">鎖定畫面喚起自動語音輸入</string>
-  <string name="ui_deep_thinking_enabled_by_default_c032d6">預設啟用推理</string>
+  <string name="ui_deep_thinking_enabled_by_default_c032d6">預設啟用思考</string>
   <string name="tool_tap_area">點按區域</string>
   <string name="tool_current_context">時間與位置</string>
   <string name="tool_memory_get">讀取記憶</string>
@@ -445,13 +445,13 @@
   <string name="copy_code">複製程式碼</string>
   <string name="copy_command">複製指令</string>
   <string name="shell_command">Shell 指令</string>
-  <string name="reasoning_in_progress">正在推理…</string>
-  <string name="reasoning_completed">推理完成</string>
+  <string name="reasoning_in_progress">正在思考…</string>
+  <string name="reasoning_completed">思考完成</string>
   <plurals name="reasoning_completed_seconds">
-    <item quantity="other">推理完成 · 用時 %d 秒</item>
+    <item quantity="other">思考完成 · 用時 %d 秒</item>
   </plurals>
-  <string name="reasoning_collapse">收合推理過程</string>
-  <string name="reasoning_expand">展開推理過程</string>
+  <string name="reasoning_collapse">收合思考過程</string>
+  <string name="reasoning_expand">展開思考過程</string>
   <string name="state_hook_secondary_ability_95afe3">Hook 二級能力</string>
   <string name="state_root_permissions_958906">Root 權限</string>
   <string name="state_runtime_displays_a_status_pop_up_window_when_the_ser_54f285">Runtime 服務運作時顯示狀態浮窗</string>
@@ -522,7 +522,7 @@
   <string name="page_save_failed_40525a">儲存失敗</string>
   <string name="page_repair_590253">修復</string>
   <string name="page_stop_loading_c62fbc">停止載入</string>
-  <string name="page_allow_thinking_to_be_turned_off_during_conversations_5a32a9">允許在對話中關閉推理</string>
+  <string name="page_allow_thinking_to_be_turned_off_during_conversations_5a32a9">允許在對話中關閉思考</string>
   <string name="page_select_none_ba20eb">全不選</string>
   <string name="page_select_all_3e44b2">全選</string>
   <string name="page_delete_3755f5">刪除</string>
@@ -552,7 +552,7 @@
   <string name="page_current_model_a0af8f">目前模型</string>
   <string name="page_busy_0212cc">忙碌</string>
   <string name="page_retrieving_a880c9">拉取中...</string>
-  <string name="page_support_thinking_5b9e4c">支援推理</string>
+  <string name="page_support_thinking_5b9e4c">支援思考</string>
   <string name="page_no_description_2070d9">無描述</string>
   <string name="page_there_is_no_model_yet_please_pull_it_from_the_remote_ced865">暫無模型，請從遠端拉取或手動新增</string>
   <string name="page_replace_855241">替換</string>
@@ -649,7 +649,7 @@
   <string name="page_use_standard_chat_completions_ee4b1a">使用 Chat Completions API</string>
   <string name="page_using_typed_items_with_semantic_streaming_events_f9c906">使用 Responses API、typed Items 與語意化串流事件</string>
   <string name="voice_input_request">輸入要求</string>
-  <string name="voice_reasoning">Eta 正在推理</string>
+  <string name="voice_reasoning">Eta 正在思考</string>
   <string name="voice_completed">已完成</string>
   <string name="voice_failed">Eta 執行失敗</string>
   <string name="voice_running_tool">Eta 正在執行 %1$s</string>
@@ -662,7 +662,7 @@
   <string name="voice_screen_remove">移除目前畫面</string>
   <string name="voice_input_hint">傳訊息給 Eta…</string>
   <string name="voice_send">傳送</string>
-  <string name="injected_reasoning">Eta 正在推理…</string>
+  <string name="injected_reasoning">Eta 正在思考…</string>
   <string name="injected_executing">Eta 正在執行任務…</string>
   <string name="injected_completed">Eta 已完成本次任務</string>
   <string name="injected_failed">Eta 處理失敗，請稍後再試</string>
@@ -675,7 +675,7 @@
   <string name="injected_system_tool">系統工具</string>
   <string name="injected_app_tool">應用程式工具</string>
   <string name="injected_screen_tool">畫面工具</string>
-  <string name="injected_reasoning_label">推理</string>
+  <string name="injected_reasoning_label">思考</string>
   <string name="tool_ui_agent_browser_a66bd5">Agent 瀏覽器</string>
   <string name="tool_ui_coloros_notes_6c324c">ColorOS 便簽</string>
   <string name="tool_ui_coloros_recording_a4e425">ColorOS 錄音</string>
@@ -914,7 +914,7 @@
     <item quantity="other">已選取 %d 個</item>
   </plurals>
   <string name="provider_auto_context">自動：%1$s tokens</string>
-  <string name="provider_auto_reasoning_supported">自動：支援推理</string>
+  <string name="provider_auto_reasoning_supported">自動：支援思考</string>
   <string name="provider_auto_reasoning_unknown">自動：不支援或未知</string>
   <string name="provider_context_tag">%1$s 內容脈絡</string>
   <string name="provider_sync_failed">同步失敗</string>
@@ -1090,7 +1090,7 @@
   <string name="chat_input_hint">交給 Eta 完成</string>
   <string name="chat_stop">停止</string>
   <string name="chat_send">傳送</string>
-  <string name="chat_reasoning_effort">推理強度，目前為 %1$s</string>
+  <string name="chat_reasoning_effort">思考強度，目前為 %1$s</string>
   <string name="status_unsupported">不支援</string>
   <string name="attachment_image">圖片</string>
   <string name="attachment_file">檔案</string>

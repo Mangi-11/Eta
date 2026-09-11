@@ -190,7 +190,7 @@ internal object AgentModelClient {
         require(
             reasoningCapabilities?.mandatory != true ||
                 effectiveReasoningEffort != ReasoningEffort.OFF
-        ) { "当前模型强制启用推理，不能选择 Off 或禁用思考权限" }
+        ) { "当前模型强制启用思考，不能选择 Off 或禁用思考权限" }
         if (extraBodyJson.isNotBlank()) {
             runCatching { JSONObject(extraBodyJson) }
                 .getOrElse { throwable ->

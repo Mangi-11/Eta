@@ -863,7 +863,7 @@ private fun StreamingMarkdown(
     tone: ChatMarkdownTone = ChatMarkdownTone.Answer,
 ) {
     val revealCoordinator = state.revealCoordinator
-    // 思考紧跟已收到的增量，避免高速推理先排版占位、再受正文逐字速度限制而积压。
+    // 思考紧跟已收到的增量，避免高速思考先排版占位、再受正文逐字速度限制而积压。
     val animateReveal = tone == ChatMarkdownTone.Answer
     val components = remember(revealCoordinator, isStreaming, animateReveal) {
         chatMarkdownComponents(

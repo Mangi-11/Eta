@@ -271,7 +271,7 @@ internal class AgentLoop(
         val imageOutcomes = outcomes.filter { outcome -> outcome.result.images.isNotEmpty() }
         if (imageOutcomes.isEmpty()) return
 
-        // 工具截图是瞬时观察，不是会话资产。下一次推理消费后立即删除。
+        // 工具截图是瞬时观察，不是会话资产。下一次思考消费后立即删除。
         discardPendingToolImageMessage()
         val images = imageOutcomes.flatMap { outcome -> outcome.result.images }
         val toolNames = imageOutcomes

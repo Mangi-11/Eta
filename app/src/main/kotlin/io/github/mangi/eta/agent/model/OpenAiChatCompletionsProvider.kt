@@ -303,7 +303,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
     )
 
     private fun visibleReasoningDelta(delta: JSONObject): String {
-        // 同一分片的纯文本与结构化字段可重复携带相同推理，只消费一种表示。
+        // 同一分片的纯文本与结构化字段可重复携带相同思考，只消费一种表示。
         for (key in listOf("reasoning_content", "reasoning")) {
             (delta.opt(key) as? String)?.takeIf { it.isNotEmpty() }?.let { return it }
         }
