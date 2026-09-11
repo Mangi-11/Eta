@@ -96,7 +96,7 @@ internal class AgentExecutionService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         return Notification.Builder(this, CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.execution_title))
             .setContentText(getString(R.string.execution_summary, leases.count()))
             .setContentIntent(open)
