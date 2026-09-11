@@ -34,7 +34,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 
 /**
- * 一条回答只使用一个显现时钟，保证同一帧不会有多个 Markdown 块同时“打字”。
+ * 一条回答只使用一个显现时钟，按源码顺序在 Markdown 块之间分配同一帧的推进量。
  *
  * 解析和文本排版仅在目标文本变化时发生；帧间推进只更新普通字段并调用
  * [invalidateDraw]。只有显现跨入新行时才额外请求一次测量以增长消息高度，
@@ -146,7 +146,7 @@ internal class SmoothTextRevealCoordinator {
             drainedState.value = false
             var previousFrameNanos = withFrameNanos { it }
             while (currentCoroutineContext().isActive) {
-                val record = firstPendingRecord() ?: break
+                if (firstPendingRecord() == null) break
                 val frameNanos = withFrameNanos { it }
                 val elapsedSeconds = ((frameNanos - previousFrameNanos) / NANOS_PER_SECOND)
                     .coerceIn(0f, MAX_FRAME_DELTA_SECONDS)
@@ -155,16 +155,27 @@ internal class SmoothTextRevealCoordinator {
                 val totalBacklog = records.values.sumOf { candidate ->
                     max(0.0, (candidate.targetCount - candidate.progress).toDouble())
                 }.toFloat()
-                record.progress = advanceSmoothReveal(
-                    current = record.progress,
-                    target = record.targetCount,
+                var remainingAdvance = advanceSmoothReveal(
+                    current = 0f,
+                    target = totalBacklog,
                     elapsedSeconds = elapsedSeconds,
                     totalBacklog = totalBacklog,
                 )
-                if (record.progress > 0f && record.key !in startedState.value) {
-                    startedState.value = startedState.value + record.key
+                val newlyStarted = mutableSetOf<RevealBlockKey>()
+                // 块结束后剩余的推进量继续用于下一块，避免短段落把追赶速度限制为每帧一块。
+                for (record in records.values) {
+                    if (remainingAdvance <= 0f) break
+                    if (record.node == null || record.layoutResult == null) continue
+                    val pending = record.targetCount - record.progress
+                    if (pending <= 0f) continue
+                    val advance = remainingAdvance.coerceAtMost(pending)
+                    record.progress = (record.progress + advance).coerceAtMost(record.targetCount)
+                    remainingAdvance -= advance
+                    if (record.key !in startedState.value) newlyStarted += record.key
+                    record.node?.onRevealDataChanged()
                 }
-                record.node?.onRevealDataChanged()
+                if (newlyStarted.isNotEmpty()) startedState.value = startedState.value + newlyStarted
+                updateDrainedState()
             }
         }
     }
@@ -540,7 +551,6 @@ internal fun commonUtf16PrefixLength(first: String, second: String): Int {
 
 internal fun smoothRevealSpeed(totalBacklog: Float): Float =
     max(BASE_REVEAL_GRAPHEMES_PER_SECOND, totalBacklog / TARGET_CATCH_UP_SECONDS)
-        .coerceAtMost(MAX_REVEAL_GRAPHEMES_PER_SECOND)
 
 internal fun advanceSmoothReveal(
     current: Float,
@@ -558,5 +568,4 @@ internal fun advanceSmoothReveal(
 private const val NANOS_PER_SECOND = 1_000_000_000f
 private const val MAX_FRAME_DELTA_SECONDS = 0.05f
 private const val BASE_REVEAL_GRAPHEMES_PER_SECOND = 36f
-private const val MAX_REVEAL_GRAPHEMES_PER_SECOND = 240f
 private const val TARGET_CATCH_UP_SECONDS = 0.20f

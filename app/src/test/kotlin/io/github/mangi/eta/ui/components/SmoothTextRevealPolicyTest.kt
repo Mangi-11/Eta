@@ -6,6 +6,7 @@ import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.flavours.gfm.GFMElementTypes
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SmoothTextRevealPolicyTest {
@@ -109,11 +110,12 @@ class SmoothTextRevealPolicyTest {
     }
 
     @Test
-    fun revealSpeedUsesBaseRateThenCatchesUpAndCaps() {
+    fun revealSpeedUsesBaseRateThenCatchesUpWithoutCeiling() {
         assertEquals(36f, smoothRevealSpeed(totalBacklog = 0f), FLOAT_TOLERANCE)
         assertEquals(45f, smoothRevealSpeed(totalBacklog = 9f), FLOAT_TOLERANCE)
         assertEquals(100f, smoothRevealSpeed(totalBacklog = 20f), FLOAT_TOLERANCE)
-        assertEquals(240f, smoothRevealSpeed(totalBacklog = 1_000f), FLOAT_TOLERANCE)
+        assertEquals(5_000f, smoothRevealSpeed(totalBacklog = 1_000f), FLOAT_TOLERANCE)
+        assertEquals(50_000f, smoothRevealSpeed(totalBacklog = 10_000f), FLOAT_TOLERANCE)
     }
 
     @Test
@@ -131,18 +133,32 @@ class SmoothTextRevealPolicyTest {
     }
 
     @Test
-    fun catchUpAdvancesMultipleGraphemesWithinSpeedCap() {
-        // 240 字/秒的速度上限 × 单帧最大 50ms，一帧最多推进 12 个字素。
+    fun catchUpAdvancesBeyondFormerSpeedCap() {
         assertEquals(
-            15f,
+            253f,
             advanceSmoothReveal(
                 current = 3f,
-                target = 100f,
+                target = 1_000f,
                 elapsedSeconds = 0.05f,
                 totalBacklog = 1_000f,
             ),
             FLOAT_TOLERANCE,
         )
+    }
+
+    @Test
+    fun sustainedFastOutputDoesNotAccumulateUnboundedBacklog() {
+        var target = 0f
+        var progress = 0f
+        repeat(600) {
+            target += 20f
+            progress = advanceSmoothReveal(progress, target, 1f / 60f, target - progress)
+        }
+        assertTrue(target - progress < 300f)
+        repeat(90) {
+            progress = advanceSmoothReveal(progress, target, 1f / 60f, target - progress)
+        }
+        assertEquals(target, progress, FLOAT_TOLERANCE)
     }
 
     @Test

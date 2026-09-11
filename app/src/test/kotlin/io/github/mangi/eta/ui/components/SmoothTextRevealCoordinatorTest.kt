@@ -64,6 +64,36 @@ class SmoothTextRevealCoordinatorTest {
     }
 
     @Test
+    fun oneFrameCarriesAdvanceAcrossBlocksInSourceOrder() = runBlocking {
+        val coordinator = SmoothTextRevealCoordinator()
+        val keys = (0 until 10).map { RevealBlockKey(it * 20) }
+        keys.reversed().forEach { attach(coordinator, it, "abcdefghij") }
+        val clock = TestFrameClock()
+        val frameJob = launch(clock, start = CoroutineStart.UNDISPATCHED) {
+            coordinator.runFrameClock()
+        }
+        try {
+            clock.send(0L)
+            clock.send(50_000_000L)
+            yield()
+
+            assertEquals(10f, coordinator.drawSnapshot(keys[0])!!.progress, 0f)
+            assertEquals(10f, coordinator.drawSnapshot(keys[1])!!.progress, 0f)
+            assertEquals(5f, coordinator.drawSnapshot(keys[2])!!.progress, 0f)
+            keys.drop(3).forEach { assertEquals(0f, coordinator.drawSnapshot(it)!!.progress, 0f) }
+            assertEquals(keys.take(3).toSet(), coordinator.started.value)
+            assertFalse(coordinator.drained.value)
+
+            repeat(60) { clock.send((it + 2) * 50_000_000L) }
+            yield()
+            assertTrue(coordinator.drained.value)
+            assertEquals(keys.toSet(), coordinator.started.value)
+        } finally {
+            frameJob.cancelAndJoin()
+        }
+    }
+
+    @Test
     fun reattachedBlockKeepsCompletedPrefixAndAnimatesOnlyNewText() {
         val coordinator = SmoothTextRevealCoordinator()
         val key = RevealBlockKey(0)
