@@ -1,5 +1,6 @@
 package io.github.mangi.eta.ui
 
+import android.app.UiModeManager
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -14,10 +15,12 @@ import androidx.compose.runtime.setValue
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import io.github.mangi.eta.agent.voice.EtaAssistantOverlayService
+import io.github.mangi.eta.data.model.AppearanceThemeMode
 import io.github.mangi.eta.data.repository.AppearanceSettingsRepository
 import io.github.mangi.eta.ui.app.AgentAppRoot
 import io.github.mangi.eta.ui.app.AgentAppTheme
 import io.github.mangi.eta.ui.app.PredictiveBackController
+import io.github.mangi.eta.ui.app.installStartupSplash
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -26,6 +29,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        var contentReady = false
+        installStartupSplash { contentReady }
         enableEdgeToEdge()
         updateAssistantHandoff(intent)
         lifecycleScope.launch {
@@ -34,6 +39,10 @@ class MainActivity : ComponentActivity() {
             setContent {
                 val appearance by AppearanceSettingsRepository.settingsFlow()
                     .collectAsState(initial = initialAppearance)
+
+                LaunchedEffect(appearance.themeMode) {
+                    updateApplicationNightMode(appearance.themeMode)
+                }
 
                 LaunchedEffect(appearance.predictiveBackEnabled) {
                     val enabled = appearance.predictiveBackEnabled
@@ -61,6 +70,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+            contentReady = true
         }
     }
 
@@ -75,6 +85,16 @@ class MainActivity : ComponentActivity() {
         assistantConversationKey = intent.getStringExtra(
             EtaAssistantOverlayService.EXTRA_CONVERSATION_KEY,
         )?.takeIf(String::isNotBlank)
+    }
+
+    private fun updateApplicationNightMode(themeMode: AppearanceThemeMode) {
+        val mode = when (themeMode) {
+            AppearanceThemeMode.LIGHT -> UiModeManager.MODE_NIGHT_NO
+            AppearanceThemeMode.DARK -> UiModeManager.MODE_NIGHT_YES
+            // 应用级 AUTO 清除夜间模式覆盖，恢复跟随系统。
+            AppearanceThemeMode.SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
+        }
+        getSystemService(UiModeManager::class.java).setApplicationNightMode(mode)
     }
 
     private fun updateSystemBars(isDark: Boolean) {
