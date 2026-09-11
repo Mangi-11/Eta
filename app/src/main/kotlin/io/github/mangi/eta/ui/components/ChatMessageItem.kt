@@ -138,8 +138,6 @@ import io.github.mangi.eta.agent.browser.AgentBrowserSession
 import io.github.mangi.eta.agent.browser.BrowserSessionSnapshot
 import io.github.mangi.eta.agent.model.AgentFileReferencePromptCodec
 import io.github.mangi.eta.agent.overlay.toolDisplayName
-import io.github.mangi.eta.ui.markdown.StreamingGfmParserSession
-import io.github.mangi.eta.ui.markdown.StreamingGfmSnapshot
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.RunTraceMessageUi
@@ -152,7 +150,6 @@ import io.github.mangi.eta.ui.model.ToolActivityStatusUi
 import io.github.mangi.eta.ui.model.ToolSummaryMessageUi
 import io.github.mangi.eta.ui.model.UserMessageUi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -856,23 +853,6 @@ private fun StableMarkdown(
     )
 }
 
-/**
- * 流式渲染会话，按 message.id 提升到 LazyColumn 外层持有。
- *
- * 流式 item 滚出视口后组合会被销毁，裸 remember 会让解析基线、打字机进度和最新
- * 快照全部丢失；滑回时整段已生成内容会重新全量解析，并从头重放显现动画。会话
- * 与组合解耦后，item 重建只是重新挂接效果，渲染进度原样保留。
- */
-internal class StreamingMarkdownState {
-    var revealedContent by mutableStateOf<String?>(null)
-    val parserSession = StreamingGfmParserSession()
-    val revealCoordinator = SmoothTextRevealCoordinator().apply { pauseAnimationsAndCatchUp() }
-    val restoreState = StreamingMarkdownRestoreState()
-    val parseTargets = Channel<StreamingMarkdownTarget>(Channel.CONFLATED)
-    val acceptedContent = arrayOf("")
-    var snapshot by mutableStateOf<StreamingGfmSnapshot?>(null)
-}
-
 @Composable
 private fun StreamingMarkdown(
     state: StreamingMarkdownState,
@@ -882,16 +862,16 @@ private fun StreamingMarkdown(
     modifier: Modifier = Modifier,
     tone: ChatMarkdownTone = ChatMarkdownTone.Answer,
 ) {
-    val parserSession = state.parserSession
     val revealCoordinator = state.revealCoordinator
-    val components = remember(revealCoordinator, isStreaming) {
+    // 思考紧跟已收到的增量，避免高速推理先排版占位、再受正文逐字速度限制而积压。
+    val animateReveal = tone == ChatMarkdownTone.Answer
+    val components = remember(revealCoordinator, isStreaming, animateReveal) {
         chatMarkdownComponents(
-            revealCoordinator = revealCoordinator,
-            suppressEmptyListMarkers = isStreaming,
+            revealCoordinator = revealCoordinator.takeIf { animateReveal },
+            suppressEmptyListMarkers = isStreaming && animateReveal,
         )
     }
     val parseTargets = state.parseTargets
-    val acceptedContent = state.acceptedContent
     val currentRevealCompleteCallback by rememberUpdatedState(onRevealCompleteChange)
     val snapshot = state.snapshot
     val currentContent by rememberUpdatedState(content)
@@ -907,17 +887,11 @@ private fun StreamingMarkdown(
         }
     }
 
-    LaunchedEffect(revealCoordinator) {
-        revealCoordinator.runFrameClock()
+    LaunchedEffect(revealCoordinator, animateReveal) {
+        if (animateReveal) revealCoordinator.runFrameClock()
     }
 
     LaunchedEffect(content, isStreaming) {
-        val previousContent = acceptedContent[0]
-        if (!content.startsWith(previousContent)) {
-            // 会话恢复或上游纠正内容时，让解析会话重新建立文档基线。
-            acceptedContent[0] = ""
-        }
-        acceptedContent[0] = content
         parseTargets.trySend(
             StreamingMarkdownTarget(
                 content = content,
@@ -927,30 +901,8 @@ private fun StreamingMarkdown(
         if (isStreaming) currentRevealCompleteCallback(false)
     }
 
-    LaunchedEffect(parserSession, parseTargets) {
-        var target = parseTargets.receive()
-        while (true) {
-            while (true) {
-                val newerTarget = parseTargets.tryReceive().getOrNull() ?: break
-                target = newerTarget
-            }
-
-            val parsed = withContext(Dispatchers.Default) {
-                parserSession.parse(
-                    source = target.content,
-                    isComplete = !target.isStreaming,
-                )
-            }
-
-            val newerTarget = parseTargets.tryReceive().getOrNull()
-            if (newerTarget != null) {
-                target = newerTarget
-                continue
-            }
-
-            state.snapshot = parsed
-            target = parseTargets.receive()
-        }
+    LaunchedEffect(state) {
+        state.parseUpdates()
     }
 
     LaunchedEffect(content, isStreaming, snapshot?.originalSource, snapshot?.isComplete, revealCoordinator) {
@@ -1125,11 +1077,6 @@ private fun IElementType.isMarkdownStructuredBlock(): Boolean = when (this) {
 
     else -> false
 }
-
-internal data class StreamingMarkdownTarget(
-    val content: String,
-    val isStreaming: Boolean,
-)
 
 internal fun streamingMarkdownBatchSize(backlogChars: Int): Int = when {
     backlogChars >= 384 -> 96
@@ -2065,13 +2012,14 @@ private fun ThinkingRow(
 ) {
     var expanded by rememberSaveable(message.id) { mutableStateOf(!message.collapsed) }
     var manuallyExpanded by rememberSaveable(message.id) { mutableStateOf(false) }
-    // 思考结束后立即切换为与完成态回答相同的稳定 Markdown。工具执行期间 App 可能
-    // 处于后台，不能让旧思考保留显现债务，回来后在新回答旁边补播整段内容。
-    val streamingState = if (message.isStreaming) {
+    val keepStreamingMarkdown = remember(message.id) { message.isStreaming }
+    val streamingState = if (keepStreamingMarkdown) {
         retainedStreamingState ?: remember(message.id) { StreamingMarkdownState() }
     } else {
         null
     }
+    val completedMarkdownState = (streamingState ?: retainedStreamingState)
+        ?.snapshot?.completedStateFor(message.content)
     LaunchedEffect(message.isStreaming) {
         if (message.isStreaming && !manuallyExpanded) expanded = true
     }
@@ -2080,7 +2028,7 @@ private fun ThinkingRow(
     // 后台解析，而不是等到首次点击展开。否则首帧只能测量 loading fallback 的纯文本高度，
     // 解析完成后正文高度会再次变化；状态挂在行级还能在收起/展开循环中存活，
     // 避免每次展开都重新走一遍异步解析。
-    val stableMarkdownState = if (!message.isStreaming) {
+    val stableMarkdownState = if (streamingState == null && completedMarkdownState == null) {
         rememberMarkdownState(
             content = message.content,
             retainState = true,
@@ -2189,7 +2137,7 @@ private fun ThinkingRow(
                         top = if (compact) 2.dp else 8.dp,
                         bottom = if (compact) 8.dp else 12.dp,
                     )
-                if (streamingState != null) {
+                if (streamingState != null && (message.isStreaming || completedMarkdownState == null)) {
                     StreamingMarkdown(
                         state = streamingState,
                         content = message.content,
@@ -2202,7 +2150,8 @@ private fun ThinkingRow(
                     StableMarkdown(
                         content = message.content,
                         tone = ChatMarkdownTone.Thinking,
-                        markdownState = checkNotNull(stableMarkdownState),
+                        markdownState = stableMarkdownState,
+                        parsedState = completedMarkdownState,
                         modifier = contentModifier,
                     )
                 }

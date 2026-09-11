@@ -3,8 +3,6 @@ package io.github.mangi.eta.agent.model
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -199,168 +197,150 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
             }
         }
 
-        BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
-            val dataLines = mutableListOf<String>()
-            fun consumeFrame() {
-                if (dataLines.isEmpty()) return
-                val payload = dataLines.joinToString("\n").trim()
-                dataLines.clear()
-                if (payload.isBlank() || payload == "[DONE]") return
-                sawEvent = true
-                val event = JSONObject(payload)
-                throwEventError(event)
-                when (val type = event.optString("type")) {
-                    "response.output_text.delta" -> {
-                        val delta = event.optString("delta")
-                        if (delta.isNotEmpty()) {
-                            streamedText.append(delta)
-                            appendContentDelta(
-                                event = event,
-                                kind = AssistantBlockKind.TEXT,
-                                family = RESPONSE_TEXT_FAMILY,
-                                delta = delta,
+        readProviderSse(stream, runController) { eventName, data ->
+            val payload = data.trim()
+            if (payload == "[DONE]") return@readProviderSse true
+            sawEvent = true
+            val event = JSONObject(payload)
+            throwEventError(event)
+            when (val type = event.optString("type").ifBlank { eventName }) {
+                "response.output_text.delta" -> {
+                    val delta = event.optString("delta")
+                    if (delta.isNotEmpty()) {
+                        streamedText.append(delta)
+                        appendContentDelta(
+                            event = event,
+                            kind = AssistantBlockKind.TEXT,
+                            family = RESPONSE_TEXT_FAMILY,
+                            delta = delta,
+                        )
+                    }
+                }
+                "response.reasoning_summary_text.delta",
+                "response.reasoning_text.delta" -> {
+                    val delta = event.optString("delta")
+                    if (delta.isNotEmpty()) {
+                        streamedReasoning.append(delta)
+                        appendContentDelta(
+                            event = event,
+                            kind = AssistantBlockKind.THINKING,
+                            family = if (type == "response.reasoning_text.delta") {
+                                RESPONSE_REASONING_FAMILY
+                            } else {
+                                RESPONSE_REASONING_SUMMARY_FAMILY
+                            },
+                            delta = delta,
+                        )
+                    }
+                }
+                "response.output_text.done" ->
+                    finishContentEvent(event, RESPONSE_TEXT_FAMILY, "text")
+
+                "response.reasoning_summary_text.done" ->
+                    finishContentEvent(event, RESPONSE_REASONING_SUMMARY_FAMILY, "text")
+
+                "response.reasoning_text.done" ->
+                    finishContentEvent(event, RESPONSE_REASONING_FAMILY, "text")
+
+                "response.output_item.added" -> {
+                    val item = event.optJSONObject("item") ?: JSONObject()
+                    val itemId = item.optString("id").ifBlank { "item_${event.optInt("output_index", 0)}" }
+                    val itemType = item.optString("type")
+                    when (itemType) {
+                        "function_call" -> {
+                            finishActiveVisibleBlock()
+                            val call = StreamingFunctionCall(
+                                itemId = itemId,
+                                contentIndex = nextBlockIndex++,
+                                callId = item.optString("call_id"),
+                                name = item.optString("name"),
+                                arguments = StringBuilder(item.optString("arguments")),
                             )
-                        }
-                    }
-                    "response.reasoning_summary_text.delta",
-                    "response.reasoning_text.delta" -> {
-                        val delta = event.optString("delta")
-                        if (delta.isNotEmpty()) {
-                            streamedReasoning.append(delta)
-                            appendContentDelta(
-                                event = event,
-                                kind = AssistantBlockKind.THINKING,
-                                family = if (type == "response.reasoning_text.delta") {
-                                    RESPONSE_REASONING_FAMILY
-                                } else {
-                                    RESPONSE_REASONING_SUMMARY_FAMILY
-                                },
-                                delta = delta,
-                            )
-                        }
-                    }
-                    "response.output_text.done" ->
-                        finishContentEvent(event, RESPONSE_TEXT_FAMILY, "text")
-
-                    "response.reasoning_summary_text.done" ->
-                        finishContentEvent(event, RESPONSE_REASONING_SUMMARY_FAMILY, "text")
-
-                    "response.reasoning_text.done" ->
-                        finishContentEvent(event, RESPONSE_REASONING_FAMILY, "text")
-
-                    "response.output_item.added" -> {
-                        val item = event.optJSONObject("item") ?: JSONObject()
-                        val itemId = item.optString("id").ifBlank { "item_${event.optInt("output_index", 0)}" }
-                        val itemType = item.optString("type")
-                        when (itemType) {
-                            "function_call" -> {
-                                finishActiveVisibleBlock()
-                                val call = StreamingFunctionCall(
-                                    itemId = itemId,
-                                    contentIndex = nextBlockIndex++,
-                                    callId = item.optString("call_id"),
-                                    name = item.optString("name"),
-                                    arguments = StringBuilder(item.optString("arguments")),
-                                )
-                                toolCalls[itemId] = call
-                                onEvent(
-                                    ProviderEvent.BlockStart(
-                                        AssistantBlockKind.TOOL_CALL,
-                                        call.contentIndex,
-                                        blockId = call.callId.ifBlank { null },
-                                        name = call.name.ifBlank { null },
-                                    ),
-                                )
-                            }
-                            else -> itemType.hostedToolDisplayName()?.let { name ->
-                                startHostedTool(itemId, name)
-                            }
-                        }
-                    }
-                    "response.function_call_arguments.delta" -> {
-                        val itemId = event.optString("item_id")
-                        val call = toolCalls[itemId] ?: return
-                        val delta = event.optString("delta")
-                        call.arguments.append(delta)
-                        if (delta.isNotEmpty()) {
+                            toolCalls[itemId] = call
                             onEvent(
-                                ProviderEvent.BlockDelta(
+                                ProviderEvent.BlockStart(
                                     AssistantBlockKind.TOOL_CALL,
                                     call.contentIndex,
-                                    delta,
+                                    blockId = call.callId.ifBlank { null },
+                                    name = call.name.ifBlank { null },
                                 ),
                             )
                         }
-                    }
-                    "response.function_call_arguments.done" -> {
-                        val call = toolCalls[event.optString("item_id")] ?: return
-                        if (event.has("arguments")) {
-                            call.arguments.clear()
-                            call.arguments.append(event.optString("arguments"))
+                        else -> itemType.hostedToolDisplayName()?.let { name ->
+                            startHostedTool(itemId, name)
                         }
                     }
-                    "response.output_item.done" -> {
-                        val item = event.optJSONObject("item") ?: JSONObject()
-                        val itemId = item.optString("id").ifBlank { "item_${event.optInt("output_index", 0)}" }
-                        val outputIndex = event.optInt("output_index", -1)
-                        finishOutputItem(itemId, outputIndex)
-                        val itemType = item.optString("type")
-                        when (itemType) {
-                            "function_call" -> toolCalls[itemId]?.let { call ->
-                                call.callId = item.optString("call_id").ifBlank { call.callId }
-                                call.name = item.optString("name").ifBlank { call.name }
-                                if (item.has("arguments")) {
-                                    call.arguments.clear()
-                                    call.arguments.append(item.optString("arguments"))
-                                }
-                                if (!call.ended) {
-                                    call.ended = true
-                                    onEvent(call.endEvent())
-                                }
+                }
+                "response.function_call_arguments.delta" -> {
+                    val itemId = event.optString("item_id")
+                    val call = toolCalls[itemId] ?: return@readProviderSse true
+                    val delta = event.optString("delta")
+                    call.arguments.append(delta)
+                    if (delta.isNotEmpty()) {
+                        onEvent(
+                            ProviderEvent.BlockDelta(
+                                AssistantBlockKind.TOOL_CALL,
+                                call.contentIndex,
+                                delta,
+                            ),
+                        )
+                    }
+                }
+                "response.function_call_arguments.done" -> {
+                    val call = toolCalls[event.optString("item_id")] ?: return@readProviderSse true
+                    if (event.has("arguments")) {
+                        call.arguments.clear()
+                        call.arguments.append(event.optString("arguments"))
+                    }
+                }
+                "response.output_item.done" -> {
+                    val item = event.optJSONObject("item") ?: JSONObject()
+                    val itemId = item.optString("id").ifBlank { "item_${event.optInt("output_index", 0)}" }
+                    val outputIndex = event.optInt("output_index", -1)
+                    finishOutputItem(itemId, outputIndex)
+                    val itemType = item.optString("type")
+                    when (itemType) {
+                        "function_call" -> toolCalls[itemId]?.let { call ->
+                            call.callId = item.optString("call_id").ifBlank { call.callId }
+                            call.name = item.optString("name").ifBlank { call.name }
+                            if (item.has("arguments")) {
+                                call.arguments.clear()
+                                call.arguments.append(item.optString("arguments"))
                             }
-                            else -> itemType.hostedToolDisplayName()?.let { name ->
-                                finishHostedTool(
-                                    itemId,
-                                    name,
-                                    item.optString("status") != "failed",
-                                )
+                            if (!call.ended) {
+                                call.ended = true
+                                onEvent(call.endEvent())
                             }
                         }
+                        else -> itemType.hostedToolDisplayName()?.let { name ->
+                            finishHostedTool(
+                                itemId,
+                                name,
+                                item.optString("status") != "failed",
+                            )
+                        }
                     }
-                    "response.web_search_call.in_progress",
-                    "response.web_search_call.searching" -> {
-                        val itemId = event.hostedToolId("web_search")
-                        startHostedTool(itemId, "网页搜索")
-                    }
-                    "response.web_search_call.completed" -> {
-                        val itemId = event.hostedToolId("web_search")
-                        finishHostedTool(itemId, "网页搜索", success = true)
-                    }
-                    "response.web_search_call.failed" -> {
-                        val itemId = event.hostedToolId("web_search")
-                        finishHostedTool(itemId, "网页搜索", success = false)
-                    }
-                    "response.completed", "response.incomplete", "response.failed" -> {
-                        terminalType = type
-                        terminal = event.optJSONObject("response") ?: event
-                    }
-                    "error" -> throwTopLevelEventError(event)
                 }
+                "response.web_search_call.in_progress",
+                "response.web_search_call.searching" -> {
+                    val itemId = event.hostedToolId("web_search")
+                    startHostedTool(itemId, "网页搜索")
+                }
+                "response.web_search_call.completed" -> {
+                    val itemId = event.hostedToolId("web_search")
+                    finishHostedTool(itemId, "网页搜索", success = true)
+                }
+                "response.web_search_call.failed" -> {
+                    val itemId = event.hostedToolId("web_search")
+                    finishHostedTool(itemId, "网页搜索", success = false)
+                }
+                "response.completed", "response.incomplete", "response.failed" -> {
+                    terminalType = type
+                    terminal = event.optJSONObject("response") ?: event
+                }
+                "error" -> throwTopLevelEventError(event)
             }
-
-            while (true) {
-                runController.throwIfCancelled()
-                val line = reader.readLine()
-                if (line == null) {
-                    consumeFrame()
-                    break
-                }
-                if (line.isBlank()) {
-                    consumeFrame()
-                } else if (line.startsWith("data:")) {
-                    dataLines += line.removePrefix("data:").trimStart()
-                }
-            }
+            terminal == null
         }
 
         if (!sawEvent) throw AgentModelFailure.incompleteStream("模型接口未返回 SSE data chunk")
@@ -561,16 +541,25 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
                             content = partText,
                         )
                     }
-                    val reasoningText = item.optString("reasoning_text")
-                    appendSeparated(reasoning, reasoningText)
-                    if (reasoningText.isNotEmpty()) {
+                    val content = item.optJSONArray("content") ?: JSONArray()
+                    val reasoningParts = (0 until content.length()).mapNotNull { contentIndex ->
+                        val part = content.optJSONObject(contentIndex) ?: return@mapNotNull null
+                        if (part.optString("type") != "reasoning_text") return@mapNotNull null
+                        contentIndex to part.optString("text")
+                    }.ifEmpty {
+                        // 兼容旧接口的单字段形式；已有标准 content 时不再重复追加别名。
+                        item.optString("reasoning_text").takeIf { it.isNotEmpty() }
+                            ?.let { listOf(0 to it) }.orEmpty()
+                    }
+                    reasoningParts.forEach { (contentIndex, reasoningText) ->
+                        appendSeparated(reasoning, reasoningText)
                         contentParts += FinalContentPart(
                             kind = AssistantBlockKind.THINKING,
                             identity = ResponsesContentIdentity(
                                 family = RESPONSE_REASONING_FAMILY,
                                 itemId = itemId,
                                 outputIndex = index,
-                                partIndex = 0,
+                                partIndex = contentIndex,
                             ),
                             rawContent = reasoningText,
                             content = reasoningText,

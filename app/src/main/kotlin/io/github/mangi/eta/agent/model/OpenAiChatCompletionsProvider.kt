@@ -5,8 +5,6 @@ import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.provider.ProviderSourceRegistry
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -37,7 +35,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
     ): ProviderResponse {
         val config = request.config
         require(config.openAiEndpointMode == OpenAiEndpointMode.CHAT_COMPLETIONS) {
-            "Responses API 已预留配置位，但当前运行时仅支持 Chat Completions"
+            "当前 Provider 未配置为 Chat Completions API"
         }
         val url = ProviderUrls.openAiChatCompletionsUrl(config.baseUrl)
         val headers = okhttp3.Headers.Builder()
@@ -163,85 +161,79 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             onEvent(ProviderEvent.BlockDelta(kind, block.contentIndex, delta))
         }
 
-        BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
-            while (true) {
-                runController.throwIfCancelled()
-                val line = reader.readLine() ?: break
-                if (!line.startsWith("data:")) continue
-                sawStreamData = true
-                val payload = line.removePrefix("data:").trim()
-                if (payload.isBlank()) continue
-                if (payload == "[DONE]") {
-                    sawDone = true
-                    break
+        readProviderSse(stream, runController) { _, data ->
+            sawStreamData = true
+            val payload = data.trim()
+            if (payload == "[DONE]") {
+                sawDone = true
+                return@readProviderSse false
+            }
+            val chunk = JSONObject(payload)
+            throwStreamingErrorIfPresent(chunk)
+            parseUsage(chunk)?.let { parsedUsage ->
+                usage = parsedUsage
+                onEvent(ProviderEvent.Usage(parsedUsage))
+            }
+            val choices = chunk.optJSONArray("choices")
+            if (choices == null || choices.length() == 0) return@readProviderSse true
+            val choice = choices.optJSONObject(0) ?: return@readProviderSse true
+            val reason = choice.optString("finish_reason")
+            if (reason.isNotBlank() && reason != "null") {
+                finishReason = reason
+            }
+            if (reason == "error") {
+                error("模型接口 SSE 以 error 结束")
+            }
+            val delta = choice.optJSONObject("delta") ?: JSONObject()
+            val reasoningDelta = visibleReasoningDelta(delta)
+            if (reasoningDelta.isNotEmpty()) {
+                reasoningContent.append(reasoningDelta)
+                appendVisibleDelta(AssistantBlockKind.THINKING, reasoningDelta)
+            }
+            if (delta.has("content") && !delta.isNull("content")) {
+                val text = delta.optString("content")
+                if (text.isNotEmpty()) {
+                    content.append(text)
+                    appendVisibleDelta(AssistantBlockKind.TEXT, text)
                 }
-                val chunk = JSONObject(payload)
-                throwStreamingErrorIfPresent(chunk)
-                parseUsage(chunk)?.let { parsedUsage ->
-                    usage = parsedUsage
-                    onEvent(ProviderEvent.Usage(parsedUsage))
-                }
-                val choices = chunk.optJSONArray("choices")
-                if (choices == null || choices.length() == 0) continue
-                val choice = choices.optJSONObject(0) ?: continue
-                val reason = choice.optString("finish_reason")
-                if (reason.isNotBlank() && reason != "null") {
-                    finishReason = reason
-                }
-                if (reason == "error") {
-                    error("模型接口 SSE 以 error 结束")
-                }
-                val delta = choice.optJSONObject("delta") ?: continue
-                if (delta.has("reasoning_content") && !delta.isNull("reasoning_content")) {
-                    val text = delta.optString("reasoning_content")
-                    if (text.isNotEmpty()) {
-                        reasoningContent.append(text)
-                        appendVisibleDelta(AssistantBlockKind.THINKING, text)
-                    }
-                }
-                if (delta.has("content") && !delta.isNull("content")) {
-                    val text = delta.optString("content")
-                    if (text.isNotEmpty()) {
-                        content.append(text)
-                        appendVisibleDelta(AssistantBlockKind.TEXT, text)
-                    }
-                }
-                val deltaToolCalls = delta.optJSONArray("tool_calls") ?: continue
-                if (deltaToolCalls.length() > 0) finishActiveVisibleBlock()
-                for (i in 0 until deltaToolCalls.length()) {
-                    val item = deltaToolCalls.optJSONObject(i) ?: continue
-                    val index = item.optInt("index", i)
-                    val call = toolCalls.getOrPut(index) {
-                        StreamingToolCall(
-                            index = index,
-                            contentIndex = nextContentIndex++,
-                        ).also { created ->
-                            onEvent(
-                                ProviderEvent.BlockStart(
-                                    kind = AssistantBlockKind.TOOL_CALL,
-                                    index = created.contentIndex,
-                                )
-                            )
-                        }
-                    }
-                    if (item.has("id") && !item.isNull("id")) call.id = item.optString("id")
-                    if (item.has("type") && !item.isNull("type")) call.type = item.optString("type").ifBlank { "function" }
-                    val function = item.optJSONObject("function")
-                    val nameDelta = function?.takeIf { it.has("name") && !it.isNull("name") }?.optString("name").orEmpty()
-                    val argsDelta = function?.takeIf { it.has("arguments") && !it.isNull("arguments") }?.optString("arguments").orEmpty()
-                    if (nameDelta.isNotEmpty()) call.name.append(nameDelta)
-                    if (argsDelta.isNotEmpty()) call.arguments.append(argsDelta)
-                    if (argsDelta.isNotEmpty()) {
+            }
+            val deltaToolCalls = delta.optJSONArray("tool_calls") ?: JSONArray()
+            if (deltaToolCalls.length() > 0) finishActiveVisibleBlock()
+            for (i in 0 until deltaToolCalls.length()) {
+                val item = deltaToolCalls.optJSONObject(i) ?: continue
+                val index = item.optInt("index", i)
+                val call = toolCalls.getOrPut(index) {
+                    StreamingToolCall(
+                        index = index,
+                        contentIndex = nextContentIndex++,
+                    ).also { created ->
                         onEvent(
-                            ProviderEvent.BlockDelta(
+                            ProviderEvent.BlockStart(
                                 kind = AssistantBlockKind.TOOL_CALL,
-                                index = call.contentIndex,
-                                delta = argsDelta,
+                                index = created.contentIndex,
                             )
                         )
                     }
                 }
+                if (item.has("id") && !item.isNull("id")) call.id = item.optString("id")
+                if (item.has("type") && !item.isNull("type")) call.type = item.optString("type").ifBlank { "function" }
+                val function = item.optJSONObject("function")
+                val nameDelta = function?.takeIf { it.has("name") && !it.isNull("name") }?.optString("name").orEmpty()
+                val argsDelta = function?.takeIf { it.has("arguments") && !it.isNull("arguments") }?.optString("arguments").orEmpty()
+                if (nameDelta.isNotEmpty()) call.name.append(nameDelta)
+                if (argsDelta.isNotEmpty()) call.arguments.append(argsDelta)
+                if (argsDelta.isNotEmpty()) {
+                    onEvent(
+                        ProviderEvent.BlockDelta(
+                            kind = AssistantBlockKind.TOOL_CALL,
+                            index = call.contentIndex,
+                            delta = argsDelta,
+                        )
+                    )
+                }
             }
+            if (finishReason != null) finishActiveVisibleBlock()
+            true
         }
 
         if (!sawStreamData) throw AgentModelFailure.incompleteStream("模型接口未返回 SSE data chunk")
@@ -309,6 +301,25 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         val contentIndex: Int,
         val content: StringBuilder = StringBuilder(),
     )
+
+    private fun visibleReasoningDelta(delta: JSONObject): String {
+        // 同一分片的纯文本与结构化字段可重复携带相同推理，只消费一种表示。
+        for (key in listOf("reasoning_content", "reasoning")) {
+            (delta.opt(key) as? String)?.takeIf { it.isNotEmpty() }?.let { return it }
+        }
+        val details = delta.optJSONArray("reasoning_details") ?: return ""
+        return buildString {
+            for (index in 0 until details.length()) {
+                val detail = details.optJSONObject(index) ?: continue
+                val key = when (detail.optString("type")) {
+                    "reasoning.text" -> "text"
+                    "reasoning.summary" -> "summary"
+                    else -> continue
+                }
+                (detail.opt(key) as? String)?.let(::append)
+            }
+        }
+    }
 
     private fun mergeExtraBody(request: JSONObject, extraBodyJson: String) {
         if (extraBodyJson.isBlank()) return

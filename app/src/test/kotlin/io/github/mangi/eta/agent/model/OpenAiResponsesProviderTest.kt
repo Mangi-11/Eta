@@ -6,8 +6,12 @@ import io.github.mangi.eta.data.model.CustomBody
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ReasoningEffort
+import java.io.OutputStream
 import java.net.InetSocketAddress
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.serialization.json.JsonPrimitive
 import org.json.JSONArray
@@ -20,6 +24,142 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OpenAiResponsesProviderTest {
+    @Test
+    fun nativeReasoningDeltasArriveBeforeDoneAndTypedFinalContentIsNotDuplicated() {
+        val firstDeltaDelivered = CountDownLatch(1)
+        val completed = CountDownLatch(1)
+        val serverObservedCompletion = CountDownLatch(1)
+        val completedBeforeClose = AtomicBoolean(false)
+        val reasoningText = "先分析输入，再整理答案。"
+        val nativeItem = JSONObject()
+            .put("id", "rs_native")
+            .put("type", "reasoning")
+            .put("summary", JSONArray())
+            .put(
+                "content",
+                JSONArray().put(JSONObject().put("type", "reasoning_text").put("text", reasoningText)),
+            )
+        fun reasoningEvent(type: String, key: String, text: String) = event(
+            type,
+            JSONObject().put("item_id", "rs_native")
+                .put("output_index", 0).put("content_index", 0).put(key, text),
+        )
+        val firstChunk = reasoningEvent("response.reasoning_text.delta", "delta", "先分析输入，")
+        val remainingChunks = buildString {
+            append(reasoningEvent("response.reasoning_text.delta", "delta", "再整理答案。"))
+            append(reasoningEvent("response.reasoning_text.done", "text", reasoningText))
+            append(event("response.output_item.done", JSONObject().put("output_index", 0).put("item", nativeItem)))
+            append(responseTextEvent("response.output_text.delta", "msg_1", 1, "delta", "答案"))
+            append(
+                event(
+                    "response.completed",
+                    JSONObject().put(
+                        "response",
+                        JSONObject().put("status", "completed")
+                            .put("output", JSONArray().put(nativeItem).put(messageItem("msg_1", "答案"))),
+                    ),
+                ),
+            )
+        }
+
+        withSseServer(
+            body = "",
+            writeBody = { output ->
+                output.write(firstChunk.toByteArray(Charsets.UTF_8))
+                output.flush()
+                // 服务端只有确认首个增量已经交付，才发送 done 和终态，排除读到 EOF 才输出。
+                check(firstDeltaDelivered.await(5, TimeUnit.SECONDS))
+                output.write(remainingChunks.toByteArray(Charsets.UTF_8))
+                output.flush()
+                completedBeforeClose.set(completed.await(5, TimeUnit.SECONDS))
+                serverObservedCompletion.countDown()
+            },
+        ) { baseUrl ->
+            val events = mutableListOf<ProviderEvent>()
+            val result = OpenAiResponsesProvider.complete(
+                ProviderRequest(
+                    config(baseUrl),
+                    JSONArray().put(JSONObject().put("role", "user").put("content", "测试推理")),
+                    JSONArray(),
+                ),
+                AgentRunController(),
+            ) { event ->
+                events += event
+                if (event is ProviderEvent.BlockDelta && event.kind == AssistantBlockKind.THINKING) {
+                    firstDeltaDelivered.countDown()
+                }
+                if (event is ProviderEvent.Completed) completed.countDown()
+            }
+
+            assertTrue(serverObservedCompletion.await(5, TimeUnit.SECONDS))
+            assertTrue(completedBeforeClose.get())
+            assertEquals(
+                listOf("先分析输入，", "再整理答案。"),
+                events.filterIsInstance<ProviderEvent.BlockDelta>()
+                    .filter { it.kind == AssistantBlockKind.THINKING }.map { it.delta },
+            )
+            val end = events.filterIsInstance<ProviderEvent.BlockEnd>()
+                .filter { it.kind == AssistantBlockKind.THINKING }.single()
+            assertEquals(reasoningText, end.content)
+            assertFalse(end.replaceContent)
+            assertEquals(reasoningText, result.assistantMessage.getString("reasoning_content"))
+            assertEquals("答案", result.assistantMessage.getString("content"))
+            assertEquals(
+                nativeItem.toString(),
+                ResponsesEphemeralState.outputItems(result.assistantMessage)?.getJSONObject(0)?.toString(),
+            )
+        }
+    }
+
+    @Test
+    fun typedReasoningPartsKeepTheirIdentityAndOverrideLegacyAlias() {
+        val item = JSONObject().put("id", "rs_parts").put("type", "reasoning")
+            .put("reasoning_text", "旧字段不应重复追加")
+            .put(
+                "content",
+                JSONArray()
+                    .put(JSONObject().put("type", "reasoning_text").put("text", "第一段"))
+                    .put(JSONObject().put("type", "reasoning_text").put("text", "第二段补全")),
+            )
+        val body = buildString {
+            append(
+                event(
+                    "response.reasoning_text.delta",
+                    JSONObject().put("item_id", "rs_parts").put("output_index", 0)
+                        .put("content_index", 1).put("delta", "第二段"),
+                ),
+            )
+            append(
+                event(
+                    "response.completed",
+                    JSONObject().put(
+                        "response",
+                        JSONObject().put("status", "completed").put("output", JSONArray().put(item)),
+                    ),
+                ),
+            )
+        }
+
+        withSseServer(body) { baseUrl ->
+            val events = mutableListOf<ProviderEvent>()
+            val result = OpenAiResponsesProvider.complete(
+                ProviderRequest(
+                    config(baseUrl),
+                    JSONArray().put(JSONObject().put("role", "user").put("content", "测试推理")),
+                    JSONArray(),
+                ),
+                AgentRunController(),
+                events::add,
+            )
+
+            assertEquals("第一段\n第二段补全", result.assistantMessage.getString("reasoning_content"))
+            val corrections = events.filterIsInstance<ProviderEvent.BlockEnd>().filter { it.replaceContent }
+            assertEquals(1, corrections.size)
+            assertEquals(0, corrections.single().index)
+            assertEquals("第二段补全", corrections.single().content)
+        }
+    }
+
     @Test
     fun requestUsesTypedInputProtectedFieldsAndOptionalHostedSearch() {
         val assistant = JSONObject().put("role", "assistant").put("content", "先检查")
@@ -476,6 +616,7 @@ class OpenAiResponsesProviderTest {
     private fun withSseServer(
         body: String,
         onRequest: (String) -> Unit = {},
+        writeBody: ((OutputStream) -> Unit)? = null,
         block: (String) -> Unit,
     ) {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -485,8 +626,10 @@ class OpenAiResponsesProviderTest {
             onRequest(exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) })
             val bytes = body.toByteArray(Charsets.UTF_8)
             exchange.responseHeaders.add("Content-Type", "text/event-stream")
-            exchange.sendResponseHeaders(200, bytes.size.toLong())
-            exchange.responseBody.use { it.write(bytes) }
+            exchange.sendResponseHeaders(200, if (writeBody == null) bytes.size.toLong() else 0)
+            exchange.responseBody.use { output ->
+                if (writeBody == null) output.write(bytes) else writeBody(output)
+            }
         }
         server.start()
         try {

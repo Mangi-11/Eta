@@ -2,9 +2,7 @@ package io.github.mangi.eta.agent.model
 
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
-import java.io.BufferedReader
 import java.io.InputStream
-import java.io.InputStreamReader
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -220,26 +218,18 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
         val content = StringBuilder()
         val reasoning = StringBuilder()
         val blocks = linkedMapOf<Int, AnthropicBlock>()
-        var currentEvent = ""
-        val data = StringBuilder()
         var sawMessageStop = false
         var finishReason: String? = null
         var usage: AgentTokenUsage? = null
 
-        fun dispatch() {
-            val payload = data.toString().trim()
-            if (payload.isBlank()) {
-                currentEvent = ""
-                data.setLength(0)
-                return
-            }
+        readProviderSse(stream, runController) { event, payload ->
             val result = processEvent(
-                event = currentEvent,
-                payload = payload,
+                event = event,
+                payload = payload.trim(),
                 blocks = blocks,
                 content = content,
                 reasoning = reasoning,
-                onEvent = onEvent
+                onEvent = onEvent,
             )
             if (result.messageStop) sawMessageStop = true
             result.finishReason?.let { finishReason = it }
@@ -247,26 +237,12 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
                 usage = it
                 onEvent(ProviderEvent.Usage(it))
             }
-            currentEvent = ""
-            data.setLength(0)
+            !sawMessageStop
         }
-
-        BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
-            while (true) {
-                runController.throwIfCancelled()
-                val line = reader.readLine() ?: break
-                when {
-                    line.isEmpty() -> dispatch()
-                    line.startsWith("event:") -> currentEvent = line.removePrefix("event:").trim()
-                    line.startsWith("data:") -> {
-                        if (data.isNotEmpty()) data.append('\n')
-                        data.append(line.removePrefix("data:").trim())
-                    }
-                }
-            }
-        }
-        dispatch()
         if (!sawMessageStop) throw AgentModelFailure.incompleteStream("Anthropic SSE 流未正常结束")
+        if (blocks.values.any { it.type in setOf("text", "thinking", "tool_use") && !it.stopped }) {
+            throw AgentModelFailure.incompleteStream("Anthropic SSE 内容块未正常结束")
+        }
 
         return JSONObject()
             .put("role", "assistant")
@@ -302,6 +278,25 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
         if (payload == "[DONE]") return EventResult(messageStop = true)
         val json = JSONObject(payload)
         val type = json.optString("type").ifBlank { event }
+
+        fun appendVisibleDelta(block: AnthropicBlock, text: String) {
+            if (text.isEmpty()) return
+            val kind = when (block.type) {
+                "text" -> {
+                    block.text.append(text)
+                    content.append(text)
+                    AssistantBlockKind.TEXT
+                }
+                "thinking" -> {
+                    block.thinking.append(text)
+                    reasoning.append(text)
+                    AssistantBlockKind.THINKING
+                }
+                else -> return
+            }
+            onEvent(ProviderEvent.BlockDelta(kind, block.index, text))
+        }
+
         return when (type) {
             "error" -> throw AgentModelFailure.stream(
                 json.optJSONObject("error") ?: JSONObject(),
@@ -322,8 +317,14 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
                     ?.let { item.arguments.append(it.toString()) }
                 blocks[index] = item
                 when (item.type) {
-                    "text" -> onEvent(ProviderEvent.BlockStart(AssistantBlockKind.TEXT, index))
-                    "thinking" -> onEvent(ProviderEvent.BlockStart(AssistantBlockKind.THINKING, index))
+                    "text" -> {
+                        onEvent(ProviderEvent.BlockStart(AssistantBlockKind.TEXT, index))
+                        appendVisibleDelta(item, (block.opt("text") as? String).orEmpty())
+                    }
+                    "thinking" -> {
+                        onEvent(ProviderEvent.BlockStart(AssistantBlockKind.THINKING, index))
+                        appendVisibleDelta(item, (block.opt("thinking") as? String).orEmpty())
+                    }
                     "tool_use" -> onEvent(
                         ProviderEvent.BlockStart(
                             kind = AssistantBlockKind.TOOL_CALL,
@@ -340,36 +341,12 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
                 val delta = json.optJSONObject("delta") ?: JSONObject()
                 when (delta.optString("type")) {
                     "text_delta" -> {
-                        val text = delta.optString("text")
-                        if (text.isNotEmpty()) {
-                            blocks.getOrPut(index) { AnthropicBlock(index = index, type = "text") }
-                                .text
-                                .append(text)
-                            content.append(text)
-                            onEvent(
-                                ProviderEvent.BlockDelta(
-                                    kind = AssistantBlockKind.TEXT,
-                                    index = index,
-                                    delta = text,
-                                )
-                            )
-                        }
+                        val block = blocks.getOrPut(index) { AnthropicBlock(index = index, type = "text") }
+                        appendVisibleDelta(block, (delta.opt("text") as? String).orEmpty())
                     }
                     "thinking_delta" -> {
-                        val text = delta.optString("thinking")
-                        if (text.isNotEmpty()) {
-                            blocks.getOrPut(index) { AnthropicBlock(index = index, type = "thinking") }
-                                .thinking
-                                .append(text)
-                            reasoning.append(text)
-                            onEvent(
-                                ProviderEvent.BlockDelta(
-                                    kind = AssistantBlockKind.THINKING,
-                                    index = index,
-                                    delta = text,
-                                )
-                            )
-                        }
+                        val block = blocks.getOrPut(index) { AnthropicBlock(index = index, type = "thinking") }
+                        appendVisibleDelta(block, (delta.opt("thinking") as? String).orEmpty())
                     }
                     "input_json_delta" -> {
                         val partial = delta.optString("partial_json")
@@ -391,6 +368,8 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             "content_block_stop" -> {
                 val index = json.optInt("index")
                 val block = blocks[index] ?: return EventResult()
+                if (block.stopped) return EventResult()
+                block.stopped = true
                 val kind = when (block.type) {
                     "text" -> AssistantBlockKind.TEXT
                     "thinking" -> AssistantBlockKind.THINKING
@@ -422,6 +401,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
         var type: String = "",
         var id: String = "",
         var name: String = "",
+        var stopped: Boolean = false,
         val text: StringBuilder = StringBuilder(),
         val thinking: StringBuilder = StringBuilder(),
         val arguments: StringBuilder = StringBuilder()

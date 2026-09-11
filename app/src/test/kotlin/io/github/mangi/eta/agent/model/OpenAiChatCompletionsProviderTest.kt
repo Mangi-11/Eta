@@ -2,8 +2,12 @@ package io.github.mangi.eta.agent.model
 
 import com.sun.net.httpserver.HttpServer
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import java.io.OutputStream
 import java.net.InetSocketAddress
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONArray
 import org.json.JSONObject
@@ -13,6 +17,89 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OpenAiChatCompletionsProviderTest {
+    @Test
+    fun thinkingStreamsBeforeDoneAndClosesBeforeTheUsageTail() {
+        val firstDelta = CountDownLatch(1)
+        val textEnded = CountDownLatch(1)
+        val endedBeforeTail = AtomicBoolean(false)
+        withSseServer(
+            body = "",
+            writeBody = { output ->
+                output.write(sseChunk(JSONObject().put("reasoning_content", "先分析，")).toByteArray())
+                output.flush()
+                check(firstDelta.await(5, TimeUnit.SECONDS))
+                output.write(sseChunk(
+                    JSONObject().put("reasoning_content", "再回答。").put("content", "最终答案"),
+                    finishReason = "stop",
+                ).toByteArray())
+                output.flush()
+                endedBeforeTail.set(textEnded.await(5, TimeUnit.SECONDS))
+                check(endedBeforeTail.get())
+                output.write((usageChunk(JSONObject().put("total_tokens", 18)) + "data: [DONE]\n\n").toByteArray())
+            },
+        ) { baseUrl ->
+            val events = mutableListOf<ProviderEvent>()
+            val response = OpenAiChatCompletionsProvider.complete(providerRequest(baseUrl), AgentRunController()) { event ->
+                events += event
+                if (event is ProviderEvent.BlockDelta && event.kind == AssistantBlockKind.THINKING) {
+                    firstDelta.countDown()
+                }
+                if (event is ProviderEvent.BlockEnd && event.kind == AssistantBlockKind.TEXT) {
+                    textEnded.countDown()
+                }
+            }
+
+            assertEquals("先分析，再回答。", response.assistantMessage.getString("reasoning_content"))
+            assertTrue(endedBeforeTail.get())
+            assertEquals("最终答案", response.assistantMessage.getString("content"))
+            assertEquals(listOf("先分析，", "再回答。"), events.filterIsInstance<ProviderEvent.BlockDelta>()
+                .filter { it.kind == AssistantBlockKind.THINKING }.map { it.delta })
+            assertEquals(listOf(AssistantBlockKind.THINKING, AssistantBlockKind.TEXT),
+                events.filterIsInstance<ProviderEvent.BlockEnd>().map { it.kind })
+            assertEquals(18, events.filterIsInstance<ProviderEvent.Usage>().single().usage.contextTokens)
+        }
+    }
+
+    @Test
+    fun reasoningAliasesAndStructuredDetailsDisplayOnceWithoutOpaqueFields() {
+        val body = buildString {
+            append(sseChunk(JSONObject().put("reasoning_content", "第一段")
+                .put("reasoning", "第一段").put("reasoning_details", JSONArray().put(
+                    JSONObject().put("type", "reasoning.text").put("text", "第一段"),
+                ))))
+            append(sseChunk(JSONObject().put("reasoning_content", JSONObject.NULL).put("reasoning", "第二段")))
+            append(sseChunk(JSONObject().put("reasoning_content", "").put("reasoning", JSONObject.NULL)
+                .put("reasoning_details", JSONArray()
+                    .put(JSONObject().put("type", "reasoning.text").put("text", "第三段").put("signature", "opaque-signature"))
+                    .put(JSONObject().put("type", "reasoning.encrypted").put("data", "opaque-data"))
+                    .put(JSONObject().put("type", "reasoning.summary").put("summary", "摘要")))))
+            append(sseChunk(JSONObject().put("content", "答案"), finishReason = "stop"))
+            append("data: [DONE]\n\n")
+        }
+        withSseServer(body) { baseUrl ->
+            val events = mutableListOf<ProviderEvent>()
+            val response = OpenAiChatCompletionsProvider.complete(providerRequest(baseUrl), AgentRunController(), events::add)
+
+            assertEquals("第一段第二段第三段摘要", response.assistantMessage.getString("reasoning_content"))
+            assertEquals(listOf("第一段", "第二段", "第三段摘要"), events.filterIsInstance<ProviderEvent.BlockDelta>()
+                .filter { it.kind == AssistantBlockKind.THINKING }.map { it.delta })
+            assertEquals("第一段第二段第三段摘要", events.filterIsInstance<ProviderEvent.BlockEnd>()
+                .single { it.kind == AssistantBlockKind.THINKING }.content)
+        }
+    }
+
+    @Test
+    fun multilineDataFramesPreserveThinkingAndText() {
+        val payload = JSONObject().put("choices", JSONArray().put(JSONObject().put("delta", JSONObject()
+            .put("reasoning_content", "分析\n继续").put("content", "答案")))).toString(2)
+        val body = ": keepalive\r\n\r\n" +
+            payload.lines().joinToString("\r\n") { "data: $it" } + "\r\n\r\ndata: [DONE]\r\n\r\n"
+        withSseServer(body) { baseUrl ->
+            val response = OpenAiChatCompletionsProvider.complete(providerRequest(baseUrl), AgentRunController())
+            assertEquals("分析\n继续", response.assistantMessage.getString("reasoning_content"))
+            assertEquals("答案", response.assistantMessage.getString("content"))
+        }
+    }
 
     @Test
     fun completeParsesTextDeltasWithDoneSentinel() {
@@ -434,6 +521,7 @@ class OpenAiChatCompletionsProviderTest {
     private fun withSseServer(
         body: String,
         onRequest: (String) -> Unit = {},
+        writeBody: ((OutputStream) -> Unit)? = null,
         block: (String) -> Unit
     ) {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -445,8 +533,10 @@ class OpenAiChatCompletionsProviderTest {
             })
             val bytes = body.toByteArray(Charsets.UTF_8)
             exchange.responseHeaders.add("Content-Type", "text/event-stream")
-            exchange.sendResponseHeaders(200, bytes.size.toLong())
-            exchange.responseBody.use { output -> output.write(bytes) }
+            exchange.sendResponseHeaders(200, if (writeBody == null) bytes.size.toLong() else 0)
+            exchange.responseBody.use { output ->
+                if (writeBody == null) output.write(bytes) else writeBody(output)
+            }
         }
         server.start()
         try {
