@@ -72,8 +72,10 @@ import io.github.mangi.eta.ui.screens.terminal.SharedFoldersScreen
 import io.github.mangi.eta.ui.screens.terminal.TerminalEntryScreen
 import io.github.mangi.eta.ui.screens.terminal.WorkspaceScreen
 import io.github.mangi.eta.ui.screens.tools.AgentToolsScreen
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
@@ -119,8 +121,40 @@ fun AgentAppRoot(
     var conversationPaneOpen by remember { mutableStateOf(false) }
     var conversationRenameTarget by remember { mutableStateOf<ConversationSummaryUi?>(null) }
     var conversationDeleteTarget by remember { mutableStateOf<ConversationSummaryUi?>(null) }
+    var conversationExportTarget by remember { mutableStateOf<ConversationSummaryUi?>(null) }
     var messageDeleteTarget by remember { mutableStateOf<MessageMutationTarget?>(null) }
     var messageRegenerateTarget by remember { mutableStateOf<MessageMutationTarget?>(null) }
+    val conversationExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/markdown"),
+    ) { uri ->
+        val target = conversationExportTarget
+        conversationExportTarget = null
+        if (uri == null || target == null) return@rememberLauncherForActivityResult
+        uiScope.launch {
+            try {
+                val markdown = agentState.exportConversationMarkdown(target.id)
+                    ?: error(context.getString(R.string.conversation_export_failed))
+                val output = context.contentResolver.openOutputStream(uri)
+                    ?: error(context.getString(R.string.conversation_export_failed))
+                withContext(Dispatchers.IO) {
+                    output.use { it.write(markdown.toByteArray(Charsets.UTF_8)) }
+                }
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.conversation_exported),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.conversation_export_failed),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
@@ -202,6 +236,15 @@ fun AgentAppRoot(
             onSelectConversation = { conversationId -> selectConversation(conversationId) },
             onConversationRename = { conversation ->
                 conversationRenameTarget = conversation
+            },
+            onConversationExport = { conversation ->
+                conversationExportTarget = conversation
+                conversationExportLauncher.launch(
+                    ConversationMarkdownExporter.defaultFileName(
+                        title = conversation.title.ifBlank { conversation.preview },
+                        fallback = context.getString(R.string.conversation_export_default_name),
+                    ),
+                )
             },
             onConversationDelete = { conversation ->
                 conversationDeleteTarget = conversation

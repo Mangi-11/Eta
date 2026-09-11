@@ -20,6 +20,7 @@
   <string name="action_stop">停止</string>
   <string name="action_edit">编辑</string>
   <string name="action_rename">重命名</string>
+  <string name="action_export">导出</string>
   <string name="action_done">完成</string>
   <string name="action_add">添加</string>
   <string name="action_remove">移除</string>
@@ -182,6 +183,17 @@
   <plurals name="conversation_regenerate_later_turns">
     <item quantity="other">将删除之后 %d 轮对话，并从这条消息重新生成。</item>
   </plurals>
+  <string name="conversation_exported">已导出</string>
+  <string name="conversation_export_failed">导出失败</string>
+  <string name="conversation_export_user">用户</string>
+  <string name="conversation_export_assistant">助手</string>
+  <string name="conversation_export_thinking">思考过程</string>
+  <string name="conversation_export_tool_line">工具：%1$s（%2$s）</string>
+  <string name="conversation_export_tools_line">工具：%1$s</string>
+  <string name="conversation_export_tool_arguments">参数：%1$s</string>
+  <string name="conversation_export_tool_result">结果：%1$s</string>
+  <string name="conversation_export_images">图片：%1$d 张</string>
+  <string name="conversation_export_default_name">对话</string>
   <string name="time_yesterday">昨天</string>
   <string name="time_recent">最近</string>
   <string name="overlay_received">收到指令，准备调用模型</string>

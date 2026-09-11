@@ -825,6 +825,45 @@ internal class AgentAppState(
         persistConversations()
     }
 
+    fun exportConversationMarkdown(conversationId: String): String? {
+        val state = conversationsById[conversationId] ?: return null
+        val title = conversationTitles[conversationId]?.takeIf { it.isNotBlank() }
+            ?: appContext.getString(R.string.conversation_unnamed)
+        return ConversationMarkdownExporter.export(
+            title = title,
+            messages = state.messages,
+            labels = ConversationMarkdownExporter.Labels(
+                user = appContext.getString(R.string.conversation_export_user),
+                assistant = appContext.getString(R.string.conversation_export_assistant),
+                thinking = appContext.getString(R.string.conversation_export_thinking),
+                toolLineFormat = appContext.getString(R.string.conversation_export_tool_line),
+                toolsLineFormat = appContext.getString(R.string.conversation_export_tools_line),
+                argumentsFormat = appContext.getString(R.string.conversation_export_tool_arguments),
+                resultFormat = appContext.getString(R.string.conversation_export_tool_result),
+                imagesFormat = appContext.getString(R.string.conversation_export_images),
+                toolStatusRunning = appContext.getString(R.string.tool_status_running),
+                toolStatusSuccess = appContext.getString(R.string.tool_status_success),
+                toolStatusFailed = appContext.getString(R.string.tool_status_failed),
+                toolStatusUnknown = appContext.getString(R.string.tool_status_unknown),
+                noticeStopped = noticeText(SystemNoticeCode.Stopped),
+                noticeEmptyResult = noticeText(SystemNoticeCode.EmptyResult),
+                noticeModelRetry = noticeText(SystemNoticeCode.ModelRetry),
+                noticeRuntimeFailed = noticeText(SystemNoticeCode.RuntimeFailed),
+                noticeInterrupted = noticeText(SystemNoticeCode.Interrupted),
+            ),
+        )
+    }
+
+    private fun noticeText(code: SystemNoticeCode): String = appContext.getString(
+        when (code) {
+            SystemNoticeCode.Stopped -> R.string.system_notice_stopped
+            SystemNoticeCode.EmptyResult -> R.string.system_notice_empty_result
+            SystemNoticeCode.ModelRetry -> R.string.system_notice_model_retry
+            SystemNoticeCode.RuntimeFailed -> R.string.system_notice_runtime_failed
+            SystemNoticeCode.Interrupted -> R.string.system_notice_interrupted
+        },
+    )
+
     fun sendCurrentMessage(submittedText: String? = null) {
         val prompt = (submittedText ?: homeState.input).trim()
         val pendingImages = homeState.pendingImages
@@ -2186,15 +2225,7 @@ internal class AgentAppState(
                         is AgentMessageUi -> lastMessage.content.ifBlank {
                             appContext.getString(R.string.conversation_preview_reasoning)
                         }
-                        is SystemNoticeMessageUi -> appContext.getString(
-                            when (lastMessage.code) {
-                                SystemNoticeCode.Stopped -> R.string.system_notice_stopped
-                                SystemNoticeCode.EmptyResult -> R.string.system_notice_empty_result
-                                SystemNoticeCode.ModelRetry -> R.string.system_notice_model_retry
-                                SystemNoticeCode.RuntimeFailed -> R.string.system_notice_runtime_failed
-                                SystemNoticeCode.Interrupted -> R.string.system_notice_interrupted
-                            },
-                        )
+                        is SystemNoticeMessageUi -> noticeText(lastMessage.code)
                         is ThinkingMessageUi -> appContext.getString(R.string.conversation_preview_reasoning)
                         is ToolActivityMessageUi -> appContext.getString(
                             R.string.conversation_preview_tool_call,

@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Inventory2
@@ -146,6 +147,7 @@ fun ConversationSidePaneScaffold(
     onSearchChange: (String) -> Unit,
     onConversationSelected: (String) -> Unit,
     onConversationRename: (ConversationSummaryUi) -> Unit,
+    onConversationExport: (ConversationSummaryUi) -> Unit,
     onConversationDelete: (ConversationSummaryUi) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenModelProviders: () -> Unit,
@@ -237,6 +239,7 @@ fun ConversationSidePaneScaffold(
             onSearchChange = onSearchChange,
             onConversationSelected = onConversationSelected,
             onConversationRename = onConversationRename,
+            onConversationExport = onConversationExport,
             onConversationDelete = onConversationDelete,
             onOpenSettings = onOpenSettings,
             onOpenModelProviders = onOpenModelProviders,
@@ -326,6 +329,7 @@ private fun ConversationPanePanel(
     onSearchChange: (String) -> Unit,
     onConversationSelected: (String) -> Unit,
     onConversationRename: (ConversationSummaryUi) -> Unit,
+    onConversationExport: (ConversationSummaryUi) -> Unit,
     onConversationDelete: (ConversationSummaryUi) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenModelProviders: () -> Unit,
@@ -393,6 +397,7 @@ private fun ConversationPanePanel(
                                 selected = conversation.id == state.selectedConversationId,
                                 onClick = { onConversationSelected(conversation.id) },
                                 onRename = { onConversationRename(conversation) },
+                                onExport = { onConversationExport(conversation) },
                                 onDelete = { onConversationDelete(conversation) },
                             )
                         }
@@ -483,6 +488,7 @@ private fun ConversationTextRow(
     selected: Boolean,
     onClick: () -> Unit,
     onRename: () -> Unit,
+    onExport: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var showActionMenu by remember { mutableStateOf(false) }
@@ -545,6 +551,7 @@ private fun ConversationTextRow(
             onDismissRequest = { showActionMenu = false },
         ) {
             val renameText = stringResource(R.string.action_rename)
+            val exportText = stringResource(R.string.action_export)
             val deleteText = stringResource(R.string.action_delete)
             val renameItem = remember(renameText) {
                 DropdownItem(
@@ -552,6 +559,18 @@ private fun ConversationTextRow(
                     icon = { modifier ->
                         Icon(
                             imageVector = Icons.Rounded.Edit,
+                            contentDescription = null,
+                            modifier = modifier.size(DrawerMetrics.ActionIconSize),
+                        )
+                    },
+                )
+            }
+            val exportItem = remember(exportText) {
+                DropdownItem(
+                    text = exportText,
+                    icon = { modifier ->
+                        Icon(
+                            imageVector = Icons.Rounded.Download,
                             contentDescription = null,
                             modifier = modifier.size(DrawerMetrics.ActionIconSize),
                         )
@@ -579,7 +598,7 @@ private fun ConversationTextRow(
             ListPopupColumn {
                 DropdownImpl(
                     item = renameItem,
-                    optionSize = 2,
+                    optionSize = 3,
                     isSelected = false,
                     index = 0,
                     onSelectedIndexChange = {
@@ -588,10 +607,20 @@ private fun ConversationTextRow(
                     },
                 )
                 DropdownImpl(
-                    item = deleteItem,
-                    optionSize = 2,
+                    item = exportItem,
+                    optionSize = 3,
                     isSelected = false,
                     index = 1,
+                    onSelectedIndexChange = {
+                        showActionMenu = false
+                        onExport()
+                    },
+                )
+                DropdownImpl(
+                    item = deleteItem,
+                    optionSize = 3,
+                    isSelected = false,
+                    index = 2,
                     dropdownColors = deleteColors,
                     onSelectedIndexChange = {
                         showActionMenu = false

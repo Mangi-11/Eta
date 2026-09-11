@@ -20,6 +20,7 @@
   <string name="action_stop">Stop</string>
   <string name="action_edit">Edit</string>
   <string name="action_rename">Rename</string>
+  <string name="action_export">Export</string>
   <string name="action_done">Done</string>
   <string name="action_add">Add</string>
   <string name="action_remove">Remove</string>
@@ -186,6 +187,17 @@
     <item quantity="other">This will delete %d later turns and regenerate from this message.</item>
   </plurals>
   <string name="conversation_regenerate_current_turn">The current turn will be replaced with a newly generated response.</string>
+  <string name="conversation_exported">Exported</string>
+  <string name="conversation_export_failed">Export failed</string>
+  <string name="conversation_export_user">User</string>
+  <string name="conversation_export_assistant">Assistant</string>
+  <string name="conversation_export_thinking">Thinking</string>
+  <string name="conversation_export_tool_line">Tool: %1$s (%2$s)</string>
+  <string name="conversation_export_tools_line">Tools: %1$s</string>
+  <string name="conversation_export_tool_arguments">Arguments: %1$s</string>
+  <string name="conversation_export_tool_result">Result: %1$s</string>
+  <string name="conversation_export_images">Images: %1$d</string>
+  <string name="conversation_export_default_name">Conversation</string>
   <string name="time_yesterday">Yesterday</string>
   <string name="time_recent">Recent</string>
   <string name="time_now">Now</string>
