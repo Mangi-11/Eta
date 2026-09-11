@@ -75,6 +75,7 @@ import io.github.mangi.eta.ui.model.ToolGroupUi
 import io.github.mangi.eta.ui.model.ToolItemUi
 import io.github.mangi.eta.ui.model.UserMessageUi
 import io.github.mangi.eta.ui.model.canDeleteUserSkill
+import io.github.mangi.eta.ui.model.contentMatches
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
@@ -762,6 +763,7 @@ internal class AgentAppState(
 
     fun updateSearchQuery(query: String) {
         conversationPaneState = conversationPaneState.copy(searchQuery = query)
+        refreshConversationSummaries()
     }
 
     fun selectConversation(conversationId: String) {
@@ -2257,12 +2259,28 @@ internal class AgentAppState(
             conversations = if (query.isBlank()) {
                 summaries
             } else {
-                summaries.filter {
-                    it.title.contains(query, ignoreCase = true) ||
-                        it.preview.contains(query, ignoreCase = true)
+                contentMatchCache.keys.retainAll(conversationsById.keys)
+                summaries.filter { summary ->
+                    summary.title.contains(query, ignoreCase = true) ||
+                        summary.preview.contains(query, ignoreCase = true) ||
+                        conversationContentMatches(summary.id, query)
                 }
             },
         )
+    }
+
+    // 内容匹配按（查询词, 会话状态引用）缓存：刷新摘要时未变化的会话不重复全文扫描。
+    private val contentMatchCache = mutableMapOf<String, ContentMatchCacheEntry>()
+
+    private fun conversationContentMatches(conversationId: String, query: String): Boolean {
+        val state = conversationsById[conversationId] ?: return false
+        val cached = contentMatchCache[conversationId]
+        if (cached != null && cached.query == query && cached.state === state) {
+            return cached.matches
+        }
+        val matches = state.contentMatches(query) { code -> noticeText(code) }
+        contentMatchCache[conversationId] = ContentMatchCacheEntry(query, state, matches)
+        return matches
     }
 
     private fun persistConversations(onSaved: (() -> Unit)? = null): Deferred<Boolean> {
@@ -2320,6 +2338,12 @@ internal class AgentAppState(
 
 internal data class MessageRevisionImpact(
     val laterTurnCount: Int,
+)
+
+private data class ContentMatchCacheEntry(
+    val query: String,
+    val state: AgentChatHomeUiState,
+    val matches: Boolean,
 )
 
 private const val EXTERNAL_ARCHIVE_CONVERSATION_PREFIX = "archive-"

@@ -338,18 +338,9 @@ private fun ConversationPanePanel(
     onOpenPermissions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // state.conversations 已由 AgentAppState 按标题、预览与消息内容过滤。
     val query = state.searchQuery.trim()
-    val visibleConversations = remember(state.conversations, query) {
-        if (query.isBlank()) {
-            state.conversations
-        } else {
-            state.conversations.filter { conversation ->
-                conversation.title.contains(query, ignoreCase = true) ||
-                    conversation.preview.contains(query, ignoreCase = true)
-            }
-        }
-    }
-    val groups = remember(visibleConversations) { visibleConversations.groupForDrawer() }
+    val groups = remember(state.conversations) { state.conversations.groupForDrawer() }
 
     Surface(
         modifier = modifier
@@ -379,7 +370,7 @@ private fun ConversationPanePanel(
                 verticalArrangement = Arrangement.spacedBy(DrawerMetrics.RowGap),
                 overscrollEffect = null,
             ) {
-                if (visibleConversations.isEmpty()) {
+                if (state.conversations.isEmpty()) {
                     item {
                         EmptyConversations(isSearching = query.isNotBlank())
                     }
