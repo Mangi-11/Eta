@@ -3,9 +3,6 @@ package io.github.mangi.eta.ui.screens.terminal
 import android.content.Context
 import android.text.format.Formatter
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Description
@@ -19,7 +16,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -66,6 +62,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -403,7 +400,7 @@ internal fun LinuxEnvironmentScreen(
                         .padding(horizontal = 12.dp)
                         .padding(bottom = 12.dp),
                 ) {
-                    packageProfileUis.forEach { profileUi ->
+                    packageProfileUis.forEachIndexed { index, profileUi ->
                         val ready = profileReady[profileUi.target] == true
                         val isKimi = profileUi.target == InstallTarget.KIMI
                         val summaryRes = if (selectedDistribution == LinuxDistribution.DEBIAN) {
@@ -416,6 +413,7 @@ internal fun LinuxEnvironmentScreen(
                         } else {
                             profileUi.readyRes
                         }
+                        if (index > 0) HorizontalDivider()
                         BasicComponent(
                             title = stringResource(profileUi.titleRes),
                             summary = if (busyTarget == profileUi.target) {
@@ -425,72 +423,67 @@ internal fun LinuxEnvironmentScreen(
                             } else {
                                 stringResource(summaryRes)
                             },
-                            bottomAction = {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    if (isKimi && kimiWebRunning) {
-                                        TextButton(
-                                            text = stringResource(R.string.action_stop),
-                                            enabled = !kimiWebLaunching && !requiresRoot,
-                                            onClick = {
-                                                coroutineScope.launch {
-                                                    val stopped = kimiWebLauncher.stop(selectedDistribution.terminalEnvironment)
-                                                    kimiWebRunning = !stopped
-                                                }
-                                            },
-                                        )
-                                    }
+                            endActions = {
+                                if (isKimi && kimiWebRunning) {
                                     TextButton(
-                                        text = when {
-                                            isKimi && ready -> stringResource(
-                                                if (kimiWebLaunching) {
-                                                    R.string.linux_kimi_web_starting
-                                                } else if (kimiWebRunning) {
-                                                    R.string.action_open
-                                                } else {
-                                                    R.string.linux_kimi_web_launch
-                                                },
-                                            )
-                                            ready -> stringResource(R.string.linux_installed)
-                                            busyTarget == profileUi.target -> stringResource(R.string.linux_installing)
-                                            else -> stringResource(R.string.linux_install)
-                                        },
-                                        enabled = !requiresRoot && if (isKimi && ready) {
-                                            !kimiWebLaunching && busyTarget == null
-                                        } else {
-                                            busyTarget == null && !ready
-                                        },
+                                        text = stringResource(R.string.action_stop),
+                                        enabled = !kimiWebLaunching && !requiresRoot,
                                         onClick = {
-                                            if (isKimi && ready) {
-                                                launchKimiWeb()
-                                                return@TextButton
-                                            }
-                                            if (busyTarget != null || ready) return@TextButton
-                                            busyTarget = profileUi.target
-                                            resultMessage = null
-                                            val profileTitle = context.getString(profileUi.titleRes)
-                                            launchInstallation {
-                                                val profileInstaller = profileInstallers.getValue(profileUi.target)
-                                                val result = profileInstaller.install { update ->
-                                                    withContext(Dispatchers.Main.immediate) {
-                                                        profileProgressSummary = update.summary(context, profileTitle)
-                                                    }
-                                                }
-                                                profileReady = profileReady +
-                                                    (profileUi.target to profileInstaller.isReady())
-                                                profileProgressSummary = null
-                                                busyTarget = null
-                                                resultMessage = result.toMessage(context, profileTitle)
+                                            coroutineScope.launch {
+                                                val stopped = kimiWebLauncher.stop(selectedDistribution.terminalEnvironment)
+                                                kimiWebRunning = !stopped
                                             }
                                         },
                                     )
                                 }
+                                TextButton(
+                                    text = when {
+                                        isKimi && ready -> stringResource(
+                                            if (kimiWebLaunching) {
+                                                R.string.linux_kimi_web_starting
+                                            } else if (kimiWebRunning) {
+                                                R.string.action_open
+                                            } else {
+                                                R.string.linux_kimi_web_launch
+                                            },
+                                        )
+                                        ready -> stringResource(R.string.linux_installed)
+                                        busyTarget == profileUi.target -> stringResource(R.string.linux_installing)
+                                        else -> stringResource(R.string.linux_install)
+                                    },
+                                    enabled = !requiresRoot && if (isKimi && ready) {
+                                        !kimiWebLaunching && busyTarget == null
+                                    } else {
+                                        busyTarget == null && !ready
+                                    },
+                                    onClick = {
+                                        if (isKimi && ready) {
+                                            launchKimiWeb()
+                                            return@TextButton
+                                        }
+                                        if (busyTarget != null || ready) return@TextButton
+                                        busyTarget = profileUi.target
+                                        resultMessage = null
+                                        val profileTitle = context.getString(profileUi.titleRes)
+                                        launchInstallation {
+                                            val profileInstaller = profileInstallers.getValue(profileUi.target)
+                                            val result = profileInstaller.install { update ->
+                                                withContext(Dispatchers.Main.immediate) {
+                                                    profileProgressSummary = update.summary(context, profileTitle)
+                                                }
+                                            }
+                                            profileReady = profileReady +
+                                                (profileUi.target to profileInstaller.isReady())
+                                            profileProgressSummary = null
+                                            busyTarget = null
+                                            resultMessage = result.toMessage(context, profileTitle)
+                                        }
+                                    },
+                                )
                             },
                         )
                     }
+                    HorizontalDivider()
                     BasicComponent(
                         title = stringResource(R.string.ui_apk_analysis_95ad17),
                         summary = apkAnalysisProgress?.summary(context) ?: if (apkAnalysisReady) {
@@ -498,37 +491,31 @@ internal fun LinuxEnvironmentScreen(
                         } else {
                             context.getString(R.string.linux_apk_tools_summary)
                         },
-                        bottomAction = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                TextButton(
-                                    text = when {
-                                        apkAnalysisReady -> context.getString(R.string.linux_installed)
-                                        busyTarget == InstallTarget.APK_ANALYSIS -> context.getString(R.string.linux_installing)
-                                        else -> context.getString(R.string.linux_install)
-                                    },
-                                    enabled = busyTarget == null && !requiresRoot && !apkAnalysisReady,
-                                    onClick = {
-                                        if (busyTarget != null || apkAnalysisReady) return@TextButton
-                                        busyTarget = InstallTarget.APK_ANALYSIS
-                                        resultMessage = null
-                                        launchInstallation {
-                                            val result = apkAnalysisInstaller.install { update ->
-                                                withContext(Dispatchers.Main.immediate) {
-                                                    apkAnalysisProgress = update
-                                                }
+                        endActions = {
+                            TextButton(
+                                text = when {
+                                    apkAnalysisReady -> context.getString(R.string.linux_installed)
+                                    busyTarget == InstallTarget.APK_ANALYSIS -> context.getString(R.string.linux_installing)
+                                    else -> context.getString(R.string.linux_install)
+                                },
+                                enabled = busyTarget == null && !requiresRoot && !apkAnalysisReady,
+                                onClick = {
+                                    if (busyTarget != null || apkAnalysisReady) return@TextButton
+                                    busyTarget = InstallTarget.APK_ANALYSIS
+                                    resultMessage = null
+                                    launchInstallation {
+                                        val result = apkAnalysisInstaller.install { update ->
+                                            withContext(Dispatchers.Main.immediate) {
+                                                apkAnalysisProgress = update
                                             }
-                                            apkAnalysisReady = apkAnalysisInstaller.isReady()
-                                            apkAnalysisProgress = null
-                                            busyTarget = null
-                                            resultMessage = result.toMessage(context)
                                         }
-                                    },
-                                )
-                            }
+                                        apkAnalysisReady = apkAnalysisInstaller.isReady()
+                                        apkAnalysisProgress = null
+                                        busyTarget = null
+                                        resultMessage = result.toMessage(context)
+                                    }
+                                },
+                            )
                         },
                     )
                 }
