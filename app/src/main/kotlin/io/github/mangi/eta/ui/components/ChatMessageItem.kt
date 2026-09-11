@@ -56,6 +56,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -86,7 +87,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -393,7 +393,7 @@ internal fun AgentWorkProcess(
             Icon(
                 imageVector = when {
                     runningTool != null -> iconForTool(runningTool.toolName)
-                    running -> ImageVector.vectorResource(R.drawable.ic_atom)
+                    running -> Icons.Rounded.Lightbulb
                     else -> Icons.Rounded.Build
                 },
                 contentDescription = null,
@@ -2075,7 +2075,7 @@ private fun ThinkingRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_atom),
+                imageVector = Icons.Rounded.Lightbulb,
                 contentDescription = null,
                 modifier = Modifier
                     .size(15.dp)
