@@ -37,6 +37,7 @@ internal data class AgentModelOptionUi(
 internal data class AgentContextUsageUi(
     val contextTokens: Int?,
     val contextWindow: Int?,
+    val estimated: Boolean = false,
 ) {
     val progress: Float?
         get() = contextUsageProgress(contextTokens, contextWindow)
@@ -110,14 +111,16 @@ internal fun defaultExpandedModelProviderIds(selectedModel: AgentModelOptionUi?)
 internal fun latestContextUsage(
     messages: List<AgentChatMessageUi>,
     selectedModel: AgentModelOptionUi?,
-): AgentContextUsageUi = AgentContextUsageUi(
-    contextTokens = messages.asReversed()
-        .asSequence()
-        .filterIsInstance<AgentMessageUi>()
-        .mapNotNull { it.usage?.contextTokens }
-        .firstOrNull(),
-    contextWindow = selectedModel?.contextWindow,
-)
+): AgentContextUsageUi {
+    val lastUsage = messages.asReversed().asSequence().mapNotNull { message ->
+        when (message) {
+            is AgentMessageUi -> message.usage?.contextTokens?.let { it to false }
+            is SystemNoticeMessageUi -> message.contextTokens?.let { it to true }
+            else -> null
+        }
+    }.firstOrNull()
+    return AgentContextUsageUi(lastUsage?.first, selectedModel?.contextWindow, lastUsage?.second ?: false)
+}
 
 internal fun contextUsageProgress(contextTokens: Int?, contextWindow: Int?): Float? {
     if (contextTokens == null || contextTokens < 0 || contextWindow == null || contextWindow <= 0) {

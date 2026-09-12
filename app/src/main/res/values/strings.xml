@@ -1183,4 +1183,8 @@
   <string name="data_backup_imported">Imported %1$d conversations and %2$d providers</string>
   <string name="data_backup_failed">Backup operation failed</string>
   <string name="data_backup_file_open_failed">Unable to open the selected file</string>
+    <string name="context_compaction">上下文压缩</string>
+    <string name="context_compact_action">压缩上下文</string>
+    <string name="context_usage_estimated">压缩后的估算用量：
+%1$s</string>
 </resources>

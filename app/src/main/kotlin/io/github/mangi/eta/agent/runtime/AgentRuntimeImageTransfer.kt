@@ -195,7 +195,7 @@ internal object AgentRuntimeImageTransfer {
                 source = image.source,
             ) ?: throw ImageTransferException("无法读取旧协议中的图片")
         }
-        request.request.copy(images = images)
+        request.materializeText().copy(images = images)
     }
 
     private fun AgentModelClient.ModelImage.toWireImage(

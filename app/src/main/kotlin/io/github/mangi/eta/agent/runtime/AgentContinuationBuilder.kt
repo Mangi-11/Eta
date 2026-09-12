@@ -12,9 +12,9 @@ internal object AgentContinuationBuilder {
         newRunId: String = "run-${UUID.randomUUID()}",
         createdAt: Long = System.currentTimeMillis(),
     ): AgentRuntimeWire.RunRequest {
-        val baseHistory = request.history +
+        val baseHistory = response.contextSnapshot?.messages ?: (request.history +
             AgentModelClient.buildUserHistoryMessage(request.prompt, request.images) +
-            response.transcript
+            response.transcript)
         val handoff = request.handoff?.let { original ->
             if (original.source != AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE) {
                 return@let original.copy(id = newRunId)
@@ -35,6 +35,7 @@ internal object AgentContinuationBuilder {
         }
         return request.copy(
             runId = newRunId,
+            operation = AgentRuntimeWire.OP_CHAT,
             modelSessionId = request.effectiveModelSessionId,
             prompt = supplement,
             images = emptyList(),

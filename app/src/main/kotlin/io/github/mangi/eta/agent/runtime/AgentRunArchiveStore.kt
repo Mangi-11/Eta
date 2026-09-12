@@ -1,14 +1,13 @@
 package io.github.mangi.eta.agent.runtime
 
 import android.content.Context
+import io.github.mangi.eta.agent.model.AgentContextSnapshot
 import io.github.mangi.eta.agent.model.AgentConversationCodec
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.data.db.EtaDatabase
 import io.github.mangi.eta.data.db.RuntimeArchiveEventEntity
 import io.github.mangi.eta.data.db.RuntimeArchiveRunEntity
 import io.github.mangi.eta.data.db.RuntimeArchiveRunWithEvents
-import io.github.mangi.eta.data.db.RuntimeArchiveRunWithEventsSeed
-import io.github.mangi.eta.data.db.RuntimeRunDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
@@ -22,8 +21,6 @@ import org.json.JSONArray
  * thinking and tool activity that third-party assistant surfaces cannot show.
  */
 internal object AgentRunArchiveStore {
-    private const val MAX_ARCHIVED = 32
-    private const val MAX_AGE_MS = 7L * 24L * 60L * 60L * 1000L
 
     data class ArchivedRun(
         val handoff: AgentRuntimeWire.EntryHandoff,
@@ -43,14 +40,13 @@ internal object AgentRunArchiveStore {
                 run = compacted.toEntity(archiveRunId),
                 events = compacted.toEventEntities(archiveRunId),
             )
-            prune(dao)
         }
     }
 
     fun list(context: Context): List<ArchivedRun> {
         val appContext = context.applicationContext
         return runBlocking(Dispatchers.IO) {
-            prune(EtaDatabase.get(appContext).runtimeRunDao())
+            EtaDatabase.get(appContext).runtimeRunDao().archivedRuns()
                 .mapNotNull { it.toDomain() }
         }
     }
@@ -63,16 +59,6 @@ internal object AgentRunArchiveStore {
                 .runtimeRunDao()
                 .deleteArchivedRun(runId)
         }
-    }
-
-    private suspend fun prune(dao: RuntimeRunDao): List<RuntimeArchiveRunWithEvents> {
-        val now = System.currentTimeMillis()
-        val pruned = dao.archivedRuns()
-            .filter { now - it.run.createdAt <= MAX_AGE_MS }
-            .sortedBy { it.run.createdAt }
-            .takeLast(MAX_ARCHIVED)
-        dao.replaceArchivedRuns(pruned.map { it.toSeed() })
-        return dao.archivedRuns()
     }
 
     private val ArchivedRun.archiveRunId: String
@@ -91,6 +77,8 @@ internal object AgentRunArchiveStore {
             error = result.error,
             reasoningContent = result.reasoningContent,
             transcriptJson = AgentConversationCodec.encodeTranscriptForStorage(result.transcript),
+            contextSnapshotJson = result.contextSnapshot?.encode().orEmpty(),
+            operation = result.operation,
             userImagePreviewsJson = JSONArray(userImagePreviews).toString(),
             createdAt = createdAt,
         )
@@ -119,6 +107,8 @@ internal object AgentRunArchiveStore {
                     content = run.content,
                     error = run.error,
                     reasoningContent = run.reasoningContent,
+                    contextSnapshot = AgentContextSnapshot.decode(run.contextSnapshotJson),
+                    operation = run.operation,
                     transcript = AgentConversationCodec.decodeTranscript(run.transcriptJson).ifEmpty {
                         if (!run.ok || run.content.isBlank()) return@ifEmpty emptyList()
                         listOf(
@@ -145,14 +135,6 @@ internal object AgentRunArchiveStore {
                     .mapNotNull { event -> AgentEventJsonCodec.decode(event.eventJson) },
             )
         }.getOrNull()
-
-    private fun RuntimeArchiveRunWithEvents.toSeed(): RuntimeArchiveRunWithEventsSeed =
-        RuntimeArchiveRunWithEventsSeed(
-            run = run,
-            events = events
-                .sortedBy { it.sortIndex }
-                .map { it.copy(id = 0) },
-        )
 
     private fun compactEvents(events: List<AgentEvent>): List<AgentEvent> {
         val compacted = mutableListOf<AgentEvent>()

@@ -20,6 +20,20 @@ internal data class RuntimeResultEntity(
     val error: String?,
     @ColumnInfo(name = "reasoning_content") val reasoningContent: String,
     @ColumnInfo(name = "transcript_json") val transcriptJson: String,
+    @ColumnInfo(name = "context_snapshot_json", defaultValue = "''") val contextSnapshotJson: String = "",
+    @ColumnInfo(name = "operation", defaultValue = "'chat'") val operation: String = "chat",
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+)
+
+/** drain 只枚举归属与运行标识，不读取正文或分块。 */
+internal data class RuntimeResultHeader(
+    @ColumnInfo(name = "run_id") val runId: String,
+    @ColumnInfo(name = "handoff_id") val handoffId: String,
+    @ColumnInfo(name = "handoff_source") val handoffSource: String,
+    @ColumnInfo(name = "handoff_payload") val handoffPayload: String,
+    @ColumnInfo(name = "dismiss_entry_surface") val dismissEntrySurface: Boolean,
+    val ok: Boolean,
+    val operation: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
 
@@ -36,6 +50,8 @@ internal data class RuntimeArchiveRunEntity(
     val error: String?,
     @ColumnInfo(name = "reasoning_content") val reasoningContent: String,
     @ColumnInfo(name = "transcript_json") val transcriptJson: String,
+    @ColumnInfo(name = "context_snapshot_json", defaultValue = "''") val contextSnapshotJson: String = "",
+    @ColumnInfo(name = "operation", defaultValue = "'chat'") val operation: String = "chat",
     @ColumnInfo(name = "user_image_previews_json") val userImagePreviewsJson: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
@@ -73,8 +89,11 @@ internal data class RuntimeArchiveRunWithEvents(
 
 @Entity(tableName = "runtime_inflight_runs")
 internal data class RuntimeInFlightRunEntity(
+    @ColumnInfo(name = "transcript_json", defaultValue = "'[]'") val transcriptJson: String = "[]",
     @PrimaryKey @ColumnInfo(name = "run_id") val runId: String,
     @ColumnInfo(name = "owner_instance_id") val ownerInstanceId: String,
+    @ColumnInfo(name = "context_snapshot_json", defaultValue = "''") val contextSnapshotJson: String = "",
+    @ColumnInfo(name = "operation", defaultValue = "'chat'") val operation: String = "chat",
     @ColumnInfo(name = "handoff_id") val handoffId: String,
     @ColumnInfo(name = "handoff_source") val handoffSource: String,
     @ColumnInfo(name = "handoff_payload") val handoffPayload: String,

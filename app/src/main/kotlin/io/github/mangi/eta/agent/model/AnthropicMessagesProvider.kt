@@ -31,7 +31,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
         runController: AgentRunController,
         onEvent: (ProviderEvent) -> Unit
     ): ProviderResponse {
-        val config = request.config
+        val config = request.effectiveConfig
         val headers = okhttp3.Headers.Builder()
             .add("Content-Type", "application/json; charset=utf-8")
             .add("Accept", "text/event-stream")
@@ -47,7 +47,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             .url(ProviderUrls.anthropicMessagesUrl(config.baseUrl))
             .headers(headers)
             .post(
-                buildRequestJson(config, request.messages, request.tools)
+                buildRequestJson(config, request.messages, request.effectiveTools)
                     .toString()
                     .toRequestBody(JSON_MEDIA_TYPE)
             )
@@ -235,7 +235,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             result.finishReason?.let { finishReason = it }
             result.usage?.let {
                 usage = it
-                onEvent(ProviderEvent.Usage(it))
+                onEvent(ProviderEvent.Usage(it, result.contextInputTokens ?: it.inputTokens))
             }
             !sawMessageStop
         }
@@ -302,7 +302,16 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
                 json.optJSONObject("error") ?: JSONObject(),
                 "Anthropic SSE 返回错误",
             )
-            "message_start" -> EventResult(usage = parseUsage(json.optJSONObject("message")?.optJSONObject("usage")))
+            "message_start" -> {
+                val rawUsage = json.optJSONObject("message")?.optJSONObject("usage")
+                EventResult(
+                    usage = parseUsage(rawUsage),
+                    contextInputTokens = rawUsage?.firstInt("input_tokens")?.let { input ->
+                        input + (rawUsage.firstInt("cache_read_input_tokens") ?: 0) +
+                            (rawUsage.firstInt("cache_creation_input_tokens") ?: 0)
+                    },
+                )
+            }
             "content_block_start" -> {
                 val index = json.optInt("index")
                 val block = json.optJSONObject("content_block") ?: JSONObject()
@@ -428,7 +437,8 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
     private data class EventResult(
         val messageStop: Boolean = false,
         val finishReason: String? = null,
-        val usage: AgentTokenUsage? = null
+        val usage: AgentTokenUsage? = null,
+        val contextInputTokens: Int? = null,
     )
 
     private fun parseUsage(usage: JSONObject?): AgentTokenUsage? {

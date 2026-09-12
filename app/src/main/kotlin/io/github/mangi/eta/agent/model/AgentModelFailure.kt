@@ -12,6 +12,7 @@ internal class AgentModelFailure(
     val retryable: Boolean,
     message: String,
     cause: Throwable? = null,
+    val recoveryAllowed: Boolean = true,
 ) : IllegalStateException(message, cause) {
     companion object {
         private val transientStatus = setOf(408, 429, 500, 502, 503, 504, 524, 529)
@@ -29,6 +30,9 @@ internal class AgentModelFailure(
             } catch (_: org.json.JSONException) {
                 null
             }
+            if (isContextOverflow(error)) return AgentModelFailure(
+                "CONTEXT_OVERFLOW", false, "模型上下文超过容量限制。",
+            )
             val permanent = isPermanent(error, body)
             return AgentModelFailure(
                 code = "HTTP_$status",
@@ -46,6 +50,9 @@ internal class AgentModelFailure(
         }
 
         fun stream(error: JSONObject, message: String): AgentModelFailure {
+            if (isContextOverflow(error)) return AgentModelFailure(
+                "CONTEXT_OVERFLOW", false, "模型上下文超过容量限制。",
+            )
             val codes = listOf(
                 error.optString("code"),
                 error.optString("type"),
@@ -73,6 +80,16 @@ internal class AgentModelFailure(
                 "MODEL_CONNECTION_FAILED", true, "模型连接中断或暂时无法建立，请检查网络与服务商状态。", failure,
             )
             else -> null
+        }
+
+        private fun isContextOverflow(error: JSONObject?): Boolean {
+            if (error == null) return false
+            if (listOf(error.optString("code"), error.optString("type")).any {
+                it in setOf("context_length_exceeded", "context_window_exceeded", "prompt_too_long", "input_too_long")
+            }) return true
+            val message = error.optString("message").lowercase()
+            return message.contains("maximum context length") || message.contains("prompt is too long") ||
+                message.contains("exceeds the context window") || message.contains("input token count exceeds")
         }
 
         private fun isPermanent(error: JSONObject?, body: String): Boolean =

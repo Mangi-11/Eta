@@ -25,6 +25,7 @@ internal fun AgentChatScreen(
         AgentChatBody(
             messages = state.messages,
             modelPickerState = modelPickerState,
+            isCompacting = state.isCompacting,
             input = state.input,
             isStreaming = state.isStreaming,
             reasoningEffort = state.reasoningEffort,
@@ -33,6 +34,8 @@ internal fun AgentChatScreen(
             pendingFileReferences = state.pendingFileReferences,
             messageEdit = state.messageEdit,
             onReasoningEffortChange = { onAction(AgentChatAction.ReasoningEffortChanged(it)) },
+            onCompactContext = { onAction(AgentChatAction.CompactContext) },
+            canCompactContext = state.canCompactContext,
             onModelSelected = { onAction(AgentChatAction.ModelSelected(it)) },
             onSubmit = { text -> onAction(AgentChatAction.SubmitMessage(text)) },
             onStop = { onAction(AgentChatAction.StopRun) },

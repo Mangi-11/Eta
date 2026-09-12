@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.runtime
 
+import io.github.mangi.eta.agent.model.AgentContextSnapshot
+
 import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
@@ -14,6 +16,8 @@ import io.github.mangi.eta.data.model.ReasoningEffort
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.Serializable
+import java.io.File
 import kotlinx.serialization.json.Json
 
 /**
@@ -25,6 +29,10 @@ import kotlinx.serialization.json.Json
  * 不引入 AIDL：结构化字段使用 [Bundle]，图片正文使用 [ParcelFileDescriptor]，避免占用 Binder 事务缓冲区。
  */
 internal object AgentRuntimeWire {
+    const val MSG_READ_CONTEXT_RESULT = 15
+    const val OP_CHAT = "chat"
+    const val OP_COMPACT = "compact"
+
     const val AGENT_UI_HANDOFF_SOURCE = "agent_ui"
     const val ETA_VOICE_HANDOFF_SOURCE = "eta_voice"
 
@@ -147,6 +155,7 @@ internal object AgentRuntimeWire {
         val history: List<AgentModelClient.ConversationMessage> = emptyList(),
         val handoff: EntryHandoff? = null,
         val modelSessionId: String = "",
+        val operation: String = OP_CHAT,
     ) {
         // 旧入口沿用会话 handoff；无持久会话的入口以首个 run 为会话起点。
         val effectiveModelSessionId: String
@@ -174,15 +183,25 @@ internal object AgentRuntimeWire {
     class IncomingRunRequest internal constructor(
         val request: RunRequest,
         val images: List<WireImage>,
+        private val textBundle: Bundle? = null,
     ) : Closeable {
         private val closed = AtomicBoolean(false)
 
+        val hasDeferredPrompt: Boolean get() = textBundle?.let { AgentWireText.hasDescriptor(it, KEY_PROMPT) } == true
+
+        fun materializeText(): RunRequest {
+            check(!closed.get()) { "Request already closed" }
+            return textBundle?.let { requestFromBundle(it, emptyList(), readText = true) } ?: request
+        }
+
         override fun close() {
             if (!closed.compareAndSet(false, true)) return
+            textBundle?.let(AgentWireText::close)
             images.forEach { image -> runCatching { image.fileDescriptor?.close() } }
         }
     }
 
+    @Serializable
     data class RunResult(
         val runId: String,
         val ok: Boolean,
@@ -190,6 +209,9 @@ internal object AgentRuntimeWire {
         val error: String? = null,
         val reasoningContent: String = "",
         val transcript: List<AgentModelClient.ConversationMessage> = emptyList(),
+        val contextSnapshot: AgentContextSnapshot? = null,
+        val contextSnapshotRef: String = "",
+        val operation: String = OP_CHAT,
     )
 
     data class EntryHandoff(
@@ -213,7 +235,7 @@ internal object AgentRuntimeWire {
         encodeDefaults = false
     }
 
-    fun toBundle(request: RunRequest, images: List<WireImage>): Bundle {
+    fun toBundle(request: RunRequest, images: List<WireImage>, payloadDirectory: File? = null): Bundle {
         require(images.size == request.images.size) { "图片传输项与请求图片数量不一致" }
         val imageBundles = images.map { image ->
             require((image.remoteUrl == null) xor (image.fileDescriptor == null)) {
@@ -229,7 +251,7 @@ internal object AgentRuntimeWire {
                 putString(KEY_SOURCE, image.source)
             }
         }
-        return requestBundle(request, imageBundles)
+        return requestBundle(request, imageBundles, payloadDirectory)
     }
 
     /** 兼容旧客户端与协议测试；新请求不得通过 Binder 内联图片正文。 */
@@ -247,9 +269,10 @@ internal object AgentRuntimeWire {
         },
     )
 
-    private fun requestBundle(request: RunRequest, imageBundles: List<Bundle>): Bundle = Bundle().apply {
+    private fun requestBundle(request: RunRequest, imageBundles: List<Bundle>, payloadDirectory: File? = null): Bundle = Bundle().apply {
+        AgentWireText.put(this, "history_json", AgentConversationCodec.encodeTranscriptForStorage(request.history), payloadDirectory)
         putString(KEY_RUN_ID, request.runId)
-        putString(KEY_PROMPT, request.prompt)
+        AgentWireText.put(this, KEY_PROMPT, request.prompt, payloadDirectory)
         putString(KEY_MODEL_SESSION_ID, request.modelSessionId)
         putString(KEY_PROVIDER_ID, request.config.providerId)
         putString(KEY_PROVIDER_NAME, request.config.providerName)
@@ -259,8 +282,9 @@ internal object AgentRuntimeWire {
         putString(KEY_API_KEY, request.config.apiKey)
         putString(KEY_MODEL, request.config.model)
         putString(KEY_MODEL_DISPLAY_NAME, request.config.modelDisplayName)
+        putString("operation", request.operation)
         request.config.contextWindow?.let { putInt(KEY_CONTEXT_WINDOW, it) }
-        putString(KEY_SYSTEM_PROMPT, request.config.systemPrompt)
+        AgentWireText.put(this, KEY_SYSTEM_PROMPT, request.config.systemPrompt, payloadDirectory)
         putString(KEY_ANTHROPIC_VERSION, request.config.anthropicVersion)
         putString(KEY_OPENAI_ENDPOINT_MODE, request.config.openAiEndpointMode)
         putBoolean(KEY_HOSTED_WEB_SEARCH_ENABLED, request.config.hostedWebSearchEnabled)
@@ -280,7 +304,7 @@ internal object AgentRuntimeWire {
         request.handoff?.let { putBundle(KEY_HANDOFF, toBundle(it)) }
         putParcelableArrayList(
             KEY_HISTORY,
-            ArrayList(AgentConversationCodec.messagesForIpc(request.history).map { message ->
+            ArrayList(AgentConversationCodec.decodeTranscript(AgentLegacyConversationProjection.encode(request.history, AgentLegacyConversationProjection.DIRECT_CHARS)).map { message ->
                 Bundle().apply {
                     putString(KEY_ROLE, message.role)
                     putString(KEY_CONTENT, message.content)
@@ -295,7 +319,12 @@ internal object AgentRuntimeWire {
             KEY_IMAGES,
             ArrayList(imageBundles)
         )
-    }.also(::requireStartRequestWithinBinderBudget)
+    }.also { bundle ->
+        try { requireStartRequestWithinBinderBudget(bundle) } catch (failure: Exception) {
+            AgentWireText.close(bundle)
+            throw failure
+        }
+    }
 
     fun incomingRunRequestFromBundle(bundle: Bundle): IncomingRunRequest {
         val images = mutableListOf<WireImage>()
@@ -318,8 +347,9 @@ internal object AgentRuntimeWire {
                 )
             }
             return IncomingRunRequest(
-                request = requestFromBundle(bundle, images = emptyList()),
+                request = requestFromBundle(bundle, images = emptyList(), readText = false),
                 images = images,
+                textBundle = bundle,
             )
         } catch (throwable: Throwable) {
             closeImageDescriptors(bundle)
@@ -329,6 +359,7 @@ internal object AgentRuntimeWire {
 
     /** 拒绝或解析失败的请求不会进入 [IncomingRunRequest]，需显式释放其中的描述符。 */
     fun closeImageDescriptors(bundle: Bundle?) {
+        bundle?.let(AgentWireText::close)
         runCatching {
             bundle?.getParcelableArrayList(KEY_IMAGES, Bundle::class.java).orEmpty().forEach { image ->
                 image.getParcelable(KEY_IMAGE_FD, ParcelFileDescriptor::class.java)?.close()
@@ -342,7 +373,7 @@ internal object AgentRuntimeWire {
             require(incoming.images.none { it.fileDescriptor != null }) {
                 "包含文件描述符的请求必须先在 Runtime 后台物化"
             }
-            incoming.request.copy(
+            incoming.materializeText().copy(
                 images = incoming.images.map { image ->
                     AgentModelClient.ModelImage(
                         reference = image.remoteUrl.orEmpty(),
@@ -359,9 +390,11 @@ internal object AgentRuntimeWire {
     private fun requestFromBundle(
         bundle: Bundle,
         images: List<AgentModelClient.ModelImage>,
+        readText: Boolean,
     ): RunRequest = RunRequest(
             runId = bundle.getString(KEY_RUN_ID).orEmpty(),
-            prompt = bundle.getString(KEY_PROMPT).orEmpty(),
+            prompt = if (readText) AgentWireText.read(bundle, KEY_PROMPT).orEmpty() else bundle.getString(KEY_PROMPT).orEmpty(),
+            operation = bundle.getString("operation")?.also { require(it in setOf(OP_CHAT, OP_COMPACT)) } ?: OP_CHAT,
             modelSessionId = bundle.getString(KEY_MODEL_SESSION_ID).orEmpty(),
             config = AgentModelClient.ModelConfig(
                 providerId = bundle.getString(KEY_PROVIDER_ID).orEmpty(),
@@ -374,7 +407,7 @@ internal object AgentRuntimeWire {
                 model = bundle.getString(KEY_MODEL).orEmpty(),
                 modelDisplayName = bundle.getString(KEY_MODEL_DISPLAY_NAME).orEmpty(),
                 contextWindow = bundle.optionalInt(KEY_CONTEXT_WINDOW),
-                systemPrompt = bundle.getString(KEY_SYSTEM_PROMPT).orEmpty(),
+                systemPrompt = if (readText) AgentWireText.read(bundle, KEY_SYSTEM_PROMPT).orEmpty() else "",
                 anthropicVersion = bundle.getString(KEY_ANTHROPIC_VERSION).orEmpty()
                     .ifBlank { io.github.mangi.eta.data.model.AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION },
                 openAiEndpointMode = bundle.getString(KEY_OPENAI_ENDPOINT_MODE).orEmpty()
@@ -409,7 +442,8 @@ internal object AgentRuntimeWire {
                 customHeaders = decodeCustomHeaders(bundle.getString(KEY_CUSTOM_HEADERS_JSON)),
                 customBody = decodeCustomBody(bundle.getString(KEY_CUSTOM_BODY_JSON))
             ),
-            history = bundle.getParcelableArrayList(KEY_HISTORY, Bundle::class.java).orEmpty().map { message ->
+            history = if (!readText) emptyList() else AgentWireText.read(bundle, "history_json")?.let(AgentConversationCodec::decodeTranscript)
+                ?: bundle.getParcelableArrayList(KEY_HISTORY, Bundle::class.java).orEmpty().map { message ->
                 AgentModelClient.ConversationMessage(
                     role = message.getString(KEY_ROLE).orEmpty(),
                     content = message.getString(KEY_CONTENT).orEmpty(),
@@ -449,9 +483,17 @@ internal object AgentRuntimeWire {
         )
     }
 
-    fun toBundle(result: RunResult): Bundle = result.toBundle(compactForDrain = false)
+    fun toBundle(result: RunResult, payloadDirectory: File? = null): Bundle =
+        result.toBundle(compactForDrain = false, payloadDirectory)
 
-    private fun RunResult.toBundle(compactForDrain: Boolean): Bundle = Bundle().apply {
+    private fun RunResult.toBundle(compactForDrain: Boolean, payloadDirectory: File? = null): Bundle = Bundle().apply {
+        if (!compactForDrain) AgentWireText.put(this, "complete_result_json", json.encodeToString(this@toBundle), payloadDirectory)
+        putString("operation", operation)
+        if (compactForDrain && runId.isNotBlank()) {
+            putString("context_snapshot_ref", runId)
+        } else {
+            contextSnapshot?.encode()?.takeIf { it.length <= 16_384 }?.let { putString("context_snapshot", it) }
+        }
         putString(KEY_RUN_ID, runId)
         putBoolean(KEY_OK, ok)
         putString(
@@ -470,15 +512,18 @@ internal object AgentRuntimeWire {
         putString(
             KEY_TRANSCRIPT_JSON,
             if (compactForDrain) {
-                AgentConversationCodec.encodeTranscriptForDrain(transcript)
+                AgentLegacyConversationProjection.encode(transcript, AgentLegacyConversationProjection.DRAIN_CHARS)
             } else {
-                AgentConversationCodec.encodeTranscriptForIpc(transcript)
+                AgentLegacyConversationProjection.encode(transcript, AgentLegacyConversationProjection.DIRECT_CHARS)
             },
         )
     }
 
     fun runResultFromBundle(bundle: Bundle): RunResult =
-        RunResult(
+        AgentWireText.read(bundle, "complete_result_json")?.let { json.decodeFromString<RunResult>(it) } ?: RunResult(
+            contextSnapshot = AgentContextSnapshot.decode(bundle.getString("context_snapshot")),
+            contextSnapshotRef = bundle.getString("context_snapshot_ref").orEmpty(),
+            operation = bundle.getString("operation") ?: OP_CHAT,
             runId = bundle.getString(KEY_RUN_ID).orEmpty(),
             ok = bundle.getBoolean(KEY_OK),
             content = bundle.getString(KEY_CONTENT).orEmpty(),
@@ -559,6 +604,15 @@ internal object AgentRuntimeWire {
                 putString(KEY_TYPE, "round_started")
                 putInt("round", event.round)
                 putInt("message_count", event.messageCount)
+            }
+
+            is AgentEvent.ContextCompaction -> {
+                putString(KEY_TYPE, "context_compaction")
+                putString("operation_id", event.operationId)
+                putString("phase", event.phase)
+                putInt("tokens_before", event.tokensBefore)
+                event.tokensAfter?.let { putInt("tokens_after", it) }
+                putString("reason_code", event.reasonCode)
             }
 
             is AgentEvent.ModelRetryScheduled -> {
@@ -700,6 +754,13 @@ internal object AgentRuntimeWire {
             messageCount = bundle.getInt("message_count"),
         )
 
+        "context_compaction" -> AgentEvent.ContextCompaction(
+            operationId = bundle.getString("operation_id").orEmpty(),
+            phase = bundle.getString("phase").orEmpty(),
+            tokensBefore = bundle.getInt("tokens_before"),
+            tokensAfter = bundle.optionalInt("tokens_after"),
+            reasonCode = bundle.getString("reason_code").orEmpty(),
+        )
         "model_retry_scheduled" -> AgentEvent.ModelRetryScheduled(
             round = bundle.getInt("round"),
             attempt = bundle.getInt("attempt", 1),

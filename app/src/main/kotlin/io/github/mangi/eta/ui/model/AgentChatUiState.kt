@@ -9,8 +9,11 @@ import io.github.mangi.eta.data.model.ReasoningEffort
 internal data class AgentChatUiState(
     val messages: List<AgentChatMessageUi>,
     val history: List<AgentModelClient.ConversationMessage> = emptyList(),
+    // 完整脱敏历史独立于模型投影；摘要替换 history 时不覆盖 journal。
+    val journal: List<AgentModelClient.ConversationMessage> = emptyList(),
     val input: String,
     val isStreaming: Boolean,
+    val isCompacting: Boolean = false,
     val thinkingEnabled: Boolean,
     val reasoningEffort: ReasoningEffort = ReasoningEffort.fromLegacy(thinkingEnabled),
     val availableReasoningEfforts: List<ReasoningEffort> = emptyList(),
@@ -18,7 +21,11 @@ internal data class AgentChatUiState(
     val pendingFileReferences: List<PendingFileReferenceUi> = emptyList(),
     val appliedRuntimeRunIds: List<String> = emptyList(),
     val messageEdit: MessageEditUiState? = null,
-)
+) {
+    val canCompactContext: Boolean get() = !isStreaming && messageEdit == null && history.any {
+        !it.contextSummary && (it.role == "assistant" || it.role == "tool")
+    }
+}
 
 @Immutable
 sealed interface AgentChatMessageUi {
@@ -47,6 +54,7 @@ enum class SystemNoticeCode(val wireValue: String) {
     EmptyResult("empty_result"),
     RuntimeFailed("runtime_failed"),
     ModelRetry("model_retry"),
+    ContextCompaction("context_compaction"),
     Interrupted("interrupted");
 
     companion object {
@@ -62,6 +70,7 @@ data class SystemNoticeMessageUi(
     override val id: String,
     val code: SystemNoticeCode,
     val detail: String? = null,
+    val contextTokens: Int? = null,
 ) : AgentChatMessageUi
 
 @Immutable

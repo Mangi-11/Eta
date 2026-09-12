@@ -40,6 +40,17 @@ internal class AgentRunMessageProjector(
         }
     }
 
+    fun finishContextCompaction(
+        runId: String,
+        messages: List<AgentChatMessageUi>,
+        detail: String,
+    ): List<AgentChatMessageUi> = messages.map { message ->
+        if (message is SystemNoticeMessageUi && message.code == SystemNoticeCode.ContextCompaction &&
+            message.id.startsWith("assistant-$runId-compaction-") && message.detail == "正在压缩上下文…") {
+            message.copy(detail = detail)
+        } else message
+    }
+
     fun scheduleModelRetry(
         runId: String,
         event: AgentEvent.ModelRetryScheduled,

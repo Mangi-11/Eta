@@ -1,5 +1,6 @@
 package io.github.mangi.eta.agent.model
 
+import io.github.mangi.eta.agent.runtime.AgentLegacyConversationProjection
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -76,10 +77,10 @@ class AgentConversationCodecTest {
             add(AgentModelClient.ConversationMessage(role = "assistant", content = "最终答案"))
         }
 
-        val encoded = AgentConversationCodec.encodeTranscriptForIpc(messages)
+        val encoded = AgentLegacyConversationProjection.encode(messages, AgentLegacyConversationProjection.DIRECT_CHARS)
         val decoded = AgentConversationCodec.decodeTranscript(encoded)
 
-        assertTrue(encoded.length <= AgentConversationCodec.MAX_IPC_TRANSCRIPT_CHARS)
+        assertTrue(encoded.length <= AgentLegacyConversationProjection.DIRECT_CHARS)
         assertTrue(decoded.isNotEmpty())
         assertFalse(decoded.first().role == "tool")
         assertTrue(decoded.first().content.contains("容量上限已压缩"))
@@ -87,7 +88,7 @@ class AgentConversationCodecTest {
     }
 
     @Test
-    fun conversationCheckpointHasHardBudgetAndKeepsNewestContext() {
+    fun conversationCheckpointPreservesEveryMessageBeyondLegacyBudget() {
         val messages = buildList {
             repeat(20) { index ->
                 add(
@@ -103,8 +104,8 @@ class AgentConversationCodecTest {
         val encoded = AgentConversationCodec.encodeConversationCheckpoint(messages)
         val decoded = AgentConversationCodec.decodeTranscript(encoded)
 
-        assertTrue(encoded.length <= AgentConversationCodec.MAX_CONVERSATION_CHECKPOINT_CHARS)
-        assertTrue(decoded.first().content.contains("容量上限已压缩"))
+        assertTrue(encoded.length > 96_000)
+        assertEquals(messages, decoded)
         assertEquals("继续处理最新任务", decoded.last().content)
     }
 

@@ -33,7 +33,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         runController: AgentRunController,
         onEvent: (ProviderEvent) -> Unit
     ): ProviderResponse {
-        val config = request.config
+        val config = request.effectiveConfig
         require(config.openAiEndpointMode == OpenAiEndpointMode.CHAT_COMPLETIONS) {
             "当前 Provider 未配置为 Chat Completions API"
         }
@@ -49,7 +49,12 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             .also { ProviderRequestHeaders.mergeInto(it, config.baseUrl, config.customHeaders, request.sessionId) }
             .build()
 
-        val requestBody = buildRequestJson(config, request.messages, request.tools)
+        val requestBody = buildRequestJson(config, request.messages, request.effectiveTools).apply {
+            if (request.purpose == ProviderRequestPurpose.COMPACTION) {
+                remove("tools")
+                remove("tool_choice")
+            }
+        }
             .toString()
             .toRequestBody(JSON_MEDIA_TYPE)
 

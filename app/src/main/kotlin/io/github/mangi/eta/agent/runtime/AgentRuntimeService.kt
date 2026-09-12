@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.runtime
 
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -69,6 +71,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         get() = savedStateRegistryController.savedStateRegistry
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val resultIo = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "agent-result-io") }
     private val serviceMessenger = Messenger(IncomingHandler())
 
     @Volatile
@@ -149,6 +152,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         pendingStartRequest = null
         activeSession?.cancel("Agent Runtime 服务已停止")
         activeSession = null
+        resultIo.shutdownNow()
         mainHandler.removeCallbacksAndMessages(null)
         resultCardView?.let { view -> runCatching { windowManager?.removeView(view) } }
         bubbleView?.let { view -> runCatching { windowManager?.removeView(view) } }
@@ -192,7 +196,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         return
                     }
                     val request = incoming.request
-                    if (request.runId.isBlank() || (request.prompt.isBlank() && incoming.images.isEmpty())) {
+                    if (request.runId.isBlank() || (request.operation != AgentRuntimeWire.OP_COMPACT && request.prompt.isBlank() && incoming.images.isEmpty() && !incoming.hasDeferredPrompt)) {
                         incoming.close()
                         finishWithFailure("Agent Runtime 请求缺少 runId 或用户输入", msg.replyTo)
                         return
@@ -206,14 +210,24 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                 }
 
                 AgentRuntimeWire.MSG_ACK_RESULT -> {
-                    AgentRuntimeResultStore.remove(
-                        this@AgentRuntimeService,
-                        AgentRuntimeWire.runIdFromBundle(msg.data ?: return)
-                    )
+                    val runId = AgentRuntimeWire.runIdFromBundle(msg.data ?: return)
+                    dispatchResultIo { AgentRuntimeResultStore.remove(this@AgentRuntimeService, runId) }
+                }
+
+                AgentRuntimeWire.MSG_READ_CONTEXT_RESULT -> {
+                    val runId = AgentRuntimeWire.runIdFromBundle(msg.data ?: return)
+                    val owner = msg.data.getString("context_owner").orEmpty()
+                    val replyTo = msg.replyTo
+                    dispatchResultIo {
+                        val target = AgentRuntimeResultStore.readOwned(this@AgentRuntimeService, runId, owner)
+                        sendResultNow(replyTo, target?.result ?: AgentRuntimeWire.RunResult(
+                            runId, false, "", "完整运行结果不可用", contextSnapshotRef = runId,
+                        ))
+                    }
                 }
 
                 AgentRuntimeWire.MSG_DRAIN_RESULTS -> {
-                    sendDrainedResults(msg.replyTo)
+                    sendDrainedResults(msg.replyTo, msg.data?.getBoolean("complete_result_refs") == true)
                 }
 
                 AgentRuntimeWire.MSG_QUERY_ACTIVE_RUN -> {
@@ -302,9 +316,10 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         request: AgentRuntimeWire.RunRequest,
         replyTo: Messenger? = null,
     ) {
-        activeSession?.cancel("已被新的 Agent 任务替换")
+        activeSession?.controller?.cancel()
         val session = AgentRuntimeSession(
             runId = request.runId,
+            operation = request.operation,
             eventSink = { event -> sendEventTo(replyTo, event) },
             resultSink = { result -> sendResultTo(replyTo, result) },
         )
@@ -312,7 +327,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         val allowBoundFallback = RootAccess.isGranted
         val executionHeld = AgentExecutionService.acquire(
             this, "run:${request.runId}", allowBoundFallback = allowBoundFallback,
-        ) { session.cancel("已停止") }
+        ) { session.controller.cancel() }
         if (!executionHeld && !allowBoundFallback) {
             session.complete(AgentRuntimeWire.RunResult(
                 runId = request.runId, ok = false, content = "",
@@ -500,17 +515,48 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         }
     }
 
-    private fun sendResultTo(
+    private fun dispatchResultIo(block: () -> Unit) {
+        try {
+            resultIo.execute {
+                try { block() } catch (failure: Exception) {
+                    AndroidAgentLogger.warnThrottled("runtime_result_io_failed") {
+                        "Agent runtime result I/O failed: type=${failure.safeLogType()}"
+                    }
+                }
+            }
+        } catch (_: RejectedExecutionException) {
+            AndroidAgentLogger.info("Agent runtime result delivery deferred after service stop")
+        }
+    }
+
+    private fun sendResultTo(target: Messenger?, result: AgentRuntimeWire.RunResult) {
+        dispatchResultIo { sendResultNow(target, result) }
+    }
+
+    private fun sendResultNow(
         target: Messenger?,
         result: AgentRuntimeWire.RunResult,
     ) {
         runCatching {
             val msg = Message.obtain(null, AgentRuntimeWire.MSG_RESULT)
-            msg.data = AgentRuntimeWire.toBundle(result)
-            target?.send(msg)
+            msg.data = AgentRuntimeWire.toBundle(result, cacheDir)
+            AgentWireText.send(target, msg)
         }.onFailure { throwable ->
             AndroidAgentLogger.warnThrottled("runtime_result_delivery_failed") {
                 "Agent runtime result delivery failed: type=${throwable.safeLogType()}"
+            }
+            // 不把传输失败伪装成已交付终态；引用使新客户端保留 outbox，等待完整恢复。
+            val fallback = AgentRuntimeWire.RunResult(result.runId, false, "",
+                "完整结果传输失败，已保存的历史未删除。请重新打开会话恢复。",
+                contextSnapshotRef = result.runId, operation = result.operation)
+            try {
+                target?.send(Message.obtain(null, AgentRuntimeWire.MSG_RESULT).apply {
+                    data = AgentRuntimeWire.toBundle(fallback)
+                })
+            } catch (deliveryFailure: Exception) {
+                AndroidAgentLogger.warnThrottled("runtime_result_failure_notice_undelivered") {
+                    "Agent runtime result notice undelivered: type=${deliveryFailure.safeLogType()}"
+                }
             }
         }
     }
@@ -530,11 +576,15 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         }
     }
 
-    private fun sendDrainedResults(replyTo: Messenger?) {
+    private fun sendDrainedResults(replyTo: Messenger?, referencesOnly: Boolean) {
+        dispatchResultIo { sendDrainedResultsNow(replyTo, referencesOnly) }
+    }
+
+    private fun sendDrainedResultsNow(replyTo: Messenger?, referencesOnly: Boolean) {
         runCatching {
             val msg = Message.obtain(null, AgentRuntimeWire.MSG_DRAIN_RESULTS_RESPONSE)
             msg.data = AgentRuntimeWire.completedRunsToBundle(
-                AgentRuntimeResultStore.list(this)
+                if (referencesOnly) AgentRuntimeResultStore.pendingPage(this) else AgentRuntimeResultStore.list(this).take(8)
             )
             replyTo?.send(msg)
         }.onFailure { throwable ->
@@ -678,7 +728,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             AndroidAgentLogger.debug { "Agent runtime ignored stale cancel request" }
             return
         }
-        if (session.cancel("已停止")) {
+        if (!session.isTerminal) {
+            session.controller.cancel()
             state.value = state.value.copy(status = AgentOverlayStatus.Stopping)
         }
     }

@@ -13,7 +13,12 @@ internal object OpenAiRequestMessages {
             }
             for (index in 0 until source.length()) {
                 val message = source.optJSONObject(index) ?: continue
-                if (message.optString("role") !in SYSTEM_ROLES) messages.put(message)
+                if (message.optString("role") !in SYSTEM_ROLES) messages.put(JSONObject(message.toString()).apply {
+                    remove("_eta_context_summary")
+                    remove("_eta_compacted_users")
+                    remove("_eta_summary_through_user")
+                    remove("_eta_observation")
+                })
             }
         }
     }

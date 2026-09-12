@@ -1,6 +1,7 @@
 package io.github.mangi.eta.agent.runtime
 
 import android.content.Context
+import io.github.mangi.eta.agent.model.AgentContextSnapshot
 import io.github.mangi.eta.agent.model.AgentConversationCodec
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.data.db.EtaDatabase
@@ -8,14 +9,8 @@ import io.github.mangi.eta.data.db.RuntimeResultEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
-/**
- * Stores completed runs until an entry adapter confirms that the result was shown.
- *
- * This is a short-lived delivery queue, not user-visible chat history, so it remains
- * deliberately bounded by age and count.
- */
+/** 终态先落盘，入口成功提交后 ACK；未确认结果不按年龄或数量淘汰。 */
 internal object AgentRuntimeResultStore {
-    private const val MAX_PENDING = 8
     private const val MAX_AGE_MS = 12L * 60L * 60L * 1000L
     private const val MAX_RECENT_ACKNOWLEDGEMENTS = 32
 
@@ -34,7 +29,6 @@ internal object AgentRuntimeResultStore {
             runBlocking(Dispatchers.IO) {
                 val dao = EtaDatabase.get(appContext).runtimeRunDao()
                 dao.upsertRuntimeResult(entity)
-                prune(dao)
             }
             return true
         }
@@ -44,10 +38,24 @@ internal object AgentRuntimeResultStore {
         val appContext = context.applicationContext
         return synchronized(deliveryLock) {
             runBlocking(Dispatchers.IO) {
-                prune(EtaDatabase.get(appContext).runtimeRunDao())
+                EtaDatabase.get(appContext).runtimeRunDao().runtimeResults()
                     .map { it.toDomain() }
             }
         }
+    }
+
+    fun pendingPage(context: Context): List<AgentRuntimeWire.CompletedRun> = runBlocking(Dispatchers.IO) {
+        EtaDatabase.get(context.applicationContext).runtimeRunDao().pendingResultHeaders(8).map { header ->
+            AgentRuntimeWire.CompletedRun(
+                AgentRuntimeWire.EntryHandoff(header.handoffId, header.handoffSource, header.handoffPayload, header.dismissEntrySurface),
+                AgentRuntimeWire.RunResult(header.runId, header.ok, "", contextSnapshotRef = header.runId, operation = header.operation),
+                header.createdAt,
+            )
+        }
+    }
+
+    fun readOwned(context: Context, runId: String, owner: String): AgentRuntimeWire.CompletedRun? = runBlocking(Dispatchers.IO) {
+        EtaDatabase.get(context.applicationContext).runtimeRunDao().ownedResult(runId, owner)?.toDomain()
     }
 
     fun remove(context: Context, runId: String) {
@@ -79,16 +87,6 @@ internal object AgentRuntimeResultStore {
         }
     }
 
-    private suspend fun prune(dao: io.github.mangi.eta.data.db.RuntimeRunDao): List<RuntimeResultEntity> {
-        val now = System.currentTimeMillis()
-        val pruned = dao.runtimeResults()
-            .filter { now - it.createdAt <= MAX_AGE_MS }
-            .sortedBy { it.createdAt }
-            .takeLast(MAX_PENDING)
-        dao.replaceRuntimeResults(pruned)
-        return pruned
-    }
-
     private fun AgentRuntimeWire.CompletedRun.toEntity(): RuntimeResultEntity {
         val stableRunId = result.runId.ifBlank { handoff.id }
         return RuntimeResultEntity(
@@ -102,6 +100,8 @@ internal object AgentRuntimeResultStore {
             error = result.error,
             reasoningContent = result.reasoningContent,
             transcriptJson = AgentConversationCodec.encodeTranscriptForStorage(result.transcript),
+            contextSnapshotJson = result.contextSnapshot?.encode().orEmpty(),
+            operation = result.operation,
             createdAt = createdAt,
         )
     }
@@ -120,6 +120,8 @@ internal object AgentRuntimeResultStore {
                 content = content,
                 error = error,
                 reasoningContent = reasoningContent,
+                contextSnapshot = AgentContextSnapshot.decode(contextSnapshotJson),
+                operation = operation,
                 transcript = legacyCompatibleTranscript(
                     raw = transcriptJson,
                     ok = ok,

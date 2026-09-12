@@ -254,7 +254,7 @@ class AgentConversationStoreTest {
     }
 
     @Test
-    fun saveBoundsConversationCheckpointWithoutClippingDisplayedMessages() {
+    fun savePreservesCompleteContextAndDisplayedMessages() {
         val displayedContent = "展示消息-${"d".repeat(120_000)}"
         val history = buildList {
             repeat(20) { index ->
@@ -297,12 +297,10 @@ class AgentConversationStoreTest {
             .conversationsById
             .getValue("conv-large")
 
-        assertTrue(
-            checkpoint.historyJson.length <=
-                AgentConversationCodec.MAX_CONVERSATION_CHECKPOINT_CHARS
-        )
+        assertTrue(checkpoint.historyJson.length > 96_000)
+        assertEquals(history, restored.history)
+        assertEquals(history, restored.journal)
         assertEquals(displayedContent, (restored.messages.single() as UserMessageUi).content)
-        assertTrue(restored.history.first().content.contains("容量上限已压缩"))
         assertEquals("最新上下文", restored.history.last().content)
     }
 

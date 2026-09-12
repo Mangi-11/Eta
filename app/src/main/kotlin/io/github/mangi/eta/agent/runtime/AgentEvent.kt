@@ -11,6 +11,22 @@ internal sealed interface AgentEvent {
         TOOL_CALL,
     }
 
+    data class ContextCompaction(
+        val operationId: String,
+        val phase: String,
+        val tokensBefore: Int,
+        val tokensAfter: Int? = null,
+        val reasonCode: String = "",
+    ) : AgentEvent {
+        val displayMessage: String get() = when (phase) {
+            "started" -> "正在压缩上下文…"
+            "completed" -> "上下文已压缩：约 $tokensBefore → ${tokensAfter ?: 0} tokens"
+            else -> "上下文压缩失败，原始上下文已保留。"
+        }
+        override fun toLogLine(): String =
+            "context_compaction phase=${phase.toSafeLogToken()}, before=$tokensBefore, after=$tokensAfter, code=${reasonCode.toSafeLogToken()}"
+    }
+
     data class RunStarted(
         val initialImages: Int,
         val initialImageBytes: Int,

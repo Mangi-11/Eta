@@ -1,5 +1,8 @@
 package io.github.mangi.eta.agent.runtime
 
+import io.github.mangi.eta.agent.model.AgentContextSnapshot
+import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.AgentToolBatchRecovery
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -14,6 +17,7 @@ internal class AgentRuntimeSession(
     val controller: AgentRunController = AgentRunController(),
     eventSink: ((AgentEvent) -> Unit)? = null,
     resultSink: ((AgentRuntimeWire.RunResult) -> Unit)? = null,
+    private val operation: String = AgentRuntimeWire.OP_CHAT,
 ) {
     private enum class State {
         RUNNING,
@@ -22,6 +26,21 @@ internal class AgentRuntimeSession(
     }
 
     private val lock = ReentrantLock()
+    private var latestTranscript: List<AgentModelClient.ConversationMessage> = emptyList()
+    val transcript: List<AgentModelClient.ConversationMessage>
+        get() = lock.withLock { latestTranscript }
+
+    fun updateTranscript(messages: List<AgentModelClient.ConversationMessage>) = lock.withLock {
+        if (state == State.RUNNING) latestTranscript = messages
+    }
+
+    private var latestContext: AgentContextSnapshot? = null
+    val contextSnapshot: AgentContextSnapshot?
+        get() = lock.withLock { latestContext }
+
+    fun updateContext(snapshot: AgentContextSnapshot) = lock.withLock {
+        if (state == State.RUNNING) latestContext = snapshot
+    }
     private var state = State.RUNNING
     private val replayEvents = mutableListOf<AgentEvent>()
     private val subscribers = mutableListOf<Subscriber>()
@@ -141,6 +160,9 @@ internal class AgentRuntimeSession(
                 ok = false,
                 content = "",
                 error = reason,
+                contextSnapshot = latestContext,
+                transcript = AgentToolBatchRecovery.completeInterrupted(latestTranscript),
+                operation = operation,
             )
         }
         controller.cancel()

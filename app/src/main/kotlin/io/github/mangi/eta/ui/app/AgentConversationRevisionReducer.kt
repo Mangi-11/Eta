@@ -11,6 +11,7 @@ internal object AgentConversationRevisionReducer {
         val userMessage: UserMessageUi,
         val userMessageIndex: Int,
         val historyPrefix: List<AgentModelClient.ConversationMessage>,
+        val journalPrefix: List<AgentModelClient.ConversationMessage> = historyPrefix,
         val laterTurnCount: Int,
         val contextWasCompacted: Boolean,
     )
@@ -26,16 +27,20 @@ internal object AgentConversationRevisionReducer {
         val targetUserOrdinal = userMessageIndices.indexOf(userMessageIndex)
         if (targetUserOrdinal < 0) return null
 
-        val historyUserIndices = state.history.indices.filter { state.history[it].role == "user" }
-        // checkpoint 超限时只保留末尾上下文，因此展示轮次和 history 必须从尾部对齐。
+        val source = state.journal.ifEmpty { state.history }
+        val historyUserIndices = source.indices.filter { source[it].role == "user" }
+        // 旧版本可能已经丢失前缀；只能对已有记录做尾部对齐，不能伪造恢复。
         val retainedUserOrdinal = historyUserIndices.size - (userMessageIndices.size - targetUserOrdinal)
         val historyIndex = historyUserIndices.getOrNull(retainedUserOrdinal)
-        val compacted = historyIndex == null
+        val prefix = historyIndex?.let(source::take).orEmpty()
+        val targetTurn = prefix.sumOf { it.compactedUserTurns + if (it.role == "user") 1 else 0 } + 1
+        val invalidatesSummary = prefix.any { it.contextSummary && it.summaryThroughUserTurn >= targetTurn }
+        val compacted = historyIndex == null || invalidatesSummary
 
         return Boundary(
             userMessage = userMessage,
             userMessageIndex = userMessageIndex,
-            historyPrefix = historyIndex?.let(state.history::take).orEmpty(),
+            historyPrefix = prefix.filterNot { it.contextSummary && it.summaryThroughUserTurn >= targetTurn },
             laterTurnCount = userMessageIndices.size - targetUserOrdinal - 1,
             contextWasCompacted = compacted,
         )
@@ -46,6 +51,7 @@ internal object AgentConversationRevisionReducer {
         return state.copy(
             messages = state.messages.take(boundary.userMessageIndex),
             history = boundary.historyPrefix,
+            journal = boundary.journalPrefix,
             messageEdit = null,
         )
     }

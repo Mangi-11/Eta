@@ -28,6 +28,7 @@ internal data class AgentOverlayState(
  * 工具名经 [toToolLabel] 中文化。详细 trace 流作为后续任务，此处不展开。
  */
 internal fun AgentOverlayState.applyEvent(event: AgentEvent): AgentOverlayState = when (event) {
+    is AgentEvent.ContextCompaction -> copy(status = AgentOverlayStatus.RequestingModel, detailText = event.displayMessage)
     is AgentEvent.RunStarted -> copy(
         phase = AgentOverlayPhase.RUNNING,
         status = AgentOverlayStatus.PreparingTools(event.toolCount),

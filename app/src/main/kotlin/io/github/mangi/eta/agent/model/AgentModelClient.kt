@@ -1,7 +1,6 @@
 package io.github.mangi.eta.agent.model
 
 import io.github.mangi.eta.agent.runtime.AgentEvent
-import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.memory.AgentMemoryContext
 import io.github.mangi.eta.agent.skill.SkillContext
@@ -94,6 +93,9 @@ internal object AgentModelClient {
         additionalTools: JSONArray = JSONArray(),
         capabilitiesProvider: () -> AgentToolCapabilities = { AgentToolCapabilities(rootAvailable = false) },
         sessionId: String = java.util.UUID.randomUUID().toString(),
+        compactOnly: Boolean = false,
+        onContextSnapshot: (AgentContextSnapshot) -> Unit = {},
+        onTranscript: (List<ConversationMessage>) -> Unit = {},
         onEvent: (AgentEvent) -> Unit = {}
     ): ModelResponse.Text {
         config.validate()
@@ -107,7 +109,12 @@ internal object AgentModelClient {
             memoryContext,
             rootAvailable = initialCapabilities.rootAvailable,
         )
-        val transcriptStartIndex = messages.length()
+        if (compactOnly) messages.remove(messages.length() - 1)
+        val transcript = JSONArray()
+        // 旧 history 中的无效消息可能在组装时被跳过，系统边界不能由 history 条数倒推。
+        val systemCount = AgentPromptBuilder.buildSystemMessages(
+            config, skillContext, memoryContext, initialCapabilities.rootAvailable,
+        ).length()
         fun toolsFor(capabilities: AgentToolCapabilities): JSONArray {
             val tools = AgentToolCatalog.build(
                 terminalTools = config.terminalTools,
@@ -136,6 +143,11 @@ internal object AgentModelClient {
         )
         var promptRootAvailable = initialCapabilities.rootAvailable
         val loop = AgentLoop(
+            transcript = transcript,
+            systemCount = systemCount,
+            operationId = sessionId,
+            onContextSnapshot = onContextSnapshot,
+            onTranscript = onTranscript,
             sessionId = sessionId,
             config = config,
             messages = messages,
@@ -160,26 +172,26 @@ internal object AgentModelClient {
             },
         )
         val result = try {
-            loop.run()
-        } catch (cancelled: AgentRunCancelledException) {
-            throw cancelled
+            if (compactOnly) loop.compactOnly() else loop.run()
         } catch (throwable: Throwable) {
             throw AgentModelExecutionException(
                 cause = throwable,
+                contextSnapshot = loop.contextSnapshot(),
                 reasoningContent = loop.reasoningSnapshot(),
-                transcript = AgentConversationCodec.transcript(
-                    messages,
-                    transcriptStartIndex,
+                transcript = AgentToolBatchRecovery.completeInterrupted(AgentConversationCodec.transcript(
+                    transcript,
+                    0,
                     loop.sensitiveToolCallIdsSnapshot(),
-                ),
+                )),
             )
         }
         return ModelResponse.Text(
             content = result.content,
+            contextSnapshot = loop.contextSnapshot(),
             reasoningContent = result.reasoningContent,
             transcript = AgentConversationCodec.transcript(
-                messages,
-                transcriptStartIndex,
+                transcript,
+                0,
                 result.sensitiveToolCallIds,
             ),
         )
@@ -254,7 +266,10 @@ internal object AgentModelClient {
         val contentJson: String = "",
         val toolCallId: String = "",
         val reasoningContent: String = "",
-        val toolCallsJson: String = ""
+        val toolCallsJson: String = "",
+        val contextSummary: Boolean = false,
+        val compactedUserTurns: Int = 0,
+        val summaryThroughUserTurn: Int = 0,
     )
 
     fun interface ToolExecutor {
@@ -292,6 +307,7 @@ internal object AgentModelClient {
             val content: String,
             val reasoningContent: String = "",
             val transcript: List<ConversationMessage> = emptyList(),
+            val contextSnapshot: AgentContextSnapshot? = null,
         ) : ModelResponse
     }
 
@@ -301,4 +317,5 @@ internal class AgentModelExecutionException(
     cause: Throwable,
     val reasoningContent: String,
     val transcript: List<AgentModelClient.ConversationMessage>,
+    val contextSnapshot: AgentContextSnapshot? = null,
 ) : RuntimeException(cause.message ?: cause.javaClass.simpleName, cause)

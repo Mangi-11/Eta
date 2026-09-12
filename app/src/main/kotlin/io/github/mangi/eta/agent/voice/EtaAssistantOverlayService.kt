@@ -416,10 +416,13 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                 if (activeRunId != runId) return@withContext false
                 activeRunId = null
                 runJob = null
-                if (result.ok) {
+                if (result.contextSnapshot != null) {
+                    conversationHistory = result.contextSnapshot.messages
+                } else if (result.ok) {
                     conversationHistory = conversationHistory +
-                        AgentModelClient.buildUserHistoryMessage(normalized, runImages) +
-                        result.transcript
+                        AgentModelClient.buildUserHistoryMessage(normalized, runImages) + result.transcript
+                }
+                if (result.ok) {
                     uiState = uiState.copy(
                         phase = EtaVoicePhase.READY,
                         status = EtaVoiceStatus.Completed,
@@ -613,6 +616,16 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                 )
             }
 
+            is AgentEvent.ContextCompaction -> {
+                val noticeId = "assistant-$runId-compaction-${event.operationId}"
+                messages = messages.filterNot { it.id == noticeId } + SystemNoticeMessageUi(
+                    id = noticeId,
+                    code = SystemNoticeCode.ContextCompaction,
+                    detail = event.displayMessage,
+                    contextTokens = event.tokensAfter,
+                )
+                status = EtaVoiceStatus.Reasoning
+            }
             is AgentEvent.ModelRetryScheduled -> {
                 messages = runMessageProjector.scheduleModelRetry(runId, event, messages)
                 status = EtaVoiceStatus.Reasoning

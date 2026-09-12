@@ -15,6 +15,23 @@ import org.junit.Test
 
 class AgentConversationRevisionReducerTest {
     @Test
+    fun editingUserTurnCoveredBySummaryDropsStaleSummary() {
+        val summary = AgentModelClient.ConversationMessage("assistant", "旧操作结果", contextSummary = true,
+            compactedUserTurns = 1, summaryThroughUserTurn = 2)
+        val state = AgentChatUiState(
+            messages = listOf(UserMessageUi("old", "旧请求"), UserMessageUi("latest", "最新请求")),
+            history = listOf(summary, AgentModelClient.ConversationMessage("user", "最新请求")),
+            input = "", isStreaming = false, thinkingEnabled = false,
+        )
+        val boundary = AgentConversationRevisionReducer.boundary(state, "latest")!!
+        assertTrue(boundary.contextWasCompacted)
+        assertTrue(boundary.historyPrefix.isEmpty())
+        val next = state.copy(messages = state.messages + UserMessageUi("next", "后续请求"),
+            history = state.history + AgentModelClient.ConversationMessage("user", "后续请求"))
+        assertTrue(AgentConversationRevisionReducer.boundary(next, "next")!!.historyPrefix.contains(summary))
+    }
+
+    @Test
     fun boundaryMapsAssistantToItsUserTurnAndKeepsToolTranscriptPrefix() {
         val state = conversationState()
 

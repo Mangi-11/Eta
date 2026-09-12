@@ -25,6 +25,32 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class AgentRuntimeWireTest {
     @Test
+    fun contextSnapshotRoundTripsDirectlyAndDrainOnlyCarriesReference() {
+        val snapshot = io.github.mangi.eta.agent.model.AgentContextSnapshot(
+            operationId = "compact-1", consumedUserTurns = 4, coveredUserTurns = 3,
+            messages = listOf(AgentModelClient.ConversationMessage("assistant", "摘要内容", contextSummary = true, compactedUserTurns = 3)),
+        )
+        val result = AgentRuntimeWire.RunResult("compact-1", true, "", contextSnapshot = snapshot,
+            operation = AgentRuntimeWire.OP_COMPACT)
+        assertEquals(result, AgentRuntimeWire.runResultFromBundle(AgentRuntimeWire.toBundle(result)))
+        val completed = AgentRuntimeWire.CompletedRun(
+            AgentRuntimeWire.EntryHandoff("compact-1", AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE, "conversation"), result, 1,
+        )
+        val drained = AgentRuntimeWire.completedRunsFromBundle(AgentRuntimeWire.completedRunsToBundle(listOf(completed))).single()
+        assertNull(drained.result.contextSnapshot)
+        assertEquals("compact-1", drained.result.contextSnapshotRef)
+        val event = AgentEvent.ContextCompaction("operation", "completed", 9000, 2000)
+        assertEquals(event, AgentEventJsonCodec.decode(AgentEventJsonCodec.encode(event)))
+        val legacy = AgentRuntimeWire.toBundle(result).apply {
+            remove("complete_result_json")
+            remove("context_snapshot")
+            remove("operation")
+        }
+        assertNull(AgentRuntimeWire.runResultFromBundle(legacy).contextSnapshot)
+        assertEquals(AgentRuntimeWire.OP_CHAT, AgentRuntimeWire.runResultFromBundle(legacy).operation)
+    }
+
+    @Test
     fun modelSessionSurvivesIpcAndLegacyRequestsUseConversationIdentity() {
         val request = AgentRuntimeWire.RunRequest(
             runId = "run-session", prompt = "测试",

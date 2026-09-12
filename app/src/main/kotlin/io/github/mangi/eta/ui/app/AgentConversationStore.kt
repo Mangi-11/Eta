@@ -89,6 +89,7 @@ internal object AgentConversationStore {
                     ConversationContextCheckpointEntity(
                         conversationId = conversationId,
                         historyJson = AgentConversationCodec.encodeConversationCheckpoint(state.history),
+                        journalJson = AgentConversationCodec.encodeTranscriptForStorage(state.journal.ifEmpty { state.history }),
                     )
                 }
                 EtaDatabase.get(appContext)
@@ -135,13 +136,15 @@ internal object AgentConversationStore {
         val updatedAt = mutableMapOf<String, Long>()
 
         conversations.forEach { conversation ->
+            val checkpoint = dao.contextCheckpoint(conversation.id)
             states[conversation.id] = AgentChatHomeUiState(
+                journal = AgentConversationCodec.decodeTranscript(checkpoint?.journalJson),
                 messages = messagesByConversation[conversation.id]
                     .orEmpty()
                     .sortedBy { it.sortIndex }
                     .mapNotNull { it.toMessageOrNull() },
                 history = AgentConversationCodec.decodeTranscript(
-                    dao.contextCheckpoint(conversation.id)?.historyJson
+                    checkpoint?.historyJson
                 )
                     .ifEmpty {
                         messagesByConversation[conversation.id]
@@ -216,6 +219,7 @@ internal object AgentConversationStore {
                 type = TYPE_SYSTEM_NOTICE,
                 content = code.wireValue,
                 resultSummary = detail,
+                contextTokens = contextTokens,
                 renderMarkdown = false,
             )
 
@@ -281,6 +285,7 @@ internal object AgentConversationStore {
                     id = id,
                     code = code,
                     detail = resultSummary,
+                    contextTokens = contextTokens,
                 )
             }
 

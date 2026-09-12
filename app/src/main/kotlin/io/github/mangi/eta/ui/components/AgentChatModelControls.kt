@@ -254,6 +254,8 @@ private fun ModelPickerRow(
 @Composable
 internal fun AgentContextUsageButton(
     usage: AgentContextUsageUi,
+    onCompact: () -> Unit = {},
+    canCompact: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -273,6 +275,7 @@ internal fun AgentContextUsageButton(
         locale = locale,
     )
     val detail = when {
+        usage.estimated -> stringResource(R.string.context_usage_estimated, summary)
         usage.contextTokens == null -> stringResource(R.string.context_usage_after_response, summary)
         else -> stringResource(R.string.context_usage_previous_response, summary)
     }
@@ -283,6 +286,8 @@ internal fun AgentContextUsageButton(
     RichTooltipBox(
         title = stringResource(R.string.ui_contextual_usage_d12810),
         text = detail,
+        actionText = if (canCompact) stringResource(R.string.context_compact_action) else null,
+        onActionClick = onCompact,
         state = tooltipState,
         positioning = TooltipAnchorPosition.Above,
         modifier = modifier,

@@ -6,58 +6,37 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
 
-/** Provider JSON 与 Eta 稳定会话 DTO 之间的唯一转换和容量边界。 */
+/** Provider JSON 与 Eta 稳定会话 DTO 之间的转换；脱敏不改变普通文本与工具批次。 */
 internal object AgentConversationCodec {
-    internal const val MAX_IPC_TRANSCRIPT_CHARS = 96_000
-    internal const val MAX_DRAIN_TRANSCRIPT_CHARS = 16_000
-    internal const val MAX_STORAGE_TRANSCRIPT_CHARS = 1_000_000
-    internal const val MAX_CONVERSATION_CHECKPOINT_CHARS = 96_000
 
-    private const val MAX_CONTENT_CHARS = 64_000
-    private const val MAX_REASONING_CHARS = 64_000
-    private const val MAX_TOOL_ARGUMENT_CHARS = 32_000
-    private const val MAX_TOOL_CALLS_PER_MESSAGE = 64
     private const val IMAGE_OMITTED_TEXT = "[图片观察已在当前回合使用，未写入持久会话]"
     private const val SENSITIVE_TOOL_OMITTED_TEXT =
         "[敏感工具参数与原始结果仅供当前回合使用，未写入持久会话]"
-    private const val COMPACTION_NOTICE =
-        "[Eta 上下文提示：此前部分 assistant/tool 记录因跨进程或持久化容量上限已压缩，请勿假定缺失步骤未执行。]"
-
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = false
     }
 
-    fun encodeTranscriptForIpc(messages: List<AgentModelClient.ConversationMessage>): String =
-        encodeBounded(messages, MAX_IPC_TRANSCRIPT_CHARS)
-
-    fun encodeTranscriptForDrain(messages: List<AgentModelClient.ConversationMessage>): String =
-        encodeBounded(messages, MAX_DRAIN_TRANSCRIPT_CHARS)
-
     fun encodeTranscriptForStorage(messages: List<AgentModelClient.ConversationMessage>): String =
-        encodeBounded(messages, MAX_STORAGE_TRANSCRIPT_CHARS)
+        json.encodeToString(messages.map(::sanitizeMessage))
 
     fun encodeConversationCheckpoint(messages: List<AgentModelClient.ConversationMessage>): String =
-        encodeBounded(messages, MAX_CONVERSATION_CHECKPOINT_CHARS)
-
-    fun messagesForIpc(
-        messages: List<AgentModelClient.ConversationMessage>,
-    ): List<AgentModelClient.ConversationMessage> =
-        decodeTranscript(encodeTranscriptForIpc(messages))
+        encodeTranscriptForStorage(messages)
 
     fun decodeTranscript(raw: String?): List<AgentModelClient.ConversationMessage> =
         if (raw.isNullOrBlank()) {
             emptyList()
         } else {
-            runCatching {
-                json.decodeFromString<List<AgentModelClient.ConversationMessage>>(raw)
-            }.getOrDefault(emptyList())
+            json.decodeFromString<List<AgentModelClient.ConversationMessage>>(raw)
         }
 
     fun toJsonObject(message: AgentModelClient.ConversationMessage): JSONObject =
         JSONObject()
             .put("role", message.role)
             .also { target ->
+                if (message.contextSummary) target.put("_eta_context_summary", true)
+                if (message.compactedUserTurns > 0) target.put("_eta_compacted_users", message.compactedUserTurns)
+                if (message.summaryThroughUserTurn > 0) target.put("_eta_summary_through_user", message.summaryThroughUserTurn)
                 when {
                     message.contentJson.isNotBlank() ->
                         target.put("content", JSONTokener(message.contentJson).nextValue())
@@ -78,6 +57,9 @@ internal object AgentConversationCodec {
         val contentValue = message.opt("content")
         return AgentModelClient.ConversationMessage(
             role = message.optString("role"),
+            contextSummary = message.optBoolean("_eta_context_summary"),
+            compactedUserTurns = message.optInt("_eta_compacted_users"),
+            summaryThroughUserTurn = message.optInt("_eta_summary_through_user"),
             content = (contentValue as? String).orEmpty(),
             contentJson = if (
                 contentValue == null ||
@@ -207,16 +189,23 @@ internal object AgentConversationCodec {
         messages: JSONArray,
         startIndex: Int,
         sensitiveToolCallIds: Set<String> = emptySet(),
-    ): List<AgentModelClient.ConversationMessage> =
-        buildList {
+    ): List<AgentModelClient.ConversationMessage> {
+        val redactedIds = sensitiveToolCallIds.toMutableSet()
+        for (index in startIndex until messages.length()) {
+            val message = messages.optJSONObject(index) ?: continue
+            parseToolCalls(message).filter { AgentSensitiveToolPolicy.isSensitive(it.name) }
+                .forEach { redactedIds += it.id }
+        }
+        return buildList {
             for (index in startIndex until messages.length()) {
                 messages.optJSONObject(index)
-                    ?.let { redactSensitiveToolData(it, sensitiveToolCallIds) }
+                    ?.let { redactSensitiveToolData(it, redactedIds) }
                     ?.let(::fromJsonObject)
                     ?.let(::sanitizeMessage)
                     ?.let(::add)
             }
         }
+    }
 
     private fun redactSensitiveToolData(
         source: JSONObject,
@@ -243,48 +232,19 @@ internal object AgentConversationCodec {
     fun durableMessage(message: JSONObject): AgentModelClient.ConversationMessage =
         sanitizeMessage(fromJsonObject(message))
 
-    private fun encodeBounded(
-        messages: List<AgentModelClient.ConversationMessage>,
-        maxChars: Int,
-    ): String {
-        val bounded = messages.map(::sanitizeMessage).toMutableList()
-        var encoded = json.encodeToString(bounded)
-        if (encoded.length <= maxChars) return encoded
-
-        val notice = AgentModelClient.ConversationMessage(
-            role = "system",
-            content = COMPACTION_NOTICE,
-        )
-        while (bounded.size > 1) {
-            bounded.removeAt(0)
-            while (bounded.firstOrNull()?.role == "tool") bounded.removeAt(0)
-            encoded = json.encodeToString(listOf(notice) + bounded)
-            if (encoded.length <= maxChars) return encoded
-        }
-
-        val last = bounded.lastOrNull() ?: return "[]"
-        val compacted = last.copy(
-            content = last.content.take(maxChars / 4),
-            contentJson = "",
-            reasoningContent = last.reasoningContent.take(maxChars / 4),
-            toolCallsJson = "",
-        )
-        return json.encodeToString(listOf(notice, compacted))
-            .takeIf { it.length <= maxChars }
-            ?: json.encodeToString(listOf(notice)).takeIf { it.length <= maxChars }
-            ?: "[]"
-    }
+    fun encodedSize(messages: List<AgentModelClient.ConversationMessage>): Int =
+        json.encodeToString(messages).length
 
     private fun sanitizeMessage(
         message: AgentModelClient.ConversationMessage,
     ): AgentModelClient.ConversationMessage =
         message.copy(
-            role = message.role.take(32),
-            content = message.content.take(MAX_CONTENT_CHARS),
+            role = message.role,
+            content = message.content,
             contentJson = sanitizeContentJson(message.contentJson),
-            toolCallId = message.toolCallId.take(256),
-            reasoningContent = message.reasoningContent.take(MAX_REASONING_CHARS),
-            toolCallsJson = sanitizeToolCallsJson(message.toolCallsJson),
+            toolCallId = message.toolCallId,
+            reasoningContent = message.reasoningContent,
+            toolCallsJson = message.toolCallsJson,
         )
 
     private fun sanitizeContentJson(raw: String): String {
@@ -295,10 +255,7 @@ internal object AgentConversationCodec {
             is JSONObject -> sanitizeContentObject(content)
             else -> return ""
         }
-        return sanitized.toString().takeIf { it.length <= MAX_CONTENT_CHARS }
-            ?: JSONArray()
-                .put(JSONObject().put("type", "text").put("text", IMAGE_OMITTED_TEXT))
-                .toString()
+        return sanitized.toString()
     }
 
     private fun sanitizeContentArray(source: JSONArray): JSONArray {
@@ -306,7 +263,7 @@ internal object AgentConversationCodec {
         var omittedImage = false
         for (index in 0 until source.length()) {
             val item = source.optJSONObject(index) ?: continue
-            if (item.optString("type") == "image_url" || item.has("source")) {
+            if (item.optString("type") in setOf("image_url", "input_image", "image") || item.has("source")) {
                 omittedImage = true
                 continue
             }
@@ -323,37 +280,8 @@ internal object AgentConversationCodec {
             target.remove("image_url")
             target.remove("source")
             if (target.has("text")) {
-                target.put("text", target.optString("text").take(MAX_CONTENT_CHARS / 2))
+                target.put("text", target.optString("text"))
             }
         }
 
-    private fun sanitizeToolCallsJson(raw: String): String {
-        if (raw.isBlank()) return ""
-        val source = runCatching { JSONArray(raw) }.getOrNull() ?: return ""
-        val target = JSONArray()
-        for (index in 0 until minOf(source.length(), MAX_TOOL_CALLS_PER_MESSAGE)) {
-            val call = source.optJSONObject(index) ?: continue
-            val function = call.optJSONObject("function")
-            val arguments = function?.optString("arguments").orEmpty()
-            target.put(
-                JSONObject()
-                    .put("id", call.optString("id").take(256))
-                    .put("type", call.optString("type").ifBlank { "function" })
-                    .put(
-                        "function",
-                        JSONObject()
-                            .put("name", function?.optString("name").orEmpty().take(128))
-                            .put(
-                                "arguments",
-                                if (arguments.length <= MAX_TOOL_ARGUMENT_CHARS) {
-                                    arguments
-                                } else {
-                                    JSONObject().put("_eta_truncated", true).toString()
-                                },
-                            ),
-                    ),
-            )
-        }
-        return target.toString()
-    }
 }

@@ -28,6 +28,7 @@ internal fun AgentHomeScreen(
         AgentChatBody(
             messages = state.messages,
             modelPickerState = modelPickerState,
+            isCompacting = state.isCompacting,
             input = state.input,
             isStreaming = state.isStreaming,
             reasoningEffort = state.reasoningEffort,
@@ -36,6 +37,8 @@ internal fun AgentHomeScreen(
             pendingFileReferences = state.pendingFileReferences,
             messageEdit = state.messageEdit,
             onReasoningEffortChange = { onAction(AgentHomeAction.ReasoningEffortChanged(it)) },
+            onCompactContext = { onAction(AgentHomeAction.CompactContext) },
+            canCompactContext = state.canCompactContext,
             onModelSelected = { onAction(AgentHomeAction.ModelSelected(it)) },
             onSubmit = { text -> onAction(AgentHomeAction.SubmitMessage(text)) },
             onStop = { onAction(AgentHomeAction.StopRun) },

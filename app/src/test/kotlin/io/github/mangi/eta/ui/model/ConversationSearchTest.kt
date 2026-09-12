@@ -13,6 +13,7 @@ class ConversationSearchTest {
         when (code) {
             SystemNoticeCode.Stopped -> "Stopped"
             SystemNoticeCode.EmptyResult -> "Empty result"
+            SystemNoticeCode.ContextCompaction -> "上下文压缩"
             SystemNoticeCode.ModelRetry -> "Retrying"
             SystemNoticeCode.RuntimeFailed -> "Runtime failed"
             SystemNoticeCode.Interrupted -> "Interrupted"

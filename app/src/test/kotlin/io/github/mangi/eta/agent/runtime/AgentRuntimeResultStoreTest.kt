@@ -168,7 +168,7 @@ class AgentRuntimeResultStoreTest {
     }
 
     @Test
-    fun capacityPruningRemovesTheMatchingTerminalCheckpoint() {
+    fun unacknowledgedResultsAndCheckpointsAreNotEvictedByCount() {
         val now = System.currentTimeMillis()
         repeat(9) { index ->
             val runId = "capacity-$index"
@@ -181,14 +181,14 @@ class AgentRuntimeResultStoreTest {
             )
         }
 
-        assertEquals(8, AgentRuntimeResultStore.list(context).size)
-        assertTrue(AgentRuntimeResultStore.list(context).none { it.result.runId == "capacity-0" })
-        assertTrue(AgentRunCheckpointStore.list(context).none { it.runId == "capacity-0" })
-        assertEquals(8, AgentRunCheckpointStore.list(context).size)
+        assertEquals(9, AgentRuntimeResultStore.list(context).size)
+        assertTrue(AgentRuntimeResultStore.list(context).any { it.result.runId == "capacity-0" })
+        assertTrue(AgentRunCheckpointStore.list(context).any { it.runId == "capacity-0" })
+        assertEquals(9, AgentRunCheckpointStore.list(context).size)
     }
 
     @Test
-    fun agePruningRemovesTheMatchingTerminalCheckpoint() {
+    fun unacknowledgedResultsAndCheckpointsAreNotEvictedByAge() {
         val runId = "expired-result"
         createCheckpoint(runId)
 
@@ -202,8 +202,8 @@ class AgentRuntimeResultStoreTest {
             )
         )
 
-        assertTrue(AgentRuntimeResultStore.list(context).isEmpty())
-        assertTrue(AgentRunCheckpointStore.list(context).isEmpty())
+        assertEquals(runId, AgentRuntimeResultStore.list(context).single().result.runId)
+        assertEquals(runId, AgentRunCheckpointStore.list(context).single().runId)
     }
 
     private fun createCheckpoint(runId: String) {

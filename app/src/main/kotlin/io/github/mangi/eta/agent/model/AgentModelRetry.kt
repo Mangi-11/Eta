@@ -42,7 +42,10 @@ internal class AgentModelRetry(
                 controller.throwIfCancelled()
                 if (callbackFailed || Thread.currentThread().isInterrupted) throw failure
                 val classified = AgentModelFailure.transport(failure) ?: throw failure
-                if (!classified.retryable || hostedToolStarted) throw classified
+                if (hostedToolStarted) throw AgentModelFailure(
+                    classified.code, false, classified.message.orEmpty(), classified, recoveryAllowed = false,
+                )
+                if (!classified.retryable) throw classified
                 if (retries == MAX_RETRIES) {
                     throw AgentModelFailure(
                         classified.code, false,

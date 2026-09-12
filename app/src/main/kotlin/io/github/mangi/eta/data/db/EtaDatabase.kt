@@ -9,6 +9,7 @@ import androidx.room.migration.Migration
 
 @Database(
     entities = [
+        AgentTextChunkEntity::class,
         ConversationEntity::class,
         ConversationContextCheckpointEntity::class,
         ConversationMessageEntity::class,
@@ -23,7 +24,7 @@ import androidx.room.migration.Migration
         SkillRegistryEntity::class,
         McpServerEntity::class,
     ],
-    version = 18,
+    version = 20,
     exportSchema = false,
 )
 internal abstract class EtaDatabase : RoomDatabase() {
@@ -57,7 +58,13 @@ internal abstract class EtaDatabase : RoomDatabase() {
                         MIGRATION_15_16,
                         MIGRATION_16_17,
                         MIGRATION_17_18,
+                        MIGRATION_18_19,
+                        MIGRATION_19_20,
                     )
+                    .addCallback(object : Callback() {
+                        override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
+                        override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
+                    })
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                     .also { instance = it }
@@ -68,6 +75,35 @@ internal abstract class EtaDatabase : RoomDatabase() {
             synchronized(this) {
                 instance?.close()
                 instance = null
+            }
+        }
+
+        internal val MIGRATION_19_20 = Migration(19, 20) { database ->
+            database.execSQL("ALTER TABLE conversation_context_checkpoints ADD COLUMN journal_json TEXT NOT NULL DEFAULT ''")
+            database.execSQL("ALTER TABLE runtime_inflight_runs ADD COLUMN transcript_json TEXT NOT NULL DEFAULT '[]'")
+            database.execSQL("CREATE TABLE IF NOT EXISTS agent_text_chunks (" +
+                "owner_table TEXT NOT NULL, owner_id TEXT NOT NULL, field TEXT NOT NULL, " +
+                "chunk_index INTEGER NOT NULL, content TEXT NOT NULL, " +
+                "PRIMARY KEY(owner_table, owner_id, field, chunk_index))")
+            database.execSQL("UPDATE conversation_context_checkpoints SET journal_json = history_json")
+            HistoryPayloadMigration.migrate(database)
+            createTextChunkCleanup(database)
+        }
+
+        private fun createTextChunkCleanup(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+            mapOf("runtime_results" to "run_id", "runtime_archive_runs" to "archive_run_id",
+                "runtime_inflight_runs" to "run_id", "conversation_context_checkpoints" to "conversation_id",
+                "conversation_messages" to "id", "conversations" to "id")
+                .forEach { (table, key) ->
+                    database.execSQL("CREATE TRIGGER IF NOT EXISTS ${table}_text_cleanup AFTER DELETE ON $table " +
+                        "BEGIN DELETE FROM agent_text_chunks WHERE owner_table = '$table' AND owner_id = OLD.$key; END")
+                }
+        }
+
+        internal val MIGRATION_18_19 = Migration(18, 19) { database ->
+            listOf("runtime_results", "runtime_archive_runs", "runtime_inflight_runs").forEach { table ->
+                database.execSQL("ALTER TABLE $table ADD COLUMN context_snapshot_json TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE $table ADD COLUMN operation TEXT NOT NULL DEFAULT 'chat'")
             }
         }
 
@@ -161,11 +197,9 @@ internal abstract class EtaDatabase : RoomDatabase() {
             )
             database.execSQL(
                 "INSERT INTO conversation_context_checkpoints (conversation_id, history_json) " +
-                    "SELECT id, CASE " +
-                    "WHEN length(CAST(history_json AS BLOB)) <= 131072 THEN history_json " +
-                    "ELSE '[]' END FROM conversations"
+                    "SELECT id, history_json FROM conversations"
             )
-            // 会话列表不再使用旧字段；及时清空可保证旧版留下的超大行不会继续占用数据库。
+            // SQL 内搬移完整正文；后续分块迁移负责行大小，不能因旧字段过大丢弃历史。
             database.execSQL("UPDATE conversations SET history_json = '[]'")
         }
 
