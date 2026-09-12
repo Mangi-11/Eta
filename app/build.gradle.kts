@@ -32,8 +32,8 @@ android {
         minSdk = 34
         targetSdk = 36
         // versionCode 规则：yyyyMMdd + 两位当日序号（01 起），发版时随 versionName 一起手动递增。
-        versionCode = 2026091201
-        versionName = "3.0.3"
+        versionCode = 2026091202
+        versionName = "3.0.4"
     }
 
     signingConfigs {
