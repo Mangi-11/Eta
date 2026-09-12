@@ -7,12 +7,12 @@ import androidx.room.Upsert
 
 @Dao
 internal interface CharacterDao : ChunkedTextDao {
-    @Query("SELECT * FROM roleplay_characters WHERE :includeArchived OR archived = 0 ORDER BY updated_at DESC, id ASC")
-    suspend fun characterRows(includeArchived: Boolean): List<CharacterEntity>
+    @Query("SELECT * FROM roleplay_characters ORDER BY updated_at DESC, id ASC")
+    suspend fun characterRows(): List<CharacterEntity>
 
     @Transaction
-    suspend fun characters(includeArchived: Boolean = false): List<CharacterEntity> =
-        characterRows(includeArchived).map { restoreCharacter(it) }
+    suspend fun characters(): List<CharacterEntity> =
+        characterRows().map { restoreCharacter(it) }
 
     @Query("SELECT * FROM roleplay_characters WHERE id = :id")
     suspend fun characterRow(id: String): CharacterEntity?

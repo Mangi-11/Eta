@@ -20,7 +20,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
-import io.github.mangi.eta.ui.components.CharacterAvatar
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.navigation.AppRoute
@@ -88,32 +87,6 @@ internal fun CharacterLibraryScreen(
                 content = {},
             )
         }
-        if (store.characters.isNotEmpty()) {
-            item(key = "list-header") {
-                val hasArchived = store.characters.any { it.archived }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 20.dp, end = 8.dp, top = 10.dp, bottom = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = if (store.showArchived && hasArchived) "全部 ${store.filteredCharacters.size} 个" else "${store.filteredCharacters.size} 个角色",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    // 没有已归档角色时不引入"归档"概念；归档过角色后开关才出现。
-                    if (hasArchived) {
-                        TextButton(
-                            text = if (store.showArchived) "隐藏已归档" else "显示已归档",
-                            onClick = store::toggleArchived,
-                            minHeight = 32.dp,
-                        )
-                    }
-                }
-            }
-        }
         when {
             store.busy && store.characters.isEmpty() -> {
                 item(key = "loading") {
@@ -131,33 +104,27 @@ internal fun CharacterLibraryScreen(
                         title = "还没有角色",
                         summary = "创建一个角色，或导入 PNG、JSON 角色卡开始对话",
                         action = {
-                            TextButton(
-                                text = "创建角色",
-                                onClick = createCharacter,
-                                colors = ButtonDefaults.textButtonColorsPrimary(),
-                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(
+                                    text = "恢复默认角色",
+                                    onClick = { store.restoreDefaultCharacter() },
+                                    enabled = !store.busy,
+                                )
+                                TextButton(
+                                    text = "创建角色",
+                                    onClick = createCharacter,
+                                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                                )
+                            }
                         },
-                    )
-                }
-            }
-            store.filteredCharacters.isEmpty() && store.query.isNotBlank() -> {
-                item(key = "empty-search") {
-                    ListEmptyState(
-                        title = "没有找到匹配的角色",
-                        summary = "换个关键词试试，搜索会匹配名称与标签",
                     )
                 }
             }
             store.filteredCharacters.isEmpty() -> {
-                item(key = "empty-archived") {
+                item(key = "empty-search") {
                     ListEmptyState(
-                        title = "所有角色都已归档",
-                        action = {
-                            TextButton(
-                                text = "显示已归档",
-                                onClick = store::toggleArchived,
-                            )
-                        },
+                        title = "没有找到匹配的角色",
+                        summary = "换个关键词试试，搜索会匹配名称与标签",
                     )
                 }
             }
@@ -171,34 +138,23 @@ internal fun CharacterLibraryScreen(
                 pressFeedbackType = PressFeedbackType.Sink,
                 onClick = { if (!store.busy) onNavigate(AppRoute.CharacterDetail(profile.id)) },
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CharacterAvatar(profile.card.name, profile.avatarPath, size = 48.dp, revision = profile.updatedAt)
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(3.dp),
-                    ) {
-                        Text(
-                            text = profile.card.name,
-                            style = MiuixTheme.textStyles.body1,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = when {
-                                profile.archived -> "已归档"
-                                profile.card.description.isNotBlank() -> profile.card.description
-                                else -> profile.card.tags.joinToString(" · ")
-                            },
-                            style = MiuixTheme.textStyles.body2,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        text = profile.card.name,
+                        style = MiuixTheme.textStyles.body1,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = profile.card.description.ifBlank {
+                            profile.card.tags.joinToString(" · ")
+                        },
+                        style = MiuixTheme.textStyles.body2,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    )
                 }
             }
         }

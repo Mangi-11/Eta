@@ -635,10 +635,6 @@ private fun ConversationTextRow(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            conversation.characterName?.let { name ->
-                CharacterAvatar(name, conversation.avatarPath, size = 32.dp)
-                Spacer(Modifier.width(10.dp))
-            }
             Column(modifier = Modifier.weight(1f)) {
             val title = conversation.title.ifBlank { conversation.preview }
             Text(

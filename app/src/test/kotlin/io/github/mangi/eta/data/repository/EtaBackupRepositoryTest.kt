@@ -171,7 +171,7 @@ class EtaBackupRepositoryTest {
         CharacterMemoryRepository.replaceAll(context, first.id, "原剧情记忆")
         AgentMemoryRepository.replaceAll("原现实记忆")
         val database = EtaDatabase.get(context)
-        val records = database.characterDao().characters(true).map { row ->
+        val records = database.characterDao().characters().map { row ->
             if (row.id == first.id) row.copy(cardJson = CharacterCardCodec.encodeJson(first.card.withEdits(name = "备份角色"))) else row
         }
         val document = EtaBackupDocument(exportedAt = 0, memoryMd = "新的现实记忆",

@@ -41,8 +41,6 @@ internal class CharacterLibraryStore(
     var characters by mutableStateOf<List<CharacterProfile>>(emptyList())
         private set
     var query by mutableStateOf("")
-    var showArchived by mutableStateOf(false)
-        private set
     var selected by mutableStateOf<CharacterProfile?>(null)
         private set
     var compatibilityWarnings by mutableStateOf<List<String>>(emptyList())
@@ -50,8 +48,6 @@ internal class CharacterLibraryStore(
     var draft by mutableStateOf<CharacterCard?>(null)
         private set
     var draftName by mutableStateOf("")
-        private set
-    var avatarDraft by mutableStateOf<ByteArray?>(null)
         private set
     var persona by mutableStateOf(UserPersona())
         private set
@@ -77,17 +73,17 @@ internal class CharacterLibraryStore(
         get() {
             val term = query.trim()
             return characters.filter {
-                (showArchived || !it.archived) && (term.isEmpty() ||
+                term.isEmpty() ||
                     it.card.name.contains(term, ignoreCase = true) ||
-                    it.card.tags.any { tag -> tag.contains(term, ignoreCase = true) })
+                    it.card.tags.any { tag -> tag.contains(term, ignoreCase = true) }
             }
         }
 
     fun loadLibrary() = runOperation("角色库读取失败，请重试", queueIfBusy = true) {
-        characters = io { CharacterRepository.list(includeArchived = true) }
+        io { CharacterRepository.ensureDefaultCharacter() }
+        characters = io { CharacterRepository.list() }
     }
 
-    fun toggleArchived() { showArchived = !showArchived }
     fun dismissNotice() { notice = null }
 
     fun loadDetail(id: String) = runOperation("角色读取失败，请返回角色库重试", queueIfBusy = true) {
@@ -106,7 +102,6 @@ internal class CharacterLibraryStore(
             selected = profile
             draft = profile?.card ?: CharacterCardCodec.create("新角色")
             draftName = profile?.card?.name.orEmpty()
-            avatarDraft = null
             editorKey = id
             editorLoaded = true
         }
@@ -116,7 +111,6 @@ internal class CharacterLibraryStore(
         editorLoaded = false
         editorKey = null
         draft = null
-        avatarDraft = null
     }
 
     fun updateDraft(update: (CharacterCard) -> CharacterCard) {
@@ -144,18 +138,8 @@ internal class CharacterLibraryStore(
         }
         selected = profile
         compatibilityWarnings = emptyList()
-        characters = io { CharacterRepository.list(includeArchived = true) }
+        characters = io { CharacterRepository.list() }
         onImported(profile.id)
-    }
-
-    fun importAvatar(uri: Uri) = runOperation("头像读取失败，请选择大小不超过 32 MiB 的图片") {
-        avatarDraft = io {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                val bytes = stream.readNBytes(CharacterRepository.MAX_FILE_BYTES + 1)
-                require(bytes.size <= CharacterRepository.MAX_FILE_BYTES) { "CHARACTER_AVATAR_TOO_LARGE" }
-                bytes
-            } ?: error("CHARACTER_AVATAR_UNAVAILABLE")
-        }
     }
 
     fun saveEditor(onSaved: (String) -> Unit) {
@@ -166,30 +150,35 @@ internal class CharacterLibraryStore(
         }
         val card = originalDraft.withEdits(name = draftName)
         val original = selected
-        val avatar = avatarDraft
         runOperation("角色保存失败，请重试") {
             val profile = io {
-                if (original == null) CharacterRepository.create(card, avatar)
-                else CharacterRepository.save(original.copy(card = card), avatar)
+                if (original == null) CharacterRepository.create(card)
+                else CharacterRepository.save(original.copy(card = card))
             }
             selected = profile
             compatibilityWarnings = emptyList()
             discardEditor()
-            characters = io { CharacterRepository.list(includeArchived = true) }
+            characters = io { CharacterRepository.list() }
             onSaved(profile.id)
         }
     }
 
     fun duplicate(id: String, onDuplicated: (String) -> Unit) = runOperation("角色复制失败，请重试") {
         val profile = io { CharacterRepository.duplicate(id) }
-        characters = io { CharacterRepository.list(includeArchived = true) }
+        characters = io { CharacterRepository.list() }
         onDuplicated(profile.id)
     }
 
-    fun archive(id: String, archived: Boolean) = runOperation("角色归档状态保存失败，请重试") {
-        io { CharacterRepository.archive(id, archived) }
-        selected = io { CharacterRepository.get(id) }
-        characters = io { CharacterRepository.list(includeArchived = true) }
+    fun restoreDefaultCharacter() = runOperation("默认角色恢复失败，请重试") {
+        io { CharacterRepository.createDefaultCharacter() }
+        characters = io { CharacterRepository.list() }
+    }
+
+    fun delete(id: String, onDeleted: () -> Unit) = runOperation("角色删除失败，请重试") {
+        io { CharacterRepository.delete(id) }
+        if (selected?.id == id) selected = null
+        characters = io { CharacterRepository.list() }
+        onDeleted()
     }
 
     fun export(id: String, format: CharacterCardFormat, uri: Uri) = runOperation("角色卡导出失败，请重试") {

@@ -35,6 +35,13 @@ internal object CharacterMemoryRepository {
         content: String,
     ): AgentMemoryWriteResult = store(context, characterId).replaceAllIfRevision(content, revision)
 
+    fun discard(context: Context, characterId: String) {
+        require(characterId.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "角色记忆标识无效" }
+        val root = File(context.applicationContext.filesDir, "roleplay/$characterId").canonicalFile
+        stores.remove(root.path)
+        root.deleteRecursively()
+    }
+
     private fun store(context: Context, characterId: String): AgentMemoryStore {
         require(characterId.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "角色记忆标识无效" }
         val root = File(context.applicationContext.filesDir, "roleplay/$characterId").canonicalFile

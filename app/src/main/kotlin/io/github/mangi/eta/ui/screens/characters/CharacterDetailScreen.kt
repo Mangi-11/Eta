@@ -18,16 +18,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.agent.roleplay.CharacterCardFormat
 import io.github.mangi.eta.agent.roleplay.RoleplayBinding
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
-import io.github.mangi.eta.ui.components.CharacterAvatar
+import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.navigation.AppRoute
+import top.yukonga.miuix.kmp.basic.BasicComponentColors
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -53,6 +53,7 @@ internal fun CharacterDetailScreen(
     onStart: (RoleplayBinding, String) -> Unit,
 ) {
     var showCompatibility by rememberSaveable(id) { mutableStateOf(false) }
+    var showDeleteConfirm by rememberSaveable(id) { mutableStateOf(false) }
     var preview by remember(id) { mutableStateOf<CharacterTextPreview?>(null) }
     val pngExporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) {
         if (it != null) store.export(id, CharacterCardFormat.PNG, it)
@@ -71,29 +72,16 @@ internal fun CharacterDetailScreen(
                 modifier = Modifier.padding(horizontal = CharacterCardPadding, vertical = 6.dp),
                 insideMargin = PaddingValues(16.dp),
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CharacterAvatar(profile.card.name, profile.avatarPath, size = 72.dp, revision = profile.updatedAt)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(profile.card.name, style = MiuixTheme.textStyles.title2)
-                        if (profile.card.tags.isNotEmpty()) {
-                            Text(
-                                text = profile.card.tags.joinToString(" · "),
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (profile.archived) {
-                            Text(
-                                text = "已归档",
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            )
-                        }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(profile.card.name, style = MiuixTheme.textStyles.title2)
+                    if (profile.card.tags.isNotEmpty()) {
+                        Text(
+                            text = profile.card.tags.joinToString(" · "),
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
                 if (profile.card.description.isNotBlank()) {
@@ -191,9 +179,15 @@ internal fun CharacterDetailScreen(
                 ArrowPreference(title = "复制角色", enabled = !store.busy, onClick = {
                     store.duplicate(id) { onNavigate(AppRoute.CharacterDetail(it)) }
                 })
-                ArrowPreference(title = if (profile.archived) "取消归档" else "归档角色", enabled = !store.busy, onClick = {
-                    store.archive(id, !profile.archived)
-                })
+                ArrowPreference(
+                    title = "删除角色",
+                    titleColor = BasicComponentColors(
+                        color = MiuixTheme.colorScheme.error,
+                        disabledColor = MiuixTheme.colorScheme.disabledOnSurface,
+                    ),
+                    enabled = !store.busy,
+                    onClick = { showDeleteConfirm = true },
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -239,6 +233,26 @@ internal fun CharacterDetailScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (showDeleteConfirm && profile != null) {
+        WindowDialog(
+            show = true,
+            title = "删除角色",
+            summary = "「${profile.card.name}」将从角色库移除，角色图片与剧情记忆一并删除；已有对话保留。此操作无法撤销。",
+            onDismissRequest = { showDeleteConfirm = false },
+        ) {
+            MiuixDialogActions(
+                confirmText = "删除",
+                destructive = true,
+                confirmEnabled = !store.busy,
+                onCancel = { showDeleteConfirm = false },
+                onConfirm = {
+                    showDeleteConfirm = false
+                    store.delete(id) { onBack() }
+                },
+            )
         }
     }
 

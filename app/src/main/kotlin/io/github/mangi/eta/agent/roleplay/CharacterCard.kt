@@ -26,7 +26,6 @@ internal data class CharacterProfile(
     val id: String,
     val card: CharacterCard,
     val avatarPath: String? = null,
-    val archived: Boolean = false,
     val createdAt: Long,
     val updatedAt: Long,
 )

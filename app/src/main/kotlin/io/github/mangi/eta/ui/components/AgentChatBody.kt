@@ -153,7 +153,6 @@ internal fun AgentChatBody(
     onRunTraceClick: () -> Unit,
     onOpenBrowser: () -> Unit,
     characterName: String? = null,
-    characterAvatarPath: String? = null,
     isDrawerOpen: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -226,7 +225,6 @@ internal fun AgentChatBody(
         messageEdit = messageEdit,
         showEmptySuggestions = !isKeyboardVisible,
         characterName = characterName,
-        characterAvatarPath = characterAvatarPath,
         keepBottomAnchored = keepBottomAnchored,
         onBottomAnchorChanged = { keepBottomAnchored = it },
         onSubmit = { text ->
@@ -278,7 +276,6 @@ private fun AgentChatScaffold(
     messageEdit: MessageEditUiState?,
     showEmptySuggestions: Boolean,
     characterName: String?,
-    characterAvatarPath: String?,
     keepBottomAnchored: Boolean,
     onBottomAnchorChanged: (Boolean) -> Unit,
     onSubmit: (String) -> Unit,
@@ -356,7 +353,6 @@ private fun AgentChatScaffold(
             EmptyChatState(
                 showSuggestions = showEmptySuggestions,
                 characterName = characterName,
-                characterAvatarPath = characterAvatarPath,
                 onSuggestionClick = onSuggestionClick,
                 modifier = Modifier
                     .fillMaxSize()
@@ -983,7 +979,6 @@ internal fun shouldRequestInitialBottom(
 private fun EmptyChatState(
     showSuggestions: Boolean,
     characterName: String?,
-    characterAvatarPath: String?,
     onSuggestionClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1019,12 +1014,6 @@ private fun EmptyChatState(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (isCharacterConversation) {
-                CharacterAvatar(
-                    name = characterName.orEmpty(),
-                    path = characterAvatarPath,
-                    size = 76.dp,
-                )
-                Spacer(modifier = Modifier.height(18.dp))
                 Text(
                     text = characterName.orEmpty(),
                     style = MiuixTheme.textStyles.title2,

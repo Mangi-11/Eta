@@ -1,8 +1,5 @@
 package io.github.mangi.eta.ui.screens.characters
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -20,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
-import io.github.mangi.eta.ui.components.CharacterAvatar
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -43,9 +39,6 @@ internal fun CharacterEditorScreen(
     var advanced by rememberSaveable { mutableStateOf(false) }
     var worldbookExpanded by rememberSaveable { mutableStateOf(false) }
     var worldbookEntry by rememberSaveable { mutableStateOf<Int?>(null) }
-    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) store.importAvatar(uri)
-    }
     val card = store.draft
     MiuixScaffoldPage(
         title = if (id == null) "创建角色" else "编辑角色",
@@ -63,16 +56,6 @@ internal fun CharacterEditorScreen(
         if (card == null) {
             item { CharacterPageMessage(if (store.busy) "正在读取…" else "无法读取角色，请返回重试") }
             return@MiuixScaffoldPage
-        }
-        item(key = "avatar") {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CharacterAvatar(store.draftName, store.selected?.avatarPath, bytes = store.avatarDraft, size = 64.dp)
-                TextButton("选择头像", onClick = { avatarPicker.launch(arrayOf("image/*")) }, enabled = !store.busy)
-            }
         }
         item(key = "name") { CharacterTextField("名称", store.draftName, store::updateName, !store.busy, singleLine = true) }
         item(key = "description-title") { SmallTitle("角色设定") }

@@ -24,6 +24,7 @@ class CharacterRepositoryTest {
     fun setUp() {
         EtaDatabase.closeForTests()
         context.deleteDatabase("eta.db")
+        context.getSharedPreferences("eta_roleplay", 0).edit().clear().commit()
         CharacterRepository.initialize(context)
     }
 
@@ -46,12 +47,27 @@ class CharacterRepositoryTest {
             assertTrue(cursor.moveToFirst())
             assertTrue(cursor.getString(0).startsWith("@eta:chunks:v1:"))
         }
-        CharacterRepository.archive(profile.id)
-        assertEquals(emptyList<String>(), CharacterRepository.list().map { it.id })
-        assertEquals(listOf(profile.id), CharacterRepository.list(true).map { it.id })
         val copy = CharacterRepository.duplicate(profile.id)
         assertEquals(description, copy.card.description)
-        assertEquals(false, copy.archived)
+        CharacterRepository.delete(profile.id)
+        assertEquals(null, CharacterRepository.get(profile.id))
+        assertEquals(listOf(copy.id), CharacterRepository.list().map { it.id })
+        // 删除角色后已有会话及其角色快照仍然保留。
+        assertEquals(description, dao.roleplayJson(row.id))
+    }
+
+    @Test
+    fun defaultCharacterSeedsOnlyIntoEmptyLibraryAndNeverResurrects() = runBlocking {
+        CharacterRepository.ensureDefaultCharacter()
+        assertEquals(listOf("小满"), CharacterRepository.list().map { it.card.name })
+        CharacterRepository.ensureDefaultCharacter()
+        assertEquals(1, CharacterRepository.list().size)
+        CharacterRepository.delete(CharacterRepository.list().single().id)
+        CharacterRepository.ensureDefaultCharacter()
+        assertEquals(emptyList<String>(), CharacterRepository.list().map { it.id })
+        // 用户主动恢复时不受播种标记限制。
+        CharacterRepository.createDefaultCharacter()
+        assertEquals(listOf("小满"), CharacterRepository.list().map { it.card.name })
     }
 
     @Test

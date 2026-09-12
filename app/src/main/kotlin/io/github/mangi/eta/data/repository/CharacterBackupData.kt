@@ -38,7 +38,7 @@ internal object CharacterBackupTransfer {
     suspend fun snapshot(context: Context, conversations: List<ConversationEntity>): CharacterBackupData {
         CharacterRepository.initialize(context)
         val dao = EtaDatabase.get(context).characterDao()
-        val characters = dao.characters(includeArchived = true)
+        val characters = dao.characters()
         val bindings = conversations.mapNotNull { binding(it) }
         val ids = characters.map { it.id }.toSet() + bindings.map { it.characterId }
         return CharacterBackupData(
@@ -70,7 +70,7 @@ internal object CharacterBackupTransfer {
             require(asset.memoryMd.toByteArray(Charsets.UTF_8).size <= 1024 * 1024) { "角色记忆超过 1 MiB 限制" }
             asset.avatarBase64?.let {
                 val bytes = Base64.getDecoder().decode(it)
-                require(bytes.size <= CharacterRepository.MAX_FILE_BYTES && CharacterCardPng.isPng(bytes)) { "备份中的角色头像无效" }
+                require(bytes.size <= CharacterRepository.MAX_FILE_BYTES && CharacterCardPng.isPng(bytes)) { "备份中的角色图片无效" }
                 CharacterCardPng.validate(bytes)
             }
         }
