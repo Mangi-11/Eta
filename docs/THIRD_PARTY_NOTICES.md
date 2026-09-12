@@ -14,6 +14,10 @@ Eta 的应用界面使用 [Miuix](https://github.com/compose-miuix-ui/miuix)，�
 
 Eta 的功能图标使用 AndroidX Compose Material Icons 的 Rounded 系列，通过 `material-icons-extended` 依赖提供。图标及其 AndroidX 实现采用 [Apache License 2.0](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt)，来源见 [Material Design Icons](https://github.com/google/material-design-icons)。
 
+## 应用图标
+
+Eta 的应用图标取材自 Google [AI Edge Gallery](https://github.com/google-ai-edge/gallery) 的应用图标，转换为 VectorDrawable 并保留安全留白，通知图标为其单色变体。AI Edge Gallery 采用 [Apache License 2.0](https://github.com/google-ai-edge/gallery/blob/main/LICENSE)。
+
 ## Lucide Atom
 
 思考图标使用 [Lucide Atom](https://github.com/lucide-icons/lucide/blob/main/icons/atom.svg)，以本地 VectorDrawable 资源保存，不依赖 Lucide 图标库。该图标采用 ISC License：
