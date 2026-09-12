@@ -3,6 +3,10 @@ package io.github.mangi.eta.ui.app
 import android.content.Context
 import io.github.mangi.eta.agent.model.AgentConversationCodec
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.roleplay.CharacterCardCodec
+import io.github.mangi.eta.agent.roleplay.RoleplayBinding
+import io.github.mangi.eta.agent.roleplay.RoleplayMessageLink
+import io.github.mangi.eta.agent.roleplay.RoleplayMessageState
 import io.github.mangi.eta.data.db.ConversationEntity
 import io.github.mangi.eta.data.db.ConversationMessageEntity
 import io.github.mangi.eta.data.db.ConversationStateEntity
@@ -42,6 +46,49 @@ class AgentConversationStoreTest {
         context = RuntimeEnvironment.getApplication()
         EtaDatabase.closeForTests()
         context.deleteDatabase("eta.db")
+    }
+
+    @Test
+    fun repeatedSavePreservesRoleBindingRevisionsPendingRewriteAndOriginalJournal() = runBlocking {
+        val original = AgentModelClient.ConversationMessage(
+            role = "assistant", content = "原始回答", messageId = "assistant-role-1",
+        )
+        val binding = RoleplayBinding(
+            characterId = "character-1",
+            cardSnapshotJson = CharacterCardCodec.encodeJson(CharacterCardCodec.create("旅人")),
+            characterName = "旅人", userName = "朋友", userDescription = "同行的伙伴",
+        )
+        val state = AgentChatHomeUiState(
+            messages = listOf(AgentMessageUi(id = original.messageId, content = original.content, isStreaming = false)),
+            input = "", isStreaming = false, thinkingEnabled = false,
+            journal = listOf(original), history = listOf(original), roleplay = binding,
+            roleplayMessages = RoleplayMessageState(
+                links = mapOf(original.messageId to RoleplayMessageLink(original.messageId)),
+                pendingRewrites = mapOf("rewrite-in-flight" to original.messageId),
+            ),
+        )
+        var role = RoleplayConversationReducer.edit(state, original.messageId, "用户修订的回答")!!
+        repeat(2) {
+            AgentConversationStore.save(
+                context, "role", mapOf("role" to role, "ordinary" to AgentChatHomeUiState(
+                    messages = listOf(UserMessageUi(id = "ordinary-user", content = "查看电量")),
+                    input = "", isStreaming = false, thinkingEnabled = false,
+                )), mapOf("role" to "旅人", "ordinary" to "查看电量"), mapOf("role" to 1L, "ordinary" to 2L),
+            )
+            val restored = AgentConversationStore.load(context)
+            role = restored.conversationsById.getValue("role")
+            assertEquals(binding, role.roleplay)
+            assertEquals(listOf(original), role.journal)
+            assertEquals("用户修订的回答", role.history.single().content)
+            assertEquals("rewrite-in-flight", role.roleplayMessages.pendingRewrites.keys.single())
+            assertEquals(listOf("原始回答", "用户修订的回答"), role.roleplayMessages.revisions.getValue(original.messageId).candidates)
+            assertEquals(2, (role.messages.single() as AgentMessageUi).candidateCount)
+            assertEquals(null, restored.conversationsById.getValue("ordinary").roleplay)
+            assertTrue(restored.conversationsById.getValue("ordinary").roleplayMessages.revisions.isEmpty())
+        }
+        val switched = RoleplayConversationReducer.select(role, original.messageId, 0)!!
+        assertEquals("原始回答", switched.history.single().content)
+        assertEquals(listOf(original), switched.journal)
     }
 
     @Test
@@ -347,6 +394,32 @@ class AgentConversationStoreTest {
 
         assertTrue(snapshot.conversationsById.isEmpty())
         assertEquals(null, snapshot.selectedConversationId)
+    }
+
+    @Test
+    fun characterGreetingIsLocalAndOrdinaryNewConversationReturnsToEta() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        try {
+            val state = AgentAppState(context, scope)
+            val binding = RoleplayBinding(
+                "local-character", CharacterCardCodec.encodeJson(CharacterCardCodec.create("旅人")),
+                "旅人", userName = "小林",
+            )
+            state.startCharacterConversation(binding, "你好，{{user}}，我是{{char}}。")
+            assertFalse(state.homeState.isStreaming)
+            assertEquals("你好，小林，我是旅人。", (state.homeState.messages.single() as AgentMessageUi).content)
+            assertEquals(binding, state.homeState.roleplay)
+            assertTrue(state.homeState.appliedRuntimeRunIds.isEmpty())
+            assertTrue(state.homeState.roleplayMessages.pendingRewrites.isEmpty())
+
+            state.createConversation()
+            assertEquals(null, state.homeState.roleplay)
+            assertTrue(state.homeState.history.isEmpty())
+            assertTrue(state.homeState.messages.isEmpty())
+            assertFalse(state.homeState.isStreaming)
+        } finally {
+            scope.cancel()
+        }
     }
 
     @Test

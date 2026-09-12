@@ -11,7 +11,7 @@ import androidx.room.Upsert
 internal interface ConversationDao : ChunkedTextDao {
     @Query(
         "SELECT id, title, thinking_enabled, reasoning_effort, " +
-            "applied_runtime_run_ids_json, created_at, updated_at " +
+            "applied_runtime_run_ids_json, roleplay_json, revisions_json, created_at, updated_at " +
             "FROM conversations ORDER BY updated_at DESC"
     )
     suspend fun conversationMetadataRows(): List<ConversationMetadata>
@@ -21,7 +21,7 @@ internal interface ConversationDao : ChunkedTextDao {
 
     @Query(
         "SELECT id, title, thinking_enabled, reasoning_effort, " +
-            "applied_runtime_run_ids_json, created_at, updated_at " +
+            "applied_runtime_run_ids_json, roleplay_json, revisions_json, created_at, updated_at " +
             "FROM conversations ORDER BY updated_at DESC LIMIT :limit OFFSET :offset"
     )
     suspend fun conversationMetadataPage(limit: Int, offset: Int): List<ConversationMetadata>
@@ -32,7 +32,17 @@ internal interface ConversationDao : ChunkedTextDao {
 
     suspend fun restoreMetadata(row: ConversationMetadata) = row.copy(
         appliedRuntimeRunIdsJson = restoreText("conversations", row.id, "runs", row.appliedRuntimeRunIdsJson),
+        roleplayJson = restoreText("conversations", row.id, "roleplay", row.roleplayJson),
+        revisionsJson = restoreText("conversations", row.id, "revisions", row.revisionsJson),
     )
+
+    @Query("SELECT roleplay_json FROM conversations WHERE id = :conversationId")
+    suspend fun roleplayJsonRow(conversationId: String): String?
+
+    @Transaction
+    suspend fun roleplayJson(conversationId: String): String? = roleplayJsonRow(conversationId)?.let {
+        restoreText("conversations", conversationId, "roleplay", it)
+    }
 
     @Query("SELECT * FROM conversation_messages ORDER BY conversation_id ASC, sort_index ASC")
     suspend fun messageRows(): List<ConversationMessageEntity>
@@ -45,7 +55,11 @@ internal interface ConversationDao : ChunkedTextDao {
 
     @Transaction
     suspend fun conversationEntities(): List<ConversationEntity> = conversationEntityRows().map { row ->
-        row.copy(appliedRuntimeRunIdsJson = restoreText("conversations", row.id, "runs", row.appliedRuntimeRunIdsJson))
+        row.copy(
+            appliedRuntimeRunIdsJson = restoreText("conversations", row.id, "runs", row.appliedRuntimeRunIdsJson),
+            roleplayJson = restoreText("conversations", row.id, "roleplay", row.roleplayJson),
+            revisionsJson = restoreText("conversations", row.id, "revisions", row.revisionsJson),
+        )
     }
 
     @Query("SELECT * FROM conversation_context_checkpoints ORDER BY conversation_id ASC")
@@ -63,6 +77,9 @@ internal interface ConversationDao : ChunkedTextDao {
 
     @Query("SELECT COUNT(*) FROM conversation_messages WHERE conversation_id = :conversationId")
     suspend fun messageCount(conversationId: String): Int
+
+    @Query("SELECT EXISTS(SELECT 1 FROM conversation_messages WHERE conversation_id = :conversationId AND id = :messageId AND type = 'assistant')")
+    suspend fun hasAssistantMessage(conversationId: String, messageId: String): Boolean
 
     @Query("SELECT * FROM conversation_context_checkpoints WHERE conversation_id = :conversationId")
     suspend fun contextCheckpointRow(conversationId: String): ConversationContextCheckpointEntity?
@@ -85,9 +102,11 @@ internal interface ConversationDao : ChunkedTextDao {
     @Transaction
     suspend fun insertConversations(conversations: List<ConversationEntity>) {
         conversations.forEach { row ->
-            insertConversationRow(row.copy(appliedRuntimeRunIdsJson = storeText(
-                "conversations", row.id, "runs", row.appliedRuntimeRunIdsJson,
-            )))
+            insertConversationRow(row.copy(
+                appliedRuntimeRunIdsJson = storeText("conversations", row.id, "runs", row.appliedRuntimeRunIdsJson),
+                roleplayJson = storeText("conversations", row.id, "roleplay", row.roleplayJson),
+                revisionsJson = storeText("conversations", row.id, "revisions", row.revisionsJson),
+            ))
         }
     }
 

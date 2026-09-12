@@ -3,6 +3,8 @@ package io.github.mangi.eta.ui.app
 import android.content.Context
 import io.github.mangi.eta.agent.model.AgentConversationCodec
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.roleplay.RoleplayBinding
+import io.github.mangi.eta.agent.roleplay.RoleplayMessageState
 import io.github.mangi.eta.data.db.ConversationContextCheckpointEntity
 import io.github.mangi.eta.data.db.ConversationEntity
 import io.github.mangi.eta.data.db.ConversationMetadata
@@ -75,6 +77,8 @@ internal object AgentConversationStore {
                         thinkingEnabled = state.reasoningEffort.enablesReasoning,
                         reasoningEffort = state.reasoningEffort.wireValue,
                         appliedRuntimeRunIdsJson = json.encodeToString(state.appliedRuntimeRunIds),
+                        roleplayJson = state.roleplay?.let { json.encodeToString(it) }.orEmpty(),
+                        revisionsJson = if (state.roleplay == null) "" else json.encodeToString(state.roleplayMessages),
                         createdAt = updatedAt[id] ?: now,
                         updatedAt = updatedAt[id] ?: now,
                     )
@@ -138,6 +142,10 @@ internal object AgentConversationStore {
         conversations.forEach { conversation ->
             val checkpoint = dao.contextCheckpoint(conversation.id)
             states[conversation.id] = AgentChatHomeUiState(
+                roleplay = conversation.roleplayJson.takeIf(String::isNotBlank)?.let { json.decodeFromString<RoleplayBinding>(it) },
+                roleplayMessages = conversation.revisionsJson.takeIf(String::isNotBlank)?.let {
+                    json.decodeFromString<RoleplayMessageState>(it)
+                } ?: RoleplayMessageState(),
                 journal = AgentConversationCodec.decodeTranscript(checkpoint?.journalJson),
                 messages = messagesByConversation[conversation.id]
                     .orEmpty()
@@ -157,7 +165,7 @@ internal object AgentConversationStore {
                 isStreaming = false,
                 thinkingEnabled = conversation.reasoningEffortValue.enablesReasoning,
                 reasoningEffort = conversation.reasoningEffortValue,
-            )
+            ).let(RoleplayConversationReducer::decorate)
             titles[conversation.id] = conversation.title.takeUnless { it == LEGACY_UNNAMED_TITLE }.orEmpty()
             updatedAt[conversation.id] = conversation.updatedAt
         }

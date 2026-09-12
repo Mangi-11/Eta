@@ -112,6 +112,7 @@ internal fun AgentChatInputBar(
     pendingFileReferences: List<PendingFileReferenceUi>,
     isEditingMessage: Boolean,
     editHasLaterTurns: Boolean,
+    preserveFollowingMessages: Boolean,
     onReasoningEffortChange: (ReasoningEffort) -> Unit,
     onCompactContext: () -> Unit,
     canCompactContext: Boolean,
@@ -196,7 +197,9 @@ internal fun AgentChatInputBar(
             exit = fadeOut(tween(100)) + shrinkVertically(tween(140)),
         ) {
             Text(
-                text = if (editHasLaterTurns) {
+                text = if (preserveFollowingMessages) {
+                    "保存后原位更新这条消息，并保留后续对话"
+                } else if (editHasLaterTurns) {
                     stringResource(R.string.chat_edit_replace_later)
                 } else {
                     stringResource(R.string.chat_edit_replace_message)
@@ -376,7 +379,11 @@ internal fun AgentChatInputBar(
                                         } else {
                                             Icons.Rounded.ArrowUpward
                                         },
-                                        contentDescription = if (streaming) stringResource(R.string.chat_stop) else stringResource(R.string.chat_send),
+                                        contentDescription = when {
+                                            streaming -> stringResource(R.string.chat_stop)
+                                            isEditingMessage && preserveFollowingMessages -> "保存消息"
+                                            else -> stringResource(R.string.chat_send)
+                                        },
                                         modifier = Modifier.size(
                                             if (streaming) StopIconSize else SendIconSize
                                         ),

@@ -50,6 +50,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Compress
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -100,6 +101,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextMotion
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
@@ -265,6 +267,7 @@ internal fun ChatMessageItem(
     onEditMessage: (String) -> Unit = {},
     onDeleteMessage: (String) -> Unit = {},
     onRegenerateMessage: (String) -> Unit = {},
+    onSelectReplyCandidate: (String, Int) -> Unit = { _, _ -> },
 ) {
     when (message) {
         is UserMessageUi -> UserMessageBubble(
@@ -283,6 +286,8 @@ internal fun ChatMessageItem(
             messageActionsEnabled = messageActionsEnabled,
             onDelete = { onDeleteMessage(message.id) },
             onRegenerate = { onRegenerateMessage(message.id) },
+            onEdit = { onEditMessage(message.id) },
+            onSelectCandidate = { onSelectReplyCandidate(message.id, it) },
             modifier = modifier,
         )
         is SystemNoticeMessageUi -> if (message.code == SystemNoticeCode.ContextCompaction) {
@@ -722,6 +727,8 @@ private fun AgentMessageBlock(
     messageActionsEnabled: Boolean,
     onDelete: () -> Unit,
     onRegenerate: () -> Unit,
+    onEdit: () -> Unit = {},
+    onSelectCandidate: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     @Suppress("DEPRECATION")
@@ -828,6 +835,16 @@ private fun AgentMessageBlock(
                     )
                 }
                 if (showMessageActions) {
+                    if (message.characterEditable) {
+                        IconButton(onClick = onEdit, enabled = messageActionsEnabled, minWidth = 30.dp, minHeight = 30.dp) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = "编辑角色回复",
+                                modifier = Modifier.size(15.dp),
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f),
+                            )
+                        }
+                    }
                     TooltipBox(text = stringResource(R.string.ui_regenerate_2e1905), enabled = messageActionsEnabled) {
                         IconButton(
                             onClick = onRegenerate,
@@ -856,6 +873,48 @@ private fun AgentMessageBlock(
                                 modifier = Modifier.size(15.dp),
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f),
                             )
+                        }
+                    }
+                    if (message.characterEditable && message.candidateCount > 1) {
+                        Spacer(Modifier.weight(1f))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(MiuixTheme.colorScheme.surfaceContainerHigh)
+                                .padding(horizontal = 3.dp, vertical = 2.dp),
+                        ) {
+                            IconButton(
+                                onClick = { onSelectCandidate(message.selectedCandidate - 1) },
+                                enabled = messageActionsEnabled && message.selectedCandidate > 0,
+                                minWidth = 28.dp, minHeight = 28.dp,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronLeft,
+                                    contentDescription = "上一条候选回复",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                )
+                            }
+                            Text(
+                                text = "${message.selectedCandidate + 1}/${message.candidateCount}",
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.widthIn(min = 30.dp),
+                            )
+                            IconButton(
+                                onClick = { onSelectCandidate(message.selectedCandidate + 1) },
+                                enabled = messageActionsEnabled && message.selectedCandidate < message.candidateCount - 1,
+                                minWidth = 28.dp, minHeight = 28.dp,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = "下一条候选回复",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                )
+                            }
                         }
                     }
                 }

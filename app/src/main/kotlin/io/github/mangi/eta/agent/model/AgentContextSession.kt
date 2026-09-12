@@ -16,6 +16,7 @@ internal class AgentContextSession(
     private val onEvent: (AgentEvent) -> Unit,
     private val onContextSnapshot: (AgentContextSnapshot) -> Unit,
     private val transcriptSize: () -> Int = { 0 },
+    private val roleplay: Boolean = false,
 ) {
     val budget = AgentContextBudget(config.contextWindow)
     private var compacted = false
@@ -73,7 +74,7 @@ internal class AgentContextSession(
             var candidate = messages
             var attempts = 0
             do {
-                candidate = AgentContextCompactor(config, provider, runController).compact(
+                candidate = AgentContextCompactor(config, provider, runController, roleplay = roleplay).compact(
                     candidate, systemCount, sensitiveIds(), force,
                 )
                 attempts++

@@ -79,6 +79,7 @@ internal object AgentRunArchiveStore {
             transcriptJson = AgentConversationCodec.encodeTranscriptForStorage(result.transcript),
             contextSnapshotJson = result.contextSnapshot?.encode().orEmpty(),
             operation = result.operation,
+            rewriteTargetMessageId = result.rewriteTargetMessageId,
             userImagePreviewsJson = JSONArray(userImagePreviews).toString(),
             createdAt = createdAt,
         )
@@ -109,6 +110,7 @@ internal object AgentRunArchiveStore {
                     reasoningContent = run.reasoningContent,
                     contextSnapshot = AgentContextSnapshot.decode(run.contextSnapshotJson),
                     operation = run.operation,
+                    rewriteTargetMessageId = run.rewriteTargetMessageId,
                     transcript = AgentConversationCodec.decodeTranscript(run.transcriptJson).ifEmpty {
                         if (!run.ok || run.content.isBlank()) return@ifEmpty emptyList()
                         listOf(

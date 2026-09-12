@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class EtaDatabaseMigrationTest {
     @Test
-    fun migration6To20PreservesDataAndMovesCompleteConversationContext() {
+    fun migration6To21PreservesDataAndMovesCompleteConversationContext() {
         val context = RuntimeEnvironment.getApplication() as Context
         val databaseName = "migration-${UUID.randomUUID()}.db"
         createVersion6Database(context, databaseName)
@@ -53,6 +53,7 @@ class EtaDatabaseMigrationTest {
                 EtaDatabase.MIGRATION_17_18,
                 EtaDatabase.MIGRATION_18_19,
                 EtaDatabase.MIGRATION_19_20,
+                EtaDatabase.MIGRATION_20_21,
             )
             .build()
         try {
@@ -109,6 +110,9 @@ class EtaDatabaseMigrationTest {
             assertEquals(oversizedCheckpoint?.historyJson, oversizedCheckpoint?.journalJson)
             assertEquals("[]", clearedLegacyHistory)
             assertEquals("[]", conversations.first { it.id == "conv-1" }.appliedRuntimeRunIdsJson)
+            assertEquals("", conversations.first { it.id == "conv-1" }.roleplayJson)
+            assertEquals("", conversations.first { it.id == "conv-1" }.revisionsJson)
+            assertEquals(emptyList<CharacterEntity>(), runBlocking(Dispatchers.IO) { database.characterDao().characters(true) })
             assertEquals("off", conversations.first { it.id == "conv-1" }.reasoningEffort)
             assertEquals("default", conversations.first { it.id == "conv-enabled" }.reasoningEffort)
             assertEquals(null, runBlocking(Dispatchers.IO) { database.conversationDao().state() })

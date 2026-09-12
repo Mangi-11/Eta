@@ -19,7 +19,7 @@ import kotlinx.serialization.encodeToString
 import java.io.InputStream
 import java.io.OutputStream
 
-/** Eta 用户数据备份的稳定 JSON 格式。只保存对话、Provider/Model 和 MEMORY.md。 */
+/** Eta 用户数据备份；旧备份没有角色字段时保留设备上的角色库。 */
 @Serializable
 internal data class EtaBackupDocument(
     val format: String = FORMAT,
@@ -33,10 +33,11 @@ internal data class EtaBackupDocument(
     val contextCheckpoints: List<ConversationContextCheckpointEntity> = emptyList(),
     val conversationState: ConversationStateEntity? = null,
     val memoryMd: String = "",
+    val roleplay: CharacterBackupData? = null,
 ) {
     companion object {
         const val FORMAT = "eta-backup"
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 2
     }
 }
 
@@ -52,6 +53,7 @@ internal data class EtaBackupSummary(
     val conversationCount: Int,
     val messageCount: Int,
     val memoryBytes: Int,
+    val characterCount: Int = 0,
 )
 
 internal class EtaBackupException(message: String, cause: Throwable? = null) :
@@ -85,25 +87,50 @@ internal object EtaBackupRepository {
             validate(document)
             val appContext = context.applicationContext
             val database = EtaDatabase.get(appContext)
-            database.withTransaction {
-                database.providerDao().replaceAll(
-                    document.providers.map { provider ->
-                        ProviderWithModelsSeed(
-                            provider = provider.provider,
-                            models = provider.models,
-                        )
-                    },
-                )
-                database.conversationDao().replaceAll(
-                    conversations = document.conversations,
-                    messages = document.messages,
-                    contextCheckpoints = document.contextCheckpoints,
-                    state = document.conversationState,
-                )
+            val previousMemory = AgentMemoryRepository.snapshot().content
+            val previousRoleMemories = document.roleplay?.assets.orEmpty().associate {
+                it.characterId to CharacterMemoryRepository.snapshot(appContext, it.characterId).content
             }
-
-            // MEMORY.md 使用 AtomicFile，数据库提交后再替换，失败时不会留下半截文件。
-            AgentMemoryRepository.replaceAll(document.memoryMd)
+            val avatarPaths = document.roleplay?.let { CharacterBackupTransfer.restoreAssets(appContext, it) }.orEmpty()
+            var memoryWriteStarted = false
+            try {
+                database.withTransaction {
+                    database.providerDao().replaceAll(
+                        document.providers.map { provider ->
+                            ProviderWithModelsSeed(provider = provider.provider, models = provider.models)
+                        },
+                    )
+                    database.conversationDao().replaceAll(
+                        conversations = document.conversations.map { CharacterBackupTransfer.remapConversation(it, avatarPaths) },
+                        messages = document.messages,
+                        contextCheckpoints = document.contextCheckpoints,
+                        state = document.conversationState,
+                    )
+                    document.roleplay?.let { roleplay ->
+                        database.characterDao().replaceAll(
+                            roleplay.characters.map { it.copy(avatarPath = avatarPaths[it.id]) },
+                            roleplay.persona,
+                        )
+                    }
+                    // 文件写入失败使数据库事务回滚，再补偿已经替换的记忆文件。
+                    memoryWriteStarted = true
+                    AgentMemoryRepository.replaceAll(document.memoryMd)
+                    document.roleplay?.let { CharacterBackupTransfer.restoreMemories(appContext, it) }
+                }
+            } catch (failure: Throwable) {
+                if (memoryWriteStarted) {
+                    try { AgentMemoryRepository.replaceAll(previousMemory) } catch (restoreFailure: Throwable) {
+                        failure.addSuppressed(restoreFailure)
+                    }
+                    previousRoleMemories.forEach { (id, content) ->
+                        try { CharacterMemoryRepository.replaceAll(appContext, id, content) } catch (restoreFailure: Throwable) {
+                            failure.addSuppressed(restoreFailure)
+                        }
+                    }
+                }
+                CharacterBackupTransfer.discardAssets(avatarPaths, failure)
+                throw failure
+            }
             SettingsDataStore.setSelection(
                 providerId = document.selectedProviderId,
                 modelId = document.selectedModelId,
@@ -130,16 +157,18 @@ internal object EtaBackupRepository {
         }
         val conversations = database.conversationDao()
         val settings = SettingsDataStore.settings()
+        val conversationRows = conversations.conversationEntities()
         return EtaBackupDocument(
             exportedAt = System.currentTimeMillis(),
             providers = providers,
             selectedProviderId = settings.selectedProviderId,
             selectedModelId = settings.selectedModelId,
-            conversations = conversations.conversationEntities(),
+            conversations = conversationRows,
             messages = conversations.messages(),
             contextCheckpoints = conversations.contextCheckpoints(),
             conversationState = conversations.state(),
             memoryMd = AgentMemoryRepository.snapshot().content,
+            roleplay = CharacterBackupTransfer.snapshot(appContext, conversationRows),
         )
     }
 
@@ -157,7 +186,7 @@ internal object EtaBackupRepository {
         if (document.format != EtaBackupDocument.FORMAT) {
             throw EtaBackupException("这不是 Eta 备份文件")
         }
-        if (document.schemaVersion != EtaBackupDocument.SCHEMA_VERSION) {
+        if (document.schemaVersion !in 1..EtaBackupDocument.SCHEMA_VERSION) {
             throw EtaBackupException("不支持的 Eta 备份版本：${document.schemaVersion}")
         }
 
@@ -226,6 +255,14 @@ internal object EtaBackupRepository {
         if (document.memoryMd.toByteArray(Charsets.UTF_8).size > 1024 * 1024) {
             throw EtaBackupException("MEMORY.md 超过 1 MiB 限制")
         }
+        try {
+            CharacterBackupTransfer.validateRevisions(document.conversations, document.messages)
+            val roleplay = document.roleplay
+            if (roleplay != null) CharacterBackupTransfer.validate(roleplay, document.conversations)
+            else CharacterBackupTransfer.validateBindings(document.conversations)
+        } catch (failure: IllegalArgumentException) {
+            throw EtaBackupException("备份中的角色数据无效", failure)
+        }
     }
 
     private fun EtaBackupDocument.summary(): EtaBackupSummary = EtaBackupSummary(
@@ -234,6 +271,7 @@ internal object EtaBackupRepository {
         conversationCount = conversations.size,
         messageCount = messages.size,
         memoryBytes = memoryMd.toByteArray(Charsets.UTF_8).size,
+        characterCount = roleplay?.characters?.size ?: 0,
     )
 }
 

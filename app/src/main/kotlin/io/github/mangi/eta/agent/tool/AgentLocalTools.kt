@@ -75,6 +75,7 @@ internal class AgentLocalTools(
     private val memoryToolsEnabled: () -> Boolean = {
         runBlocking { AgentMemoryRepository.isEnabled() }
     },
+    private val memoryWritable: Boolean = true,
     private val screenshotExcludedPackages: () -> Set<String> = { emptySet() },
     private val screenObservationProvider: (
         (AgentScreenObservationContract.Options) -> RootShellDeviceController.Observation
@@ -271,6 +272,12 @@ internal class AgentLocalTools(
     }
 
     private fun memoryToolPermissionError(toolName: String): AgentModelClient.ToolResult? {
+        if (toolName == "memory_write" && !memoryWritable) {
+            return AgentModelClient.ToolResult(
+                content = errorResult("REAL_MEMORY_READ_ONLY", "角色会话的现实记忆只读；剧情请使用角色记忆工具"),
+                sensitive = true,
+            )
+        }
         if (toolName !in MEMORY_TOOL_NAMES || memoryToolsEnabled()) return null
         return AgentModelClient.ToolResult(
             content = errorResult("MEMORY_DISABLED", "记忆已在设置中关闭"),

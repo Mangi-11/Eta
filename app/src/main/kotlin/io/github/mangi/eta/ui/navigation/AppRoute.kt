@@ -24,6 +24,21 @@ sealed interface AppRoute : NavKey {
     data object Skills : AppRoute
 
     @Serializable
+    data object Characters : AppRoute
+
+    @Serializable
+    data class CharacterDetail(val characterId: String) : AppRoute
+
+    @Serializable
+    data class CharacterEditor(val characterId: String? = null) : AppRoute
+
+    @Serializable
+    data object CharacterPersona : AppRoute
+
+    @Serializable
+    data class CharacterMemory(val characterId: String) : AppRoute
+
+    @Serializable
     data object Permissions : AppRoute
 
     @Serializable

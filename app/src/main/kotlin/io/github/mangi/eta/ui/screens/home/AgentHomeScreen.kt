@@ -36,6 +36,8 @@ internal fun AgentHomeScreen(
             pendingImages = state.pendingImages,
             pendingFileReferences = state.pendingFileReferences,
             messageEdit = state.messageEdit,
+            characterName = state.roleplay?.characterName,
+            characterAvatarPath = state.roleplay?.avatarPath,
             onReasoningEffortChange = { onAction(AgentHomeAction.ReasoningEffortChanged(it)) },
             onCompactContext = { onAction(AgentHomeAction.CompactContext) },
             canCompactContext = state.canCompactContext,
@@ -52,6 +54,7 @@ internal fun AgentHomeScreen(
             onCancelMessageEdit = { onAction(AgentHomeAction.CancelMessageEdit) },
             onDeleteMessage = { id -> onAction(AgentHomeAction.DeleteMessage(id)) },
             onRegenerateMessage = { id -> onAction(AgentHomeAction.RegenerateMessage(id)) },
+            onSelectReplyCandidate = { id, index -> onAction(AgentHomeAction.SelectReplyCandidate(id, index)) },
             onSuggestionClick = { prompt ->
                 onAction(AgentHomeAction.SubmitMessage(prompt))
             },

@@ -94,6 +94,18 @@ class AgentLocalToolsPermissionTest {
     }
 
     @Test
+    fun roleplayCannotWriteRealMemoryEvenWithAStaleToolDeclaration() {
+        val tools = tools(memoryEnabled = { true }, memoryWritable = false)
+        try {
+            val result = tools.execute(AgentModelClient.ToolCall("write", "memory_write", "{}"))
+            assertEquals("REAL_MEMORY_READ_ONLY", JSONObject(result.content).getString("code"))
+            assertTrue(result.sensitive)
+        } finally {
+            tools.close()
+        }
+    }
+
+    @Test
     fun foregroundToolIsRejectedWhenEntrySurfaceIsNotReady() {
         val tools = tools(
             beforeToolExecution = {
@@ -245,6 +257,7 @@ class AgentLocalToolsPermissionTest {
         terminalEnabled: () -> Boolean = { false },
         browserEnabled: () -> Boolean = { false },
         memoryEnabled: () -> Boolean = { false },
+        memoryWritable: Boolean = true,
         rootAvailable: () -> Boolean = { false },
         screenObservationProvider: (
             (AgentScreenObservationContract.Options) -> RootShellDeviceController.Observation
@@ -260,6 +273,7 @@ class AgentLocalToolsPermissionTest {
             terminalToolsEnabled = terminalEnabled,
             browserToolsEnabled = browserEnabled,
             memoryToolsEnabled = memoryEnabled,
+            memoryWritable = memoryWritable,
             rootAvailable = rootAvailable,
             screenObservationProvider = screenObservationProvider,
             beforeToolExecution = beforeToolExecution,

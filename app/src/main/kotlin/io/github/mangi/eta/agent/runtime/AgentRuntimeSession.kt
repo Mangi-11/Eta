@@ -88,7 +88,7 @@ internal class AgentRuntimeSession(
 
     fun steer(text: String): Boolean =
         lock.withLock {
-            if (state != State.RUNNING) return false
+            if (state != State.RUNNING || operation != AgentRuntimeWire.OP_CHAT) return false
             controller.steer(text)
         }
 
@@ -97,7 +97,7 @@ internal class AgentRuntimeSession(
         eventFactory: () -> T,
     ): T? =
         lock.withLock {
-            if (state != State.RUNNING || !controller.steer(text)) return null
+            if (state != State.RUNNING || operation != AgentRuntimeWire.OP_CHAT || !controller.steer(text)) return null
             eventFactory().also { event ->
                 recordForReplay(event)
                 subscribers.forEach { it.eventSink(event) }

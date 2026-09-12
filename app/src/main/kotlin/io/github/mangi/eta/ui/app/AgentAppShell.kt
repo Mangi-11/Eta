@@ -3,6 +3,7 @@ package io.github.mangi.eta.ui.app
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,14 +22,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.components.AdaptiveTopAppBar
 import io.github.mangi.eta.ui.components.ConversationSidePaneScaffold
+import io.github.mangi.eta.ui.components.CharacterAvatar
 import io.github.mangi.eta.ui.components.MiuixBackButton
 import io.github.mangi.eta.ui.components.TopBarBackdrop
 import io.github.mangi.eta.ui.components.captureForTopBar
@@ -81,9 +86,13 @@ fun AgentAppShell(
     onConversationDelete: (ConversationSummaryUi) -> Unit,
     onOpenTools: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenCharacters: () -> Unit,
     onOpenPermissions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenModelProviders: () -> Unit,
+    characterName: String? = null,
+    characterAvatarPath: String? = null,
+    onOpenCharacter: () -> Unit = {},
     modifier: Modifier = Modifier,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -113,6 +122,9 @@ fun AgentAppShell(
                             onStopKimiWeb = onStopKimiWeb,
                             onRefreshKimiWeb = onRefreshKimiWeb,
                             onOpenBrowser = onOpenBrowser,
+                            characterName = characterName,
+                            characterAvatarPath = characterAvatarPath,
+                            onOpenCharacter = onOpenCharacter,
                         )
                     }
                 }
@@ -146,6 +158,7 @@ fun AgentAppShell(
                 onOpenModelProviders = onOpenModelProviders,
                 onOpenTools = onOpenTools,
                 onOpenSkills = onOpenSkills,
+                onOpenCharacters = onOpenCharacters,
                 onOpenPermissions = onOpenPermissions,
             ) {
                 pageContent()
@@ -171,18 +184,29 @@ private fun AgentTopBar(
     onStopKimiWeb: () -> Unit,
     onRefreshKimiWeb: () -> Unit,
     onOpenBrowser: () -> Unit,
+    characterName: String?,
+    characterAvatarPath: String?,
+    onOpenCharacter: () -> Unit,
 ) {
     val isHome = route is AppRoute.Home
+    val showCharacter = characterName != null && (isHome || route is AppRoute.Chat)
     val navigationIcon: @Composable () -> Unit = {
-        if (isHome) {
-            IconButton(onClick = onOpenConversationPane) {
-                Icon(
-                    imageVector = Icons.Rounded.Menu,
-                    contentDescription = stringResource(R.string.action_conversation_history),
-                )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (isHome) {
+                IconButton(onClick = onOpenConversationPane) {
+                    Icon(
+                        imageVector = Icons.Rounded.Menu,
+                        contentDescription = stringResource(R.string.action_conversation_history),
+                    )
+                }
+            } else {
+                MiuixBackButton(onClick = onBack)
             }
-        } else {
-            MiuixBackButton(onClick = onBack)
+            if (showCharacter) {
+                IconButton(onClick = onOpenCharacter, modifier = Modifier.semantics { contentDescription = "查看角色详情" }) {
+                    CharacterAvatar(characterName.orEmpty(), characterAvatarPath, size = 32.dp)
+                }
+            }
         }
     }
     val actions: @Composable RowScope.() -> Unit = {
@@ -200,10 +224,10 @@ private fun AgentTopBar(
         }
     }
 
-    if (isHome) {
+    if (isHome || showCharacter) {
         // 首页聊天舞台保持紧凑；二级内容页统一使用可折叠大标题。
         SmallTopAppBar(
-            title = titleForRoute(route),
+            title = if (showCharacter) characterName.orEmpty() else titleForRoute(route),
             color = color,
             scrollBehavior = scrollBehavior,
             navigationIcon = navigationIcon,
@@ -338,6 +362,11 @@ private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.Terminal -> stringResource(R.string.route_terminal)
     is AppRoute.Tools -> stringResource(R.string.route_tools)
     is AppRoute.Skills -> stringResource(R.string.route_skills)
+    is AppRoute.Characters -> "角色"
+    is AppRoute.CharacterDetail -> "角色详情"
+    is AppRoute.CharacterEditor -> "编辑角色"
+    is AppRoute.CharacterPersona -> "我的人设"
+    is AppRoute.CharacterMemory -> "剧情记忆"
     is AppRoute.Permissions -> stringResource(R.string.route_permissions)
     is AppRoute.SystemEnhance -> stringResource(R.string.route_system_enhancements)
     is AppRoute.Settings -> stringResource(R.string.route_settings)

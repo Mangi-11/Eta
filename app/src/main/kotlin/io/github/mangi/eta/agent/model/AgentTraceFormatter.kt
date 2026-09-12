@@ -41,8 +41,8 @@ internal class AgentTraceFormatter {
             "open_system_panel" -> "打开系统面板"
             "read_image" -> "查看图片"
             AgentConversationToolCatalog.READ_HISTORY -> "读取当前会话历史"
-            "memory_get" -> summarizeMemoryGetArguments(toolCall.argumentsJson)
-            "memory_write" -> summarizeMemoryWriteArguments(toolCall.argumentsJson)
+            "memory_get", "character_memory_get" -> summarizeMemoryGetArguments(toolCall.argumentsJson)
+            "memory_write", "character_memory_write" -> summarizeMemoryWriteArguments(toolCall.argumentsJson)
             "skills_list" -> "查看技能列表"
             "skills_read" -> "读取技能"
             "skills_read_resource" -> "读取技能资源"
@@ -240,7 +240,7 @@ internal class AgentTraceFormatter {
         return when (toolName) {
             BROWSER_TOOL_NAME -> json?.let(::summarizeBrowserResult) ?: "浏览器操作完成"
             AgentConversationToolCatalog.READ_HISTORY -> "已读取历史分页"
-            "memory_get", "memory_write" ->
+            "memory_get", "memory_write", "character_memory_get", "character_memory_write" ->
                 json?.let { summarizeMemoryResult(toolName, it) } ?: "完成"
             "search_apps" -> json?.let(::summarizeSearchAppsResult) ?: "完成"
             "launch_app" -> json?.let(::summarizeLaunchAppResult) ?: "已打开"
@@ -266,7 +266,7 @@ internal class AgentTraceFormatter {
 
     private fun summarizeMemoryResult(toolName: String, json: JSONObject): String =
         buildList {
-            add(if (toolName == "memory_get") "已读取记忆" else "已更新记忆")
+            add(if (toolName.endsWith("memory_get")) "已读取记忆" else "已更新记忆")
             if (json.has("line_count")) add("${json.optInt("line_count")} 行")
             if (json.has("bytes")) add("${json.optInt("bytes")} 字节")
         }.joinToString(" · ")

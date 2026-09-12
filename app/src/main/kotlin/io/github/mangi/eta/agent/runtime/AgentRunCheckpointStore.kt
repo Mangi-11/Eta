@@ -26,6 +26,7 @@ internal object AgentRunCheckpointStore {
         val contextSnapshot: AgentContextSnapshot? = null,
         val operation: String = AgentRuntimeWire.OP_CHAT,
         val transcript: List<AgentModelClient.ConversationMessage> = emptyList(),
+        val rewriteTargetMessageId: String? = null,
     )
 
     fun start(
@@ -43,6 +44,7 @@ internal object AgentRunCheckpointStore {
                     runId = runId,
                     ownerInstanceId = ownerInstanceId,
                     operation = request.operation,
+                    rewriteTargetMessageId = request.rewriteTargetMessageId,
                     handoffId = handoff.id,
                     handoffSource = handoff.source,
                     handoffPayload = handoff.payload,
@@ -87,6 +89,7 @@ internal object AgentRunCheckpointStore {
                         ownerInstanceId = stored.run.ownerInstanceId,
                         contextSnapshot = AgentContextSnapshot.decode(stored.run.contextSnapshotJson),
                         operation = stored.run.operation,
+                        rewriteTargetMessageId = stored.run.rewriteTargetMessageId,
                         transcript = AgentToolBatchRecovery.completeInterrupted(AgentConversationCodec.decodeTranscript(stored.run.transcriptJson)),
                         handoff = AgentRuntimeWire.EntryHandoff(
                             id = stored.run.handoffId,

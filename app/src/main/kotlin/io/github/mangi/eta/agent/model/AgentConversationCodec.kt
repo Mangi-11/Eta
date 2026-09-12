@@ -34,6 +34,7 @@ internal object AgentConversationCodec {
         JSONObject()
             .put("role", message.role)
             .also { target ->
+                if (message.messageId.isNotBlank()) target.put("_eta_message_id", message.messageId)
                 if (message.contextSummary) target.put("_eta_context_summary", true)
                 if (message.compactedUserTurns > 0) target.put("_eta_compacted_users", message.compactedUserTurns)
                 if (message.summaryThroughUserTurn > 0) target.put("_eta_summary_through_user", message.summaryThroughUserTurn)
@@ -56,6 +57,7 @@ internal object AgentConversationCodec {
     fun fromJsonObject(message: JSONObject): AgentModelClient.ConversationMessage {
         val contentValue = message.opt("content")
         return AgentModelClient.ConversationMessage(
+            messageId = message.optString("_eta_message_id"),
             role = message.optString("role"),
             contextSummary = message.optBoolean("_eta_context_summary"),
             compactedUserTurns = message.optInt("_eta_compacted_users"),

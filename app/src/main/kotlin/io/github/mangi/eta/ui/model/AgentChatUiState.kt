@@ -3,6 +3,8 @@ package io.github.mangi.eta.ui.model
 import androidx.compose.runtime.Immutable
 import io.github.mangi.eta.agent.model.AgentFileReference
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.roleplay.RoleplayBinding
+import io.github.mangi.eta.agent.roleplay.RoleplayMessageState
 import io.github.mangi.eta.data.model.ReasoningEffort
 
 @Immutable
@@ -21,6 +23,8 @@ internal data class AgentChatUiState(
     val pendingFileReferences: List<PendingFileReferenceUi> = emptyList(),
     val appliedRuntimeRunIds: List<String> = emptyList(),
     val messageEdit: MessageEditUiState? = null,
+    val roleplay: RoleplayBinding? = null,
+    val roleplayMessages: RoleplayMessageState = RoleplayMessageState(),
 ) {
     val canCompactContext: Boolean get() = !isStreaming && messageEdit == null && history.any {
         !it.contextSummary && (it.role == "assistant" || it.role == "tool")
@@ -47,6 +51,9 @@ data class AgentMessageUi(
     val isStreaming: Boolean = false,
     val renderMarkdown: Boolean = true,
     val usage: TokenUsageUi? = null,
+    val characterEditable: Boolean = false,
+    val candidateCount: Int = 1,
+    val selectedCandidate: Int = 0,
 ) : AgentChatMessageUi
 
 enum class SystemNoticeCode(val wireValue: String) {
@@ -172,4 +179,5 @@ data class MessageEditUiState(
     val previousImages: List<PendingImageUi>,
     val previousFileReferences: List<PendingFileReferenceUi>,
     val hasLaterTurns: Boolean,
+    val preserveFollowingMessages: Boolean = false,
 )

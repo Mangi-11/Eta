@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.model
 import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
+import io.github.mangi.eta.agent.roleplay.RoleplayRunContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -30,6 +31,9 @@ internal class AgentLoop(
     private val operationId: String = sessionId,
     private val onContextSnapshot: (AgentContextSnapshot) -> Unit = {},
     private val onTranscript: (List<AgentModelClient.ConversationMessage>) -> Unit = {},
+    private val purpose: ProviderRequestPurpose = ProviderRequestPurpose.CHAT,
+    private val roleplayContext: RoleplayRunContext? = null,
+    initialSupplementIndex: Int = 0,
 ) {
     data class Result(
         val content: String,
@@ -49,7 +53,9 @@ internal class AgentLoop(
     private val context = AgentContextSession(
         config, messages, systemCount, operationId, provider, runController,
         { sensitiveToolCallIds }, onEvent, onContextSnapshot, { transcript.length() },
+        roleplay = roleplayContext != null,
     )
+    private var supplementIndex = initialSupplementIndex
 
     fun contextSnapshot(): AgentContextSnapshot? = context.snapshot()
 
@@ -80,13 +86,14 @@ internal class AgentLoop(
 
         while (true) {
             runController.throwIfCancelled()
-            appendPendingSteeringMessage()
+            if (purpose.allowsTools) appendPendingSteeringMessage()
 
-            val roundTools = toolsForRound?.invoke() ?: tools
+            val roundTools = if (purpose.allowsTools) toolsForRound?.invoke() ?: tools else JSONArray()
             toolCallValidator = AgentToolCallValidator(roundTools)
             publishTranscript()
             context.compact(roundTools)
-            var requestEstimate = AgentContextBudget.rawEstimate(messages, roundTools)
+            var requestMessages = roleplayContext?.projectMessages(messages, roundTools) ?: messages
+            var requestEstimate = AgentContextBudget.rawEstimate(requestMessages, roundTools)
             var roundInputTokens: Int? = null
             var overflowAttempts = 0
             val reasoningLengthBeforeRound = accumulatedReasoning.length
@@ -96,11 +103,15 @@ internal class AgentLoop(
                     try {
                         val response = modelRetry.complete(
                             initialRound = round,
-                            request = ProviderRequest(config, messages, roundTools, sessionId),
+                            request = ProviderRequest(config, requestMessages, roundTools, sessionId, purpose),
                             provider = provider,
                             controller = runController,
                             onEvent = onEvent,
                             onProviderEvent = { attemptRound, providerEvent ->
+                                if (!purpose.allowsTools && (providerEvent is ProviderEvent.HostedToolStarted ||
+                                        providerEvent is ProviderEvent.BlockStart && providerEvent.kind == AssistantBlockKind.TOOL_CALL)) {
+                                    throw AgentModelFailure("REPLY_REWRITE_TOOL_CALL", false, "改写回复时模型请求了工具，已停止；原回复未改变。")
+                                }
                                 if (providerEvent is ProviderEvent.Usage) {
                                 roundInputTokens = providerEvent.contextInputTokens ?: roundInputTokens
                             }
@@ -121,7 +132,8 @@ internal class AgentLoop(
                         overflowAttempts++
                         accumulatedReasoning.setLength(reasoningLengthBeforeRound)
                         context.compact(roundTools, force = true)
-                        requestEstimate = AgentContextBudget.rawEstimate(messages, roundTools)
+                        requestMessages = roleplayContext?.projectMessages(messages, roundTools) ?: messages
+                        requestEstimate = AgentContextBudget.rawEstimate(requestMessages, roundTools)
                         roundInputTokens = null
                         round++
                     }
@@ -141,6 +153,12 @@ internal class AgentLoop(
             runController.throwIfCancelled()
             val assistantMessage = providerResponse.assistantMessage
             val toolCalls = AgentConversationCodec.parseToolCalls(assistantMessage)
+            if (!purpose.allowsTools && toolCalls.isNotEmpty()) {
+                throw AgentModelFailure("REPLY_REWRITE_TOOL_CALL", false, "改写回复时模型请求了工具，已停止；原回复未改变。")
+            }
+            if (purpose == ProviderRequestPurpose.REPLY_REWRITE && providerResponse.stopReason != AssistantStopReason.END_TURN) {
+                throw AgentModelFailure("REPLY_REWRITE_INCOMPLETE", false, "模型未返回完整的改写回复；原回复未改变。")
+            }
             val assistantReasoning = assistantMessage.optString("reasoning_content")
             if (
                 assistantReasoning.isNotBlank() &&
@@ -153,7 +171,7 @@ internal class AgentLoop(
                 AgentConversationCodec.assistantHistoryMessage(
                     source = assistantMessage,
                     toolCalls = toolCalls,
-                )
+                ).put("_eta_message_id", "assistant-$operationId-$round")
             )
             onEvent(
                 AgentEvent.AssistantReceived(
@@ -190,7 +208,7 @@ internal class AgentLoop(
             publishTranscript()
 
             // assistant 已自然结束时再检查 steering。这样补充消息不会丢掉刚完成的回答。
-            if (appendPendingSteeringOrSeal()) {
+            if (purpose.allowsTools && appendPendingSteeringOrSeal()) {
                 round += 1
                 continue
             }
@@ -202,7 +220,7 @@ internal class AgentLoop(
             }
 
             publishTranscript()
-            context.compact(roundTools, final = true)
+            if (purpose.allowsTools) context.compact(roundTools, final = true)
             onEvent(AgentEvent.RunFinished(round = round, contentChars = content.length))
             return Result(
                 content = content,
@@ -214,20 +232,24 @@ internal class AgentLoop(
 
     private fun appendPendingSteeringMessage(): Boolean {
         val supplement = runController.pollSteeringMessage() ?: return false
-        appendMessage(AgentConversationCodec.userTextMessage(steeringPrompt(supplement)))
+        appendMessage(steeringMessage(supplement))
         context.userAppended()
         return true
     }
 
     private fun appendPendingSteeringOrSeal(): Boolean {
         val supplement = runController.pollSteeringOrSeal() ?: return false
-        appendMessage(AgentConversationCodec.userTextMessage(steeringPrompt(supplement)))
+        appendMessage(steeringMessage(supplement))
         context.userAppended()
         return true
     }
 
     private fun steeringPrompt(supplement: String): String =
         "用户补充指令：$supplement\n\n请基于当前任务上下文继续执行，不要从头重复已经完成或已经验证过的操作。"
+
+    private fun steeringMessage(supplement: String): JSONObject =
+        AgentConversationCodec.userTextMessage(steeringPrompt(supplement))
+            .put("_eta_message_id", "user-$operationId-supplement-${++supplementIndex}")
 
     private fun executeTool(
         round: Int,

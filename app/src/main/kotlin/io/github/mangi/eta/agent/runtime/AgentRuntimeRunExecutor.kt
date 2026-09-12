@@ -12,6 +12,8 @@ import io.github.mangi.eta.agent.model.AgentModelFailure
 import io.github.mangi.eta.agent.model.AgentHttpClient
 import io.github.mangi.eta.agent.memory.AgentMemoryContext
 import io.github.mangi.eta.agent.memory.AgentMemoryContextBuilder
+import io.github.mangi.eta.agent.roleplay.CharacterMemoryTools
+import io.github.mangi.eta.agent.roleplay.RoleplayRunContext
 import io.github.mangi.eta.agent.mcp.McpRunSnapshot
 import io.github.mangi.eta.agent.mcp.McpToolExecutor
 import io.github.mangi.eta.agent.mcp.RoutingToolExecutor
@@ -95,6 +97,27 @@ internal class AgentRuntimeRunExecutor(
                     .filter { SkillCompatibilityChecker.evaluate(it).available },
             )
             val memoryEnabled = runBlocking { AgentMemoryRepository.isEnabled() }
+            val uiPayload = request.handoff
+                ?.takeIf { it.source == AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE }
+                ?.let { AgentUiHandoffPayload.from(it.payload) }
+            val conversationId = uiPayload?.conversationId
+                ?.takeIf { it.isNotBlank() }
+            val roleplayContext = conversationId?.let { id ->
+                runBlocking { RoleplayRunContext.resolve(appContext, id, request.config.contextWindow, memoryEnabled) }
+            }
+            if (request.operation == AgentRuntimeWire.OP_REWRITE_REPLY) {
+                require(roleplayContext != null) { "只有角色会话可以改写角色回复" }
+                val target = request.rewriteTargetMessageId?.takeIf { it.isNotBlank() && it.length <= 256 }
+                    ?: throw IllegalArgumentException("缺少有效的角色回复目标")
+                require(runBlocking {
+                    EtaDatabase.get(appContext).conversationDao().hasAssistantMessage(conversationId, target)
+                }) { "角色回复目标不存在或不属于当前会话" }
+            }
+            val characterMemoryTools = roleplayContext?.let { roleplay ->
+                CharacterMemoryTools(appContext, roleplay.characterId) {
+                    runBlocking { AgentMemoryRepository.isEnabled() }
+                }
+            }
             val memoryContext = if (memoryEnabled) {
                 runCatching {
                     AgentMemoryContextBuilder.build(
@@ -144,6 +167,7 @@ internal class AgentRuntimeRunExecutor(
                 memoryToolsEnabled = {
                     runBlocking { AgentMemoryRepository.isEnabled() }
                 },
+                memoryWritable = roleplayContext == null,
                 screenshotExcludedPackages = {
                     entrySurfaceGuard?.consumeScreenshotExcludedPackages().orEmpty()
                 },
@@ -191,10 +215,6 @@ internal class AgentRuntimeRunExecutor(
             toolExecutor = routingExecutor
             toolsBinding = runController.register(routingExecutor::close)
             timing.preparationFinished(skillContext.installedSkills.size)
-            val conversationId = request.handoff
-                ?.takeIf { it.source == AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE }
-                ?.let { AgentUiHandoffPayload.from(it.payload).conversationId }
-                ?.takeIf { it.isNotBlank() }
             val historyTool = conversationId?.let { id ->
                 ConversationHistoryTool {
                     val checkpoint = runBlocking { EtaDatabase.get(appContext).conversationDao().contextCheckpoint(id) }
@@ -205,15 +225,23 @@ internal class AgentRuntimeRunExecutor(
             }
             val runTools = JSONArray(mcpTools.toString()).also { tools ->
                 if (historyTool != null) tools.put(AgentConversationToolCatalog.schema())
+                if (characterMemoryTools != null && memoryEnabled) CharacterMemoryTools.appendSchemas(tools)
             }
             val runToolExecutor = AgentModelClient.ToolExecutor { call ->
                 if (call.name == AgentConversationToolCatalog.READ_HISTORY && historyTool != null) {
                     historyTool.execute(call)
+                } else if (call.name in CharacterMemoryTools.NAMES && characterMemoryTools != null) {
+                    characterMemoryTools.execute(call)
                 } else routingExecutor.execute(call)
             }
             val completedResponse = AgentModelClient.complete(
                 config = request.config,
                 sessionId = request.effectiveModelSessionId,
+                operationId = request.runId,
+                initialUserMessageId = uiPayload?.promptMessageId(request.runId) ?: "user-${request.runId}",
+                initialSupplementIndex = uiPayload?.lastSupplementIndex ?: 0,
+                roleplayContext = roleplayContext,
+                rewriteReply = request.operation == AgentRuntimeWire.OP_REWRITE_REPLY,
                 compactOnly = request.operation == AgentRuntimeWire.OP_COMPACT,
                 onContextSnapshot = { snapshot ->
                     val committed = snapshot.copy(operationId = request.runId)
@@ -252,6 +280,7 @@ internal class AgentRuntimeRunExecutor(
                 transcript = completedResponse.transcript,
                 contextSnapshot = completedResponse.contextSnapshot?.copy(operationId = request.runId),
                 operation = request.operation,
+                rewriteTargetMessageId = request.rewriteTargetMessageId,
             )
         } catch (throwable: Throwable) {
             cancelled = runController.isCancelled || throwable is AgentRunCancelledException
@@ -296,6 +325,7 @@ internal class AgentRuntimeRunExecutor(
                 transcript = modelFailure?.transcript.orEmpty(),
                 contextSnapshot = modelFailure?.contextSnapshot?.copy(operationId = request.runId) ?: session.contextSnapshot,
                 operation = request.operation,
+                rewriteTargetMessageId = request.rewriteTargetMessageId,
             )
         } finally {
             runCatching { toolsBinding?.close() }

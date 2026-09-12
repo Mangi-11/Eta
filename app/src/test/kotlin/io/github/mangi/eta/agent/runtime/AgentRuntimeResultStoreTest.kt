@@ -17,6 +17,29 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class AgentRuntimeResultStoreTest {
     @Test
+    fun rewriteTargetSurvivesDatabaseReopenInResultHeaderArchiveAndCheckpoint() {
+        val runId = "rewrite-storage-${System.nanoTime()}"
+        val target = "assistant-original-1-0"
+        val handoff = AgentRuntimeWire.EntryHandoff(runId, AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE, "conversation-1")
+        val result = AgentRuntimeWire.RunResult(runId, true, "新的措辞",
+            operation = AgentRuntimeWire.OP_REWRITE_REPLY, rewriteTargetMessageId = target)
+        val request = AgentRuntimeWire.RunRequest(
+            runId = runId, prompt = "原始措辞", handoff = handoff, images = emptyList(),
+            config = AgentModelClient.ModelConfig(baseUrl = "https://example.com/v1", apiKey = "", model = "model", systemPrompt = ""),
+            operation = AgentRuntimeWire.OP_REWRITE_REPLY, rewriteTargetMessageId = target,
+        )
+        assertTrue(AgentRunCheckpointStore.start(context, request))
+        AgentRunArchiveStore.add(context, AgentRunArchiveStore.ArchivedRun(handoff, emptyList(), result, 1L))
+        AgentRuntimeResultStore.add(context, AgentRuntimeWire.CompletedRun(handoff, result, 1L))
+        EtaDatabase.closeForTests()
+
+        assertEquals(target, AgentRuntimeResultStore.pendingPage(context).single().result.rewriteTargetMessageId)
+        assertEquals(target, AgentRuntimeResultStore.readOwned(context, runId, handoff.payload)!!.result.rewriteTargetMessageId)
+        assertEquals(target, AgentRunArchiveStore.list(context).single().result.rewriteTargetMessageId)
+        assertEquals(target, AgentRunCheckpointStore.list(context).single().rewriteTargetMessageId)
+    }
+
+    @Test
     fun emptyLegacyTranscriptFallsBackToSuccessfulAssistantContent() {
         val runId = "legacy-${System.nanoTime()}"
         AgentRuntimeResultStore.add(

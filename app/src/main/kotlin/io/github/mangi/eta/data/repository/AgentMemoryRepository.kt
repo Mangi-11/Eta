@@ -100,6 +100,13 @@ internal class AgentMemoryStore(
         snapshotOf(content)
     }
 
+    fun replaceAllIfRevision(content: String, revision: String): AgentMemoryWriteResult = synchronized(lock) {
+        val current = snapshotLocked()
+        if (current.revision != revision) return@synchronized AgentMemoryWriteResult.Conflict(current)
+        writeLocked(content)
+        AgentMemoryWriteResult.Success(snapshotOf(content))
+    }
+
     private fun snapshotLocked(): AgentMemorySnapshot {
         val file = atomicFile.baseFile
         if (!file.exists()) return snapshotOf("")

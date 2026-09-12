@@ -4,6 +4,7 @@ import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.memory.AgentMemoryContext
 import io.github.mangi.eta.agent.skill.SkillContext
+import io.github.mangi.eta.agent.roleplay.RoleplayRunContext
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
@@ -94,6 +95,11 @@ internal object AgentModelClient {
         capabilitiesProvider: () -> AgentToolCapabilities = { AgentToolCapabilities(rootAvailable = false) },
         sessionId: String = java.util.UUID.randomUUID().toString(),
         compactOnly: Boolean = false,
+        operationId: String = sessionId,
+        initialUserMessageId: String = "user-$operationId",
+        initialSupplementIndex: Int = 0,
+        roleplayContext: RoleplayRunContext? = null,
+        rewriteReply: Boolean = false,
         onContextSnapshot: (AgentContextSnapshot) -> Unit = {},
         onTranscript: (List<ConversationMessage>) -> Unit = {},
         onEvent: (AgentEvent) -> Unit = {}
@@ -108,14 +114,25 @@ internal object AgentModelClient {
             skillContext,
             memoryContext,
             rootAvailable = initialCapabilities.rootAvailable,
+            roleplayContext = roleplayContext,
         )
+        if (rewriteReply) {
+            messages.put(messages.length() - 1, AgentConversationCodec.userTextMessage(
+                "请只改写下面这条角色回复，保持已有事实与实际工具结果，以当前角色设定改善表达。" +
+                    "这不是重新执行任务；不得调用任何工具、重读设备、更新记忆或编造缺失证据。只输出替代正文。\n" +
+                    "<reply_to_rewrite>\n$prompt\n</reply_to_rewrite>",
+            ))
+        } else if (!compactOnly) {
+            messages.getJSONObject(messages.length() - 1).put("_eta_message_id", initialUserMessageId)
+        }
         if (compactOnly) messages.remove(messages.length() - 1)
         val transcript = JSONArray()
         // 旧 history 中的无效消息可能在组装时被跳过，系统边界不能由 history 条数倒推。
         val systemCount = AgentPromptBuilder.buildSystemMessages(
-            config, skillContext, memoryContext, initialCapabilities.rootAvailable,
+            config, skillContext, memoryContext, initialCapabilities.rootAvailable, roleplayContext,
         ).length()
         fun toolsFor(capabilities: AgentToolCapabilities): JSONArray {
+            if (rewriteReply) return JSONArray()
             val tools = AgentToolCatalog.build(
                 terminalTools = config.terminalTools,
                 browserTools = config.browserTools,
@@ -125,6 +142,7 @@ internal object AgentModelClient {
                 skillGitHubDiscovery = true,
                 skillGitHubInstall = true,
                 memoryTools = memoryContext.enabled,
+                memoryWritable = roleplayContext == null,
                 capabilities = capabilities,
             )
             for (index in 0 until additionalTools.length()) {
@@ -145,8 +163,8 @@ internal object AgentModelClient {
         val loop = AgentLoop(
             transcript = transcript,
             systemCount = systemCount,
-            operationId = sessionId,
-            onContextSnapshot = onContextSnapshot,
+            operationId = operationId,
+            onContextSnapshot = if (rewriteReply) ({ _ -> }) else onContextSnapshot,
             onTranscript = onTranscript,
             sessionId = sessionId,
             config = config,
@@ -157,11 +175,14 @@ internal object AgentModelClient {
             runController = runController,
             traceFormatter = traceFormatter,
             onEvent = onEvent,
+            purpose = if (rewriteReply) ProviderRequestPurpose.REPLY_REWRITE else ProviderRequestPurpose.CHAT,
+            roleplayContext = roleplayContext,
+            initialSupplementIndex = initialSupplementIndex,
             toolsForRound = {
                 val capabilities = capabilitiesProvider()
                 if (capabilities.rootAvailable != promptRootAvailable) {
                     val systemMessages = AgentPromptBuilder.buildSystemMessages(
-                        config, skillContext, memoryContext, capabilities.rootAvailable,
+                        config, skillContext, memoryContext, capabilities.rootAvailable, roleplayContext,
                     )
                     for (index in 0 until systemMessages.length()) {
                         messages.put(index, systemMessages.getJSONObject(index))
@@ -176,7 +197,7 @@ internal object AgentModelClient {
         } catch (throwable: Throwable) {
             throw AgentModelExecutionException(
                 cause = throwable,
-                contextSnapshot = loop.contextSnapshot(),
+                contextSnapshot = if (rewriteReply) null else loop.contextSnapshot(),
                 reasoningContent = loop.reasoningSnapshot(),
                 transcript = AgentToolBatchRecovery.completeInterrupted(AgentConversationCodec.transcript(
                     transcript,
@@ -187,7 +208,7 @@ internal object AgentModelClient {
         }
         return ModelResponse.Text(
             content = result.content,
-            contextSnapshot = loop.contextSnapshot(),
+            contextSnapshot = if (rewriteReply) null else loop.contextSnapshot(),
             reasoningContent = result.reasoningContent,
             transcript = AgentConversationCodec.transcript(
                 transcript,
@@ -270,6 +291,7 @@ internal object AgentModelClient {
         val contextSummary: Boolean = false,
         val compactedUserTurns: Int = 0,
         val summaryThroughUserTurn: Int = 0,
+        val messageId: String = "",
     )
 
     fun interface ToolExecutor {

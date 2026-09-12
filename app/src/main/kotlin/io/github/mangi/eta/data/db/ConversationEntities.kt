@@ -18,6 +18,8 @@ internal data class ConversationEntity(
     val reasoningEffort: String = ReasoningEffort.DEFAULT.wireValue,
     @ColumnInfo(name = "history_json") val historyJson: String = "[]",
     @ColumnInfo(name = "applied_runtime_run_ids_json") val appliedRuntimeRunIdsJson: String = "[]",
+    @ColumnInfo(name = "roleplay_json", defaultValue = "''") val roleplayJson: String = "",
+    @ColumnInfo(name = "revisions_json", defaultValue = "''") val revisionsJson: String = "",
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )
@@ -28,6 +30,8 @@ internal data class ConversationMetadata(
     @ColumnInfo(name = "thinking_enabled") val thinkingEnabled: Boolean,
     @ColumnInfo(name = "reasoning_effort") val reasoningEffort: String,
     @ColumnInfo(name = "applied_runtime_run_ids_json") val appliedRuntimeRunIdsJson: String,
+    @ColumnInfo(name = "roleplay_json") val roleplayJson: String = "",
+    @ColumnInfo(name = "revisions_json") val revisionsJson: String = "",
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )

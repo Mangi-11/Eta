@@ -33,6 +33,8 @@ internal fun AgentChatScreen(
             pendingImages = state.pendingImages,
             pendingFileReferences = state.pendingFileReferences,
             messageEdit = state.messageEdit,
+            characterName = state.roleplay?.characterName,
+            characterAvatarPath = state.roleplay?.avatarPath,
             onReasoningEffortChange = { onAction(AgentChatAction.ReasoningEffortChanged(it)) },
             onCompactContext = { onAction(AgentChatAction.CompactContext) },
             canCompactContext = state.canCompactContext,
@@ -49,6 +51,7 @@ internal fun AgentChatScreen(
             onCancelMessageEdit = { onAction(AgentChatAction.CancelMessageEdit) },
             onDeleteMessage = { id -> onAction(AgentChatAction.DeleteMessage(id)) },
             onRegenerateMessage = { id -> onAction(AgentChatAction.RegenerateMessage(id)) },
+            onSelectReplyCandidate = { id, index -> onAction(AgentChatAction.SelectReplyCandidate(id, index)) },
             onSuggestionClick = { prompt ->
                 onAction(AgentChatAction.SubmitMessage(prompt))
             },

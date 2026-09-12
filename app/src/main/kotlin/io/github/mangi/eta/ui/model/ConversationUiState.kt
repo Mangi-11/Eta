@@ -19,6 +19,8 @@ data class ConversationSummaryUi(
     val mode: ConversationModeUi,
     val isPinned: Boolean = false,
     val isActiveRun: Boolean = false,
+    val characterName: String? = null,
+    val avatarPath: String? = null,
 )
 
 @Immutable

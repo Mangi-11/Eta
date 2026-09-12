@@ -48,7 +48,8 @@ internal object AgentRuntimeResultStore {
         EtaDatabase.get(context.applicationContext).runtimeRunDao().pendingResultHeaders(8).map { header ->
             AgentRuntimeWire.CompletedRun(
                 AgentRuntimeWire.EntryHandoff(header.handoffId, header.handoffSource, header.handoffPayload, header.dismissEntrySurface),
-                AgentRuntimeWire.RunResult(header.runId, header.ok, "", contextSnapshotRef = header.runId, operation = header.operation),
+                AgentRuntimeWire.RunResult(header.runId, header.ok, "", contextSnapshotRef = header.runId,
+                    operation = header.operation, rewriteTargetMessageId = header.rewriteTargetMessageId),
                 header.createdAt,
             )
         }
@@ -102,6 +103,7 @@ internal object AgentRuntimeResultStore {
             transcriptJson = AgentConversationCodec.encodeTranscriptForStorage(result.transcript),
             contextSnapshotJson = result.contextSnapshot?.encode().orEmpty(),
             operation = result.operation,
+            rewriteTargetMessageId = result.rewriteTargetMessageId,
             createdAt = createdAt,
         )
     }
@@ -122,6 +124,7 @@ internal object AgentRuntimeResultStore {
                 reasoningContent = reasoningContent,
                 contextSnapshot = AgentContextSnapshot.decode(contextSnapshotJson),
                 operation = operation,
+                rewriteTargetMessageId = rewriteTargetMessageId,
                 transcript = legacyCompatibleTranscript(
                     raw = transcriptJson,
                     ok = ok,

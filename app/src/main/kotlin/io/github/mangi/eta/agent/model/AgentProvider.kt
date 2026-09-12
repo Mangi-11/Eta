@@ -32,7 +32,11 @@ internal enum class EndpointKind {
     ANTHROPIC_MESSAGES
 }
 
-internal enum class ProviderRequestPurpose { CHAT, COMPACTION }
+internal enum class ProviderRequestPurpose {
+    CHAT, COMPACTION, REPLY_REWRITE;
+
+    val allowsTools: Boolean get() = this == CHAT
+}
 
 internal data class ProviderRequest(
     val config: AgentModelClient.ModelConfig,
@@ -41,10 +45,10 @@ internal data class ProviderRequest(
     val sessionId: String = java.util.UUID.randomUUID().toString(),
     val purpose: ProviderRequestPurpose = ProviderRequestPurpose.CHAT,
 ) {
-    val effectiveConfig: AgentModelClient.ModelConfig get() = if (purpose == ProviderRequestPurpose.COMPACTION) {
+    val effectiveConfig: AgentModelClient.ModelConfig get() = if (!purpose.allowsTools) {
         config.copy(hostedWebSearchEnabled = false, extraBodyJson = "", customBody = emptyList())
     } else config
-    val effectiveTools: JSONArray get() = if (purpose == ProviderRequestPurpose.COMPACTION) JSONArray() else tools
+    val effectiveTools: JSONArray get() = if (purpose.allowsTools) tools else JSONArray()
 }
 
 internal data class ProviderResponse(

@@ -1,6 +1,10 @@
 package io.github.mangi.eta.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,18 +22,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.AbsoluteRoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,12 +52,14 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.TheaterComedy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -59,10 +70,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -85,7 +98,6 @@ import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
@@ -93,6 +105,10 @@ import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
 import top.yukonga.miuix.kmp.squircle.absoluteSquircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -113,7 +129,6 @@ private object DrawerMetrics {
     val PaneHorizontalPadding = 16.dp
     val TopInset = 16.dp
     val AfterActionBar = 18.dp
-    val ListBottomPadding = 20.dp
     val BottomInset = 12.dp
     val ActionIconSize = 20.dp
     val SectionTopPadding = 8.dp
@@ -124,12 +139,16 @@ private object DrawerMetrics {
     val RowMinHeight = 48.dp
     val RowGap = 4.dp
     val RowCornerRadius = 12.dp
-    val RowHorizontalPadding = 32.dp
+    val RowHorizontalPadding = 12.dp
     val RowVerticalPadding = 12.dp
     val ActiveDotSize = 6.dp
     val ActiveDotGap = 10.dp
     val EmptyVerticalPadding = 28.dp
-    val DockTopGap = 14.dp
+    val DockTopGap = 10.dp
+    val DockEntryCornerRadius = 12.dp
+    val DockEntryIconSize = 20.dp
+    val DockEntryLabelGap = 3.dp
+    val DockEntryVerticalPadding = 5.dp
 }
 
 private enum class ConversationPaneAnchor {
@@ -153,6 +172,7 @@ fun ConversationSidePaneScaffold(
     onOpenModelProviders: () -> Unit,
     onOpenTools: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenCharacters: () -> Unit,
     onOpenPermissions: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
@@ -245,6 +265,7 @@ fun ConversationSidePaneScaffold(
             onOpenModelProviders = onOpenModelProviders,
             onOpenTools = onOpenTools,
             onOpenSkills = onOpenSkills,
+            onOpenCharacters = onOpenCharacters,
             onOpenPermissions = onOpenPermissions,
             modifier = Modifier.zIndex(0f),
         )
@@ -335,12 +356,14 @@ private fun ConversationPanePanel(
     onOpenModelProviders: () -> Unit,
     onOpenTools: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenCharacters: () -> Unit,
     onOpenPermissions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // state.conversations 已由 AgentAppState 按标题、预览与消息内容过滤。
     val query = state.searchQuery.trim()
     val groups = remember(state.conversations) { state.conversations.groupForDrawer() }
+    val density = LocalDensity.current
 
     Surface(
         modifier = modifier
@@ -349,24 +372,31 @@ private fun ConversationPanePanel(
         color = MiuixTheme.colorScheme.surface,
         contentColor = MiuixTheme.colorScheme.onSurface,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .safeDrawingPadding()
-                .padding(horizontal = DrawerMetrics.PaneHorizontalPadding),
-        ) {
-            Spacer(modifier = Modifier.height(DrawerMetrics.TopInset))
-            PaneActionBar(
-                query = state.searchQuery,
-                onSearchChange = onSearchChange,
-            )
-            Spacer(modifier = Modifier.height(DrawerMetrics.AfterActionBar))
+        // 列表全高滚动，搜索区与 Dock 作为浮层盖在内容上；两个浮层用与顶栏相同的
+        // textureBlur 采样列表 backdrop，内容滚入边缘时呈现毛玻璃而不是硬裁切。
+        // 有内容滚到浮层下方时浮层边缘出现分隔线，静止在顶部/底部时保持无边界。
+        val backdrop = rememberTopBarBackdrop()
+        var headerHeightPx by remember { mutableIntStateOf(0) }
+        var dockHeightPx by remember { mutableIntStateOf(0) }
+        val listState = rememberLazyListState()
+        val showHeaderDivider by remember { derivedStateOf { listState.canScrollBackward } }
+        val showDockDivider by remember { derivedStateOf { listState.canScrollForward } }
+        Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxSize()
+                    .captureForTopBar(backdrop)
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
+                    )
+                    .padding(horizontal = DrawerMetrics.PaneHorizontalPadding)
                     .scrollEndHaptic()
                     .overScrollVertical(),
-                contentPadding = PaddingValues(bottom = DrawerMetrics.ListBottomPadding),
+                contentPadding = PaddingValues(
+                    top = with(density) { headerHeightPx.toDp() },
+                    bottom = with(density) { dockHeightPx.toDp() },
+                ),
                 verticalArrangement = Arrangement.spacedBy(DrawerMetrics.RowGap),
                 overscrollEffect = null,
             ) {
@@ -395,18 +425,112 @@ private fun ConversationPanePanel(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(DrawerMetrics.DockTopGap))
-            PaneDock(
-                onOpenSettings = onOpenSettings,
-                onOpenModelProviders = onOpenModelProviders,
-                onOpenTools = onOpenTools,
-                onOpenSkills = onOpenSkills,
-                onOpenPermissions = onOpenPermissions,
-            )
-            Spacer(modifier = Modifier.height(DrawerMetrics.BottomInset))
+            PaneFrostRegion(
+                backdrop = backdrop,
+                showDivider = showHeaderDivider,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .onSizeChanged { headerHeightPx = it.height },
+            ) {
+                Column(
+                    modifier = Modifier
+                        .windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                        )
+                        .padding(horizontal = DrawerMetrics.PaneHorizontalPadding),
+                ) {
+                    Spacer(modifier = Modifier.height(DrawerMetrics.TopInset))
+                    PaneActionBar(
+                        query = state.searchQuery,
+                        onSearchChange = onSearchChange,
+                    )
+                    Spacer(modifier = Modifier.height(DrawerMetrics.AfterActionBar))
+                }
+            }
+            PaneFrostRegion(
+                backdrop = backdrop,
+                showDivider = showDockDivider,
+                dividerAtTop = true,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .onSizeChanged { dockHeightPx = it.height },
+            ) {
+                Column(
+                    modifier = Modifier
+                        .windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
+                        )
+                        .padding(horizontal = DrawerMetrics.PaneHorizontalPadding),
+                ) {
+                    Spacer(modifier = Modifier.height(DrawerMetrics.DockTopGap))
+                    PaneDock(
+                        onOpenSettings = onOpenSettings,
+                        onOpenModelProviders = onOpenModelProviders,
+                        onOpenTools = onOpenTools,
+                        onOpenSkills = onOpenSkills,
+                        onOpenCharacters = onOpenCharacters,
+                        onOpenPermissions = onOpenPermissions,
+                    )
+                    Spacer(modifier = Modifier.height(DrawerMetrics.BottomInset))
+                }
+            }
         }
     }
 }
+
+/**
+ * 侧栏边缘的毛玻璃区域。毛玻璃不可用时（关闭模糊或设备不支持 RuntimeShader）
+ * 退回不透明底色，行为与之前一致。
+ */
+@Composable
+private fun PaneFrostRegion(
+    backdrop: LayerBackdrop?,
+    modifier: Modifier = Modifier,
+    showDivider: Boolean = false,
+    dividerAtTop: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val frostModifier = if (backdrop == null) {
+        modifier.background(surfaceColor)
+    } else {
+        modifier.textureBlur(
+            backdrop = backdrop,
+            shape = RectangleShape,
+            blurRadius = PaneFrostBlurRadius,
+            colors = BlurDefaults.blurColors(
+                blendColors = listOf(
+                    BlendColorEntry(surfaceColor.copy(alpha = PaneFrostSurfaceAlpha)),
+                ),
+            ),
+        )
+    }
+    Box(modifier = frostModifier) {
+        content()
+        AnimatedVisibility(
+            visible = showDivider,
+            modifier = Modifier
+                .align(if (dividerAtTop) Alignment.TopCenter else Alignment.BottomCenter)
+                .fillMaxWidth(),
+            enter = fadeIn(animationSpec = tween(durationMillis = 140)),
+            exit = fadeOut(animationSpec = tween(durationMillis = 140)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(PaneDividerThickness)
+                    .background(MiuixTheme.colorScheme.outline.copy(alpha = PaneDividerAlpha)),
+            )
+        }
+    }
+}
+
+private val PaneDividerThickness = 0.5.dp
+private const val PaneDividerAlpha = 0.5f
+private const val PaneFrostBlurRadius = 25f
+private const val PaneFrostSurfaceAlpha = 0.78f
 
 @Composable
 private fun PaneActionBar(
@@ -511,8 +635,14 @@ private fun ConversationTextRow(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            conversation.characterName?.let { name ->
+                CharacterAvatar(name, conversation.avatarPath, size = 32.dp)
+                Spacer(Modifier.width(10.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+            val title = conversation.title.ifBlank { conversation.preview }
             Text(
-                text = conversation.title.ifBlank { conversation.preview },
+                text = title,
                 color = if (selected) {
                     MiuixTheme.colorScheme.primary
                 } else {
@@ -522,8 +652,12 @@ private fun ConversationTextRow(
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
             )
+            // 标题与角色名相同（如未改名的角色会话）时不再重复第二行。
+            conversation.characterName?.takeIf { it != title }?.let { name ->
+                Text(name, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            }
             if (conversation.isActiveRun) {
                 Box(
                     modifier = Modifier
@@ -645,56 +779,79 @@ private fun PaneDock(
     onOpenModelProviders: () -> Unit,
     onOpenTools: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenCharacters: () -> Unit,
     onOpenPermissions: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        DockButton(
+        DockEntry(
             icon = Icons.Rounded.Settings,
-            label = stringResource(R.string.route_settings),
+            label = "设置",
             onClick = onOpenSettings,
+            modifier = Modifier.weight(1f),
         )
-        DockButton(
+        DockEntry(
             icon = Icons.Rounded.Memory,
-            label = stringResource(R.string.conversation_dock_models),
+            label = "模型",
             onClick = onOpenModelProviders,
+            modifier = Modifier.weight(1f),
         )
-        DockButton(
+        DockEntry(
             icon = Icons.Rounded.Inventory2,
-            label = stringResource(R.string.route_tools),
+            label = "工具",
             onClick = onOpenTools,
+            modifier = Modifier.weight(1f),
         )
-        DockButton(
+        DockEntry(
             icon = Icons.Rounded.Extension,
-            label = stringResource(R.string.route_skills),
+            label = "Skills",
             onClick = onOpenSkills,
+            modifier = Modifier.weight(1f),
         )
-        DockButton(
+        DockEntry(
             icon = Icons.Rounded.Lock,
-            label = stringResource(R.string.route_permissions),
+            label = "权限",
             onClick = onOpenPermissions,
+            modifier = Modifier.weight(1f),
+        )
+        DockEntry(
+            icon = Icons.Rounded.TheaterComedy,
+            label = "角色",
+            onClick = onOpenCharacters,
+            modifier = Modifier.weight(1f),
         )
     }
 }
 
 @Composable
-private fun DockButton(
+private fun DockEntry(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    IconButton(
-        onClick = onClick,
-        backgroundColor = MiuixTheme.colorScheme.surfaceContainer,
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(DrawerMetrics.DockEntryCornerRadius))
+            .clickable(onClickLabel = label, onClick = onClick)
+            .padding(vertical = DrawerMetrics.DockEntryVerticalPadding),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = label,
-            modifier = Modifier.size(DrawerMetrics.ActionIconSize),
+            contentDescription = null,
+            modifier = Modifier.size(DrawerMetrics.DockEntryIconSize),
             tint = MiuixTheme.colorScheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(DrawerMetrics.DockEntryLabelGap))
+        Text(
+            text = label,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

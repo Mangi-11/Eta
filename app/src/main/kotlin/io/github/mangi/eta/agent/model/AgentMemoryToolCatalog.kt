@@ -6,7 +6,7 @@ import org.json.JSONObject
 
 /** 声明持久记忆的有界读取与原子局部更新工具。 */
 internal object AgentMemoryToolCatalog {
-    fun appendTo(tools: JSONArray) {
+    fun appendTo(tools: JSONArray, writable: Boolean = true) {
         tools
             .put(
                 AgentToolSchema.function(
@@ -42,6 +42,8 @@ internal object AgentMemoryToolCatalog {
                         ),
                 ),
             )
+        if (!writable) return
+        tools
             .put(
                 AgentToolSchema.function(
                     name = "memory_write",

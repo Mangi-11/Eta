@@ -32,6 +32,7 @@ internal object AgentRuntimeWire {
     const val MSG_READ_CONTEXT_RESULT = 15
     const val OP_CHAT = "chat"
     const val OP_COMPACT = "compact"
+    const val OP_REWRITE_REPLY = "rewrite_reply"
 
     const val AGENT_UI_HANDOFF_SOURCE = "agent_ui"
     const val ETA_VOICE_HANDOFF_SOURCE = "eta_voice"
@@ -156,6 +157,7 @@ internal object AgentRuntimeWire {
         val handoff: EntryHandoff? = null,
         val modelSessionId: String = "",
         val operation: String = OP_CHAT,
+        val rewriteTargetMessageId: String? = null,
     ) {
         // 旧入口沿用会话 handoff；无持久会话的入口以首个 run 为会话起点。
         val effectiveModelSessionId: String
@@ -212,6 +214,7 @@ internal object AgentRuntimeWire {
         val contextSnapshot: AgentContextSnapshot? = null,
         val contextSnapshotRef: String = "",
         val operation: String = OP_CHAT,
+        val rewriteTargetMessageId: String? = null,
     )
 
     data class EntryHandoff(
@@ -283,6 +286,7 @@ internal object AgentRuntimeWire {
         putString(KEY_MODEL, request.config.model)
         putString(KEY_MODEL_DISPLAY_NAME, request.config.modelDisplayName)
         putString("operation", request.operation)
+        request.rewriteTargetMessageId?.let { putString("rewrite_target_message_id", it) }
         request.config.contextWindow?.let { putInt(KEY_CONTEXT_WINDOW, it) }
         AgentWireText.put(this, KEY_SYSTEM_PROMPT, request.config.systemPrompt, payloadDirectory)
         putString(KEY_ANTHROPIC_VERSION, request.config.anthropicVersion)
@@ -394,7 +398,10 @@ internal object AgentRuntimeWire {
     ): RunRequest = RunRequest(
             runId = bundle.getString(KEY_RUN_ID).orEmpty(),
             prompt = if (readText) AgentWireText.read(bundle, KEY_PROMPT).orEmpty() else bundle.getString(KEY_PROMPT).orEmpty(),
-            operation = bundle.getString("operation")?.also { require(it in setOf(OP_CHAT, OP_COMPACT)) } ?: OP_CHAT,
+            operation = bundle.getString("operation")?.also { require(it in setOf(OP_CHAT, OP_COMPACT, OP_REWRITE_REPLY)) } ?: OP_CHAT,
+            rewriteTargetMessageId = bundle.getString("rewrite_target_message_id")?.also {
+                require(it.isNotBlank() && it.length <= 256) { "Invalid rewrite target" }
+            },
             modelSessionId = bundle.getString(KEY_MODEL_SESSION_ID).orEmpty(),
             config = AgentModelClient.ModelConfig(
                 providerId = bundle.getString(KEY_PROVIDER_ID).orEmpty(),
@@ -489,6 +496,7 @@ internal object AgentRuntimeWire {
     private fun RunResult.toBundle(compactForDrain: Boolean, payloadDirectory: File? = null): Bundle = Bundle().apply {
         if (!compactForDrain) AgentWireText.put(this, "complete_result_json", json.encodeToString(this@toBundle), payloadDirectory)
         putString("operation", operation)
+        rewriteTargetMessageId?.let { putString("rewrite_target_message_id", it) }
         if (compactForDrain && runId.isNotBlank()) {
             putString("context_snapshot_ref", runId)
         } else {
@@ -524,6 +532,7 @@ internal object AgentRuntimeWire {
             contextSnapshot = AgentContextSnapshot.decode(bundle.getString("context_snapshot")),
             contextSnapshotRef = bundle.getString("context_snapshot_ref").orEmpty(),
             operation = bundle.getString("operation") ?: OP_CHAT,
+            rewriteTargetMessageId = bundle.getString("rewrite_target_message_id"),
             runId = bundle.getString(KEY_RUN_ID).orEmpty(),
             ok = bundle.getBoolean(KEY_OK),
             content = bundle.getString(KEY_CONTENT).orEmpty(),

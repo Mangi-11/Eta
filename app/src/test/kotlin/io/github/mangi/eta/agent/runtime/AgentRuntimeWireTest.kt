@@ -25,6 +25,33 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class AgentRuntimeWireTest {
     @Test
+    fun replyRewriteTargetSurvivesRequestResultAndDrain() {
+        val request = AgentRuntimeWire.RunRequest(
+            runId = "rewrite-1", prompt = "原回复", images = emptyList(),
+            config = AgentModelClient.ModelConfig(baseUrl = "https://example.invalid", apiKey = "test", model = "test", systemPrompt = "",
+                reasoningEffort = ReasoningEffort.OFF),
+            operation = AgentRuntimeWire.OP_REWRITE_REPLY, rewriteTargetMessageId = "assistant-1",
+        )
+        assertEquals(request, AgentRuntimeWire.runRequestFromBundle(AgentRuntimeWire.toLegacyBundle(request)))
+        val result = AgentRuntimeWire.RunResult("rewrite-1", true, "新回复", operation = AgentRuntimeWire.OP_REWRITE_REPLY,
+            rewriteTargetMessageId = "assistant-1")
+        assertEquals(result, AgentRuntimeWire.runResultFromBundle(AgentRuntimeWire.toBundle(result)))
+        val completed = AgentRuntimeWire.CompletedRun(
+            AgentRuntimeWire.EntryHandoff("rewrite-1", AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE, "conversation"), result, 1,
+        )
+        val drained = AgentRuntimeWire.completedRunsFromBundle(AgentRuntimeWire.completedRunsToBundle(listOf(completed))).single()
+        assertEquals("assistant-1", drained.result.rewriteTargetMessageId)
+        assertEquals(AgentRuntimeWire.OP_REWRITE_REPLY, drained.result.operation)
+    }
+
+    @Test
+    fun replyRewriteDoesNotAcceptSteering() {
+        val session = AgentRuntimeSession("rewrite-1", operation = AgentRuntimeWire.OP_REWRITE_REPLY)
+        assertFalse(session.steer("额外请求"))
+        assertNull(session.steer("额外请求") { AgentEvent.UserSupplementReceived(1, "额外请求") })
+    }
+
+    @Test
     fun contextSnapshotRoundTripsDirectlyAndDrainOnlyCarriesReference() {
         val snapshot = io.github.mangi.eta.agent.model.AgentContextSnapshot(
             operationId = "compact-1", consumedUserTurns = 4, coveredUserTurns = 3,

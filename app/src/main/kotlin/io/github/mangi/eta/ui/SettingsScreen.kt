@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.SupportAgent
 import androidx.compose.material.icons.rounded.SwipeUp
 import androidx.compose.material.icons.rounded.Terminal
+import androidx.compose.material.icons.rounded.TheaterComedy
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material.icons.rounded.Visibility
@@ -253,6 +254,16 @@ internal fun SettingsScreen(
                             )
                         },
                         onClick = { onNavigate(AppRoute.McpServers) },
+                    )
+
+                    ArrowPreference(
+                        title = "角色",
+                        startAction = {
+                            PreferenceIcon(
+                                icon = Icons.Rounded.TheaterComedy,
+                            )
+                        },
+                        onClick = { onNavigate(AppRoute.Characters) },
                     )
                 }
             }

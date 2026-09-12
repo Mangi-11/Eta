@@ -12,8 +12,13 @@ internal object AgentContinuationBuilder {
         newRunId: String = "run-${UUID.randomUUID()}",
         createdAt: Long = System.currentTimeMillis(),
     ): AgentRuntimeWire.RunRequest {
+        require(request.operation == AgentRuntimeWire.OP_CHAT) { "该运行不是可继续的对话回合" }
+        val uiPayload = request.handoff?.takeIf { it.source == AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE }
+            ?.let { AgentUiHandoffPayload.from(it.payload) }
         val baseHistory = response.contextSnapshot?.messages ?: (request.history +
-            AgentModelClient.buildUserHistoryMessage(request.prompt, request.images) +
+            AgentModelClient.buildUserHistoryMessage(request.prompt, request.images).copy(
+                messageId = uiPayload?.promptMessageId(request.runId) ?: "user-${request.runId}",
+            ) +
             response.transcript)
         val handoff = request.handoff?.let { original ->
             if (original.source != AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE) {
@@ -36,6 +41,7 @@ internal object AgentContinuationBuilder {
         return request.copy(
             runId = newRunId,
             operation = AgentRuntimeWire.OP_CHAT,
+            rewriteTargetMessageId = null,
             modelSessionId = request.effectiveModelSessionId,
             prompt = supplement,
             images = emptyList(),

@@ -12,6 +12,14 @@ import org.junit.Test
 
 class AgentRuntimeSessionTest {
     @Test
+    fun compactionDoesNotAcceptPendingTaskInstructions() {
+        val session = AgentRuntimeSession("compact", operation = AgentRuntimeWire.OP_COMPACT)
+        assertFalse(session.steer("继续执行设备操作"))
+        assertEquals(null, session.steer("继续执行设备操作") { error("不应登记补充事件") })
+        assertFalse(session.controller.hasPendingSteering)
+    }
+
+    @Test
     fun cancellationDeliversCommittedContextAndRejectsLaterUpdates() {
         val delivered = mutableListOf<AgentRuntimeWire.RunResult>()
         val session = AgentRuntimeSession("run", resultSink = delivered::add)

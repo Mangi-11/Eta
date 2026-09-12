@@ -8,6 +8,12 @@ internal data class AgentUiHandoffPayload(
     val promptSupplement: Supplement? = null,
     val supplements: List<Supplement> = emptyList(),
 ) {
+    val lastSupplementIndex: Int
+        get() = (listOfNotNull(promptSupplement?.index) + supplements.map { it.index }).maxOrNull() ?: 0
+
+    fun promptMessageId(runId: String): String =
+        promptSupplement?.let { "user-$runId-supplement-${it.index}" } ?: "user-$runId"
+
     data class Supplement(
         val index: Int,
         val text: String,

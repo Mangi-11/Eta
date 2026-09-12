@@ -22,6 +22,7 @@ internal data class RuntimeResultEntity(
     @ColumnInfo(name = "transcript_json") val transcriptJson: String,
     @ColumnInfo(name = "context_snapshot_json", defaultValue = "''") val contextSnapshotJson: String = "",
     @ColumnInfo(name = "operation", defaultValue = "'chat'") val operation: String = "chat",
+    @ColumnInfo(name = "rewrite_target_message_id") val rewriteTargetMessageId: String? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
 
@@ -34,6 +35,7 @@ internal data class RuntimeResultHeader(
     @ColumnInfo(name = "dismiss_entry_surface") val dismissEntrySurface: Boolean,
     val ok: Boolean,
     val operation: String,
+    @ColumnInfo(name = "rewrite_target_message_id") val rewriteTargetMessageId: String? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
 
@@ -52,6 +54,7 @@ internal data class RuntimeArchiveRunEntity(
     @ColumnInfo(name = "transcript_json") val transcriptJson: String,
     @ColumnInfo(name = "context_snapshot_json", defaultValue = "''") val contextSnapshotJson: String = "",
     @ColumnInfo(name = "operation", defaultValue = "'chat'") val operation: String = "chat",
+    @ColumnInfo(name = "rewrite_target_message_id") val rewriteTargetMessageId: String? = null,
     @ColumnInfo(name = "user_image_previews_json") val userImagePreviewsJson: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
@@ -94,6 +97,7 @@ internal data class RuntimeInFlightRunEntity(
     @ColumnInfo(name = "owner_instance_id") val ownerInstanceId: String,
     @ColumnInfo(name = "context_snapshot_json", defaultValue = "''") val contextSnapshotJson: String = "",
     @ColumnInfo(name = "operation", defaultValue = "'chat'") val operation: String = "chat",
+    @ColumnInfo(name = "rewrite_target_message_id") val rewriteTargetMessageId: String? = null,
     @ColumnInfo(name = "handoff_id") val handoffId: String,
     @ColumnInfo(name = "handoff_source") val handoffSource: String,
     @ColumnInfo(name = "handoff_payload") val handoffPayload: String,

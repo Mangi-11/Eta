@@ -24,6 +24,9 @@ internal object AgentPendingResultRecovery {
         promptSupplement: AgentUiHandoffPayload.Supplement? = null,
         supplements: List<AgentUiHandoffPayload.Supplement>,
     ): Outcome {
+        if (result.operation == AgentRuntimeWire.OP_REWRITE_REPLY || runId in state.roleplayMessages.pendingRewrites) {
+            return Outcome(RoleplayConversationReducer.applyRewrite(state, runId, result), runId in state.appliedRuntimeRunIds)
+        }
         val stateWithSupplements = state.copy(messages = mergeSupplements(
             runId, listOfNotNull(promptSupplement) + supplements, state.messages,
         ))
@@ -42,7 +45,7 @@ internal object AgentPendingResultRecovery {
                     AgentModelClient.buildUserHistoryMessage(
                         text = supplement.text,
                         images = emptyList(),
-                    )
+                    ).copy(messageId = supplementMessageId(runId, supplement.index))
                 }
             ) + result.transcript,
         )
@@ -99,7 +102,7 @@ internal object AgentPendingResultRecovery {
             }
         }
         return Outcome(
-            state = state.copy(
+            state = history.state.copy(
                 messages = mergeSupplements(
                     runId = runId,
                     supplements = listOfNotNull(promptSupplement) + supplements,
@@ -109,7 +112,7 @@ internal object AgentPendingResultRecovery {
                 history = history.state.history,
                 appliedRuntimeRunIds = history.state.appliedRuntimeRunIds,
                 isStreaming = false,
-            ),
+            ).let { RoleplayConversationReducer.linkRun(it, runId) },
             alreadyApplied = false,
         )
     }

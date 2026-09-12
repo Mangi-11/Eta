@@ -23,8 +23,10 @@ import androidx.room.migration.Migration
         RuntimeInFlightEventEntity::class,
         SkillRegistryEntity::class,
         McpServerEntity::class,
+        CharacterEntity::class,
+        UserPersonaEntity::class,
     ],
-    version = 20,
+    version = 21,
     exportSchema = false,
 )
 internal abstract class EtaDatabase : RoomDatabase() {
@@ -33,6 +35,7 @@ internal abstract class EtaDatabase : RoomDatabase() {
     abstract fun runtimeRunDao(): RuntimeRunDao
     abstract fun skillDao(): SkillDao
     abstract fun mcpServerDao(): McpServerDao
+    abstract fun characterDao(): CharacterDao
 
     companion object {
         @Volatile
@@ -60,6 +63,7 @@ internal abstract class EtaDatabase : RoomDatabase() {
                         MIGRATION_17_18,
                         MIGRATION_18_19,
                         MIGRATION_19_20,
+                        MIGRATION_20_21,
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
@@ -90,10 +94,27 @@ internal abstract class EtaDatabase : RoomDatabase() {
             createTextChunkCleanup(database)
         }
 
+        internal val MIGRATION_20_21 = Migration(20, 21) { database ->
+            database.execSQL("ALTER TABLE conversations ADD COLUMN roleplay_json TEXT NOT NULL DEFAULT ''")
+            database.execSQL("ALTER TABLE conversations ADD COLUMN revisions_json TEXT NOT NULL DEFAULT ''")
+            listOf("runtime_results", "runtime_archive_runs", "runtime_inflight_runs").forEach { table ->
+                database.execSQL("ALTER TABLE $table ADD COLUMN rewrite_target_message_id TEXT")
+            }
+            database.execSQL("CREATE TABLE IF NOT EXISTS roleplay_characters (" +
+                "id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, card_json TEXT NOT NULL, " +
+                "avatar_path TEXT, archived INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)")
+            database.execSQL("CREATE TABLE IF NOT EXISTS roleplay_user_persona (" +
+                "id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL)")
+            createTextChunkCleanup(database)
+        }
+
         private fun createTextChunkCleanup(database: androidx.sqlite.db.SupportSQLiteDatabase) {
             mapOf("runtime_results" to "run_id", "runtime_archive_runs" to "archive_run_id",
                 "runtime_inflight_runs" to "run_id", "conversation_context_checkpoints" to "conversation_id",
                 "conversation_messages" to "id", "conversations" to "id")
+                .plus(if (database.version >= 21 || database.query(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'roleplay_characters'"
+                ).use { it.moveToFirst() }) mapOf("roleplay_characters" to "id", "roleplay_user_persona" to "id") else emptyMap())
                 .forEach { (table, key) ->
                     database.execSQL("CREATE TRIGGER IF NOT EXISTS ${table}_text_cleanup AFTER DELETE ON $table " +
                         "BEGIN DELETE FROM agent_text_chunks WHERE owner_table = '$table' AND owner_id = OLD.$key; END")

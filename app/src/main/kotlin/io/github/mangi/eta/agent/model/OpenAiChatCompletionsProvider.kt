@@ -50,7 +50,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             .build()
 
         val requestBody = buildRequestJson(config, request.messages, request.effectiveTools).apply {
-            if (request.purpose == ProviderRequestPurpose.COMPACTION) {
+            if (!request.purpose.allowsTools) {
                 remove("tools")
                 remove("tool_choice")
             }
