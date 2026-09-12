@@ -46,8 +46,8 @@ internal class AgentRunMessageProjector(
         detail: String,
     ): List<AgentChatMessageUi> = messages.map { message ->
         if (message is SystemNoticeMessageUi && message.code == SystemNoticeCode.ContextCompaction &&
-            message.id.startsWith("assistant-$runId-compaction-") && message.detail == "正在压缩上下文…") {
-            message.copy(detail = detail)
+            message.id.startsWith("assistant-$runId-compaction-") && message.running) {
+            message.copy(detail = detail, running = false)
         } else message
     }
 
@@ -509,6 +509,38 @@ internal class AgentRunMessageProjector(
         "$runId-tool-$round-${toolCallId.ifBlank { "unknown" }}"
 
     companion object {
+        /**
+         * 手动压缩 run 的结果与压缩事件共用同一条时间线标记：事件标记已携带压缩前后的
+         * token 信息，成功时原样保留；仍在进行中、失败或事件缺失时才改写或补写。
+         */
+        fun mergeCompactionResultNotice(
+            runId: String,
+            messages: List<AgentChatMessageUi>,
+            ok: Boolean,
+            detail: String,
+        ): List<AgentChatMessageUi> {
+            val index = messages.indexOfLast {
+                it is SystemNoticeMessageUi && it.code == SystemNoticeCode.ContextCompaction &&
+                    it.id.startsWith("assistant-$runId-compaction-")
+            }
+            if (index < 0) {
+                return messages + SystemNoticeMessageUi(
+                    id = "assistant-$runId-compaction-result",
+                    code = SystemNoticeCode.ContextCompaction,
+                    detail = detail,
+                )
+            }
+            val notice = messages[index] as SystemNoticeMessageUi
+            if (ok && !notice.running) return messages
+            return messages.mapIndexed { i, message ->
+                if (i == index && message is SystemNoticeMessageUi) {
+                    message.copy(detail = detail, running = false)
+                } else {
+                    message
+                }
+            }
+        }
+
         /** 终态只能补全最后一次重试之后的回答，不能覆盖已标记失败的半截输出。 */
         fun resultTargetIndex(
             runId: String,

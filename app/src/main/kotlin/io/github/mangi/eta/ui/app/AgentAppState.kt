@@ -1943,6 +1943,7 @@ internal class AgentAppState(
                     messages.filterNot { it.id == id } + SystemNoticeMessageUi(
                         id = id, code = SystemNoticeCode.ContextCompaction, detail = event.displayMessage,
                         contextTokens = event.tokensAfter,
+                        running = event.phase == AgentEvent.ContextCompaction.PHASE_STARTED,
                     )
                 }
             }
@@ -2016,9 +2017,10 @@ internal class AgentAppState(
         when {
             result.operation == AgentRuntimeWire.OP_COMPACT ||
                 conversationsById[conversationIdForRun(runId)]?.isCompacting == true -> updateMessages(runId) { messages ->
-                    messages + SystemNoticeMessageUi(
-                        id = "assistant-$runId-compaction-result",
-                        code = SystemNoticeCode.ContextCompaction,
+                    AgentRunMessageProjector.mergeCompactionResultNotice(
+                        runId = runId,
+                        messages = messages,
+                        ok = result.ok,
                         detail = if (result.ok) "上下文压缩完成" else result.error ?: "上下文压缩失败",
                     )
                 }

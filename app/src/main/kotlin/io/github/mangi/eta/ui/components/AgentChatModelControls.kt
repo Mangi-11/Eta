@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,6 +47,7 @@ import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.defaultExpandedModelProviderIds
 import io.github.mangi.eta.ui.model.formatContextUsage
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -53,9 +55,12 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
-import top.yukonga.miuix.kmp.basic.RichTooltipBox
+import top.yukonga.miuix.kmp.basic.RichTooltip
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TooltipAnchorPosition
+import top.yukonga.miuix.kmp.basic.TooltipBox
+import top.yukonga.miuix.kmp.basic.TooltipDefaults
 import top.yukonga.miuix.kmp.basic.rememberTooltipState
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.squircle.squircleSurface
@@ -276,20 +281,54 @@ internal fun AgentContextUsageButton(
     )
     val detail = when {
         usage.estimated -> stringResource(R.string.context_usage_estimated, summary)
-        usage.contextTokens == null -> stringResource(R.string.context_usage_after_response, summary)
+        usage.contextTokens == null -> stringResource(R.string.context_usage_after_response)
         else -> stringResource(R.string.context_usage_previous_response, summary)
     }
     val usageDescription = stringResource(
         R.string.context_usage_description,
         summary.replace('\n', ' '),
     )
-    RichTooltipBox(
-        title = stringResource(R.string.ui_contextual_usage_d12810),
-        text = detail,
-        actionText = if (canCompact) stringResource(R.string.context_compact_action) else null,
-        onActionClick = onCompact,
+    val tooltipColors = TooltipDefaults.richTooltipColors()
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = {
+            RichTooltip(
+                title = {
+                    Text(
+                        text = stringResource(R.string.ui_contextual_usage_d12810),
+                        color = tooltipColors.titleContentColor,
+                        style = MiuixTheme.textStyles.subtitle,
+                    )
+                },
+                action = if (canCompact) {
+                    {
+                        TextButton(
+                            text = stringResource(R.string.context_compact_action),
+                            onClick = {
+                                onCompact()
+                                tooltipState.dismiss()
+                            },
+                            minWidth = 0.dp,
+                            minHeight = 34.dp,
+                            cornerRadius = 17.dp,
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        )
+                    }
+                } else {
+                    null
+                },
+                colors = tooltipColors,
+            ) {
+                Text(
+                    text = detail,
+                    color = tooltipColors.contentColor,
+                    style = MiuixTheme.textStyles.body2,
+                )
+            }
+        },
         state = tooltipState,
-        positioning = TooltipAnchorPosition.Above,
+        focusable = true,
         modifier = modifier,
     ) {
         IconButton(

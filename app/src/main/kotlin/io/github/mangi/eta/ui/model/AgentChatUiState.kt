@@ -71,6 +71,8 @@ data class SystemNoticeMessageUi(
     val code: SystemNoticeCode,
     val detail: String? = null,
     val contextTokens: Int? = null,
+    /** 仅运行期存在的进行中标记，不随消息持久化；恢复的历史通知始终视为已结束。 */
+    val running: Boolean = false,
 ) : AgentChatMessageUi
 
 @Immutable

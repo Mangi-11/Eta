@@ -51,6 +51,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Compress
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
@@ -284,37 +285,41 @@ internal fun ChatMessageItem(
             onRegenerate = { onRegenerateMessage(message.id) },
             modifier = modifier,
         )
-        is SystemNoticeMessageUi -> AgentMessageBlock(
-            message = AgentMessageUi(
-                id = message.id,
-                content = buildString {
-                    append(
-                        stringResource(
-                            when (message.code) {
-                                SystemNoticeCode.Stopped -> R.string.system_notice_stopped
-                                SystemNoticeCode.EmptyResult -> R.string.system_notice_empty_result
-                                SystemNoticeCode.ContextCompaction -> R.string.context_compaction
-                                SystemNoticeCode.ModelRetry -> R.string.system_notice_model_retry
-                                SystemNoticeCode.RuntimeFailed -> R.string.system_notice_runtime_failed
-                                SystemNoticeCode.Interrupted -> R.string.system_notice_interrupted
-                            },
-                        ),
-                    )
-                    message.detail?.takeIf(String::isNotBlank)?.let { detail ->
-                        append("\n\n")
-                        append(detail)
-                    }
-                },
-                renderMarkdown = false,
-            ),
-            retainedStreamingState = null,
-            showCopyAction = showCopyAction,
-            showMessageActions = showMessageActions,
-            messageActionsEnabled = messageActionsEnabled,
-            onDelete = { onDeleteMessage(message.id) },
-            onRegenerate = { onRegenerateMessage(message.id) },
-            modifier = modifier,
-        )
+        is SystemNoticeMessageUi -> if (message.code == SystemNoticeCode.ContextCompaction) {
+            ContextCompactionMarker(message = message, modifier = modifier)
+        } else {
+            AgentMessageBlock(
+                message = AgentMessageUi(
+                    id = message.id,
+                    content = buildString {
+                        append(
+                            stringResource(
+                                when (message.code) {
+                                    SystemNoticeCode.Stopped -> R.string.system_notice_stopped
+                                    SystemNoticeCode.EmptyResult -> R.string.system_notice_empty_result
+                                    SystemNoticeCode.ContextCompaction -> R.string.context_compaction
+                                    SystemNoticeCode.ModelRetry -> R.string.system_notice_model_retry
+                                    SystemNoticeCode.RuntimeFailed -> R.string.system_notice_runtime_failed
+                                    SystemNoticeCode.Interrupted -> R.string.system_notice_interrupted
+                                },
+                            ),
+                        )
+                        message.detail?.takeIf(String::isNotBlank)?.let { detail ->
+                            append("\n\n")
+                            append(detail)
+                        }
+                    },
+                    renderMarkdown = false,
+                ),
+                retainedStreamingState = null,
+                showCopyAction = showCopyAction,
+                showMessageActions = showMessageActions,
+                messageActionsEnabled = messageActionsEnabled,
+                onDelete = { onDeleteMessage(message.id) },
+                onRegenerate = { onRegenerateMessage(message.id) },
+                modifier = modifier,
+            )
+        }
         is ThinkingMessageUi -> ThinkingRow(
             message = message,
             retainedStreamingState = retainedStreamingState,
@@ -648,6 +653,61 @@ private fun MessageTooltipAction(
             style = MiuixTheme.textStyles.body2,
             color = MiuixTheme.colorScheme.onSurface,
         )
+    }
+}
+
+// ── 上下文压缩：时间线中的轻量胶囊标记 ─────────────────────────────────
+
+/**
+ * 压缩不是一轮对话结果，而是上下文维护事件；用居中胶囊标记与助手正文区分，
+ * 进行中通过图标脉冲反馈，结束后保留压缩前后的 token 信息。
+ */
+@Composable
+private fun ContextCompactionMarker(
+    message: SystemNoticeMessageUi,
+    modifier: Modifier = Modifier,
+) {
+    val pulseAlpha = rememberActivePulse(active = message.running, label = "compaction_pulse")
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(percent = 50))
+                .background(MiuixTheme.colorScheme.surface)
+                .border(
+                    0.5.dp,
+                    MiuixTheme.colorScheme.outline.copy(alpha = 0.5f),
+                    RoundedCornerShape(percent = 50),
+                )
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Compress,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(12.dp)
+                    .graphicsLayer(alpha = if (message.running) pulseAlpha else 1f),
+                tint = if (message.running) {
+                    MiuixTheme.colorScheme.primary
+                } else {
+                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                },
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = message.detail?.takeIf(String::isNotBlank)
+                    ?: stringResource(R.string.context_compaction),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

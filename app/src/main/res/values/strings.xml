@@ -1090,10 +1090,10 @@
   <string name="model_switch_current">Switch model. Current: %1$s</string>
   <string name="model_collapse_provider">Collapse %1$s</string>
   <string name="model_expand_provider">Expand %1$s</string>
-  <string name="context_no_previous_usage">No usage data from the previous response</string>
-  <string name="context_no_model_limit">The current model does not provide a context limit</string>
-  <string name="context_usage_after_response">%1$s\nServer-measured usage will appear after a response</string>
-  <string name="context_usage_previous_response">%1$s\nMeasured by the server for the previous response</string>
+  <string name="context_no_previous_usage">No usage data yet</string>
+  <string name="context_no_model_limit">This model has no context limit</string>
+  <string name="context_usage_after_response">Measured after the first response</string>
+  <string name="context_usage_previous_response">%1$s\nMeasured last turn</string>
   <string name="context_usage_description">Context usage: %1$s</string>
   <string name="memory_budget_summary">Inject up to %1$s characters per turn. The model reads detailed content as needed</string>
   <string name="memory_over_limit">Over the 1 MiB limit. Remove some content</string>
@@ -1183,8 +1183,7 @@
   <string name="data_backup_imported">Imported %1$d conversations and %2$d providers</string>
   <string name="data_backup_failed">Backup operation failed</string>
   <string name="data_backup_file_open_failed">Unable to open the selected file</string>
-    <string name="context_compaction">上下文压缩</string>
-    <string name="context_compact_action">压缩上下文</string>
-    <string name="context_usage_estimated">压缩后的估算用量：
-%1$s</string>
+  <string name="context_compaction">Context compaction</string>
+  <string name="context_compact_action">Compact context</string>
+  <string name="context_usage_estimated">%1$s\nEstimated after compaction</string>
 </resources>

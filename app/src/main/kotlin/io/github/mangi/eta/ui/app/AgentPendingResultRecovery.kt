@@ -49,9 +49,10 @@ internal object AgentPendingResultRecovery {
         if (history.alreadyApplied) return Outcome(state, alreadyApplied = true)
         if (result.operation == AgentRuntimeWire.OP_COMPACT) {
             return Outcome(history.state.copy(isStreaming = false, isCompacting = false,
-                messages = state.messages + SystemNoticeMessageUi(
-                    id = "assistant-$runId-compaction-result",
-                    code = SystemNoticeCode.ContextCompaction,
+                messages = AgentRunMessageProjector.mergeCompactionResultNotice(
+                    runId = runId,
+                    messages = state.messages,
+                    ok = result.ok,
                     detail = if (result.ok) "上下文压缩完成" else result.error ?: "上下文压缩失败",
                 )), false)
         }

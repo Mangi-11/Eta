@@ -1062,10 +1062,13 @@
   <string name="model_switch_current">切換模型，目前為 %1$s</string>
   <string name="model_collapse_provider">收合 %1$s</string>
   <string name="model_expand_provider">展開 %1$s</string>
-  <string name="context_no_previous_usage">沒有上一輪的用量資料</string>
-  <string name="context_no_model_limit">目前的模型未提供內容長度上限</string>
-  <string name="context_usage_after_response">%1$s\n完成一次回覆後顯示伺服器實測值</string>
-  <string name="context_usage_previous_response">%1$s\n伺服器上一輪實測值</string>
+  <string name="context_no_previous_usage">暫無上輪用量</string>
+  <string name="context_no_model_limit">模型未提供上限</string>
+  <string name="context_usage_after_response">完成首次回覆後顯示實測用量</string>
+  <string name="context_usage_previous_response">%1$s\n上輪實測</string>
+  <string name="context_usage_estimated">%1$s\n壓縮後估算</string>
+  <string name="context_compaction">上下文壓縮</string>
+  <string name="context_compact_action">壓縮上下文</string>
   <string name="context_usage_description">內容用量：%1$s</string>
   <string name="memory_budget_summary">每輪最多注入 %1$s 個字元，詳細內容由模型視需要讀取</string>
   <string name="memory_over_limit">已超過 1 MiB 上限，請刪減內容</string>

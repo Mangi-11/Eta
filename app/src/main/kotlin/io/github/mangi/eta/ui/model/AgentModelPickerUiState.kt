@@ -131,8 +131,8 @@ internal fun contextUsageProgress(contextTokens: Int?, contextWindow: Int?): Flo
 
 internal fun formatContextUsage(
     usage: AgentContextUsageUi,
-    noUsageText: String = "No usage data from the previous response",
-    noLimitText: String = "The current model does not provide a context limit",
+    noUsageText: String = "No usage data yet",
+    noLimitText: String = "This model has no context limit",
     locale: Locale = Locale.getDefault(),
 ): String = when {
     usage.contextTokens == null -> noUsageText

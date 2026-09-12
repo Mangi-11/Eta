@@ -120,11 +120,11 @@ class AgentModelPickerProjectorTest {
         assertEquals(1f, contextUsageProgress(120_000, 100_000) ?: -1f, 0f)
         assertEquals("1.05M", formatCompactTokenCount(1_050_000))
         assertEquals(
-            "No usage data from the previous response",
+            "No usage data yet",
             formatContextUsage(AgentContextUsageUi(contextTokens = null, contextWindow = 100_000)),
         )
         assertEquals(
-            "12K tokens\nThe current model does not provide a context limit",
+            "12K tokens\nThis model has no context limit",
             formatContextUsage(AgentContextUsageUi(contextTokens = 12_000, contextWindow = null)),
         )
     }

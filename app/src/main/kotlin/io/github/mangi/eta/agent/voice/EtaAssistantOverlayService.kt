@@ -623,6 +623,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                     code = SystemNoticeCode.ContextCompaction,
                     detail = event.displayMessage,
                     contextTokens = event.tokensAfter,
+                    running = event.phase == AgentEvent.ContextCompaction.PHASE_STARTED,
                 )
                 status = EtaVoiceStatus.Reasoning
             }

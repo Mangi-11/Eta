@@ -68,7 +68,7 @@ internal class AgentContextSession(
             return
         }
         val operation = java.util.UUID.randomUUID().toString()
-        onEvent(AgentEvent.ContextCompaction(operation, "started", before))
+        onEvent(AgentEvent.ContextCompaction(operation, AgentEvent.ContextCompaction.PHASE_STARTED, before))
         try {
             var candidate = messages
             var attempts = 0
@@ -94,7 +94,7 @@ internal class AgentContextSession(
             }
             while (messages.length() > 0) messages.remove(messages.length() - 1)
             for (index in 0 until candidate.length()) messages.put(candidate.getJSONObject(index))
-            onEvent(AgentEvent.ContextCompaction(operation, "completed", before,
+            onEvent(AgentEvent.ContextCompaction(operation, AgentEvent.ContextCompaction.PHASE_COMPLETED, before,
                 budget.estimate(messages, roundTools)))
         } catch (failure: Exception) {
             runController.throwIfCancelled()
