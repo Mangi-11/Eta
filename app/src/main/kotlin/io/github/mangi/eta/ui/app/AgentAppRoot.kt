@@ -18,9 +18,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -101,6 +104,7 @@ fun AgentAppRoot(
     val uiScope = rememberCoroutineScope()
     val backStack = rememberNavBackStack<AppRoute>(AppRoute.Home)
     val navigator = remember(backStack) { AgentNavigator(backStack) }
+    var navigationResetKey by rememberSaveable { mutableIntStateOf(0) }
     val appViewModel = viewModel<AgentAppViewModel>()
     val agentState = appViewModel.state
     val characterStore = viewModel<CharacterLibraryViewModel>().store
@@ -280,13 +284,14 @@ fun AgentAppRoot(
     val swipeDismiss = swipeBackDirection.takeIf {
         LocalAppearanceSettings.current.swipeDismissEnabled
     }
-    NavDisplay(
-        backStack = backStack,
-        onBack = { popRoute() },
-        effects = NavDisplayEffects(
-            cornerClipRadius = rememberNavSystemCornerRadius(),
-        ),
-    ) {
+    key(navigationResetKey) {
+        NavDisplay(
+            backStack = backStack,
+            onBack = { popRoute() },
+            effects = NavDisplayEffects(
+                cornerClipRadius = rememberNavSystemCornerRadius(),
+            ),
+        ) {
             entry<AppRoute.Home>(swipeDismiss = swipeDismiss) {
                 RoutedShell(route = AppRoute.Home) {
                     AgentHomeScreen(
@@ -444,6 +449,8 @@ fun AgentAppRoot(
                         agentState.startCharacterConversation(binding, greeting)
                         conversationPaneOpen = false
                         navigator.popToHome()
+                        // 开始新故事直接呈现首页；重置导航呈现态，避免多层退栈扫过角色列表。
+                        navigationResetKey++
                     }
                 }
             }
@@ -675,6 +682,7 @@ fun AgentAppRoot(
                     onBack = ::popRoute
                 )
             }
+        }
     }
 
     characterStore.notice?.let { notice ->
