@@ -184,22 +184,22 @@
   </plurals>
   <string name="time_yesterday">昨日</string>
   <string name="time_recent">最近</string>
-  <string name="overlay_received">已收到指令，準備呼叫模型</string>
+  <string name="overlay_received">收到指令，準備模型</string>
   <string name="overlay_preparing">準備中…</string>
   <plurals name="overlay_preparing_tools">
-    <item quantity="other">正在準備 %d 個工具</item>
+    <item quantity="other">準備工具：%d 個</item>
   </plurals>
   <string name="overlay_reasoning_round">第 %1$d 輪思考</string>
-  <string name="overlay_requesting_model">正在請求模型</string>
+  <string name="overlay_requesting_model">請求模型中</string>
   <string name="overlay_model_responded">模型已回應</string>
-  <string name="overlay_generating_tool_arguments">正在產生工具參數</string>
-  <string name="overlay_reasoning">正在思考</string>
-  <string name="overlay_preparing_answer">正在整理回答</string>
+  <string name="overlay_generating_tool_arguments">產生工具參數中</string>
+  <string name="overlay_reasoning">思考中</string>
+  <string name="overlay_preparing_answer">整理回答中</string>
   <string name="overlay_planning_tools">預計執行：%1$s</string>
-  <string name="overlay_supplement_received">已收到補充內容，繼續執行</string>
-  <string name="overlay_running_tool">正在執行：%1$s</string>
+  <string name="overlay_supplement_received">收到補充，繼續執行</string>
+  <string name="overlay_running_tool">執行：%1$s</string>
   <string name="overlay_tool_completed">已完成：%1$s</string>
-  <string name="overlay_hosted_tool_running">正在執行 %1$s</string>
+  <string name="overlay_hosted_tool_running">%1$s中</string>
   <string name="overlay_hosted_tool_completed">%1$s 已完成</string>
   <string name="overlay_hosted_tool_failed">%1$s 失敗</string>
   <plurals name="overlay_images_read">
@@ -207,16 +207,11 @@
   </plurals>
   <string name="overlay_result_ready">結果已就緒</string>
   <string name="overlay_run_failed">請求失敗</string>
-  <string name="overlay_generating_answer">正在產生回答</string>
-  <string name="overlay_substatus_running">執行中</string>
-  <string name="overlay_substatus_paused">已暫停，點按即可繼續</string>
+  <string name="overlay_generating_answer">產生回答中</string>
   <string name="overlay_substatus_finished">已完成</string>
   <string name="overlay_substatus_failed">執行失敗</string>
   <string name="overlay_pause">暫停</string>
   <string name="overlay_resume">繼續</string>
-  <string name="overlay_dismiss">關閉</string>
-  <string name="overlay_expand">展開</string>
-  <string name="overlay_collapse">收合</string>
   <string name="tool_observe_screen">查看畫面</string>
   <string name="tool_tap">點按</string>
   <string name="tool_tap_element">點按元素</string>
@@ -257,13 +252,13 @@
   <string name="voice_speech_unavailable">無法使用語音辨識</string>
   <string name="voice_request_failed">請求失敗，請重試。</string>
   <string name="overlay_supplement">補充</string>
-  <string name="overlay_supplement_hint">補充要求，Eta 會接續目前的任務</string>
+  <string name="overlay_supplement_hint">補充指令，Eta 會繼續目前任務</string>
   <string name="overlay_send">傳送</string>
-  <string name="overlay_stopping">正在停止</string>
+  <string name="overlay_stopping">停止中</string>
   <string name="overlay_paused">已暫停</string>
   <string name="overlay_continuing">繼續執行</string>
-  <string name="overlay_finishing">任務即將結束，請在結果出現後再補充</string>
-  <string name="overlay_continuation_unavailable">目前的入口不支援補充內容</string>
+  <string name="overlay_finishing">收尾中，結果出現後再補充</string>
+  <string name="overlay_continuation_unavailable">目前入口不支援補充</string>
   <string name="overlay_stopped">已停止</string>
   <string name="action_regenerate">重新產生</string>
   <string name="conversation_regenerate_current_turn">目前這輪對話將由新產生的回覆取代。</string>

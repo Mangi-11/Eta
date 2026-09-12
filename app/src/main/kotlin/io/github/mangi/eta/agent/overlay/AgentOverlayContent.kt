@@ -65,8 +65,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -331,8 +333,7 @@ internal fun AgentOverlayBubble(
 
     val accent = phaseAccent(state.phase)
     val statusText = state.status.localizedText()
-    val statusColor = if (state.phase == AgentOverlayPhase.RUNNING) accent
-    else Color(0xFFFF9F0A)
+    val dotAlpha = rememberStatusDotPulse(active = state.phase == AgentOverlayPhase.RUNNING)
 
     AnimatedVisibility(
         visible = visible,
@@ -354,23 +355,33 @@ internal fun AgentOverlayBubble(
             modifier = Modifier
                 .widthIn(max = 136.dp),
             cornerRadius = 16.dp,
-            insideMargin = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+            insideMargin = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
             colors = CardDefaults.defaultColors(
                 color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f)
             ),
         ) {
-            // 一句话状态
-            Text(
-                text = statusText,
-                color = statusColor,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                lineHeight = 16.sp,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // 阶段色由圆点承载，状态文字保持中性；运行中圆点呼吸，暂停/结束静止
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .graphicsLayer(alpha = dotAlpha)
+                        .clip(CircleShape)
+                        .background(accent),
+                )
+                Spacer(modifier = Modifier.width(7.dp))
+                Text(
+                    text = statusText,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    lineHeight = 17.sp,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             AnimatedVisibility(
                 visible = supplementMode,
@@ -413,66 +424,75 @@ internal fun AgentOverlayBubble(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                 ) {
-                    IconButton(
+                    OverlayControlButton(
                         onClick = ::enterSupplementMode,
-                        minWidth = 28.dp,
-                        minHeight = 28.dp,
-                        cornerRadius = 14.dp
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Edit,
-                            contentDescription = stringResource(R.string.overlay_supplement),
-                            modifier = Modifier.size(14.dp),
+                        icon = Icons.Rounded.Edit,
+                        contentDescription = stringResource(R.string.overlay_supplement),
+                        tint = MiuixTheme.colorScheme.onSurface,
+                    )
+                    if (state.phase == AgentOverlayPhase.RUNNING) {
+                        OverlayControlButton(
+                            onClick = onPause,
+                            icon = Icons.Rounded.Pause,
+                            contentDescription = stringResource(R.string.overlay_pause),
                             tint = MiuixTheme.colorScheme.onSurface,
                         )
-                    }
-                    if (state.phase == AgentOverlayPhase.RUNNING) {
-                        IconButton(
-                            onClick = onPause,
-                            minWidth = 28.dp,
-                            minHeight = 28.dp,
-                            cornerRadius = 14.dp
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Pause,
-                                contentDescription = stringResource(R.string.overlay_pause),
-                                modifier = Modifier.size(14.dp),
-                                tint = MiuixTheme.colorScheme.onSurface,
-                            )
-                        }
                     } else if (state.phase == AgentOverlayPhase.PAUSED) {
-                        IconButton(
+                        OverlayControlButton(
                             onClick = onResume,
-                            minWidth = 28.dp,
-                            minHeight = 28.dp,
-                            cornerRadius = 14.dp,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.PlayArrow,
-                                contentDescription = stringResource(R.string.overlay_resume),
-                                modifier = Modifier.size(14.dp),
-                                tint = MiuixTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                    IconButton(
-                        onClick = onStop,
-                        minWidth = 28.dp,
-                        minHeight = 28.dp,
-                        cornerRadius = 14.dp,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Stop,
-                            contentDescription = stringResource(R.string.action_stop),
-                            modifier = Modifier.size(14.dp),
-                            tint = MiuixTheme.colorScheme.error,
+                            icon = Icons.Rounded.PlayArrow,
+                            contentDescription = stringResource(R.string.overlay_resume),
+                            tint = MiuixTheme.colorScheme.primary,
                         )
                     }
+                    OverlayControlButton(
+                        onClick = onStop,
+                        icon = Icons.Rounded.Stop,
+                        contentDescription = stringResource(R.string.action_stop),
+                        tint = MiuixTheme.colorScheme.error,
+                    )
                 }
             }
         }
+    }
+}
+
+/** 运行中状态圆点的呼吸透明度；其他阶段不持有帧动画。 */
+@Composable
+private fun rememberStatusDotPulse(active: Boolean): Float {
+    if (!active) return 1f
+    val transition = rememberInfiniteTransition(label = "status_dot")
+    val alpha by transition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "status_dot_alpha",
+    )
+    return alpha
+}
+
+@Composable
+private fun OverlayControlButton(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String,
+    tint: Color,
+) {
+    IconButton(
+        onClick = onClick,
+        backgroundColor = MiuixTheme.colorScheme.surfaceContainerHigh,
+        minWidth = 32.dp,
+        minHeight = 32.dp,
+        cornerRadius = 16.dp,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(15.dp),
+            tint = tint,
+        )
     }
 }
 
