@@ -3,7 +3,6 @@ package io.github.mangi.eta.ui.app
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,18 +21,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.components.AdaptiveTopAppBar
 import io.github.mangi.eta.ui.components.ConversationSidePaneScaffold
-import io.github.mangi.eta.ui.components.CharacterAvatar
 import io.github.mangi.eta.ui.components.MiuixBackButton
 import io.github.mangi.eta.ui.components.TopBarBackdrop
 import io.github.mangi.eta.ui.components.captureForTopBar
@@ -90,9 +85,6 @@ fun AgentAppShell(
     onOpenPermissions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenModelProviders: () -> Unit,
-    characterName: String? = null,
-    characterAvatarPath: String? = null,
-    onOpenCharacter: () -> Unit = {},
     modifier: Modifier = Modifier,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -122,9 +114,6 @@ fun AgentAppShell(
                             onStopKimiWeb = onStopKimiWeb,
                             onRefreshKimiWeb = onRefreshKimiWeb,
                             onOpenBrowser = onOpenBrowser,
-                            characterName = characterName,
-                            characterAvatarPath = characterAvatarPath,
-                            onOpenCharacter = onOpenCharacter,
                         )
                     }
                 }
@@ -184,29 +173,18 @@ private fun AgentTopBar(
     onStopKimiWeb: () -> Unit,
     onRefreshKimiWeb: () -> Unit,
     onOpenBrowser: () -> Unit,
-    characterName: String?,
-    characterAvatarPath: String?,
-    onOpenCharacter: () -> Unit,
 ) {
     val isHome = route is AppRoute.Home
-    val showCharacter = characterName != null && (isHome || route is AppRoute.Chat)
     val navigationIcon: @Composable () -> Unit = {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (isHome) {
-                IconButton(onClick = onOpenConversationPane) {
-                    Icon(
-                        imageVector = Icons.Rounded.Menu,
-                        contentDescription = stringResource(R.string.action_conversation_history),
-                    )
-                }
-            } else {
-                MiuixBackButton(onClick = onBack)
+        if (isHome) {
+            IconButton(onClick = onOpenConversationPane) {
+                Icon(
+                    imageVector = Icons.Rounded.Menu,
+                    contentDescription = stringResource(R.string.action_conversation_history),
+                )
             }
-            if (showCharacter) {
-                IconButton(onClick = onOpenCharacter, modifier = Modifier.semantics { contentDescription = "查看角色详情" }) {
-                    CharacterAvatar(characterName.orEmpty(), characterAvatarPath, size = 32.dp)
-                }
-            }
+        } else {
+            MiuixBackButton(onClick = onBack)
         }
     }
     val actions: @Composable RowScope.() -> Unit = {
@@ -224,10 +202,10 @@ private fun AgentTopBar(
         }
     }
 
-    if (isHome || showCharacter) {
+    if (isHome) {
         // 首页聊天舞台保持紧凑；二级内容页统一使用可折叠大标题。
         SmallTopAppBar(
-            title = if (showCharacter) characterName.orEmpty() else titleForRoute(route),
+            title = titleForRoute(route),
             color = color,
             scrollBehavior = scrollBehavior,
             navigationIcon = navigationIcon,

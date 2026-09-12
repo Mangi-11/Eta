@@ -261,11 +261,6 @@ fun AgentAppRoot(
             onOpenPermissions = { pushRoute(AppRoute.Permissions) },
             onOpenSettings = { pushRoute(AppRoute.Settings) },
             onOpenModelProviders = { pushRoute(AppRoute.ModelProviders) },
-            characterName = agentState.homeState.roleplay?.characterName,
-            characterAvatarPath = agentState.homeState.roleplay?.avatarPath,
-            onOpenCharacter = {
-                agentState.homeState.roleplay?.characterId?.let { pushRoute(AppRoute.CharacterDetail(it)) }
-            },
         ) { padding ->
             Box(
                 modifier = Modifier
