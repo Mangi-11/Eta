@@ -20,6 +20,7 @@ internal fun AgentHomeScreen(
     state: AgentChatHomeUiState,
     modelPickerState: AgentModelPickerUiState,
     conversationKey: String?,
+    bottomAnchorRequest: Int = 0,
     onAction: (AgentHomeAction) -> Unit,
     isDrawerOpen: Boolean = false,
     modifier: Modifier = Modifier,
@@ -27,6 +28,7 @@ internal fun AgentHomeScreen(
     key(chatConversationCompositionKey(conversationKey)) {
         AgentChatBody(
             messages = state.messages,
+            bottomAnchorRequest = bottomAnchorRequest,
             modelPickerState = modelPickerState,
             isCompacting = state.isCompacting,
             input = state.input,

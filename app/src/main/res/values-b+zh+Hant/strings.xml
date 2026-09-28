@@ -276,6 +276,8 @@
   <string name="overlay_finishing">收尾中，結果出現後再補充</string>
   <string name="overlay_continuation_unavailable">目前入口不支援補充</string>
   <string name="overlay_stopped">已停止</string>
+  <string name="overlay_result_rounds">共 %1$d 輪</string>
+  <string name="overlay_open_conversation">在 Eta 中檢視</string>
   <string name="action_regenerate">重新產生</string>
   <string name="conversation_regenerate_current_turn">目前這輪對話將由新產生的回覆取代。</string>
   <string name="time_now">現在</string>

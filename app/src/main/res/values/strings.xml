@@ -246,6 +246,8 @@
   <string name="overlay_finishing">Finishing up. Add input after the result appears</string>
   <string name="overlay_continuation_unavailable">Additional input not supported here</string>
   <string name="overlay_stopped">Stopped</string>
+  <string name="overlay_result_rounds">%1$d rounds</string>
+  <string name="overlay_open_conversation">View in Eta</string>
   <string name="tool_observe_screen">Observe screen</string>
   <string name="tool_tap">Tap</string>
   <string name="tool_tap_element">Tap element</string>

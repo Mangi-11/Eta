@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.runtime
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import android.app.Service
+import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -15,7 +16,6 @@ import android.os.Messenger
 import android.os.Process
 import android.provider.Settings
 import android.view.Gravity
-import android.view.View
 import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -35,10 +35,9 @@ import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.media.AgentImageCodec
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.overlay.AgentHapticFeedback
-import io.github.mangi.eta.agent.overlay.AgentOverlayBubble
+import io.github.mangi.eta.agent.overlay.AgentConversationTarget
 import io.github.mangi.eta.agent.overlay.AgentOverlayGlow
-import io.github.mangi.eta.agent.overlay.AgentOverlayOrb
-import io.github.mangi.eta.agent.overlay.AgentResultCard
+import io.github.mangi.eta.agent.overlay.AgentLiveUpdate
 import io.github.mangi.eta.agent.overlay.AgentOverlayPhase
 import io.github.mangi.eta.agent.overlay.AgentOverlayState
 import io.github.mangi.eta.agent.overlay.AgentOverlayStatus
@@ -87,17 +86,18 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     private var windowManager: WindowManager? = null
     private var glowView: ComposeView? = null
-    private var orbView: ComposeView? = null
-    private var bubbleView: ComposeView? = null
-    private var resultCardView: ComposeView? = null
     private var glowParams: WindowManager.LayoutParams? = null
-    private var orbParams: WindowManager.LayoutParams? = null
-    private var bubbleParams: WindowManager.LayoutParams? = null
-    private var resultCardParams: WindowManager.LayoutParams? = null
 
     private val state = mutableStateOf(AgentOverlayState.Initial)
-    private val collapsed = mutableStateOf(true)
     private var hasExecutedForegroundTool = false
+    /** Android 16 实况通知是否可用（null 表示本次运行尚未探测）。 */
+    private var liveUpdateSupported: Boolean? = null
+    private var liveUpdateActive = false
+    /** 产生当前运行的会话，用于从流体云直接回到该会话。 */
+    private var activeConversationTarget: AgentConversationTarget? = null
+    private val liveUpdateTimeout = Runnable {
+        if (activeSession == null) dismissAndStop()
+    }
     private val supplementsLock = Any()
     private val activeSupplements = mutableListOf<AgentUiHandoffPayload.Supplement>()
     private var nextSupplementIndex = 1
@@ -119,6 +119,37 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 实况通知上的控制入口直接回到本服务；它不是保活启动，任务已结束时不能让服务空转
+        val controlAction = when (intent?.action) {
+            AgentLiveUpdate.ACTION_PAUSE -> {
+                requestPause()
+                true
+            }
+
+            AgentLiveUpdate.ACTION_RESUME -> {
+                requestResume()
+                true
+            }
+
+            AgentLiveUpdate.ACTION_STOP -> {
+                requestStop()
+                true
+            }
+
+            AgentLiveUpdate.ACTION_SUPPLEMENT -> {
+                RemoteInput.getResultsFromIntent(intent)
+                    ?.getCharSequence(AgentLiveUpdate.EXTRA_SUPPLEMENT)
+                    ?.toString()
+                    ?.let(::requestSupplement)
+                true
+            }
+
+            else -> false
+        }
+        if (controlAction) {
+            if (activeSession == null) stopSelf(startId)
+            return START_NOT_STICKY
+        }
         if (intent?.action != ACTION_KEEP_ALIVE || activeSession == null) {
             stopSelf(startId)
         }
@@ -154,17 +185,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         activeSession = null
         resultIo.shutdownNow()
         mainHandler.removeCallbacksAndMessages(null)
-        resultCardView?.let { view -> runCatching { windowManager?.removeView(view) } }
-        bubbleView?.let { view -> runCatching { windowManager?.removeView(view) } }
-        orbView?.let { view -> runCatching { windowManager?.removeView(view) } }
+        clearLiveUpdate()
         glowView?.let { view -> runCatching { windowManager?.removeView(view) } }
-        resultCardView = null
-        bubbleView = null
-        orbView = null
         glowView = null
-        resultCardParams = null
-        bubbleParams = null
-        orbParams = null
         glowParams = null
         windowManager = null
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
@@ -345,9 +368,14 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             }
         }
         mainHandler.removeCallbacksAndMessages(hideToken)
+        mainHandler.removeCallbacks(liveUpdateTimeout)
         state.value = AgentOverlayState.Initial
-        collapsed.value = true
         hasExecutedForegroundTool = false
+        activeConversationTarget = request.conversationTarget()
+        AndroidAgentLogger.info(
+            "Agent conversation target: source=${activeConversationTarget?.source ?: "-"} " +
+                "key=${activeConversationTarget?.key ?: "-"}",
+        )
         synchronized(supplementsLock) {
             activeSupplements.clear()
             nextSupplementIndex = 1
@@ -424,13 +452,16 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             runCatching {
                 state.value = state.value.applyEvent(event)
                 if (revealsForegroundOperation && entrySurfaceReady) {
-                    if (orbView == null) {
+                    if (glowView == null) {
                         AgentHapticFeedback.perform(
                             this,
                             AgentHapticFeedback.Type.RUN_STARTED,
                         )
                     }
-                    ensureOverlayVisible()
+                    ensureAmbientGlowVisible()
+                    syncLiveUpdate()
+                } else if (liveUpdateActive) {
+                    syncLiveUpdate()
                 }
             }.onFailure { throwable ->
                 AndroidAgentLogger.warnThrottled("runtime_overlay_event_failed") {
@@ -737,6 +768,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             phase = AgentOverlayPhase.PAUSED,
             status = AgentOverlayStatus.Paused,
         )
+        syncLiveUpdate()
     }
 
     private fun requestResume() {
@@ -745,12 +777,12 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             phase = AgentOverlayPhase.RUNNING,
             status = AgentOverlayStatus.Continuing,
         )
+        syncLiveUpdate()
     }
 
     private fun requestSupplement(text: String) {
         val supplementText = text.trim()
         if (supplementText.isBlank()) return
-        setBubbleInputMode(focusable = false)
         activeSession?.let { session ->
             val event = session.steer(supplementText) {
                 recordSupplementEvent(supplementText)
@@ -799,12 +831,44 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         )
     }
 
-    private fun ensureOverlayVisible() {
-        showOverlay()
+    /**
+     * 把当前状态同步到 Android 16 实况通知（ColorOS 的流体云入口）。
+     * 设备不支持、用户关闭实况通知或系统未提升时静默跳过，氛围光与结果卡片照常工作。
+     */
+    private fun syncLiveUpdate() {
+        val supported = liveUpdateSupported
+            ?: AgentLiveUpdate.isAvailable(this).also { liveUpdateSupported = it }
+        if (!supported) return
+        liveUpdateActive = true
+        AgentLiveUpdate.publish(this, state.value, activeConversationTarget)
     }
 
-    private fun showOverlay() {
-        if (orbView != null) return
+    private fun clearLiveUpdate() {
+        mainHandler.removeCallbacks(liveUpdateTimeout)
+        liveUpdateSupported = null
+        liveUpdateActive = false
+        AgentLiveUpdate.dismiss(this)
+    }
+
+    /**
+     * 结束后把实况通知切成结果态，让流体云继续显示「已完成/执行失败」与结果概述，
+     * 点击回到 Eta 会话；等结果卡片关闭或超时再撤下。
+     */
+    private fun completeLiveUpdate(finalState: AgentOverlayState) {
+        if (!liveUpdateActive) return
+        liveUpdateActive = false
+        AgentLiveUpdate.publishResult(this, finalState, activeConversationTarget)
+        mainHandler.removeCallbacks(liveUpdateTimeout)
+        mainHandler.postDelayed(liveUpdateTimeout, LIVE_UPDATE_RESULT_KEEP_MS)
+    }
+
+    /**
+     * 前台操作期间的全屏氛围光（触摸穿透、截图过滤）。
+     *
+     * 状态本身不再自绘浮窗，状态栏胶囊由系统实况通知/流体云承载。
+     */
+    private fun ensureAmbientGlowVisible() {
+        if (glowView != null) return
         // TYPE_ACCESSIBILITY_OVERLAY 免 SYSTEM_ALERT_WINDOW 权限；仅回退态（无障碍未启用）才需检查
         if (AgentAccessibilityService.current() == null && !Settings.canDrawOverlays(this)) return
         val wm = overlayContext().getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
@@ -822,84 +886,6 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         }
         glowView = glow
         glowParams = glowLp
-
-        // ── 光球窗口：始终显示，右侧中下 ──────────────────────────────
-        val orb = createOverlayComposeView {
-            AgentOverlayOrb(
-                state = state.value,
-                onToggleCollapse = ::toggleCollapse,
-            )
-        }
-        val orbLp = orbLayoutParams()
-        runCatching { wm.addView(orb, orbLp) }.onFailure { throwable ->
-            AndroidAgentLogger.warnThrottled("runtime_orb_add_view_failed") {
-                "Agent runtime orb addView failed: type=${throwable.safeLogType()}"
-            }
-            return
-        }
-        orbView = orb
-        orbParams = orbLp
-        orb.visibility = View.VISIBLE
-
-        // ── 小气泡窗口：展开态显示，跟随光球，窗口外触摸穿透 ─────────
-        if (!collapsed.value) {
-            showBubble(wm)
-        }
-    }
-
-    private fun toggleCollapse() {
-        collapsed.value = !collapsed.value
-        val wm = windowManager ?: return
-        if (collapsed.value) {
-            bubbleView?.let { view -> runCatching { wm.removeView(view) } }
-            bubbleView = null
-            bubbleParams = null
-        } else {
-            if (bubbleView == null) showBubble(wm)
-        }
-    }
-
-    private fun showBubble(wm: WindowManager) {
-        if (bubbleView != null) return
-        val bubble = createOverlayComposeView {
-            AgentOverlayBubble(
-                state = state.value,
-                onCollapse = ::toggleCollapse,
-                onPause = ::requestPause,
-                onResume = ::requestResume,
-                onStop = ::requestStop,
-                onSupplementModeChange = ::setBubbleInputMode,
-                onSupplement = ::requestSupplement,
-            )
-        }
-        val lp = bubbleLayoutParams()
-        runCatching { wm.addView(bubble, lp) }.onFailure { throwable ->
-            AndroidAgentLogger.warnThrottled("runtime_bubble_add_view_failed") {
-                "Agent runtime bubble addView failed: type=${throwable.safeLogType()}"
-            }
-            return
-        }
-        bubbleView = bubble
-        bubbleParams = lp
-    }
-
-    private fun showResultCard(wm: WindowManager) {
-        if (resultCardView != null) return
-        val card = createOverlayComposeView {
-            AgentResultCard(
-                state = state.value,
-                onClose = ::dismissAndStop,
-            )
-        }
-        val lp = resultCardLayoutParams()
-        runCatching { wm.addView(card, lp) }.onFailure { throwable ->
-            AndroidAgentLogger.warnThrottled("runtime_result_card_add_view_failed") {
-                "Agent runtime result card addView failed: type=${throwable.safeLogType()}"
-            }
-            return
-        }
-        resultCardView = card
-        resultCardParams = lp
     }
 
     private fun createOverlayComposeView(content: @Composable () -> Unit): ComposeView =
@@ -915,70 +901,6 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     }
                 }
             }
-        }
-
-    @Suppress("unused")
-    private fun handleDrag(dx: Float, dy: Float) {
-        val lp = orbParams ?: return
-        val wm = windowManager ?: return
-        val view = orbView ?: return
-        lp.x += dx.toInt()
-        lp.y += dy.toInt()
-        runCatching { wm.updateViewLayout(view, lp) }
-    }
-
-    private fun orbLayoutParams(): WindowManager.LayoutParams =
-        WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            overlayType(),
-            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            // 右侧中下，贴近右边缘
-            gravity = Gravity.END or Gravity.TOP
-            x = dpToPx(8)
-            y = (resources.displayMetrics.heightPixels * 0.6f).toInt()
-        }
-
-    private fun bubbleLayoutParams(): WindowManager.LayoutParams =
-        WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            overlayType(),
-            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            // 跟随光球：右侧中下，窗口外触摸穿透
-            gravity = Gravity.END or Gravity.TOP
-            x = dpToPx(72)
-            y = (resources.displayMetrics.heightPixels * 0.6f).toInt()
-            windowAnimations = 0
-        }
-
-    private fun resultCardLayoutParams(): WindowManager.LayoutParams =
-        WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            resultCardWindowHeightPx(),
-            overlayType(),
-            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            // 半屏底部居中，窗口外触摸穿透
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            x = 0
-            y = 0
-            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
         }
 
     private fun overlayType(): Int =
@@ -1020,38 +942,16 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         }
     }
 
-    private fun setBubbleInputMode(focusable: Boolean) {
-        val wm = windowManager ?: return
-        val bubble = bubbleView ?: return
-        val lp = bubbleParams ?: return
-        val nextFlags = if (focusable) {
-            lp.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-        } else {
-            lp.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-        }
-        if (lp.flags == nextFlags) return
-        lp.flags = nextFlags
-        runCatching { wm.updateViewLayout(bubble, lp) }.onFailure { throwable ->
-            AndroidAgentLogger.warnThrottled("runtime_bubble_focus_update_failed") {
-                "Agent runtime bubble focus update failed: type=${throwable.safeLogType()}"
-            }
-        }
-    }
-
-    private fun resultCardWindowHeightPx(): Int =
-        (resources.displayMetrics.heightPixels * RESULT_CARD_HEIGHT_RATIO).toInt()
-
-    private fun dpToPx(dp: Int): Int =
-        (dp * resources.displayMetrics.density).toInt()
-
+    /**
+     * 终态：撤掉氛围光，结果本身交给流体云（保留一段时间后自动撤下）。
+     * 只有前台操作类任务需要留下结果，其余保持原来的静默结束。
+     */
     private fun enterFinalState(finalState: AgentOverlayState, keepVisible: Boolean = false) {
         state.value = finalState
 
         if (hasExecutedForegroundTool) {
-            // 撤掉光球和小气泡，改显半屏结果卡片，不自动关闭，用户手动关闭
-            collapsed.value = true
+            completeLiveUpdate(finalState)
             removeAmbientWindows()
-            windowManager?.let(::showResultCard)
             mainHandler.removeCallbacksAndMessages(hideToken)
         } else {
             dismissAndStop()
@@ -1059,29 +959,15 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     }
 
     private fun removeAmbientWindows() {
-        orbView?.let { view -> runCatching { windowManager?.removeView(view) } }
-        bubbleView?.let { view -> runCatching { windowManager?.removeView(view) } }
         glowView?.let { view -> runCatching { windowManager?.removeView(view) } }
-        orbView = null
-        bubbleView = null
         glowView = null
-        orbParams = null
-        bubbleParams = null
         glowParams = null
     }
 
     private fun dismissAndStop() {
-        resultCardView?.let { view -> runCatching { windowManager?.removeView(view) } }
-        bubbleView?.let { view -> runCatching { windowManager?.removeView(view) } }
-        orbView?.let { view -> runCatching { windowManager?.removeView(view) } }
+        clearLiveUpdate()
         glowView?.let { view -> runCatching { windowManager?.removeView(view) } }
-        resultCardView = null
-        bubbleView = null
-        orbView = null
         glowView = null
-        resultCardParams = null
-        bubbleParams = null
-        orbParams = null
         glowParams = null
         windowManager = null
         stopSelf()
@@ -1119,11 +1005,34 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         )
     }
 
+    /**
+     * 通知回跳用的会话目标，兼容两类入口：
+     * - 聊天入口（agent_ui）的 payload 就是聊天会话 id，直接用它；
+     * - 外部入口（小布 / 小爱 / 语音 / 电源键）的 payload 是归档描述，
+     *   取其中的 conversationKey，由 Eta 侧配合 source 算出归档会话 id。
+     */
+    private fun AgentRuntimeWire.RunRequest.conversationTarget(): AgentConversationTarget? {
+        val handoff = handoff ?: return null
+        if (handoff.source == AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE) {
+            val conversationId = AgentUiHandoffPayload.from(handoff.payload)
+                .conversationId
+                .takeIf(String::isNotBlank)
+                ?: return null
+            return AgentConversationTarget(handoff.source, conversationId)
+        }
+        val conversationKey = AgentExternalArchivePayload.from(handoff.payload)
+            ?.conversationKey
+            ?.takeIf(String::isNotBlank)
+            ?: return null
+        return AgentConversationTarget(handoff.source, conversationKey)
+    }
+
     private companion object {
         const val ACTION_KEEP_ALIVE = "io.github.mangi.eta.agent.runtime.KEEP_ALIVE"
         const val HIDE_DELAY_MS = 2_500L
         const val RESULT_REVIEW_DELAY_MS = 120_000L
-        const val RESULT_CARD_HEIGHT_RATIO = 0.5f
+        /** 结果态在流体云上最多保留这么久，之后自动撤下。 */
+        const val LIVE_UPDATE_RESULT_KEEP_MS = 120_000L
         const val MAX_ARCHIVED_USER_IMAGE_PREVIEWS = 4
     }
 

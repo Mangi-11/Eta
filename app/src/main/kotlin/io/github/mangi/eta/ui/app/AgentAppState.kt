@@ -140,6 +140,15 @@ internal class AgentAppState(
     var modelPickerState by mutableStateOf(AgentModelPickerUiState())
         private set
 
+    /**
+     * 系统入口（流体云 / 语音浮窗）回跳时的「回到最新消息」请求序号。
+     *
+     * 同一个会话不会重建聊天列表，重新打开时列表会停在离开前的滚动位置，
+     * 因此每次回跳都递增一次，由聊天页强制锚回最新一条（通常就是本轮总结）。
+     */
+    var chatBottomAnchorRequest by mutableStateOf(0)
+        private set
+
     var conversationPaneState by mutableStateOf(
         ConversationPaneUiState(
             conversations = emptyList(),
@@ -692,19 +701,40 @@ internal class AgentAppState(
     }
 
     suspend fun openAssistantConversation(conversationKey: String): Boolean {
+        return openAssistantConversation(conversationKey, conversationSource = null)
+    }
+
+    /**
+     * 打开系统入口回跳的会话。
+     *
+     * 入口共用一个 key 字段，但定位规则不同：
+     * - 聊天入口传的是聊天会话 id 本身；
+     * - 外部入口（小布 / 小爱 / 语音 / 电源键）传的是归档 payload 里的 conversationKey，
+     *   需要配合 source 才能算出 `archive-`/`assistant-` 前缀的归档会话 id。
+     */
+    suspend fun openAssistantConversation(
+        conversationKey: String,
+        conversationSource: String?,
+    ): Boolean {
         if (conversationKey.isBlank()) return false
         importArchivedExternalRuns()
         return withContext(Dispatchers.Main.immediate) {
-            val conversationId = archiveConversationId(
-                source = AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE,
-                conversationKey = conversationKey,
+            val candidates = listOfNotNull(
+                conversationKey,
+                conversationSource?.let { archiveConversationId(it, conversationKey) },
+                // 语音浮窗不带 source，按历史规则回退一次
+                archiveConversationId(AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE, conversationKey),
             )
-            if (conversationsById[conversationId] == null) {
-                false
-            } else {
-                selectConversation(conversationId)
-                true
-            }
+            val conversationId = candidates.firstOrNull { conversationsById[it] != null }
+            AndroidAgentLogger.info(
+                "Assistant conversation resolve: key=$conversationKey source=${conversationSource ?: "-"} " +
+                    "known=${conversationsById.size} candidates=${candidates.joinToString("|")} " +
+                    "matched=${conversationId ?: "none"}",
+            )
+            if (conversationId == null) return@withContext false
+            selectConversation(conversationId)
+            chatBottomAnchorRequest += 1
+            true
         }
     }
 

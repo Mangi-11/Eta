@@ -943,7 +943,7 @@ class AgentAccessibilityService : AccessibilityService() {
             .put("package", currentPackageName().orEmpty())
 
     /**
-     * 截取当前屏幕，排除 TYPE_ACCESSIBILITY_OVERLAY 浮层（glow/orb/bubble/resultCard/GestureIndicator）。
+     * 截取当前屏幕，排除 TYPE_ACCESSIBILITY_OVERLAY 浮层（氛围光 / GestureIndicator）。
      * 从 agent-runtime 子线程调用；takeScreenshotOfWindow 内部 post 到主线程，
      * callback 在有界后台线程执行位图复制，latch 只阻塞 agent-runtime 工作线程。
      */

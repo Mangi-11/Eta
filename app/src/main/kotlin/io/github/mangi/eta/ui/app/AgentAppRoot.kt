@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -104,6 +105,7 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 @Composable
 fun AgentAppRoot(
     assistantConversationKey: String? = null,
+    assistantConversationSource: String? = null,
     openSpeechSettings: Boolean = false,
     onSpeechSettingsOpened: () -> Unit = {},
     onAssistantConversationOpened: (Boolean) -> Unit = {},
@@ -181,6 +183,7 @@ fun AgentAppRoot(
         }
     }
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(Unit) {
         RuntimeConfigRepository.ensureDefaults(EtaApp.serviceInstance)
@@ -188,11 +191,15 @@ fun AgentAppRoot(
 
     LaunchedEffect(assistantConversationKey) {
         val conversationKey = assistantConversationKey ?: return@LaunchedEffect
-        val opened = agentState.openAssistantConversation(conversationKey)
+        val opened = agentState.openAssistantConversation(conversationKey, assistantConversationSource)
         if (opened) {
             navigator.replace(AppRoute.Chat)
         }
         onAssistantConversationOpened(opened)
+        AndroidAgentLogger.info("Assistant conversation open result: opened=$opened")
+        // 从系统入口（流体云 / 语音浮窗）回到应用时不落进输入态，避免输入法被系统还原出来
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
     }
 
     fun pushRoute(
@@ -313,6 +320,7 @@ fun AgentAppRoot(
                         state = agentState.homeState,
                         modelPickerState = agentState.modelPickerState,
                         conversationKey = agentState.conversationPaneState.selectedConversationId,
+                        bottomAnchorRequest = agentState.chatBottomAnchorRequest,
                         onAction = { action ->
                             when (action) {
                                 is AgentHomeAction.ReasoningEffortChanged ->
@@ -363,6 +371,7 @@ fun AgentAppRoot(
                         state = agentState.homeState,
                         modelPickerState = agentState.modelPickerState,
                         conversationKey = agentState.conversationPaneState.selectedConversationId,
+                        bottomAnchorRequest = agentState.chatBottomAnchorRequest,
                         onAction = { action ->
                             when (action) {
                                 AgentChatAction.NavigateBack -> popRoute()

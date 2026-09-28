@@ -288,6 +288,8 @@
   <string name="overlay_finishing">收尾中，结果出来后再补充</string>
   <string name="overlay_continuation_unavailable">当前入口不支持补充</string>
   <string name="overlay_stopped">已停止</string>
+  <string name="overlay_result_rounds">共 %1$d 轮</string>
+  <string name="overlay_open_conversation">在 Eta 中查看</string>
   <string name="action_regenerate">重新生成</string>
   <string name="conversation_regenerate_current_turn">当前轮次将由新生成的回复替换。</string>
   <string name="time_now">现在</string>
