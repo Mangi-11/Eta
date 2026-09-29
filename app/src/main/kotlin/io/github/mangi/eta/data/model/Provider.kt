@@ -17,6 +17,8 @@ internal object OpenAiEndpointMode {
 internal object ProviderSourceTypes {
     const val CUSTOM = "custom"
     const val OPENAI = "openai"
+    /** ChatGPT subscription-backed Codex backend, separate from Platform API keys. */
+    const val OPENAI_CODEX = "openai_codex"
     const val ANTHROPIC = "anthropic"
     const val BAILIAN = "bailian"
     const val DEEPSEEK = "deepseek"
@@ -120,7 +122,8 @@ internal val ProviderSetting.runtimeProviderType: String
 internal val ProviderSetting.typeLabel: String
     get() = when (this) {
         is AnthropicProviderSetting -> "Anthropic Messages"
-        is OpenAiCompatibleProviderSetting -> "OpenAI-compatible"
+        is OpenAiCompatibleProviderSetting ->
+            if (sourceType == ProviderSourceTypes.OPENAI_CODEX) "OpenAI Codex Subscription" else "OpenAI-compatible"
         is CustomProviderSetting -> "Custom OpenAI-compatible"
     }
 

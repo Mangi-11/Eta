@@ -270,6 +270,29 @@ class ReasoningCapabilityResolverTest {
         assertNull(disabled)
     }
 
+    @Test
+    fun gpt6ResponsesCapabilitiesAreModelSpecificForOpenAiAndCodex() {
+        val astra = resolve(ProviderSourceTypes.OPENAI, "gpt-6-astra")
+        val sol = resolve(ProviderSourceTypes.OPENAI, "gpt-6-sol")
+        val luna = resolve(ProviderSourceTypes.OPENAI_CODEX, "gpt-6-luna")
+
+        assertEquals(
+            listOf(
+                ReasoningEffort.DEFAULT,
+                ReasoningEffort.LOW,
+                ReasoningEffort.MEDIUM,
+                ReasoningEffort.HIGH,
+                ReasoningEffort.XHIGH,
+                ReasoningEffort.MAX,
+            ),
+            astra.selectableEfforts,
+        )
+        assertEquals(false, astra.canDisable)
+        assertEquals(true, sol.canDisable)
+        assertEquals(true, luna.canDisable)
+        assertEquals(ReasoningEffort.MAX, luna.normalize(ReasoningEffort.MAX))
+    }
+
     private fun resolve(source: String, modelId: String): ModelReasoningCapabilities =
         requireNotNull(
             ReasoningCapabilityResolver.resolve(

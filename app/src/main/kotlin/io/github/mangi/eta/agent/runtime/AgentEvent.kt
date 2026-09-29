@@ -82,6 +82,17 @@ internal sealed interface AgentEvent {
             "provider_response_started round=$round, http_code=$httpCode"
     }
 
+    /** Only the two model identifiers are carried; never attach headers or response bodies. */
+    data class ModelIdentityObserved(
+        val round: Int,
+        val requestedModelId: String,
+        val reportedModelId: String?,
+    ) : AgentEvent {
+        override fun toLogLine(): String =
+            "model_identity_observed round=$round, requested_chars=${requestedModelId.length}, " +
+                "reported_chars=${reportedModelId?.length ?: 0}"
+    }
+
     data class AssistantBlockStart(
         val round: Int,
         val kind: AssistantBlockKind,
@@ -141,7 +152,8 @@ internal sealed interface AgentEvent {
 
     data class UserSupplementReceived(
         val index: Int,
-        val text: String
+        val text: String,
+        val requestId: String = "",
     ) : AgentEvent {
         override fun toLogLine(): String =
             "user_supplement_received index=$index, chars=${text.length}"

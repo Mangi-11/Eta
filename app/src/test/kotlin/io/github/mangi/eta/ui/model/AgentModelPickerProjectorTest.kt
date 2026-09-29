@@ -2,12 +2,35 @@ package io.github.mangi.eta.ui.model
 
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.Model
+import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class AgentModelPickerProjectorTest {
+    @Test
+    fun subscriptionModelsAppearWithoutApiKey() {
+        val codexModel = model(id = "codex-model", displayName = "Codex")
+        val codex = OpenAiCompatibleProviderSetting(
+            id = "builtin-openai-codex",
+            name = "OpenAI Codex Subscription",
+            baseUrl = "https://chatgpt.com/backend-api/codex",
+            sourceType = ProviderSourceTypes.OPENAI_CODEX,
+            apiKey = "",
+            models = listOf(codexModel),
+        )
+
+        val result = AgentModelPickerProjector.project(
+            providers = listOf(codex),
+            selectedProviderId = codex.id,
+            selectedModelId = codexModel.id,
+        )
+
+        assertEquals(listOf(codex.id), result.providerGroups.map { it.providerId })
+        assertEquals(codexModel.id, result.providerGroups.single().models.single().id)
+    }
+
     @Test
     fun project_keepsOnlyEnabledProvidersAndModelsAndResolvesSelection() {
         val selected = model(id = "model-selected", displayName = "GPT 5.6", contextWindow = 1_050_000)

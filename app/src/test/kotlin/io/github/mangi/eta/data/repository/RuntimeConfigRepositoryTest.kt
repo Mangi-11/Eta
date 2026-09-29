@@ -1,6 +1,7 @@
 package io.github.mangi.eta.data.repository
 
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.CodexCompatibilityProfile
 import io.github.mangi.eta.data.model.CustomHeader
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
@@ -59,5 +60,24 @@ class RuntimeConfigRepositoryTest {
             config.reasoningCapabilities?.selectableEfforts,
         )
         assertEquals(config, Json.decodeFromString<AgentModelClient.ModelConfig>(raw))
+    }
+
+    @Test
+    fun runtimeJsonNeverContainsCodexAccessToken() {
+        val config = AgentModelClient.ModelConfig(
+            providerId = "builtin-openai-codex",
+            providerSourceType = ProviderSourceTypes.OPENAI_CODEX,
+            authMode = CodexCompatibilityProfile.AUTH_MODE,
+            baseUrl = CodexCompatibilityProfile.CODEX_RESPONSES_BASE_URL,
+            apiKey = "fake-codex-access-token-for-test-only",
+            model = "gpt-6-astra",
+            systemPrompt = "",
+        )
+
+        val raw = RuntimeConfigRepository.runtimeConfigJson(config)
+        val root = Json.parseToJsonElement(raw).jsonObject
+
+        assertEquals("", root.getValue("apiKey").jsonPrimitive.content)
+        org.junit.Assert.assertFalse(raw.contains("fake-codex-access-token-for-test-only"))
     }
 }

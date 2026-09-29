@@ -2,6 +2,7 @@ package io.github.mangi.eta.data.repository
 
 import android.content.SharedPreferences
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.CodexCompatibilityProfile
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
@@ -86,7 +87,13 @@ internal object RuntimeConfigRepository {
     }
 
     fun runtimeConfigJson(config: AgentModelClient.ModelConfig): String =
-        json.encodeToString(config)
+        json.encodeToString(config.withoutCodexSecret())
+
+    private fun AgentModelClient.ModelConfig.withoutCodexSecret(): AgentModelClient.ModelConfig =
+        if (authMode == CodexCompatibilityProfile.AUTH_MODE ||
+            providerSourceType == io.github.mangi.eta.data.model.ProviderSourceTypes.OPENAI_CODEX ||
+            providerId == BuiltinProviders.OPENAI_CODEX_ID
+        ) copy(apiKey = "") else this
 
     fun buildRuntimeConfig(provider: ProviderSetting, model: Model): AgentModelClient.ModelConfig {
         val systemPrompt = provider.systemPrompt
@@ -94,6 +101,8 @@ internal object RuntimeConfigRepository {
             ?.takeIf { it.isNotBlank() }
             ?: BuiltinProviders.DEFAULT_SYSTEM_PROMPT
         val sourceType = ProviderSourceRegistry.resolve(provider)
+        val isCodexSubscription = sourceType == io.github.mangi.eta.data.model.ProviderSourceTypes.OPENAI_CODEX ||
+            provider.id == BuiltinProviders.OPENAI_CODEX_ID
         val endpointMode = when (provider) {
             is OpenAiCompatibleProviderSetting -> provider.endpointMode
             is CustomProviderSetting -> provider.endpointMode
@@ -115,15 +124,24 @@ internal object RuntimeConfigRepository {
             providerName = provider.name,
             providerType = provider.runtimeProviderType,
             providerSourceType = sourceType,
-            baseUrl = provider.baseUrl.trim(),
-            apiKey = provider.apiKey.trim(),
+            baseUrl = if (isCodexSubscription) {
+                CodexCompatibilityProfile.CODEX_RESPONSES_BASE_URL
+            } else {
+                provider.baseUrl.trim()
+            },
+            apiKey = if (isCodexSubscription) "" else provider.apiKey.trim(),
             model = model.modelId.trim(),
             modelDisplayName = model.displayName.trim(),
             contextWindow = model.effectiveContextWindow,
             systemPrompt = systemPrompt,
             anthropicVersion = (provider as? AnthropicProviderSetting)?.anthropicVersion
                 ?: AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION,
-            openAiEndpointMode = endpointMode,
+            openAiEndpointMode = if (isCodexSubscription) OpenAiEndpointMode.RESPONSES else endpointMode,
+            authMode = if (isCodexSubscription) {
+                CodexCompatibilityProfile.AUTH_MODE
+            } else {
+                CodexCompatibilityProfile.API_KEY_AUTH_MODE
+            },
             hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
             thinkingEnabled = reasoningCapabilities != null,
             reasoningEffort = reasoningCapabilities?.let { ReasoningEffort.DEFAULT }

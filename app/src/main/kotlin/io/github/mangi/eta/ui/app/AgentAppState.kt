@@ -116,6 +116,11 @@ internal class AgentAppState(
     private val runEventFlushJobs = mutableMapOf<String, Job>()
     private var currentRunId: String? = null
     private var currentRunJob: Job? = null
+    private data class PendingSupplement(
+        val runId: String,
+        val callback: (Boolean) -> Unit,
+    )
+    private val pendingSupplements = mutableMapOf<String, PendingSupplement>()
     private val persistenceLock = Any()
     private var persistenceJob: Job? = null
     private val runtimeRecoveryInProgress = AtomicBoolean(false)
@@ -929,6 +934,7 @@ internal class AgentAppState(
                 noticeStopped = noticeText(SystemNoticeCode.Stopped),
                 noticeEmptyResult = noticeText(SystemNoticeCode.EmptyResult),
                 noticeModelRetry = noticeText(SystemNoticeCode.ModelRetry),
+                noticeModelIdentity = noticeText(SystemNoticeCode.ModelIdentity),
                 noticeContextCompaction = noticeText(SystemNoticeCode.ContextCompaction),
                 noticeRuntimeFailed = noticeText(SystemNoticeCode.RuntimeFailed),
                 noticeInterrupted = noticeText(SystemNoticeCode.Interrupted),
@@ -942,10 +948,63 @@ internal class AgentAppState(
             SystemNoticeCode.EmptyResult -> R.string.system_notice_empty_result
             SystemNoticeCode.ContextCompaction -> R.string.context_compaction
             SystemNoticeCode.ModelRetry -> R.string.system_notice_model_retry
+            SystemNoticeCode.ModelIdentity -> R.string.system_notice_model_identity
             SystemNoticeCode.RuntimeFailed -> R.string.system_notice_runtime_failed
             SystemNoticeCode.Interrupted -> R.string.system_notice_interrupted
         },
     )
+
+    fun supplementCurrentRun(
+        text: String,
+        requestId: String,
+        onResult: (Boolean) -> Unit,
+    ) {
+        val prompt = text.trim()
+        if (prompt.isBlank() || requestId.isBlank() || homeState.isCompacting) {
+            onResult(false)
+            return
+        }
+        val runId = currentRunId
+        if (runId == null || !homeState.isStreaming) {
+            onResult(false)
+            return
+        }
+        pendingSupplements[requestId] = PendingSupplement(runId, onResult)
+        scope.launch(Dispatchers.IO) {
+            val outcome = AgentRuntimeClient(appContext, AndroidAgentLogger)
+                .steerRun(runId, requestId, prompt)
+            withContext(Dispatchers.Main) {
+                val pending = pendingSupplements[requestId]
+                    ?.takeIf { it.runId == runId }
+                when (outcome) {
+                    AgentRuntimeClient.SteerOutcome.Accepted -> {
+                        if (pending != null) {
+                            pendingSupplements.remove(requestId)
+                            pending.callback(true)
+                        }
+                    }
+                    is AgentRuntimeClient.SteerOutcome.Rejected -> {
+                        if (pending != null) pendingSupplements.remove(requestId)
+                        Toast.makeText(
+                            appContext,
+                            appContext.getString(R.string.chat_supplement_rejected),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        pending?.callback?.invoke(false)
+                    }
+                    AgentRuntimeClient.SteerOutcome.Unavailable -> {
+                        // Keep the request ID until a late event confirms acceptance or the run ends.
+                        Toast.makeText(
+                            appContext,
+                            appContext.getString(R.string.chat_supplement_rejected),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        pending?.callback?.invoke(false)
+                    }
+                }
+            }
+        }
+    }
 
     fun sendCurrentMessage(submittedText: String? = null) {
         if (homeState.isCompacting) return
@@ -2079,8 +2138,38 @@ internal class AgentAppState(
                 updateAssistantUsage(runId, event.round, event.usage.toUi())
             }
 
+            is AgentEvent.ModelIdentityObserved -> {
+                val id = "assistant-$runId-model-identity-${event.round}"
+                val reported = event.reportedModelId
+                    ?: appContext.getString(R.string.model_identity_not_reported)
+                updateMessages(runId) { messages ->
+                    messages.filterNot { it.id == id } + SystemNoticeMessageUi(
+                        id = id,
+                        code = SystemNoticeCode.ModelIdentity,
+                        detail = appContext.getString(
+                            R.string.model_identity_detail,
+                            event.requestedModelId,
+                            reported,
+                        ),
+                    )
+                }
+            }
+
             is AgentEvent.UserSupplementReceived -> {
-                insertSupplementMessage(runId, event.index, event.text, persist = persistSupplement)
+                if (event.requestId.isNotBlank()) {
+                    pendingSupplements[event.requestId]
+                        ?.takeIf { it.runId == runId }
+                        ?.let { pending ->
+                            pendingSupplements.remove(event.requestId)
+                            pending.callback(true)
+                        }
+                }
+                insertSupplementMessage(
+                    runId = runId,
+                    index = event.index,
+                    text = event.text,
+                    persist = persistSupplement,
+                )
             }
 
             is AgentEvent.ToolStarted -> {
@@ -2179,6 +2268,13 @@ internal class AgentAppState(
         flushPendingRunDelta(runId)
         val rewriting = result.operation == AgentRuntimeWire.OP_REWRITE_REPLY || isReplyRewrite(runId)
         stopRequestedRunIds.remove(runId)
+        pendingSupplements.entries
+            .filter { (_, pending) -> pending.runId == runId }
+            .toList()
+            .forEach { (requestId, pending) ->
+                pendingSupplements.remove(requestId)
+                pending.callback(false)
+            }
         if (runId == currentRunId) {
             currentRunId = null
             currentRunJob = null

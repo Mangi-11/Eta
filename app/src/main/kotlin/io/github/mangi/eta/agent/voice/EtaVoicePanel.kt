@@ -151,6 +151,7 @@ internal fun EtaVoicePanel(
     onInputChange: (String) -> Unit,
     onSuggestionClick: (String) -> Unit,
     onSubmit: () -> Unit,
+    onSupplement: (String, String, (Boolean) -> Unit) -> Unit,
     onStop: () -> Unit,
     onClose: () -> Unit,
     onOpenConversation: () -> Unit,
@@ -251,6 +252,7 @@ internal fun EtaVoicePanel(
                     keyboard?.hide()
                     onSubmit()
                 },
+                onSupplement = onSupplement,
                 onStop = onStop,
                 onClose = onClose,
                 onOpenConversation = onOpenConversation,
@@ -280,6 +282,7 @@ private fun BoxScope.AssistantPanel(
     onSuggestionClick: (String) -> Unit,
     keyboardVisible: Boolean,
     onSubmit: () -> Unit,
+    onSupplement: (String, String, (Boolean) -> Unit) -> Unit,
     onStop: () -> Unit,
     onClose: () -> Unit,
     onOpenConversation: () -> Unit,
@@ -655,6 +658,7 @@ private fun BoxScope.AssistantPanel(
             onInputChange = onInputChange,
             onClose = onClose,
             onSubmit = onSubmit,
+            onSupplement = onSupplement,
             onStop = onStop,
             modifier = Modifier
                 .fillMaxWidth()

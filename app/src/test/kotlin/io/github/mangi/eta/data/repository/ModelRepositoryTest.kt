@@ -8,6 +8,7 @@ import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.provider.BuiltinProviders
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -155,6 +156,83 @@ class ModelRepositoryTest {
         val emptyResult = ModelRepository.syncRemoteModels(PROVIDER_ID, emptyList())
         assertFalse(emptyResult.applied)
         assertEquals(restored.keys, ModelRepository.modelsByProvider(PROVIDER_ID).mapTo(mutableSetOf()) { it.modelId })
+    }
+
+    @Test
+    fun successfulCodexCatalogReplacesMatchedFallbackAndRemovesUnlistedFallback() = runBlocking {
+        ProviderRepository.addProvider(
+            provider(
+                models = listOf(
+                    Model(
+                        id = "fallback-match",
+                        modelId = "gpt-6-astra",
+                        displayName = "GPT-6 Astra (offline)",
+                        isBuiltIn = true,
+                        source = ModelSource.CATALOG,
+                    ),
+                    Model(
+                        id = "fallback-unlisted",
+                        modelId = "model-not-returned",
+                        displayName = "Offline fallback",
+                        isBuiltIn = true,
+                        source = ModelSource.CATALOG,
+                    ),
+                ),
+            ),
+        )
+
+        val result = ModelRepository.syncRemoteModels(
+            PROVIDER_ID,
+            listOf(
+                Model(
+                    id = "live-astra",
+                    modelId = "gpt-6-astra",
+                    displayName = "GPT-6 Astra",
+                    source = ModelSource.REMOTE,
+                    contextWindow = 272_000,
+                ),
+            ),
+            preserveCatalogModels = false,
+        )
+
+        assertTrue(result.applied)
+        val models = ModelRepository.modelsByProvider(PROVIDER_ID)
+        assertEquals(listOf("gpt-6-astra"), models.map { it.modelId })
+        assertEquals("fallback-match", models.single().id)
+        assertEquals(ModelSource.REMOTE, models.single().source)
+        assertFalse(models.single().isBuiltIn)
+        assertEquals(272_000, models.single().contextWindow)
+    }
+
+    @Test
+    fun deletedCodexRemoteModelStaysHiddenAfterRefreshIncludingAllHiddenCatalog() = runBlocking {
+        ProviderRepository.ensureBuiltInsMerged()
+        val providerId = BuiltinProviders.OPENAI_CODEX_ID
+        val fetched = listOf(
+            Model(id = "online-one", modelId = "gpt-online-one", displayName = "One", source = ModelSource.REMOTE),
+            Model(id = "online-two", modelId = "gpt-online-two", displayName = "Two", source = ModelSource.REMOTE),
+        )
+        assertTrue(ModelRepository.syncRemoteModels(providerId, fetched, preserveCatalogModels = false).applied)
+
+        val one = ModelRepository.modelsByProvider(providerId).first { it.modelId == "gpt-online-one" }
+        ModelRepository.deleteModel(providerId, one.id)
+        ProviderRepository.ensureBuiltInsMerged()
+        assertEquals(listOf("gpt-online-two"), ModelRepository.modelsByProvider(providerId).map { it.modelId })
+
+        assertTrue(ModelRepository.syncRemoteModels(providerId, fetched, preserveCatalogModels = false).applied)
+        assertEquals(listOf("gpt-online-two"), ModelRepository.modelsByProvider(providerId).map { it.modelId })
+
+        val two = ModelRepository.modelsByProvider(providerId).single()
+        ModelRepository.deleteModels(providerId, setOf(two.id))
+        assertTrue(ModelRepository.syncRemoteModels(providerId, fetched, preserveCatalogModels = false).applied)
+        assertTrue(ModelRepository.modelsByProvider(providerId).isEmpty())
+
+        ProviderRepository.resetBuiltIn(providerId)
+        assertTrue(ModelRepository.syncRemoteModels(providerId, fetched, preserveCatalogModels = false).applied)
+        assertEquals(
+            listOf("gpt-online-one", "gpt-online-two"),
+            ModelRepository.modelsByProvider(providerId).map { it.modelId },
+        )
     }
 
     @Test

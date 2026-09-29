@@ -97,6 +97,7 @@ internal fun AgentOverlayState.applyEvent(event: AgentEvent): AgentOverlayState 
     )
 
     is AgentEvent.UsageReceived -> this
+    is AgentEvent.ModelIdentityObserved -> this
 
     is AgentEvent.UserSupplementReceived -> copy(
         phase = AgentOverlayPhase.RUNNING,

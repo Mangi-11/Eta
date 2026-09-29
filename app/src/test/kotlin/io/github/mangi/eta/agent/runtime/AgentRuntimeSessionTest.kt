@@ -6,11 +6,60 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AgentRuntimeSessionTest {
+    @Test
+    fun steeringRequestIdIsIdempotentWithinOneRun() {
+        val events = mutableListOf<AgentEvent>()
+        val session = AgentRuntimeSession(runId = "steer-dedupe", eventSink = events::add)
+        val text = "保留当前上下文继续处理"
+
+        val first = session.steer("request-1", text) {
+            AgentEvent.UserSupplementReceived(index = 1, text = text, requestId = "request-1")
+        }
+        val retry = session.steer("request-1", text) {
+            error("重复请求不得再次创建事件")
+        }
+        val conflictingRetry = session.steer("request-1", "不同内容") {
+            error("requestId 冲突不得创建事件")
+        }
+
+        assertTrue(first.accepted)
+        assertFalse(first.duplicate)
+        assertEquals("request-1", first.event?.requestId)
+        assertTrue(retry.accepted)
+        assertTrue(retry.duplicate)
+        assertNull(retry.event)
+        assertFalse(conflictingRetry.accepted)
+        assertTrue(conflictingRetry.duplicate)
+        assertEquals(listOf(text), events.map { (it as AgentEvent.UserSupplementReceived).text })
+        assertEquals(text, session.controller.pollSteeringMessage())
+        assertNull(session.controller.pollSteeringMessage())
+    }
+
+    @Test
+    fun rejectedSteeringRequestRemainsRejectedOnRetryWithoutQueueing() {
+        val session = AgentRuntimeSession(runId = "steer-sealed")
+        assertNull(session.controller.pollSteeringOrSeal())
+
+        val rejected = session.steer("request-closed", "收尾后补充") {
+            error("拒绝请求不得创建事件")
+        }
+        val retry = session.steer("request-closed", "收尾后补充") {
+            error("拒绝请求重试不得创建事件")
+        }
+
+        assertFalse(rejected.accepted)
+        assertFalse(rejected.duplicate)
+        assertTrue(retry.duplicate)
+        assertFalse(retry.accepted)
+        assertFalse(session.controller.hasPendingSteering)
+    }
+
     @Test
     fun compactionDoesNotAcceptPendingTaskInstructions() {
         val session = AgentRuntimeSession("compact", operation = AgentRuntimeWire.OP_COMPACT)

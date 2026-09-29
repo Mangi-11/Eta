@@ -13,6 +13,7 @@ import io.github.mangi.eta.data.model.CustomHeader
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ProviderTypes
+import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.provider.ProviderSourceRegistry
@@ -222,7 +223,10 @@ internal object AgentModelClient {
 
     private fun ModelConfig.validate() {
         require(baseUrl.isNotBlank()) { "请先配置 API 地址" }
-        require(apiKey.isNotBlank()) { "请先配置 API Key" }
+        val usesCodexSubscription = authMode == CodexCompatibilityProfile.AUTH_MODE ||
+            providerSourceType == ProviderSourceTypes.OPENAI_CODEX ||
+            providerId == BuiltinProviders.OPENAI_CODEX_ID
+        if (!usesCodexSubscription) require(apiKey.isNotBlank()) { "请先配置 API Key" }
         require(model.isNotBlank()) { "请先配置模型名" }
         require(
             reasoningCapabilities?.mandatory != true ||
@@ -257,6 +261,8 @@ internal object AgentModelClient {
         val providerName: String = "",
         val providerType: String = ProviderTypes.OPENAI_COMPATIBLE,
         val providerSourceType: String = "",
+        /** Defaults to the existing Platform/API-key authentication path. */
+        val authMode: String = CodexCompatibilityProfile.API_KEY_AUTH_MODE,
         val baseUrl: String,
         val apiKey: String,
         val model: String,

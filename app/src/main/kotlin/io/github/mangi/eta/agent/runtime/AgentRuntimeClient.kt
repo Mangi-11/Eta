@@ -34,6 +34,12 @@ internal class AgentRuntimeClient(
         data object Unavailable : ActiveRunQuery
     }
 
+    sealed interface SteerOutcome {
+        data object Accepted : SteerOutcome
+        data class Rejected(val reason: String? = null) : SteerOutcome
+        data object Unavailable : SteerOutcome
+    }
+
     sealed interface CompletedRunsQuery {
         data class Known(val runs: List<AgentRuntimeWire.CompletedRun>) : CompletedRunsQuery
         data object Unavailable : CompletedRunsQuery
@@ -117,6 +123,31 @@ internal class AgentRuntimeClient(
             val msg = Message.obtain(null, AgentRuntimeWire.MSG_CANCEL)
             msg.data = AgentRuntimeWire.ackBundle(runId)
             serviceMessenger.send(msg)
+        }
+    }
+
+    fun steerRun(runId: String, requestId: String, text: String): SteerOutcome {
+        if (runId.isBlank() || requestId.isBlank() || text.isBlank()) {
+            return SteerOutcome.Rejected("补充指令缺少 runId、requestId 或内容")
+        }
+        return withRuntimeMessenger(SteerOutcome.Unavailable) { serviceMessenger ->
+            val responseLatch = CountDownLatch(1)
+            val resultRef = AtomicReference<SteerOutcome>(SteerOutcome.Unavailable)
+            val responseMessenger = Messenger(
+                SteerHandler(requestId) { outcome ->
+                    resultRef.set(outcome)
+                    responseLatch.countDown()
+                }
+            )
+            val msg = Message.obtain(null, AgentRuntimeWire.MSG_STEER_RUN)
+            msg.replyTo = responseMessenger
+            msg.data = AgentRuntimeWire.steerBundle(runId, requestId, text)
+            serviceMessenger.send(msg)
+            if (responseLatch.await(RESPONSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                resultRef.get()
+            } else {
+                SteerOutcome.Unavailable
+            }
         }
     }
 
@@ -326,6 +357,24 @@ internal class AgentRuntimeClient(
             if (msg.what == AgentRuntimeWire.MSG_QUERY_ACTIVE_RUN_RESPONSE) {
                 onResponse(AgentRuntimeWire.runIdFromBundle(msg.data ?: return))
             }
+        }
+    }
+
+    private class SteerHandler(
+        private val requestId: String,
+        private val onResponse: (SteerOutcome) -> Unit,
+    ) : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) {
+            if (msg.what != AgentRuntimeWire.MSG_STEER_RUN_RESPONSE) return
+            val bundle = msg.data ?: return
+            if (AgentRuntimeWire.steerResponseRequestId(bundle) != requestId) return
+            onResponse(
+                if (AgentRuntimeWire.steerAccepted(bundle)) {
+                    SteerOutcome.Accepted
+                } else {
+                    SteerOutcome.Rejected(AgentRuntimeWire.steerRejectionReason(bundle))
+                },
+            )
         }
     }
 

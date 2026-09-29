@@ -28,6 +28,48 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class AgentRuntimeWireTest {
     @Test
+    fun modelIdentitySurvivesWireAndArchiveWithoutResponseBody() {
+        val event = AgentEvent.ModelIdentityObserved(2, "gpt-6-luna", null)
+
+        assertEquals(event, AgentRuntimeWire.eventFromBundle(AgentRuntimeWire.eventToBundle(event)))
+        assertEquals(event, AgentEventJsonCodec.decode(AgentEventJsonCodec.encode(event)))
+    }
+
+    @Test
+    fun steeringProtocolAndRequestIdentityRoundTripAcrossBundlesAndEventJson() {
+        assertEquals(13, AgentRuntimeWire.MSG_STEER_RUN)
+        assertEquals(14, AgentRuntimeWire.MSG_STEER_RUN_RESPONSE)
+
+        val request = AgentRuntimeWire.steerBundle("run-steer", "request-steer", "请在下轮检查返回值")
+        assertEquals("run-steer", AgentRuntimeWire.runIdFromBundle(request))
+        assertEquals("request-steer", AgentRuntimeWire.steerRequestIdFromBundle(request))
+        assertEquals("请在下轮检查返回值", AgentRuntimeWire.steerTextFromBundle(request))
+
+        val accepted = AgentRuntimeWire.steerResponseBundle("request-steer", accepted = true)
+        assertEquals("request-steer", AgentRuntimeWire.steerResponseRequestId(accepted))
+        assertTrue(AgentRuntimeWire.steerAccepted(accepted))
+        assertNull(AgentRuntimeWire.steerRejectionReason(accepted))
+        val rejected = AgentRuntimeWire.steerResponseBundle(
+            "request-rejected",
+            accepted = false,
+            reason = "run 已结束",
+        )
+        assertFalse(AgentRuntimeWire.steerAccepted(rejected))
+        assertEquals("run 已结束", AgentRuntimeWire.steerRejectionReason(rejected))
+
+        val event = AgentEvent.UserSupplementReceived(
+            index = 2,
+            text = "请在下轮检查返回值",
+            requestId = "request-steer",
+        )
+        assertEquals(event, AgentRuntimeWire.eventFromBundle(AgentRuntimeWire.eventToBundle(event)))
+        assertEquals(event, AgentEventJsonCodec.decode(AgentEventJsonCodec.encode(event)))
+
+        val legacyBundle = AgentRuntimeWire.eventToBundle(event).apply { remove("request_id") }
+        assertEquals("", (AgentRuntimeWire.eventFromBundle(legacyBundle) as AgentEvent.UserSupplementReceived).requestId)
+    }
+
+    @Test
     fun screenshotsKeepExactBytesAndFormatAcrossDescriptorAndInlineTransport() {
         val bitmap = Bitmap.createBitmap(32, 24, Bitmap.Config.ARGB_8888).apply {
             eraseColor(android.graphics.Color.argb(128, 96, 128, 192))

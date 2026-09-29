@@ -39,6 +39,9 @@ internal fun AgentChatScreen(
             canCompactContext = state.canCompactContext,
             onModelSelected = { onAction(AgentChatAction.ModelSelected(it)) },
             onSubmit = { text -> onAction(AgentChatAction.SubmitMessage(text)) },
+            onSupplement = { text, requestId, onResult ->
+                onAction(AgentChatAction.SupplementMessage(text, requestId, onResult))
+            },
             onStop = { onAction(AgentChatAction.StopRun) },
             onAttachImage = { uri -> onAction(AgentChatAction.ImageAttached(uri)) },
             onRemoveImage = { id -> onAction(AgentChatAction.RemoveImage(id)) },

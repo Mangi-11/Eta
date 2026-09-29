@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
+import java.util.UUID
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -71,6 +73,7 @@ internal fun AssistantComposer(
     focusRequester: FocusRequester,
     onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
+    onSupplement: (String, String, (Boolean) -> Unit) -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -103,6 +106,7 @@ internal fun AssistantComposer(
                     focusRequester = focusRequester,
                     onInputChange = onInputChange,
                     onSubmit = onSubmit,
+                    onSupplement = onSupplement,
                     onStop = onStop,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -125,10 +129,45 @@ private fun AssistantInputBar(
     focusRequester: FocusRequester,
     onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
+    onSupplement: (String, String, (Boolean) -> Unit) -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val canSubmit = input.isNotBlank() && state.phase != EtaVoicePhase.PROCESSING
+    var supplementRequestId by remember { mutableStateOf<String?>(null) }
+    var supplementRequestText by remember { mutableStateOf<String?>(null) }
+    var supplementInFlight by remember { mutableStateOf(false) }
+    val currentInput by rememberUpdatedState(input)
+    val canSupplement = input.isNotBlank() &&
+        state.phase == EtaVoicePhase.PROCESSING &&
+        !speech.active &&
+        !supplementInFlight
+    val submitSupplement: () -> Unit = {
+        if (canSupplement) {
+            val supplementText = input
+            val requestId = if (supplementRequestText == supplementText && supplementRequestId != null) {
+                supplementRequestId!!
+            } else {
+                UUID.randomUUID().toString().also {
+                    supplementRequestId = it
+                    supplementRequestText = supplementText
+                }
+            }
+            supplementInFlight = true
+            onSupplement(supplementText, requestId) { accepted ->
+                if (supplementRequestId != requestId) return@onSupplement
+                supplementInFlight = false
+                if (accepted && currentInput == supplementText) {
+                    onInputChange("")
+                    supplementRequestId = null
+                    supplementRequestText = null
+                } else if (accepted || currentInput != supplementText) {
+                    supplementRequestId = null
+                    supplementRequestText = null
+                }
+            }
+        }
+    }
     var textFocused by remember { mutableStateOf(false) }
     val inputHighlighted = textFocused || keyboardVisible
     val contentColor = colors.inputPrimary
@@ -191,7 +230,7 @@ private fun AssistantInputBar(
                 .padding(start = 4.dp, end = 2.dp, top = 6.dp, bottom = 6.dp)
                 .onFocusChanged { textFocused = it.isFocused }
                 .focusRequester(focusRequester),
-            enabled = state.phase != EtaVoicePhase.PROCESSING && !speech.active,
+            enabled = !speech.active,
             textStyle = TextStyle(
                 color = contentColor,
                 fontSize = 16.sp,
@@ -199,7 +238,13 @@ private fun AssistantInputBar(
             ),
             cursorBrush = SolidColor(contentColor),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { if (canSubmit) onSubmit() }),
+            keyboardActions = KeyboardActions(onSend = {
+                if (state.phase == EtaVoicePhase.PROCESSING) {
+                    submitSupplement()
+                } else if (canSubmit) {
+                    onSubmit()
+                }
+            }),
             maxLines = 4,
             minLines = 1,
             decorationBox = { innerTextField ->
@@ -217,19 +262,49 @@ private fun AssistantInputBar(
                 }
             },
         )
-        IconButton(
-            onClick = trailingAction,
-            enabled = speech.phase != EtaSpeechPhase.RECOGNIZING,
-            minWidth = 40.dp,
-            minHeight = 40.dp,
-            backgroundColor = Color.Transparent,
-        ) {
-            Icon(
-                painter = painterResource(trailingIcon),
-                contentDescription = stringResource(trailingDescription),
-                modifier = Modifier.size(24.dp),
-                tint = contentColor,
-            )
+        if (state.phase == EtaVoicePhase.PROCESSING && !speech.active) {
+            IconButton(
+                onClick = submitSupplement,
+                enabled = canSupplement && speech.phase != EtaSpeechPhase.RECOGNIZING,
+                minWidth = 40.dp,
+                minHeight = 40.dp,
+                backgroundColor = Color.Transparent,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_assistant_send),
+                    contentDescription = stringResource(R.string.voice_supplement),
+                    modifier = Modifier.size(24.dp),
+                    tint = if (canSupplement) contentColor else hintColor,
+                )
+            }
+            IconButton(
+                onClick = onStop,
+                minWidth = 40.dp,
+                minHeight = 40.dp,
+                backgroundColor = Color.Transparent,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_assistant_stop),
+                    contentDescription = stringResource(R.string.action_stop),
+                    modifier = Modifier.size(24.dp),
+                    tint = contentColor,
+                )
+            }
+        } else {
+            IconButton(
+                onClick = trailingAction,
+                enabled = speech.phase != EtaSpeechPhase.RECOGNIZING,
+                minWidth = 40.dp,
+                minHeight = 40.dp,
+                backgroundColor = Color.Transparent,
+            ) {
+                Icon(
+                    painter = painterResource(trailingIcon),
+                    contentDescription = stringResource(trailingDescription),
+                    modifier = Modifier.size(24.dp),
+                    tint = contentColor,
+                )
+            }
         }
     }
 }

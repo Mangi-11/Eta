@@ -12,6 +12,7 @@ internal object BuiltinProviders {
             "回答使用用户的语言，简洁、直接、自然。"
 
     const val OPENAI_ID = "builtin-openai"
+    const val OPENAI_CODEX_ID = "builtin-openai-codex"
     const val ANTHROPIC_ID = "builtin-anthropic"
     const val BAILIAN_ID = "builtin-dashscope"
     const val DEEPSEEK_ID = "builtin-deepseek"
@@ -33,13 +34,23 @@ internal object BuiltinProviders {
             systemPrompt = DEFAULT_SYSTEM_PROMPT,
             endpointMode = OpenAiEndpointMode.RESPONSES,
         ),
+        OpenAiCompatibleProviderSetting(
+            id = OPENAI_CODEX_ID,
+            name = "OpenAI Codex Subscription",
+            baseUrl = "https://chatgpt.com/backend-api/codex",
+            sourceType = ProviderSourceTypes.OPENAI_CODEX,
+            isBuiltIn = true,
+            sortOrder = 1,
+            systemPrompt = DEFAULT_SYSTEM_PROMPT,
+            endpointMode = OpenAiEndpointMode.RESPONSES,
+        ),
         AnthropicProviderSetting(
             id = ANTHROPIC_ID,
             name = "Anthropic",
             baseUrl = "https://api.anthropic.com",
             sourceType = ProviderSourceTypes.ANTHROPIC,
             isBuiltIn = true,
-            sortOrder = 1,
+            sortOrder = 2,
             systemPrompt = DEFAULT_SYSTEM_PROMPT,
         ),
         OpenAiCompatibleProviderSetting(

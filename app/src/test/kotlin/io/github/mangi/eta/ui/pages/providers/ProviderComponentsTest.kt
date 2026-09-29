@@ -44,6 +44,7 @@ class ProviderComponentsTest {
     fun knownSourcesMapToDistinctBrandLogos() {
         val expected = mapOf(
             ProviderSourceTypes.OPENAI to R.drawable.provider_logo_openai,
+            ProviderSourceTypes.OPENAI_CODEX to R.drawable.provider_logo_codex,
             ProviderSourceTypes.ANTHROPIC to R.drawable.provider_logo_anthropic,
             ProviderSourceTypes.BAILIAN to R.drawable.provider_logo_bailian,
             ProviderSourceTypes.DEEPSEEK to R.drawable.provider_logo_deepseek,

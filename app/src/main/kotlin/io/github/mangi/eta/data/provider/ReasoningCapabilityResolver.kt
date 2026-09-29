@@ -44,7 +44,8 @@ internal object ReasoningCapabilityResolver {
     ): ModelReasoningCapabilities? {
         val model = modelId.trim().lowercase()
         return when (sourceType) {
-            ProviderSourceTypes.OPENAI -> when {
+            ProviderSourceTypes.OPENAI,
+            ProviderSourceTypes.OPENAI_CODEX -> when {
                 model == "gpt-6-astra" -> capabilities(lowToMax, mandatory = true)
                 model == "gpt-6-sol" || model == "gpt-6-luna" -> capabilities(
                     lowToMax,

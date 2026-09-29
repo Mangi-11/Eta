@@ -320,6 +320,12 @@ fun AgentAppRoot(
                                 AgentHomeAction.CompactContext -> agentState.compactCurrentContext()
                                 is AgentHomeAction.ModelSelected -> agentState.selectModel(action.modelId)
                                 is AgentHomeAction.SubmitMessage -> { requestExecutionNotifications(); agentState.sendCurrentMessage(action.text) }
+                                is AgentHomeAction.SupplementMessage ->
+                                    agentState.supplementCurrentRun(
+                                        text = action.text,
+                                        requestId = action.requestId,
+                                        onResult = action.onResult,
+                                    )
                                 AgentHomeAction.StopRun -> agentState.stopCurrentRun()
                                 is AgentHomeAction.ImageAttached -> agentState.attachImage(action.uri)
                                 is AgentHomeAction.RemoveImage -> agentState.removePendingImage(action.id)
@@ -371,6 +377,12 @@ fun AgentAppRoot(
                                 AgentChatAction.CompactContext -> agentState.compactCurrentContext()
                                 is AgentChatAction.ModelSelected -> agentState.selectModel(action.modelId)
                                 is AgentChatAction.SubmitMessage -> { requestExecutionNotifications(); agentState.sendCurrentMessage(action.text) }
+                                is AgentChatAction.SupplementMessage ->
+                                    agentState.supplementCurrentRun(
+                                        text = action.text,
+                                        requestId = action.requestId,
+                                        onResult = action.onResult,
+                                    )
                                 AgentChatAction.StopRun -> agentState.stopCurrentRun()
                                 AgentChatAction.OpenBrowser -> pushRoute(AppRoute.Browser)
                                 is AgentChatAction.ImageAttached -> agentState.attachImage(action.uri)

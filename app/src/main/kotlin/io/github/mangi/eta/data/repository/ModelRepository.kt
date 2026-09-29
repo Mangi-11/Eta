@@ -1,8 +1,11 @@
 package io.github.mangi.eta.data.repository
 
+import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelSource
+import io.github.mangi.eta.data.provider.BuiltinProviders
 import java.util.UUID
+import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -70,13 +73,18 @@ internal object ModelRepository {
             providerId,
             models.filterNot { it.id == saved.id } + saved,
         )
+        if (providerId == BuiltinProviders.OPENAI_CODEX_ID) {
+            SettingsDataStore.unhideRemoteModelId(providerId, modelId.normalizedModelId())
+        }
         saved
     }
 
     suspend fun deleteModel(providerId: String, modelId: String) = mutationMutex.withLock {
+        val models = currentModels(providerId)
+        hideDeletedCodexRemoteModels(providerId, models.filter { it.id == modelId })
         ProviderRepository.replaceModels(
             providerId,
-            currentModels(providerId).filterNot { it.id == modelId },
+            models.filterNot { it.id == modelId },
         )
         ProviderRepository.repairSelection()
     }
@@ -84,24 +92,36 @@ internal object ModelRepository {
     suspend fun deleteModels(providerId: String, modelIds: Set<String>) {
         if (modelIds.isEmpty()) return
         mutationMutex.withLock {
+            val models = currentModels(providerId)
+            hideDeletedCodexRemoteModels(providerId, models.filter { it.id in modelIds })
             ProviderRepository.replaceModels(
                 providerId,
-                currentModels(providerId).filterNot { it.id in modelIds },
+                models.filterNot { it.id in modelIds },
             )
             ProviderRepository.repairSelection()
         }
     }
 
-    suspend fun syncRemoteModels(providerId: String, fetched: List<Model>): RemoteModelSyncResult =
+    suspend fun syncRemoteModels(
+        providerId: String,
+        fetched: List<Model>,
+        preserveCatalogModels: Boolean = true,
+    ): RemoteModelSyncResult =
         mutationMutex.withLock {
-            val remoteByKey = fetched
+            val fetchedByKey = fetched
                 .asSequence()
                 .filter { it.modelId.isNotBlank() }
                 .distinctBy { it.modelId.normalizedModelId() }
                 .associateBy { it.modelId.normalizedModelId() }
-            if (remoteByKey.isEmpty()) {
+            if (fetchedByKey.isEmpty()) {
                 return@withLock RemoteModelSyncResult(applied = false)
             }
+            val hiddenIds = if (providerId == BuiltinProviders.OPENAI_CODEX_ID) {
+                SettingsDataStore.hiddenRemoteModelIds(providerId)
+            } else {
+                emptySet()
+            }
+            val remoteByKey = fetchedByKey.filterKeys { it !in hiddenIds }
 
             val existing = currentModels(providerId)
             val consumed = mutableSetOf<String>()
@@ -118,18 +138,27 @@ internal object ModelRepository {
                                     modelId = remote.modelId.trim(),
                                     displayName = remote.displayName.trim().ifBlank { remote.modelId.trim() },
                                     isEnabled = stored.isEnabled,
-                                    isBuiltIn = stored.isBuiltIn || remote.isBuiltIn,
+                                    isBuiltIn = if (!preserveCatalogModels && stored.source == ModelSource.CATALOG) {
+                                        false
+                                    } else {
+                                        stored.isBuiltIn || remote.isBuiltIn
+                                    },
                                     customHeaders = stored.customHeaders,
                                     customBody = stored.customBody,
                                     contextWindowOverride = stored.contextWindowOverride,
                                     reasoningOverride = stored.reasoningOverride,
                                     reasoningCapabilitiesOverride = stored.reasoningCapabilitiesOverride,
-                                    source = stored.source,
+                                    source = if (!preserveCatalogModels && stored.source == ModelSource.CATALOG) {
+                                        ModelSource.REMOTE
+                                    } else {
+                                        stored.source
+                                    },
                                     createdAt = stored.createdAt,
                                 )
                             )
                         }
-                        stored.source != ModelSource.REMOTE -> add(stored)
+                        stored.source != ModelSource.REMOTE &&
+                            (preserveCatalogModels || stored.source != ModelSource.CATALOG) -> add(stored)
                     }
                 }
                 remoteByKey.forEach { (key, remote) ->
@@ -151,7 +180,7 @@ internal object ModelRepository {
             ProviderRepository.repairSelection()
             RemoteModelSyncResult(
                 applied = true,
-                fetchedCount = remoteByKey.size,
+                fetchedCount = fetchedByKey.size,
                 addedCount = merged.count { model -> existing.none { it.id == model.id } },
                 removedCount = existing.count { stored ->
                     stored.source == ModelSource.REMOTE &&
@@ -180,7 +209,16 @@ internal object ModelRepository {
             .models
             .sortedBy { it.sortOrder }
 
-    private fun String.normalizedModelId(): String = trim().lowercase()
+    private suspend fun hideDeletedCodexRemoteModels(providerId: String, models: List<Model>) {
+        if (providerId != BuiltinProviders.OPENAI_CODEX_ID) return
+        SettingsDataStore.hideRemoteModelIds(
+            providerId,
+            models.filter { it.source == ModelSource.REMOTE }
+                .mapTo(mutableSetOf()) { it.modelId.normalizedModelId() },
+        )
+    }
+
+    private fun String.normalizedModelId(): String = trim().lowercase(Locale.ROOT)
 }
 
 internal data class RemoteModelSyncResult(
