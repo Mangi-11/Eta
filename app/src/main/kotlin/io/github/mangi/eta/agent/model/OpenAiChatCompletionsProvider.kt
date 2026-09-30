@@ -129,7 +129,8 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         if (stream == null) error("模型接口未返回响应流")
         val content = StringBuilder()
         val reasoningContent = StringBuilder()
-        val toolCalls = linkedMapOf<Int, StreamingToolCall>()
+        val toolCalls = linkedMapOf<String, StreamingToolCall>()
+        val indexToCallKey = mutableMapOf<Int, String>()
         var usage: AgentTokenUsage? = null
         var sawStreamData = false
         var sawDone = false
@@ -207,20 +208,31 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             for (i in 0 until deltaToolCalls.length()) {
                 val item = deltaToolCalls.optJSONObject(i) ?: continue
                 val index = item.optInt("index", i)
-                val call = toolCalls.getOrPut(index) {
-                    StreamingToolCall(
-                        index = index,
-                        contentIndex = nextContentIndex++,
-                    ).also { created ->
-                        onEvent(
-                            ProviderEvent.BlockStart(
-                                kind = AssistantBlockKind.TOOL_CALL,
-                                index = created.contentIndex,
-                            )
-                        )
+                val itemId = item.optString("id").takeIf { it.isNotBlank() }
+                // 归并以 id 优先：部分中转/模型在多工具并行时漏发 index，
+                // 仅按 index 归并会把不同调用的参数拼进同一个缓冲（参数损坏/丢字段）。
+                val existingKey = indexToCallKey[index]
+                val existing = existingKey?.let { toolCalls[it] }
+                val slotKey = when {
+                    itemId != null && toolCalls.containsKey("id:$itemId") -> "id:$itemId"
+                    itemId != null && existing != null && existing.id != null && existing.id != itemId ->
+                        "id:$itemId".also { newKey ->
+                            val created = StreamingToolCall(index = index, contentIndex = nextContentIndex++, id = itemId)
+                            onEvent(ProviderEvent.BlockStart(kind = AssistantBlockKind.TOOL_CALL, index = created.contentIndex))
+                            toolCalls[newKey] = created
+                            indexToCallKey[index] = newKey
+                        }
+                    else -> existingKey ?: (itemId?.let { "id:$it" } ?: "index:$index").also { newKey ->
+                        if (!toolCalls.containsKey(newKey)) {
+                            val created = StreamingToolCall(index = index, contentIndex = nextContentIndex++, id = itemId)
+                            onEvent(ProviderEvent.BlockStart(kind = AssistantBlockKind.TOOL_CALL, index = created.contentIndex))
+                            toolCalls[newKey] = created
+                            indexToCallKey[index] = newKey
+                        }
                     }
                 }
-                if (item.has("id") && !item.isNull("id")) call.id = item.optString("id")
+                val call = toolCalls[slotKey] ?: continue
+                if (itemId != null) call.id = itemId
                 if (item.has("type") && !item.isNull("type")) call.type = item.optString("type").ifBlank { "function" }
                 val function = item.optJSONObject("function")
                 val nameDelta = function?.takeIf { it.has("name") && !it.isNull("name") }?.optString("name").orEmpty()
