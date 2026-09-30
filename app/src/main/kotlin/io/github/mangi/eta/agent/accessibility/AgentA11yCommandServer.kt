@@ -118,7 +118,7 @@ internal class AgentA11yCommandServer(
             "click" -> actOnNode(request) { node -> node.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
             "long_click" -> actOnNode(request) { node -> node.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK) }
             "focus" -> actOnNode(request) { node -> node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) }
-            "clear" -> actOnNode(request) {
+            "clear" -> actOnNode(request) { node ->
                 node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) &&
                     node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, android.os.Bundle().apply {
                         putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
@@ -178,8 +178,9 @@ internal class AgentA11yCommandServer(
             windowJson.put("nodes", nodes)
             out.put(windowJson)
         }
+        val displayIds = (0 until out.length()).map { out.getJSONObject(it).optInt("display") }.distinct().sorted()
         return JSONObject()
-            .put("displays", out.map { (it as JSONObject).optInt("display") }.distinct().sorted())
+            .put("displays", JSONArray(displayIds))
             .put("windows", out)
     }
 
