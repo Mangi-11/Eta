@@ -18,12 +18,14 @@ internal fun AgentChatScreen(
     state: AgentChatUiState,
     modelPickerState: AgentModelPickerUiState,
     conversationKey: String?,
+    bottomAnchorRequest: Int = 0,
     onAction: (AgentChatAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     key(chatConversationCompositionKey(conversationKey)) {
         AgentChatBody(
             messages = state.messages,
+            bottomAnchorRequest = bottomAnchorRequest,
             modelPickerState = modelPickerState,
             isCompacting = state.isCompacting,
             input = state.input,

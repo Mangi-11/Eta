@@ -124,6 +124,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 @OptIn(ExperimentalLayoutApi::class)
 internal fun AgentChatBody(
     messages: List<AgentChatMessageUi>,
+    bottomAnchorRequest: Int = 0,
     modelPickerState: AgentModelPickerUiState,
     isCompacting: Boolean,
     input: String,
@@ -215,6 +216,7 @@ internal fun AgentChatBody(
             visibleMessages = visibleMessages,
             hasMessages = visibleMessages.isNotEmpty(),
             scrollState = scrollState,
+            bottomAnchorRequest = bottomAnchorRequest,
             input = input,
             modelPickerState = modelPickerState,
             isCompacting = isCompacting,
@@ -267,6 +269,7 @@ private fun AgentChatScaffold(
     visibleMessages: List<AgentChatMessageUi>,
     hasMessages: Boolean,
     scrollState: LazyListState,
+    bottomAnchorRequest: Int = 0,
     input: String,
     modelPickerState: AgentModelPickerUiState,
     isCompacting: Boolean,
@@ -365,6 +368,7 @@ private fun AgentChatScaffold(
             AgentConversationMessages(
                 visibleMessages = visibleMessages,
                 scrollState = scrollState,
+                bottomAnchorRequest = bottomAnchorRequest,
                 isStreaming = isStreaming,
                 bottomInset = bottomPadding,
                 keepBottomAnchored = keepBottomAnchored,
@@ -392,6 +396,7 @@ private fun AgentChatScaffold(
 internal fun AgentConversationMessages(
     visibleMessages: List<AgentChatMessageUi>,
     scrollState: LazyListState,
+    bottomAnchorRequest: Int = 0,
     isStreaming: Boolean,
     bottomInset: Dp,
     keepBottomAnchored: Boolean,
@@ -420,6 +425,15 @@ internal fun AgentConversationMessages(
     val streamingMarkdownStates = remember { mutableStateMapOf<String, StreamingMarkdownState>() }
     val bottomItemIndex = timelineEntries.size
     val isUserDragging by scrollState.interactionSource.collectIsDraggedAsState()
+
+    // 系统入口（流体云 / 语音浮窗）回跳到同一个会话时列表不会重建，
+    // 这里按请求序号强制锚回最新一条，确保打开就看到本轮总结而不是离开前的位置。
+    LaunchedEffect(bottomAnchorRequest) {
+        if (bottomAnchorRequest <= 0) return@LaunchedEffect
+        onBottomAnchorChanged(true)
+        scrollState.scrollToItem(bottomItemIndex)
+    }
+
     val isAtBottom by remember(scrollState) {
         derivedStateOf { !scrollState.canScrollForward }
     }
