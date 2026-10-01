@@ -614,6 +614,13 @@ internal object AgentRuntimeWire {
         putString(KEY_RUN_ID, runId)
     }
 
+    fun activeRunBundle(runId: String, handoff: EntryHandoff? = null): Bundle = ackBundle(runId).apply {
+        if (runId.isNotBlank() && handoff != null) putBundle(KEY_HANDOFF, toBundle(handoff))
+    }
+
+    fun activeRunHandoffFromBundle(bundle: Bundle): EntryHandoff? =
+        bundle.getBundle(KEY_HANDOFF)?.let(::entryHandoffFromBundle)
+
     fun steerBundle(runId: String, requestId: String, text: String): Bundle = Bundle().apply {
         putString(KEY_RUN_ID, runId)
         putString(KEY_STEER_REQUEST_ID, requestId)

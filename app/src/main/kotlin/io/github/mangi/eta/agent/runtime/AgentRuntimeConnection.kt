@@ -130,7 +130,10 @@ internal object AgentRuntimeConnection {
             context.bindService(
                 AgentRuntimeWire.serviceIntent(),
                 serviceConnection,
-                Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT or Context.BIND_INCLUDE_CAPABILITIES,
+                Context.BIND_AUTO_CREATE or
+                    Context.BIND_IMPORTANT or
+                    Context.BIND_ABOVE_CLIENT or
+                    Context.BIND_INCLUDE_CAPABILITIES,
             )
         }.onFailure { throwable ->
             synchronized(lock) {

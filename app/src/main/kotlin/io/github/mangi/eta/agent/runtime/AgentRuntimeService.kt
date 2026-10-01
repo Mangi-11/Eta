@@ -76,6 +76,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     @Volatile
     private var activeSession: AgentRuntimeSession? = null
+    private var activeExternalHandoff: AgentRuntimeWire.EntryHandoff? = null
     private var startRequestGeneration = 0L
     private var pendingStartRequest: PendingStartRequest? = null
 
@@ -152,6 +153,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         pendingStartRequest = null
         activeSession?.cancel("Agent Runtime 服务已停止")
         activeSession = null
+        activeExternalHandoff = null
         resultIo.shutdownNow()
         mainHandler.removeCallbacksAndMessages(null)
         resultCardView?.let { view -> runCatching { windowManager?.removeView(view) } }
@@ -348,6 +350,12 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             return
         }
         activeSession = session
+        // 主界面只需要归档元数据；入口适配器的原始载荷不随活动状态查询传递。
+        activeExternalHandoff = request.handoff?.let { handoff ->
+            AgentExternalArchivePayload.from(handoff.payload)?.let { payload ->
+                handoff.copy(payload = payload.copy(adapterPayload = org.json.JSONObject()).toJson())
+            }
+        }
         lastCompletedRunContext = null
         runCatching {
             startService(Intent(this, AgentRuntimeService::class.java).setAction(ACTION_KEEP_ALIVE))
@@ -477,6 +485,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             if (activeSession !== session) return@post
             lastCompletedRunContext = completedContext
             activeSession = null
+            activeExternalHandoff = null
             runCatching {
                 if (result.ok) {
                     enterFinalState(
@@ -606,7 +615,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     private fun sendActiveRun(replyTo: Messenger?) {
         runCatching {
             val msg = Message.obtain(null, AgentRuntimeWire.MSG_QUERY_ACTIVE_RUN_RESPONSE)
-            msg.data = AgentRuntimeWire.ackBundle(activeSession?.runId.orEmpty())
+            msg.data = AgentRuntimeWire.activeRunBundle(activeSession?.runId.orEmpty(), activeExternalHandoff)
             replyTo?.send(msg)
         }.onFailure { throwable ->
             AndroidAgentLogger.warnThrottled("runtime_active_run_delivery_failed") {

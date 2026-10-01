@@ -471,6 +471,20 @@ internal class AgentAppState(
         val terminalStateKnown = terminalRaceQuery is AgentRuntimeClient.CompletedRunsQuery.Known
         val activeRunId = (activeRunQuery as? AgentRuntimeClient.ActiveRunQuery.Known)?.runId
         val locallyObservedRunId = withContext(Dispatchers.Main) { currentRunId }
+        val activeExternalHandoff = (activeRunQuery as? AgentRuntimeClient.ActiveRunQuery.Known)
+            ?.handoff?.takeIf { AgentExternalArchivePayload.from(it.payload) != null }
+        val externalReattach = if (
+            activeRunId != null && activeRunId != locallyObservedRunId && activeExternalHandoff != null
+        ) {
+            AgentRunCheckpointStore.Checkpoint(
+                runId = activeRunId,
+                ownerInstanceId = "",
+                handoff = activeExternalHandoff,
+                events = emptyList(),
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            )
+        } else null
         val plan = AgentRunRecoveryCoordinator.plan(
             checkpoints = checkpoints,
             completedRuns = completedRuns,
@@ -492,7 +506,7 @@ internal class AgentAppState(
         if (
             plan.completed.isEmpty() &&
             plan.interrupted.isEmpty() &&
-            plan.reattach == null && orphanRewrites.isEmpty()
+            plan.reattach == null && externalReattach == null && orphanRewrites.isEmpty()
         ) {
             return
         }
@@ -559,7 +573,7 @@ internal class AgentAppState(
             }
         }
 
-        plan.reattach?.let { checkpoint ->
+        (plan.reattach ?: externalReattach)?.let { checkpoint ->
             withContext(Dispatchers.Main) { startReattachedRun(checkpoint) }
         }
     }
@@ -626,19 +640,26 @@ internal class AgentAppState(
 
     private fun startReattachedRun(checkpoint: AgentRunCheckpointStore.Checkpoint) {
         val runId = checkpoint.runId
-        val conversationId = AgentUiHandoffPayload
-            .from(checkpoint.handoff.payload)
-            .conversationId
-        val existing = conversationsById[conversationId] ?: return
+        val externalPayload = AgentExternalArchivePayload.from(checkpoint.handoff.payload)
+        val conversationId = if (externalPayload != null) {
+            archiveConversationId(checkpoint.handoff.source, externalPayload.conversationKey)
+        } else AgentUiHandoffPayload.from(checkpoint.handoff.payload).conversationId
+        val existing = conversationsById[conversationId]
+            ?: if (externalPayload != null) emptyChatState(defaultThinkingEnabled) else return
         if (currentRunId != null || AgentRuntimeHistoryReducer.wasApplied(existing, runId)) return
 
         runConversationIds[runId] = conversationId
         currentRunId = runId
-        val restored = if (checkpoint.operation == AgentRuntimeWire.OP_REWRITE_REPLY) {
+        val restored = if (externalPayload != null) {
+            conversationTitles = conversationTitles +
+                (conversationId to (conversationTitles[conversationId] ?: externalPayload.title))
+            AgentExternalRunProjector.prepare(existing, runId, externalPayload)
+        } else if (checkpoint.operation == AgentRuntimeWire.OP_REWRITE_REPLY) {
             RoleplayConversationReducer.restorePendingRewrite(existing, runId, checkpoint.rewriteTargetMessageId)
         } else existing
         updateConversation(conversationId, restored.copy(isStreaming = true, isCompacting = checkpoint.operation == AgentRuntimeWire.OP_COMPACT))
         refreshConversationSummaries()
+        if (externalPayload != null) selectConversation(conversationId)
         currentRunJob = scope.launch(Dispatchers.IO) {
             val client = AgentRuntimeClient(appContext, AndroidAgentLogger)
             val outcome = client.attachRun(
@@ -647,12 +668,16 @@ internal class AgentAppState(
                 onEvent = { event -> enqueueRunEvent(runId, event) },
             )
             when (outcome) {
-                is AgentRuntimeClient.AttachOutcome.Completed -> withContext(Dispatchers.Main) {
-                    applyRunResult(
-                        runId = runId,
-                        result = outcome.result,
-                        acknowledgeRuntimeResult = true,
-                    )
+                is AgentRuntimeClient.AttachOutcome.Completed -> {
+                    withContext(Dispatchers.Main) {
+                        applyRunResult(
+                            runId = runId,
+                            result = outcome.result,
+                            acknowledgeRuntimeResult = externalPayload == null,
+                        )
+                    }
+                    // 外部入口仍负责结果 ACK；独立归档提供完整模型上下文。
+                    if (externalPayload != null) importArchivedExternalRuns()
                 }
                 AgentRuntimeClient.AttachOutcome.NotActive -> {
                     withContext(Dispatchers.Main) {
@@ -663,6 +688,7 @@ internal class AgentAppState(
                         }
                     }
                     recoverRuntimeRuns()
+                    if (externalPayload != null) importArchivedExternalRuns()
                 }
                 AgentRuntimeClient.AttachOutcome.Unavailable -> withContext(Dispatchers.Main) {
                     if (currentRunId == runId) {
@@ -727,12 +753,7 @@ internal class AgentAppState(
         val existingState = conversationsById[conversationId] ?: emptyChatState(
             archivedEffort.enablesReasoning
         ).copy(reasoningEffort = archivedEffort)
-        val alreadyImported = AgentRuntimeHistoryReducer.wasApplied(existingState, runId) ||
-            existingState.messages.any {
-                it is AgentMessageUi &&
-                    (it.id == "assistant-$runId" || it.id.startsWith("assistant-$runId-")) &&
-                    !it.isStreaming
-            }
+        val alreadyImported = AgentRuntimeHistoryReducer.wasApplied(existingState, runId)
         if (alreadyImported) return runId
 
         if (conversationTitles[conversationId].isNullOrBlank()) {
@@ -741,25 +762,7 @@ internal class AgentAppState(
         runConversationIds[runId] = conversationId
         updateConversation(
             conversationId,
-            existingState.copy(
-                input = "",
-                isStreaming = true,
-                thinkingEnabled = archivedEffort.enablesReasoning,
-                reasoningEffort = archivedEffort,
-                pendingImages = emptyList(),
-                messages = existingState.messages +
-                    UserMessageUi(
-                        id = "user-$runId",
-                        content = payload.userText,
-                        images = archivedRun.userImagePreviews,
-                    ) +
-                    AgentMessageUi(
-                        id = "assistant-$runId",
-                        content = "",
-                        isStreaming = true,
-                        renderMarkdown = false,
-                    ),
-            )
+            AgentExternalRunProjector.prepare(existingState, runId, payload, archivedRun.userImagePreviews)
         )
         archivedRun.events.forEach { event -> applyRunEvent(runId, event) }
         applyRunResult(runId, archivedRun.result)
@@ -1046,10 +1049,6 @@ internal class AgentAppState(
         val runtimePrompt = AgentFileReferencePromptCodec.format(prompt, fileReferences)
 
         val edit = homeState.messageEdit
-        if (edit == null && selectedConversationId?.isReadOnlyExternalArchiveConversation() == true) {
-            moveCurrentDraftToNewConversation()
-        }
-
         val editBoundary = edit?.let {
             AgentConversationRevisionReducer.boundary(homeState, it.targetMessageId)
         }
@@ -2504,20 +2503,6 @@ internal class AgentAppState(
         }
     }
 
-    private fun moveCurrentDraftToNewConversation() {
-        val draft = homeState
-        selectedConversationId = null
-        homeState = emptyChatState(defaultThinkingEnabled).copy(
-            input = draft.input,
-            thinkingEnabled = draft.reasoningEffort.enablesReasoning,
-            reasoningEffort = draft.reasoningEffort,
-            availableReasoningEfforts = currentReasoningCapabilities?.selectableEfforts.orEmpty(),
-            pendingImages = draft.pendingImages,
-            pendingFileReferences = draft.pendingFileReferences,
-        )
-        conversationPaneState = conversationPaneState.copy(selectedConversationId = null)
-    }
-
     private fun updateConversation(
         conversationId: String,
         state: AgentChatHomeUiState,
@@ -2691,9 +2676,6 @@ private data class ContentMatchCacheEntry(
 )
 
 private const val EXTERNAL_ARCHIVE_CONVERSATION_PREFIX = "archive-"
-
-private fun String.isReadOnlyExternalArchiveConversation(): Boolean =
-    startsWith(EXTERNAL_ARCHIVE_CONVERSATION_PREFIX)
 
 private fun archiveConversationId(source: String, conversationKey: String): String {
     val prefix = if (source == AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE) {

@@ -30,7 +30,7 @@ internal class AgentRuntimeClient(
     }
 
     sealed interface ActiveRunQuery {
-        data class Known(val runId: String?) : ActiveRunQuery
+        data class Known(val runId: String?, val handoff: AgentRuntimeWire.EntryHandoff? = null) : ActiveRunQuery
         data object Unavailable : ActiveRunQuery
     }
 
@@ -222,10 +222,10 @@ internal class AgentRuntimeClient(
 
     fun queryActiveRun(): ActiveRunQuery {
         val responseLatch = CountDownLatch(1)
-        val runIdRef = AtomicReference("")
+        val responseRef = AtomicReference(ActiveRunQuery.Known(null))
         val clientMessenger = Messenger(
-            ActiveRunHandler { runId ->
-                runIdRef.set(runId)
+            ActiveRunHandler { response ->
+                responseRef.set(response)
                 responseLatch.countDown()
             }
         )
@@ -237,7 +237,7 @@ internal class AgentRuntimeClient(
             if (!responseLatch.await(RESPONSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 ActiveRunQuery.Unavailable
             } else {
-                ActiveRunQuery.Known(runIdRef.get().takeIf(String::isNotBlank))
+                responseRef.get()
             }
         }
     }
@@ -351,11 +351,15 @@ internal class AgentRuntimeClient(
     }
 
     private class ActiveRunHandler(
-        private val onResponse: (String) -> Unit,
+        private val onResponse: (ActiveRunQuery.Known) -> Unit,
     ) : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
             if (msg.what == AgentRuntimeWire.MSG_QUERY_ACTIVE_RUN_RESPONSE) {
-                onResponse(AgentRuntimeWire.runIdFromBundle(msg.data ?: return))
+                val data = msg.data ?: return
+                onResponse(ActiveRunQuery.Known(
+                    runId = AgentRuntimeWire.runIdFromBundle(data).takeIf(String::isNotBlank),
+                    handoff = AgentRuntimeWire.activeRunHandoffFromBundle(data),
+                ))
             }
         }
     }

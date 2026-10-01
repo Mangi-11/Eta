@@ -28,6 +28,18 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class AgentRuntimeWireTest {
     @Test
+    fun activeRunMetadataSupportsExternalAttachAndLegacyResponses() {
+        val handoff = AgentRuntimeWire.EntryHandoff(
+            id = "run-live", source = "breeno", payload = "external-metadata",
+        )
+        val active = AgentRuntimeWire.activeRunBundle("run-live", handoff)
+        assertEquals("run-live", AgentRuntimeWire.runIdFromBundle(active))
+        assertEquals(handoff, AgentRuntimeWire.activeRunHandoffFromBundle(active))
+        assertNull(AgentRuntimeWire.activeRunHandoffFromBundle(AgentRuntimeWire.ackBundle("run-old")))
+        assertNull(AgentRuntimeWire.activeRunHandoffFromBundle(AgentRuntimeWire.activeRunBundle("", handoff)))
+    }
+
+    @Test
     fun modelIdentitySurvivesWireAndArchiveWithoutResponseBody() {
         val event = AgentEvent.ModelIdentityObserved(2, "gpt-6-luna", null)
 
