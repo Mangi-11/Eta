@@ -30,8 +30,14 @@ internal class AgentRuntimeClient(
     }
 
     sealed interface ActiveRunQuery {
-        data class Known(val runId: String?) : ActiveRunQuery
+        data class Known(val runId: String?, val handoff: AgentRuntimeWire.EntryHandoff? = null) : ActiveRunQuery
         data object Unavailable : ActiveRunQuery
+    }
+
+    sealed interface SteerOutcome {
+        data object Accepted : SteerOutcome
+        data class Rejected(val reason: String? = null) : SteerOutcome
+        data object Unavailable : SteerOutcome
     }
 
     sealed interface CompletedRunsQuery {
@@ -120,6 +126,31 @@ internal class AgentRuntimeClient(
         }
     }
 
+    fun steerRun(runId: String, requestId: String, text: String): SteerOutcome {
+        if (runId.isBlank() || requestId.isBlank() || text.isBlank()) {
+            return SteerOutcome.Rejected("补充指令缺少 runId、requestId 或内容")
+        }
+        return withRuntimeMessenger(SteerOutcome.Unavailable) { serviceMessenger ->
+            val responseLatch = CountDownLatch(1)
+            val resultRef = AtomicReference<SteerOutcome>(SteerOutcome.Unavailable)
+            val responseMessenger = Messenger(
+                SteerHandler(requestId) { outcome ->
+                    resultRef.set(outcome)
+                    responseLatch.countDown()
+                }
+            )
+            val msg = Message.obtain(null, AgentRuntimeWire.MSG_STEER_RUN)
+            msg.replyTo = responseMessenger
+            msg.data = AgentRuntimeWire.steerBundle(runId, requestId, text)
+            serviceMessenger.send(msg)
+            if (responseLatch.await(RESPONSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                resultRef.get()
+            } else {
+                SteerOutcome.Unavailable
+            }
+        }
+    }
+
     fun ackResult(runId: String): Boolean {
         if (runId.isBlank()) return false
         return withRuntimeMessenger(false) { serviceMessenger ->
@@ -191,10 +222,10 @@ internal class AgentRuntimeClient(
 
     fun queryActiveRun(): ActiveRunQuery {
         val responseLatch = CountDownLatch(1)
-        val runIdRef = AtomicReference("")
+        val responseRef = AtomicReference(ActiveRunQuery.Known(null))
         val clientMessenger = Messenger(
-            ActiveRunHandler { runId ->
-                runIdRef.set(runId)
+            ActiveRunHandler { response ->
+                responseRef.set(response)
                 responseLatch.countDown()
             }
         )
@@ -206,7 +237,7 @@ internal class AgentRuntimeClient(
             if (!responseLatch.await(RESPONSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 ActiveRunQuery.Unavailable
             } else {
-                ActiveRunQuery.Known(runIdRef.get().takeIf(String::isNotBlank))
+                responseRef.get()
             }
         }
     }
@@ -320,12 +351,34 @@ internal class AgentRuntimeClient(
     }
 
     private class ActiveRunHandler(
-        private val onResponse: (String) -> Unit,
+        private val onResponse: (ActiveRunQuery.Known) -> Unit,
     ) : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
             if (msg.what == AgentRuntimeWire.MSG_QUERY_ACTIVE_RUN_RESPONSE) {
-                onResponse(AgentRuntimeWire.runIdFromBundle(msg.data ?: return))
+                val data = msg.data ?: return
+                onResponse(ActiveRunQuery.Known(
+                    runId = AgentRuntimeWire.runIdFromBundle(data).takeIf(String::isNotBlank),
+                    handoff = AgentRuntimeWire.activeRunHandoffFromBundle(data),
+                ))
             }
+        }
+    }
+
+    private class SteerHandler(
+        private val requestId: String,
+        private val onResponse: (SteerOutcome) -> Unit,
+    ) : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) {
+            if (msg.what != AgentRuntimeWire.MSG_STEER_RUN_RESPONSE) return
+            val bundle = msg.data ?: return
+            if (AgentRuntimeWire.steerResponseRequestId(bundle) != requestId) return
+            onResponse(
+                if (AgentRuntimeWire.steerAccepted(bundle)) {
+                    SteerOutcome.Accepted
+                } else {
+                    SteerOutcome.Rejected(AgentRuntimeWire.steerRejectionReason(bundle))
+                },
+            )
         }
     }
 

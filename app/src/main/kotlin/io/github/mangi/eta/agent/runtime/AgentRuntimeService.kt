@@ -76,6 +76,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     @Volatile
     private var activeSession: AgentRuntimeSession? = null
+    private var activeExternalHandoff: AgentRuntimeWire.EntryHandoff? = null
     private var startRequestGeneration = 0L
     private var pendingStartRequest: PendingStartRequest? = null
 
@@ -152,6 +153,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         pendingStartRequest = null
         activeSession?.cancel("Agent Runtime 服务已停止")
         activeSession = null
+        activeExternalHandoff = null
         resultIo.shutdownNow()
         mainHandler.removeCallbacksAndMessages(null)
         resultCardView?.let { view -> runCatching { windowManager?.removeView(view) } }
@@ -239,6 +241,18 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         runId = AgentRuntimeWire.runIdFromBundle(msg.data ?: return),
                         replyTo = msg.replyTo,
                     )
+                }
+
+                AgentRuntimeWire.MSG_STEER_RUN -> {
+                    val data = msg.data ?: return
+                    val runId = AgentRuntimeWire.runIdFromBundle(data)
+                    val requestId = AgentRuntimeWire.steerRequestIdFromBundle(data)
+                    val result = requestRunSupplement(
+                        runId = runId,
+                        requestId = requestId,
+                        text = AgentRuntimeWire.steerTextFromBundle(data),
+                    )
+                    sendSteerRunResponse(msg.replyTo, requestId, result)
                 }
             }
         }
@@ -336,6 +350,12 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             return
         }
         activeSession = session
+        // 主界面只需要归档元数据；入口适配器的原始载荷不随活动状态查询传递。
+        activeExternalHandoff = request.handoff?.let { handoff ->
+            AgentExternalArchivePayload.from(handoff.payload)?.let { payload ->
+                handoff.copy(payload = payload.copy(adapterPayload = org.json.JSONObject()).toJson())
+            }
+        }
         lastCompletedRunContext = null
         runCatching {
             startService(Intent(this, AgentRuntimeService::class.java).setAction(ACTION_KEEP_ALIVE))
@@ -465,6 +485,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             if (activeSession !== session) return@post
             lastCompletedRunContext = completedContext
             activeSession = null
+            activeExternalHandoff = null
             runCatching {
                 if (result.ok) {
                     enterFinalState(
@@ -594,7 +615,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     private fun sendActiveRun(replyTo: Messenger?) {
         runCatching {
             val msg = Message.obtain(null, AgentRuntimeWire.MSG_QUERY_ACTIVE_RUN_RESPONSE)
-            msg.data = AgentRuntimeWire.ackBundle(activeSession?.runId.orEmpty())
+            msg.data = AgentRuntimeWire.activeRunBundle(activeSession?.runId.orEmpty(), activeExternalHandoff)
             replyTo?.send(msg)
         }.onFailure { throwable ->
             AndroidAgentLogger.warnThrottled("runtime_active_run_delivery_failed") {
@@ -624,6 +645,43 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         }.onFailure { throwable ->
             AndroidAgentLogger.warnThrottled("runtime_attach_run_delivery_failed") {
                 "Agent runtime attach response failed: type=${throwable.safeLogType()}"
+            }
+        }
+    }
+
+    private fun requestRunSupplement(
+        runId: String,
+        requestId: String,
+        text: String,
+    ): AgentRuntimeSession.SteerRequestResult<AgentEvent.UserSupplementReceived> {
+        val session = activeSession
+        if (runId.isBlank() || requestId.isBlank() || session?.runId != runId) {
+            return AgentRuntimeSession.SteerRequestResult(
+                accepted = false,
+                reason = "当前运行不可用",
+            )
+        }
+        return session.steer(requestId, text) {
+            recordSupplementEvent(text.trim(), requestId)
+        }
+    }
+
+    private fun sendSteerRunResponse(
+        replyTo: Messenger?,
+        requestId: String,
+        result: AgentRuntimeSession.SteerRequestResult<AgentEvent.UserSupplementReceived>,
+    ) {
+        runCatching {
+            val msg = Message.obtain(null, AgentRuntimeWire.MSG_STEER_RUN_RESPONSE)
+            msg.data = AgentRuntimeWire.steerResponseBundle(
+                requestId = requestId,
+                accepted = result.accepted,
+                reason = result.reason,
+            )
+            replyTo?.send(msg)
+        }.onFailure { throwable ->
+            AndroidAgentLogger.warnThrottled("runtime_steer_response_delivery_failed") {
+                "Agent runtime steering response failed: type=${throwable.safeLogType()}"
             }
         }
     }
@@ -785,7 +843,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         startRun(continuationRequest)
     }
 
-    private fun recordSupplementEvent(text: String): AgentEvent.UserSupplementReceived {
+    private fun recordSupplementEvent(text: String, requestId: String = ""): AgentEvent.UserSupplementReceived {
         val supplement = synchronized(supplementsLock) {
             AgentUiHandoffPayload.Supplement(
                 index = nextSupplementIndex++,
@@ -796,6 +854,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         return AgentEvent.UserSupplementReceived(
             index = supplement.index,
             text = supplement.text,
+            requestId = requestId,
         )
     }
 

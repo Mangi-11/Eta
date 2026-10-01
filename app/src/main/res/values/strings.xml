@@ -309,6 +309,7 @@
   <string name="voice_running_tool">Eta is running %1$s</string>
   <string name="voice_input_hint">Message Eta…</string>
   <string name="voice_send">Send</string>
+  <string name="voice_supplement">Add instruction</string>
   <string name="ui_core_memory_user_name_long_term_preferences_aa6ff9"># core memory
 - User name:
 - Long-term preferences:</string>
@@ -932,6 +933,22 @@
   </plurals>
   <string name="provider_models_endpoint_summary">Read the /models list from %1$s</string>
   <string name="provider_models_fetched_filtered">Fetched %1$d models; filtered out %2$d non-chat models</string>
+  <string name="provider_codex_account_title">ChatGPT subscription</string>
+  <string name="provider_codex_account_signed_in">Codex account connected</string>
+  <string name="provider_codex_account_signed_out">Sign in to use your ChatGPT Codex subscription. Credentials stay encrypted on this device.</string>
+  <string name="provider_codex_login">Sign in</string>
+  <string name="provider_codex_relogin">Sign in again</string>
+  <string name="provider_codex_logout">Sign out</string>
+  <string name="provider_codex_login_instructions">Open the verification page and enter this temporary device code. Eta never displays or logs your access token.</string>
+  <string name="provider_codex_device_code">Device code: %1$s</string>
+  <string name="provider_codex_open_verification">Open verification page</string>
+  <string name="provider_codex_waiting_authorization">Waiting for device authorization…</string>
+  <string name="provider_codex_cancel_login">Cancel sign-in</string>
+  <string name="provider_codex_models_fallback_notice">Offline fallback models (%1$d). Refresh the account model directory to replace these with the live catalog.</string>
+  <string name="provider_codex_models_refresh_failed">%1$s Offline fallback models retained: %2$d.</string>
+  <string name="provider_codex_models_unauthorized">The Codex model directory returned HTTP 401. Offline fallback models were kept. A successful login and conversation do not by themselves prove model-directory permission.</string>
+  <string name="provider_codex_model_source_fallback">Offline fallback</string>
+  <string name="provider_codex_model_source_remote">Live catalog</string>
   <string name="provider_model_list_count">Models (%1$d)</string>
   <string name="provider_model_list_matches">Models (%1$d of %2$d match)</string>
   <string name="provider_model_saved">Saved: %1$s</string>
@@ -1130,6 +1147,8 @@
   <string name="chat_input_hint">Ask Eta to do something</string>
   <string name="chat_stop">Stop</string>
   <string name="chat_send">Send</string>
+  <string name="chat_supplement">Add instruction</string>
+  <string name="chat_supplement_rejected">Could not confirm the instruction; draft kept</string>
   <string name="chat_reasoning_effort">Reasoning effort: %1$s</string>
   <string name="status_unsupported">Unsupported</string>
   <string name="attachment_image">Image</string>
@@ -1280,4 +1299,7 @@
   <string name="speech_test_result">Recognition result: %1$s</string>
   <string name="speech_credentials_lost">Speech credentials could not be decrypted; enter and save them again</string>
   <string name="speech_save_retry">try again</string>
+    <string name="system_notice_model_identity">Model identity reported by provider</string>
+    <string name="model_identity_detail">Requested Model ID: %1$s\nResponse model: %2$s</string>
+    <string name="model_identity_not_reported">Not provided (cannot verify)</string>
 </resources>

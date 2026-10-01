@@ -185,8 +185,8 @@ class AgentConversationStoreTest {
     fun saveAndLoadPreservesSemanticSystemNoticesWithoutTranslatedContent() {
         val notice = SystemNoticeMessageUi(
             id = "assistant-run-1-1",
-            code = SystemNoticeCode.RuntimeFailed,
-            detail = "upstream timeout",
+            code = SystemNoticeCode.ModelIdentity,
+            detail = "Requested: gpt-6-sol\nReported: gpt-5.6-sol",
         )
         runBlocking {
             AgentConversationStore.save(

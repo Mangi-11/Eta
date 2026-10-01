@@ -44,6 +44,20 @@ internal class AgentRuntimeSession(
     private var state = State.RUNNING
     private val replayEvents = mutableListOf<AgentEvent>()
     private val subscribers = mutableListOf<Subscriber>()
+    private val steerRequests = mutableMapOf<String, SteerRequestRecord>()
+
+    private data class SteerRequestRecord(
+        val text: String,
+        val accepted: Boolean,
+        val reason: String? = null,
+    )
+
+    data class SteerRequestResult<T : AgentEvent>(
+        val accepted: Boolean,
+        val event: T? = null,
+        val reason: String? = null,
+        val duplicate: Boolean = false,
+    )
 
     private data class Subscriber(
         val eventSink: (AgentEvent) -> Unit,
@@ -87,22 +101,67 @@ internal class AgentRuntimeSession(
     }
 
     fun steer(text: String): Boolean =
-        lock.withLock {
-            if (state != State.RUNNING || operation != AgentRuntimeWire.OP_CHAT) return false
-            controller.steer(text)
-        }
+        submitSteering<AgentEvent>(requestId = java.util.UUID.randomUUID().toString(), text = text).accepted
 
     fun <T : AgentEvent> steer(
         text: String,
         eventFactory: () -> T,
-    ): T? =
-        lock.withLock {
-            if (state != State.RUNNING || operation != AgentRuntimeWire.OP_CHAT || !controller.steer(text)) return null
-            eventFactory().also { event ->
-                recordForReplay(event)
-                subscribers.forEach { it.eventSink(event) }
+    ): T? = steer(java.util.UUID.randomUUID().toString(), text, eventFactory).event
+
+    fun <T : AgentEvent> steer(
+        requestId: String,
+        text: String,
+        eventFactory: () -> T,
+    ): SteerRequestResult<T> = submitSteering(requestId, text, eventFactory)
+
+    private fun <T : AgentEvent> submitSteering(
+        requestId: String,
+        text: String,
+        eventFactory: (() -> T)? = null,
+    ): SteerRequestResult<T> = lock.withLock {
+        val prompt = text.trim()
+        if (requestId.isBlank() || prompt.isBlank()) {
+            return SteerRequestResult(accepted = false, reason = "补充指令缺少 requestId 或内容")
+        }
+        steerRequests[requestId]?.let { previous ->
+            return if (previous.text == prompt) {
+                SteerRequestResult(
+                    accepted = previous.accepted,
+                    reason = previous.reason,
+                    duplicate = true,
+                )
+            } else {
+                SteerRequestResult(
+                    accepted = false,
+                    reason = "requestId 已用于其他补充指令",
+                    duplicate = true,
+                )
             }
         }
+        if (state != State.RUNNING || operation != AgentRuntimeWire.OP_CHAT) {
+            val result = SteerRequestResult<T>(
+                accepted = false,
+                reason = "任务已结束或不支持补充",
+            )
+            steerRequests[requestId] = SteerRequestRecord(prompt, false, result.reason)
+            return result
+        }
+        if (!controller.steer(prompt)) {
+            val result = SteerRequestResult<T>(
+                accepted = false,
+                reason = "任务正在收尾",
+            )
+            steerRequests[requestId] = SteerRequestRecord(prompt, false, result.reason)
+            return result
+        }
+        val event = eventFactory?.invoke()
+        steerRequests[requestId] = SteerRequestRecord(prompt, accepted = true)
+        if (event != null) {
+            recordForReplay(event)
+            subscribers.forEach { it.eventSink(event) }
+        }
+        SteerRequestResult(accepted = true, event = event)
+    }
 
     private fun recordForReplay(event: AgentEvent) {
         val projected = event.recoveryProjection() ?: return

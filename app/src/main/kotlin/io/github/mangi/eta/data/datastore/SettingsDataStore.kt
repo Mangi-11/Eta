@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.mangi.eta.data.model.AppearanceAccentColor
 import io.github.mangi.eta.data.model.AppearancePaletteStyle
@@ -64,6 +65,7 @@ internal object SettingsDataStore {
         booleanPreferencesKey("appearance_predictive_back_enabled")
     private val APPEARANCE_INTERFACE_SCALE = floatPreferencesKey("appearance_interface_scale")
     private const val SELECTED_MODEL_BY_PROVIDER_PREFIX = "selected_model_id_by_provider."
+    private const val HIDDEN_REMOTE_MODELS_PREFIX = "hidden_remote_models."
 
     private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = STORE_NAME)
 
@@ -197,6 +199,33 @@ internal object SettingsDataStore {
         }
     }
 
+    suspend fun hiddenRemoteModelIds(providerId: String): Set<String> {
+        ensureInitialized()
+        return dataStore.data.first()[hiddenRemoteModelsKey(providerId)].orEmpty()
+    }
+
+    suspend fun hideRemoteModelIds(providerId: String, modelIds: Set<String>) {
+        if (modelIds.isEmpty()) return
+        ensureInitialized()
+        dataStore.edit { prefs ->
+            val key = hiddenRemoteModelsKey(providerId)
+            prefs[key] = prefs[key].orEmpty() + modelIds
+        }
+    }
+
+    suspend fun unhideRemoteModelId(providerId: String, modelId: String) {
+        ensureInitialized()
+        dataStore.edit { prefs ->
+            val key = hiddenRemoteModelsKey(providerId)
+            prefs[key] = prefs[key].orEmpty() - modelId
+        }
+    }
+
+    suspend fun clearHiddenRemoteModels(providerId: String) {
+        ensureInitialized()
+        dataStore.edit { prefs -> prefs.remove(hiddenRemoteModelsKey(providerId)) }
+    }
+
     suspend fun setMemoryEnabled(enabled: Boolean) {
         updateSettings { it.copy(memoryEnabled = enabled) }
     }
@@ -224,6 +253,9 @@ internal object SettingsDataStore {
 
     private fun selectedModelByProviderKey(providerId: String): Preferences.Key<String> =
         stringPreferencesKey("$SELECTED_MODEL_BY_PROVIDER_PREFIX$providerId")
+
+    private fun hiddenRemoteModelsKey(providerId: String): Preferences.Key<Set<String>> =
+        stringSetPreferencesKey("$HIDDEN_REMOTE_MODELS_PREFIX$providerId")
 
     private fun MutablePreferences.putOrRemove(key: Preferences.Key<String>, value: String?) {
         if (value.isNullOrBlank()) {

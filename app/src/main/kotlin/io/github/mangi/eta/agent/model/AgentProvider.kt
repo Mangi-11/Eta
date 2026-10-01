@@ -52,7 +52,7 @@ internal data class ProviderRequest(
 }
 
 internal data class ProviderResponse(
-    val assistantMessage: JSONObject
+    val assistantMessage: JSONObject,
 ) {
     val stopReason: AssistantStopReason
         get() = AssistantStopReason.fromWireValue(assistantMessage.optString("finish_reason"))

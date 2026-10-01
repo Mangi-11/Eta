@@ -42,6 +42,9 @@ internal fun AgentHomeScreen(
             canCompactContext = state.canCompactContext,
             onModelSelected = { onAction(AgentHomeAction.ModelSelected(it)) },
             onSubmit = { text -> onAction(AgentHomeAction.SubmitMessage(text)) },
+            onSupplement = { text, requestId, onResult ->
+                onAction(AgentHomeAction.SupplementMessage(text, requestId, onResult))
+            },
             onStop = { onAction(AgentHomeAction.StopRun) },
             onAttachImage = { uri -> onAction(AgentHomeAction.ImageAttached(uri)) },
             onRemoveImage = { id -> onAction(AgentHomeAction.RemoveImage(id)) },

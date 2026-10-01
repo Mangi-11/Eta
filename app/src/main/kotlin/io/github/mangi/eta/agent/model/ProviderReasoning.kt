@@ -35,6 +35,7 @@ internal object ProviderReasoning {
             ProviderSourceTypes.OPENROUTER -> applyOpenRouter(request, effort)
             ProviderSourceTypes.STEPFUN -> applyStepFun(request, config, effort)
             ProviderSourceTypes.OPENAI -> applyOpenAi(request, config, effort)
+            ProviderSourceTypes.OPENAI_CODEX -> applyNamedReasoningEffort(request, effort)
             ProviderSourceTypes.CUSTOM -> applyNamedReasoningEffort(request, effort)
         }
     }
@@ -343,7 +344,8 @@ internal object ProviderReasoning {
     private fun isLegacyReasoningModel(sourceType: String, modelId: String): Boolean {
         val model = modelId.trim().lowercase()
         return when (sourceType) {
-            ProviderSourceTypes.OPENAI ->
+            ProviderSourceTypes.OPENAI,
+            ProviderSourceTypes.OPENAI_CODEX ->
                 model.startsWith("gpt-5") || model.startsWith("gpt-6") || model.startsWith("o")
             ProviderSourceTypes.ANTHROPIC -> model.startsWith("claude-")
             ProviderSourceTypes.BAILIAN ->

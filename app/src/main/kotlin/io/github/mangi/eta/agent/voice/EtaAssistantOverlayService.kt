@@ -25,6 +25,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import androidx.compose.runtime.Composable
@@ -131,6 +132,11 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
     private var runJob: Job? = null
     private var dismissalJob: Job? = null
     private var activeRunId: String? = null
+    private data class PendingAssistantSupplement(
+        val runId: String,
+        val callback: (Boolean) -> Unit,
+    )
+    private val pendingAssistantSupplements = mutableMapOf<String, PendingAssistantSupplement>()
     private var entryGeneration = 0L
     private var presentedEntryGeneration = -1L
     private var entryScreenContext: EtaAssistantScreenContext? = null
@@ -299,6 +305,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                         onInputChange = { inputText = it },
                         onSuggestionClick = ::submitPrompt,
                         onSubmit = ::submitInput,
+                        onSupplement = ::submitSupplement,
                         onStop = ::stopCurrentRun,
                         onClose = ::dismissAndStop,
                         canOpenConversation = activeRunId == null &&
@@ -396,6 +403,58 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         submitPrompt(prompt)
     }
 
+    private fun submitSupplement(text: String, requestId: String, onResult: (Boolean) -> Unit) {
+        val prompt = text.trim()
+        val runId = activeRunId
+        if (prompt.isBlank() || requestId.isBlank() || runId == null || uiState.phase != EtaVoicePhase.PROCESSING) {
+            onResult(false)
+            return
+        }
+        pendingAssistantSupplements[requestId] = PendingAssistantSupplement(runId, onResult)
+        scope.launch {
+            val outcome = runtimeClient.steerRun(runId, requestId, prompt)
+            withContext(Dispatchers.Main.immediate) {
+                val pending = pendingAssistantSupplements[requestId]
+                    ?.takeIf { it.runId == runId }
+                when (outcome) {
+                    AgentRuntimeClient.SteerOutcome.Accepted -> {
+                        if (pending != null) {
+                            pendingAssistantSupplements.remove(requestId)
+                            pending.callback(true)
+                        }
+                    }
+                    is AgentRuntimeClient.SteerOutcome.Rejected -> {
+                        if (pending != null) pendingAssistantSupplements.remove(requestId)
+                        Toast.makeText(
+                            this@EtaAssistantOverlayService,
+                            getString(R.string.chat_supplement_rejected),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        pending?.callback?.invoke(false)
+                    }
+                    AgentRuntimeClient.SteerOutcome.Unavailable -> {
+                        Toast.makeText(
+                            this@EtaAssistantOverlayService,
+                            getString(R.string.chat_supplement_rejected),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        pending?.callback?.invoke(false)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun finishPendingAssistantSupplements(runId: String) {
+        pendingAssistantSupplements.entries
+            .filter { (_, pending) -> pending.runId == runId }
+            .toList()
+            .forEach { (requestId, pending) ->
+                pendingAssistantSupplements.remove(requestId)
+                pending.callback(false)
+            }
+    }
+
     private fun submitPrompt(prompt: String) = submitPromptInternal(prompt, fromSpeech = false)
 
     private fun submitPromptInternal(prompt: String, fromSpeech: Boolean) {
@@ -447,6 +506,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
             val shouldStopAfterResult = withContext(Dispatchers.Main.immediate) {
                 if (activeRunId != runId) return@withContext false
                 flushPendingDelta(runId)
+                finishPendingAssistantSupplements(runId)
                 activeRunId = null
                 runJob = null
                 if (result.contextSnapshot != null) {
@@ -494,6 +554,14 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
     private fun handleRuntimeEvent(runId: String, event: AgentEvent) {
         scope.launch(Dispatchers.Main.immediate) {
             if (activeRunId != runId) return@launch
+            if (event is AgentEvent.UserSupplementReceived && event.requestId.isNotBlank()) {
+                pendingAssistantSupplements[event.requestId]
+                    ?.takeIf { it.runId == runId }
+                    ?.let { pending ->
+                        pendingAssistantSupplements.remove(event.requestId)
+                        pending.callback(true)
+                    }
+            }
             if (AgentOverlayVisibilityPolicy.shouldDismissEntrySurfaceFor(event)) {
                 hideForForegroundOperation()
             }
@@ -605,6 +673,19 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                         message
                     }
                 }
+            }
+
+            is AgentEvent.ModelIdentityObserved -> {
+                val id = "assistant-$runId-model-identity-${event.round}"
+                messages = messages.filterNot { it.id == id } + SystemNoticeMessageUi(
+                    id = id,
+                    code = SystemNoticeCode.ModelIdentity,
+                    detail = getString(
+                        R.string.model_identity_detail,
+                        event.requestedModelId,
+                        event.reportedModelId ?: getString(R.string.model_identity_not_reported),
+                    ),
+                )
             }
 
             is AgentEvent.UserSupplementReceived -> {
@@ -787,6 +868,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         val runId = activeRunId
         if (runId != null) {
             flushPendingDelta(runId)
+            finishPendingAssistantSupplements(runId)
             activeRunId = null
             requestRuntimeCancellation(runId)
             runJob?.cancel()
@@ -816,6 +898,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         speechState = EtaSpeechState()
         val runId = activeRunId ?: return
         flushPendingDelta(runId)
+        finishPendingAssistantSupplements(runId)
         activeRunId = null
         requestRuntimeCancellation(runId)
         runJob?.cancel()

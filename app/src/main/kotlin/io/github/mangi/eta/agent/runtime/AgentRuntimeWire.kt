@@ -10,9 +10,11 @@ import android.os.Parcel
 import android.os.ParcelFileDescriptor
 import io.github.mangi.eta.agent.model.AgentConversationCodec
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.CodexCompatibilityProfile
 import io.github.mangi.eta.data.model.CustomBody
 import io.github.mangi.eta.data.model.CustomHeader
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
+import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.ReasoningEffort
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
@@ -82,11 +84,20 @@ internal object AgentRuntimeWire {
     /** service -> client：返回是否成功重新订阅指定 run。 */
     const val MSG_ATTACH_RUN_RESPONSE = 12
 
+    /** client -> service：向指定的活动 run 追加一条文本指令。 */
+    const val MSG_STEER_RUN = 13
+
+    /** service -> client：确认指定补充指令是否已进入活动 run。 */
+    const val MSG_STEER_RUN_RESPONSE = 14
+
     private const val MODULE_PACKAGE = "io.github.mangi.eta"
     private const val SERVICE_CLASS = "io.github.mangi.eta.agent.runtime.AgentRuntimeService"
 
     private const val KEY_TYPE = "type"
     private const val KEY_RUN_ID = "run_id"
+    private const val KEY_STEER_REQUEST_ID = "steer_request_id"
+    private const val KEY_STEER_TEXT = "steer_text"
+    private const val KEY_STEER_REASON = "steer_reason"
     private const val KEY_PROMPT = "prompt"
     private const val KEY_ASSISTANT_SCREEN_CONTEXT = "assistant_screen_context"
     private const val KEY_MODEL_SESSION_ID = "model_session_id"
@@ -94,6 +105,7 @@ internal object AgentRuntimeWire {
     private const val KEY_PROVIDER_NAME = "provider_name"
     private const val KEY_PROVIDER_TYPE = "provider_type"
     private const val KEY_PROVIDER_SOURCE_TYPE = "provider_source_type"
+    private const val KEY_AUTH_MODE = "auth_mode"
     private const val KEY_BASE_URL = "base_url"
     private const val KEY_API_KEY = "api_key"
     private const val KEY_MODEL = "model"
@@ -292,8 +304,19 @@ internal object AgentRuntimeWire {
         putString(KEY_PROVIDER_NAME, request.config.providerName)
         putString(KEY_PROVIDER_TYPE, request.config.providerType)
         putString(KEY_PROVIDER_SOURCE_TYPE, request.config.providerSourceType)
+        putString(KEY_AUTH_MODE, request.config.authMode)
         putString(KEY_BASE_URL, request.config.baseUrl)
-        putString(KEY_API_KEY, request.config.apiKey)
+        putString(
+            KEY_API_KEY,
+            if (request.config.authMode == CodexCompatibilityProfile.AUTH_MODE ||
+                request.config.providerSourceType == ProviderSourceTypes.OPENAI_CODEX ||
+                request.config.providerId == io.github.mangi.eta.data.provider.BuiltinProviders.OPENAI_CODEX_ID
+            ) {
+                ""
+            } else {
+                request.config.apiKey
+            },
+        )
         putString(KEY_MODEL, request.config.model)
         putString(KEY_MODEL_DISPLAY_NAME, request.config.modelDisplayName)
         putString("operation", request.operation)
@@ -425,6 +448,9 @@ internal object AgentRuntimeWire {
                 providerType = bundle.getString(KEY_PROVIDER_TYPE).orEmpty()
                     .ifBlank { io.github.mangi.eta.data.model.ProviderTypes.OPENAI_COMPATIBLE },
                 providerSourceType = bundle.getString(KEY_PROVIDER_SOURCE_TYPE).orEmpty(),
+                authMode = bundle.getString(KEY_AUTH_MODE)
+                    ?.takeIf { it in setOf(CodexCompatibilityProfile.AUTH_MODE, CodexCompatibilityProfile.API_KEY_AUTH_MODE) }
+                    ?: CodexCompatibilityProfile.API_KEY_AUTH_MODE,
                 baseUrl = bundle.getString(KEY_BASE_URL).orEmpty(),
                 apiKey = bundle.getString(KEY_API_KEY).orEmpty(),
                 model = bundle.getString(KEY_MODEL).orEmpty(),
@@ -588,6 +614,38 @@ internal object AgentRuntimeWire {
         putString(KEY_RUN_ID, runId)
     }
 
+    fun activeRunBundle(runId: String, handoff: EntryHandoff? = null): Bundle = ackBundle(runId).apply {
+        if (runId.isNotBlank() && handoff != null) putBundle(KEY_HANDOFF, toBundle(handoff))
+    }
+
+    fun activeRunHandoffFromBundle(bundle: Bundle): EntryHandoff? =
+        bundle.getBundle(KEY_HANDOFF)?.let(::entryHandoffFromBundle)
+
+    fun steerBundle(runId: String, requestId: String, text: String): Bundle = Bundle().apply {
+        putString(KEY_RUN_ID, runId)
+        putString(KEY_STEER_REQUEST_ID, requestId)
+        putString(KEY_STEER_TEXT, text)
+    }
+
+    fun steerRequestIdFromBundle(bundle: Bundle): String =
+        bundle.getString(KEY_STEER_REQUEST_ID).orEmpty()
+
+    fun steerTextFromBundle(bundle: Bundle): String =
+        bundle.getString(KEY_STEER_TEXT).orEmpty()
+
+    fun steerResponseBundle(requestId: String, accepted: Boolean, reason: String? = null): Bundle = Bundle().apply {
+        putString(KEY_STEER_REQUEST_ID, requestId)
+        putBoolean(KEY_OK, accepted)
+        reason?.let { putString(KEY_STEER_REASON, it) }
+    }
+
+    fun steerResponseRequestId(bundle: Bundle): String =
+        bundle.getString(KEY_STEER_REQUEST_ID).orEmpty()
+
+    fun steerAccepted(bundle: Bundle): Boolean = bundle.getBoolean(KEY_OK)
+
+    fun steerRejectionReason(bundle: Bundle): String? = bundle.getString(KEY_STEER_REASON)
+
     fun attachRunResponseBundle(runId: String, attached: Boolean): Bundle = Bundle().apply {
         putString(KEY_RUN_ID, runId)
         putBoolean(KEY_OK, attached)
@@ -660,6 +718,13 @@ internal object AgentRuntimeWire {
                 putInt("http_code", event.httpCode)
             }
 
+            is AgentEvent.ModelIdentityObserved -> {
+                putString(KEY_TYPE, "model_identity_observed")
+                putInt("round", event.round)
+                putString("requested_model_id", event.requestedModelId)
+                putString("reported_model_id", event.reportedModelId)
+            }
+
             is AgentEvent.AssistantBlockStart -> {
                 putString(KEY_TYPE, "assistant_block_start")
                 putInt("round", event.round)
@@ -707,6 +772,7 @@ internal object AgentRuntimeWire {
                 putString(KEY_TYPE, "user_supplement_received")
                 putInt("index", event.index)
                 putString("text", event.text)
+                putString("request_id", event.requestId)
             }
 
             is AgentEvent.ToolStarted -> {
@@ -803,6 +869,12 @@ internal object AgentRuntimeWire {
             httpCode = bundle.getInt("http_code"),
         )
 
+        "model_identity_observed" -> AgentEvent.ModelIdentityObserved(
+            round = bundle.getInt("round"),
+            requestedModelId = bundle.getString("requested_model_id").orEmpty(),
+            reportedModelId = bundle.getString("reported_model_id"),
+        )
+
         "assistant_block_start" -> AgentEvent.AssistantBlockStart(
             round = bundle.getInt("round"),
             kind = AgentEvent.AssistantBlockKind.valueOf(
@@ -850,6 +922,7 @@ internal object AgentRuntimeWire {
         "user_supplement_received" -> AgentEvent.UserSupplementReceived(
             index = bundle.getInt("index"),
             text = bundle.getString("text").orEmpty(),
+            requestId = bundle.getString("request_id").orEmpty(),
         )
 
         "tool_started" -> AgentEvent.ToolStarted(

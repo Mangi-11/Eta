@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.provider.ReasoningCapabilityResolver
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -73,7 +74,7 @@ class ProviderReasoningTest {
     }
 
     @Test
-    fun openAiRejectsUnsupportedMaxEffort() {
+    fun openAiChatCompletionsStillRejectMaxEffort() {
         assertThrows(IllegalArgumentException::class.java) {
             ProviderReasoning.applyOpenAiCompatibleRequest(
                 JSONObject(),

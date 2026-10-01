@@ -687,6 +687,7 @@
   <string name="voice_running_tool">Eta 正在执行 %1$s</string>
   <string name="voice_input_hint">发消息问 Eta…</string>
   <string name="voice_send">发送</string>
+  <string name="voice_supplement">补充指令</string>
   <string name="injected_reasoning">Eta 正在思考…</string>
   <string name="injected_executing">Eta 正在执行任务…</string>
   <string name="injected_completed">Eta 已完成本轮任务</string>
@@ -922,6 +923,22 @@
   </plurals>
   <string name="provider_models_endpoint_summary">读取 %1$s 的 /models 列表</string>
   <string name="provider_models_fetched_filtered">已拉取 %1$d 个模型，过滤 %2$d 个非对话模型</string>
+  <string name="provider_codex_account_title">ChatGPT 订阅</string>
+  <string name="provider_codex_account_signed_in">Codex 账号已连接</string>
+  <string name="provider_codex_account_signed_out">登录后即可使用 ChatGPT Codex 订阅。凭据会加密保存在此设备。</string>
+  <string name="provider_codex_login">登录</string>
+  <string name="provider_codex_relogin">重新登录</string>
+  <string name="provider_codex_logout">退出登录</string>
+  <string name="provider_codex_login_instructions">打开验证页面并输入此临时设备码。Eta 不会显示或记录访问令牌。</string>
+  <string name="provider_codex_device_code">设备码：%1$s</string>
+  <string name="provider_codex_open_verification">打开验证页面</string>
+  <string name="provider_codex_waiting_authorization">等待设备授权…</string>
+  <string name="provider_codex_cancel_login">取消登录</string>
+  <string name="provider_codex_models_fallback_notice">离线兜底模型（%1$d 个）。刷新账号模型目录后会替换为在线目录。</string>
+  <string name="provider_codex_models_refresh_failed">%1$s 已保留 %2$d 个离线兜底模型。</string>
+  <string name="provider_codex_models_unauthorized">Codex 模型目录返回 HTTP 401。已保留离线兜底模型。登录和对话成功本身并不能证明模型目录权限正常。</string>
+  <string name="provider_codex_model_source_fallback">离线兜底</string>
+  <string name="provider_codex_model_source_remote">在线目录</string>
   <string name="provider_model_list_count">模型列表（共 %1$d 个）</string>
   <string name="provider_model_list_matches">模型列表（匹配 %1$d / %2$d 个）</string>
   <string name="provider_model_saved">已保存：%1$s</string>
@@ -1116,6 +1133,8 @@
   <string name="chat_input_hint">交给 Eta 去完成</string>
   <string name="chat_stop">停止</string>
   <string name="chat_send">发送</string>
+  <string name="chat_supplement">补充指令</string>
+  <string name="chat_supplement_rejected">未能确认补充，草稿已保留</string>
   <string name="chat_reasoning_effort">思考强度，当前为 %1$s</string>
   <string name="status_unsupported">不支持</string>
   <string name="attachment_image">图片</string>
@@ -1263,4 +1282,7 @@
   <string name="speech_test_result">识别结果：%1$s</string>
   <string name="speech_credentials_lost">语音凭据无法解密，请重新填写并保存</string>
   <string name="speech_save_retry">请重试</string>
+    <string name="system_notice_model_identity">模型标识核对（服务端自报）</string>
+    <string name="model_identity_detail">请求发送的 Model ID：%1$s\n服务端响应的 model：%2$s</string>
+    <string name="model_identity_not_reported">未提供（无法核验）</string>
 </resources>

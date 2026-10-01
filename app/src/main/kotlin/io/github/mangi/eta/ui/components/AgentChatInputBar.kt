@@ -79,6 +79,7 @@ import io.github.mangi.eta.ui.model.AgentContextUsageUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import io.github.mangi.eta.ui.model.PendingImageUi
+import java.util.UUID
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
@@ -122,6 +123,7 @@ internal fun AgentChatInputBar(
     canCompactContext: Boolean,
     onModelSelected: (String) -> Unit,
     onSubmit: (String) -> Unit,
+    onSupplement: (String, String, (Boolean) -> Unit) -> Unit,
     onStop: () -> Unit,
     onAttachImage: (String) -> Unit,
     onRemoveImage: (String) -> Unit,
@@ -144,9 +146,17 @@ internal fun AgentChatInputBar(
     }
     LaunchedEffect(isStreaming, isEditingMessage) { dictation.cancel() }
     var wasEditingMessage by remember { mutableStateOf(isEditingMessage) }
+    var wasStreaming by remember { mutableStateOf(isStreaming) }
+    var supplementRequestId by remember { mutableStateOf<String?>(null) }
+    var supplementRequestText by remember { mutableStateOf<String?>(null) }
+    var supplementInFlight by remember { mutableStateOf(false) }
     val canSend = textFieldState.text.isNotBlank() ||
         pendingImages.isNotEmpty() ||
         pendingFileReferences.isNotEmpty()
+    val canSupplement = textFieldState.text.isNotBlank() &&
+        !isCompacting &&
+        !isEditingMessage &&
+        !supplementInFlight
     val density = LocalDensity.current
     val statusBarTopPx = WindowInsets.statusBars.getTop(density)
     var inputContainerTopPx by remember { mutableIntStateOf(0) }
@@ -168,10 +178,47 @@ internal fun AgentChatInputBar(
         wasEditingMessage = isEditingMessage
     }
 
-    LaunchedEffect(isStreaming, isCompacting) {
-        if (isStreaming && !isCompacting) {
-            // 发送按钮、建议词和外部恢复都可能启动流式任务，统一清掉本地草稿。
+    LaunchedEffect(isStreaming) {
+        if (isStreaming && !wasStreaming && !isCompacting) {
+            // 新 run 开始时清除已提交的普通输入；进入已有 run 时保留用户草稿。
             textFieldState.clearText()
+        }
+        wasStreaming = isStreaming
+    }
+
+    val submitMessage: () -> Unit = {
+        if (canSend) {
+            val submittedText = textFieldState.text.toString()
+            textFieldState.clearText()
+            onSubmit(submittedText)
+        }
+    }
+    val submitSupplement: () -> Unit = {
+        if (canSupplement) {
+            val supplementText = textFieldState.text.toString()
+            val requestId = if (supplementRequestText == supplementText && supplementRequestId != null) {
+                supplementRequestId!!
+            } else {
+                UUID.randomUUID().toString().also {
+                    supplementRequestId = it
+                    supplementRequestText = supplementText
+                }
+            }
+            supplementInFlight = true
+            onSupplement(supplementText, requestId) { accepted ->
+                if (supplementRequestId != requestId) return@onSupplement
+                supplementInFlight = false
+                if (accepted && textFieldState.text.toString() == supplementText) {
+                    // 只在 Runtime 确认接收后清除原草稿。
+                    textFieldState.clearText()
+                    supplementRequestId = null
+                    supplementRequestText = null
+                } else if (accepted || textFieldState.text.toString() != supplementText) {
+                    // 输入在等待期间变化后，不能把旧 ID 复用于新文本。
+                    supplementRequestId = null
+                    supplementRequestText = null
+                }
+            }
         }
     }
 
@@ -271,7 +318,16 @@ internal fun AgentChatInputBar(
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = if (isStreaming && !isCompacting) ImeAction.Send else ImeAction.Default,
+                        ),
+                        onKeyboardAction = { performDefaultAction ->
+                            if (isStreaming && !isCompacting) {
+                                submitSupplement()
+                            } else {
+                                performDefaultAction()
+                            }
+                        },
                         textStyle = TextStyle(
                             color = MiuixTheme.colorScheme.onSurface,
                             fontSize = 16.sp,
@@ -346,69 +402,101 @@ internal fun AgentChatInputBar(
                             onModelSelected = onModelSelected,
                         )
 
-                        IconButton(
-                            onClick = if (isStreaming) {
-                                onStop
-                            } else {
-                                {
-                                    if (canSend) {
-                                        dictation.cancel()
-                                        val submittedText = textFieldState.text.toString()
-                                        textFieldState.clearText()
-                                        onSubmit(submittedText)
-                                    }
-                                }
-                            },
-                            enabled = isStreaming || canSend,
-                            minWidth = ChatInputActionSize,
-                            minHeight = ChatInputActionSize,
-                        ) {
-                            // 保留统一的点击区域，仅让可见圆形与相邻操作图标保持同一尺寸。
-                            val sendButtonColor by animateColorAsState(
-                                targetValue = when {
-                                    isStreaming -> MiuixTheme.colorScheme.onSurface
-                                    canSend -> MiuixTheme.colorScheme.primary
-                                    else -> MiuixTheme.colorScheme.surfaceContainerHigh
-                                },
-                                animationSpec = tween(durationMillis = 160),
-                                label = "send_button_color",
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(SendButtonVisualSize)
-                                    .clip(CircleShape)
-                                    .background(sendButtonColor),
-                                contentAlignment = Alignment.Center,
+                        if (isStreaming) {
+                            IconButton(
+                                onClick = submitSupplement,
+                                enabled = canSupplement,
+                                minWidth = ChatInputActionSize,
+                                minHeight = ChatInputActionSize,
                             ) {
-                                AnimatedContent(
-                                    targetState = isStreaming,
-                                    transitionSpec = {
-                                        (fadeIn(tween(130)) + scaleIn(tween(160), initialScale = 0.72f))
-                                            .togetherWith(
-                                                fadeOut(tween(90)) +
-                                                    scaleOut(tween(110), targetScale = 0.72f)
-                                            )
+                                val supplementButtonColor by animateColorAsState(
+                                    targetValue = if (canSupplement) {
+                                        MiuixTheme.colorScheme.primary
+                                    } else {
+                                        MiuixTheme.colorScheme.surfaceContainerHigh
                                     },
-                                    label = "send_stop_icon",
-                                ) { streaming ->
+                                    animationSpec = tween(durationMillis = 160),
+                                    label = "supplement_button_color",
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(SendButtonVisualSize)
+                                        .clip(CircleShape)
+                                        .background(supplementButtonColor),
+                                    contentAlignment = Alignment.Center,
+                                ) {
                                     Icon(
-                                        imageVector = if (streaming) {
-                                            Icons.Rounded.Stop
+                                        imageVector = Icons.Rounded.ArrowUpward,
+                                        contentDescription = stringResource(R.string.chat_supplement),
+                                        modifier = Modifier.size(SendIconSize),
+                                        tint = if (canSupplement) {
+                                            MiuixTheme.colorScheme.onPrimary
                                         } else {
-                                            Icons.Rounded.ArrowUpward
+                                            MiuixTheme.colorScheme.onSurfaceVariantActions
                                         },
-                                        contentDescription = when {
-                                            streaming -> stringResource(R.string.chat_stop)
-                                            isEditingMessage && preserveFollowingMessages -> "保存消息"
-                                            else -> stringResource(R.string.chat_send)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(2.dp))
+
+                            IconButton(
+                                onClick = onStop,
+                                minWidth = ChatInputActionSize,
+                                minHeight = ChatInputActionSize,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(SendButtonVisualSize)
+                                        .clip(CircleShape)
+                                        .background(MiuixTheme.colorScheme.onSurface),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Stop,
+                                        contentDescription = stringResource(R.string.chat_stop),
+                                        modifier = Modifier.size(StopIconSize),
+                                        tint = MiuixTheme.colorScheme.surface,
+                                    )
+                                }
+                            }
+                        } else {
+                            IconButton(
+                                onClick = submitMessage,
+                                enabled = canSend,
+                                minWidth = ChatInputActionSize,
+                                minHeight = ChatInputActionSize,
+                            ) {
+                                val sendButtonColor by animateColorAsState(
+                                    targetValue = if (canSend) {
+                                        MiuixTheme.colorScheme.primary
+                                    } else {
+                                        MiuixTheme.colorScheme.surfaceContainerHigh
+                                    },
+                                    animationSpec = tween(durationMillis = 160),
+                                    label = "send_button_color",
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(SendButtonVisualSize)
+                                        .clip(CircleShape)
+                                        .background(sendButtonColor),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ArrowUpward,
+                                        contentDescription = if (
+                                            isEditingMessage && preserveFollowingMessages
+                                        ) {
+                                            "保存消息"
+                                        } else {
+                                            stringResource(R.string.chat_send)
                                         },
-                                        modifier = Modifier.size(
-                                            if (streaming) StopIconSize else SendIconSize
-                                        ),
-                                        tint = when {
-                                            streaming -> MiuixTheme.colorScheme.surface
-                                            canSend -> MiuixTheme.colorScheme.onPrimary
-                                            else -> MiuixTheme.colorScheme.onSurfaceVariantActions
+                                        modifier = Modifier.size(SendIconSize),
+                                        tint = if (canSend) {
+                                            MiuixTheme.colorScheme.onPrimary
+                                        } else {
+                                            MiuixTheme.colorScheme.onSurfaceVariantActions
                                         },
                                     )
                                 }

@@ -128,6 +128,26 @@ class ProviderRepositoryTest {
     }
 
     @Test
+    fun codexNeverSeedsFallbackAndRemovesLegacyCatalogWithoutRestoringDeletedModels() = runBlocking {
+        ProviderRepository.ensureBuiltInsMerged()
+        val codexId = BuiltinProviders.OPENAI_CODEX_ID
+        ProviderRepository.resetBuiltIn(codexId)
+        val initialModels = ProviderRepository.providerById(codexId)!!.models
+        assertTrue(initialModels.map { "${it.modelId}:${it.source}" }.toString(), initialModels.isEmpty())
+
+        ProviderRepository.replaceModels(codexId, listOf(
+            Model(id = "legacy-codex-fallback", modelId = "legacy-model", displayName = "Legacy", source = ModelSource.CATALOG),
+            Model(id = "live-codex-model", modelId = "live-model", displayName = "Live", source = ModelSource.REMOTE),
+        ))
+        ProviderRepository.ensureBuiltInsMerged()
+        assertEquals(listOf("live-model"), ProviderRepository.providerById(codexId)!!.models.map { it.modelId })
+
+        ModelRepository.deleteModel(codexId, "live-codex-model")
+        ProviderRepository.ensureBuiltInsMerged()
+        assertTrue(ProviderRepository.providerById(codexId)!!.models.isEmpty())
+    }
+
+    @Test
     fun providerAndModelCustomHeadersSurviveRoomRoundTrip() = runBlocking {
         ProviderRepository.ensureBuiltInsMerged()
         val provider = ProviderRepository.providerById(BuiltinProviders.OPENAI_ID)!!

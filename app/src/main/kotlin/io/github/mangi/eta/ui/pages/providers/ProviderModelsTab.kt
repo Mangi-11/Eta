@@ -59,9 +59,15 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.Model
+import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ProviderSetting
+import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.provider.ProviderSourceRegistry
+import io.github.mangi.eta.data.repository.CodexModelCatalogException
+import io.github.mangi.eta.data.repository.CodexModelCatalogFailureKind
+import io.github.mangi.eta.data.repository.CodexUiError
 import io.github.mangi.eta.data.repository.ModelRepository
 import io.github.mangi.eta.data.repository.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
@@ -183,6 +189,7 @@ internal fun ProviderModelsTab(
     contentSidePadding: Dp,
 ) {
     val context = LocalContext.current
+    val isCodexProvider = ProviderSourceRegistry.resolve(provider) == ProviderSourceTypes.OPENAI_CODEX
     val selectedModelId by RuntimeConfigRepository.selectedModelIdFlow().collectAsState(initial = null)
     var isFetching by remember { mutableStateOf(false) }
     var isMutatingModel by remember { mutableStateOf(false) }
@@ -242,14 +249,26 @@ internal fun ProviderModelsTab(
                                 message = null
                                 try {
                                     val models = RemoteModelFetcher.fetch(provider).getOrElse { throwable ->
-                                        message = context.getString(
-                                            R.string.provider_error,
-                                            throwable.message ?: throwable.javaClass.simpleName,
-                                        )
+                                        val detail = if (
+                                            throwable is CodexModelCatalogException &&
+                                            throwable.kind == CodexModelCatalogFailureKind.HTTP &&
+                                            throwable.statusCode == 401
+                                        ) {
+                                            context.getString(R.string.provider_codex_models_unauthorized)
+                                        } else if (isCodexProvider) {
+                                            CodexUiError.models(throwable)
+                                        } else {
+                                            throwable.message ?: throwable.javaClass.simpleName
+                                        }
+                                        message = context.getString(R.string.provider_error, detail)
                                         return@launch
                                     }
                                     val chatModels = models.filter(RemoteModelFetcher::isChatCapableModel)
-                                    val sync = ModelRepository.syncRemoteModels(provider.id, chatModels)
+                                    val sync = ModelRepository.syncRemoteModels(
+                                        provider.id,
+                                        chatModels,
+                                        preserveCatalogModels = !isCodexProvider,
+                                    )
                                     if (sync.applied) {
                                         RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
                                     }
@@ -377,6 +396,7 @@ internal fun ProviderModelsTab(
                     ) {
                         ModelListItem(
                             model = model,
+                            showCodexSource = isCodexProvider,
                             enabled = !isFetching && !isMutatingModel,
                             isSelected = model.id == selectedModelId,
                             selectionMode = selectionMode,
@@ -635,6 +655,7 @@ private fun ModelSelectionBar(
 @Composable
 private fun ModelListItem(
     model: Model,
+    showCodexSource: Boolean,
     enabled: Boolean,
     isSelected: Boolean,
     selectionMode: Boolean,
@@ -678,6 +699,9 @@ private fun ModelListItem(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.padding(top = 6.dp),
             ) {
+                if (showCodexSource && model.source == ModelSource.REMOTE) {
+                    TagChip(text = stringResource(R.string.provider_codex_model_source_remote))
+                }
                 capabilityTags(model).forEach { tag ->
                     TagChip(text = tag)
                 }
