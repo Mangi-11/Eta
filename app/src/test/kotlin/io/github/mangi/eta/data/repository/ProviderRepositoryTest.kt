@@ -60,13 +60,13 @@ class ProviderRepositoryTest {
     }
 
     @Test
-    fun onlyUserConfiguredWindowReachesRuntimeAndChat() = runBlocking {
+    fun metadataWindowIsUsedUntilUserOverridesItInRuntimeAndChat() = runBlocking {
         ProviderRepository.ensureBuiltInsMerged()
         val id = BuiltinProviders.DEEPSEEK_ID
         val model = Model(id = "manual-flash", modelId = "deepseek-flash", displayName = "我的模型")
         val cases = listOf(
             model to null,
-            model.copy(contextWindow = 128_000) to null,
+            model.copy(contextWindow = 128_000) to 128_000,
             model.copy(contextWindow = 128_000, contextWindowOverride = 64_000) to 64_000,
         )
         for ((stored, expected) in cases) {
