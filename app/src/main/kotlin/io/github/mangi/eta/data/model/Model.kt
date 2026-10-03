@@ -29,7 +29,8 @@ data class Model(
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val effectiveContextWindow: Int?
-        get() = contextWindowOverride
+        get() = contextWindowOverride?.takeIf { it > 0 }
+            ?: contextWindow?.takeIf { it > 0 }
 
     val effectiveReasoning: Boolean?
         get() = reasoningOverride ?: reasoning
