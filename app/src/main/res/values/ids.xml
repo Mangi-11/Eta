@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Issue #101：KaTeX WebView 狀態載體鍵（getTag(key)/setTag(key) 專用，避免佔用單槽位 tag）。 -->
+    <item name="latex_webview_payload" type="id" />
+</resources>

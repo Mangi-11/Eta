@@ -13,10 +13,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import io.github.mangi.eta.R
 
 /**
  * Issue #101 階段2：塊級公式的 KaTeX WebView。
@@ -32,7 +34,11 @@ internal fun LatexWebView(
     onFallback: () -> Unit = {},
 ) {
     var webHeightPx by remember(html) { mutableStateOf<Int?>(null) }
-    // CSS px 與 dp 在默認 scale 下 1:1，直接當 dp 用。
+    // factory 只執行一次：用 rememberUpdatedState 讓延遲回調永遠寫到當前 composition 的 state，
+    // 否則 html 變化後 remeasure 會寫進已廢棄的舊 state，高度永遠卡在 64.dp。
+    val heightUpdater = rememberUpdatedState({ h: Int -> webHeightPx = h })
+    // scrollHeight（CSS px）在默認縮放下 ≈ dp，直接當 dp 用；實際高度每次渲染後實測，
+    // 不依賴 textZoom 假設（不強制覆蓋使用者字體縮放，量到多少用多少）。
     val webHeight = webHeightPx?.dp ?: 64.dp
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -51,19 +57,35 @@ internal fun LatexWebView(
                 setBackgroundColor(0x00000000)
                 isVerticalScrollBarEnabled = false
                 isHorizontalScrollBarEnabled = false
+                // 與 update/onRelease 共用的載體：html 去重 + 延遲任務取消 + 釋放旗標。
+                // 用 R.id 鍵控存放，不佔單槽位 tag，避免與其他庫衝突。
+                setTag(R.id.latex_webview_payload, WebViewPayload(html = ""))
                 webViewClient = object : WebViewClient() {
                     fun remeasure(view: WebView) {
-                        view.evaluateJavascript(
-                            "(function(){var m=document.getElementById('math');var h=Math.max(document.body.scrollHeight,m?m.scrollHeight:0);return h;})()",
-                        ) { value ->
-                            value?.trim('"')?.toDoubleOrNull()?.toInt()?.let { webHeightPx = it }
+                        val payload = view.getTag(R.id.latex_webview_payload) as? WebViewPayload ?: return
+                        if (payload.released) return
+                        try {
+                            view.evaluateJavascript(
+                                "(function(){var m=document.getElementById('math');var h=Math.max(document.body.scrollHeight,m?m.scrollHeight:0);return h;})()",
+                            ) { value ->
+                                if (payload.released) return@evaluateJavascript
+                                value?.trim('"')?.toDoubleOrNull()?.toInt()?.let { heightUpdater.value(it) }
+                            }
+                        } catch (_: IllegalStateException) {
+                            // destroy 後的 evaluateJavascript 同步拋錯，直接吞掉（已有原文兜底）。
                         }
                     }
 
                     override fun onPageFinished(view: WebView, url: String?) {
                         remeasure(view)
                         // KaTeX 外鏈異步：渲染完成前量到的是空 div，延遲複測一次。
-                        view.postDelayed({ remeasure(view) }, 400)
+                        // Runnable 引用存起來，onRelease 用 view.removeCallbacks 精確取消，
+                        // 不碰共享 Handler（removeCallbacksAndMessages(null) 會誤清全窗口訊息）。
+                        val payload = view.getTag(R.id.latex_webview_payload) as? WebViewPayload ?: return
+                        payload.pending?.let(view::removeCallbacks)
+                        val task = Runnable { remeasure(view) }
+                        payload.pending = task
+                        view.postDelayed(task, 400)
                     }
 
                     override fun onReceivedHttpError(
@@ -99,16 +121,35 @@ internal fun LatexWebView(
         },
         update = { view ->
             // S2 B1：重組（滾動/高度回寫/主題）不重複 loadData，只在 html 變化時加載。
-            if (view.getTag(TAG_HTML_KEY) != html) {
-                view.setTag(TAG_HTML_KEY, html)
+            // 換 html 時先取消舊 pending：否則舊任務在新 onPageFinished 前觸發會寫髒高度一次。
+            val payload = (view.getTag(R.id.latex_webview_payload) as? WebViewPayload)
+                ?: WebViewPayload(html = "").also { view.setTag(R.id.latex_webview_payload, it) }
+            if (payload.html != html) {
+                payload.pending?.let(view::removeCallbacks)
+                payload.pending = null
+                payload.html = html
                 view.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
             }
         },
-        onRelease = { it.destroy() },
+        // 延遲 remeasure（400ms）可能在 dispose 後才觸發：精確取消本 view 的 pending 任務
+        // 並立 released 旗標（已發出的 evaluate 回調也靠它短路），再 destroy。
+        onRelease = { view ->
+            (view.getTag(R.id.latex_webview_payload) as? WebViewPayload)?.let {
+                it.released = true
+                it.pending?.let(view::removeCallbacks)
+                it.pending = null
+            }
+            view.destroy()
+        },
         modifier = modifier
             .fillMaxWidth()
             .height(webHeight),
     )
 }
 
-private const val TAG_HTML_KEY = 0x4C415445
+/** AndroidView factory/update/onRelease 之間共用的 WebView 狀態（R.id 鍵控存放）。 */
+private class WebViewPayload(
+    var html: String,
+    var released: Boolean = false,
+    var pending: Runnable? = null,
+)
