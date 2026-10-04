@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: 校验 Gradle Wrapper
-        uses: gradle/wrapper-validation-action@v3
+        uses: gradle/wrapper-validation-action@f9c9c575b8b21b6485636a91ffecd10e558c62f6 # v3
 
       - name: 检出代码
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -47,7 +47,7 @@ jobs:
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
         with:
           # NDK 版本与 gradle/libs.versions.toml 的 ndk 对齐；
-          # build-tools 用 AGP 9.4 默认的 36.0.0，避免隐式漂移。
+          # build-tools 用 AGP 9.4.1 默认的 36.0.0，避免隐式漂移。
           packages: "platform-tools build-tools;36.0.0 ndk;30.0.16248370"
 
       - name: 安装 Android SDK 37（canary 通道）
