@@ -1,5 +1,6 @@
 package io.github.mangi.eta.ui.markdown
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -179,6 +180,11 @@ private fun MarkdownText(
 
 @Composable
 private fun MarkdownCodeBlock(block: MarkdownCode, scope: MarkdownRenderScope) {
+    // Issue #101 階段2：塊級公式走 KaTeX 真渲染 + 原文兜底；普通代碼保持原樣。
+    if (block.isMath) {
+        MarkdownMathBlock(block, scope)
+        return
+    }
     val style = scope.style
     Column(
         modifier = Modifier
@@ -207,6 +213,57 @@ private fun MarkdownCodeBlock(block: MarkdownCode, scope: MarkdownRenderScope) {
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
                 .padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+        ) {
+            MarkdownText(block, style.code, scope, softWrap = false)
+        }
+    }
+}
+
+@Composable
+private fun MarkdownMathBlock(block: MarkdownCode, scope: MarkdownRenderScope) {
+    val style = scope.style
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val latex = block.text.text
+    val html = remember(latex, dark) {
+        LatexRenderer.buildKatexHtml(latex, displayMode = true, dark = dark)
+    }
+    // 與 html 同 key：深色切換後失敗態重試，避免 WebView 永久缺席。
+    var loadFailed by remember(html) { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .squircleSurface(color = style.codeBackground, cornerRadius = 12.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 4.dp, top = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "LaTeX",
+                style = MiuixTheme.textStyles.footnote2,
+                color = style.secondaryColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            CopyButton(text = latex, tint = style.secondaryColor)
+        }
+        if (!loadFailed) {
+            LatexWebView(
+                html = html,
+                onFallback = { loadFailed = true },
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+        // 原文兜底：渲染成功也保留（離線可讀、可複製）；WebView 失敗時它是唯一內容。
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(start = 14.dp, end = 14.dp, bottom = 12.dp, top = 4.dp),
         ) {
             MarkdownText(block, style.code, scope, softWrap = false)
         }

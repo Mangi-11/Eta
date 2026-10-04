@@ -44,7 +44,7 @@ internal data class MarkdownCode(
     override val offset: Int,
     val language: String?,
     override val text: AnnotatedString,
-    /** 块级公式暂不排版，按原文以代码块样式显示，保证内容可见可复制。 */
+    /** 塊級公式：KaTeX 真渲染（WebView）+ 原文兜底，離線或解析失敗時顯示原文。 */
     val isMath: Boolean = false,
 ) : MarkdownTextBlock
 
