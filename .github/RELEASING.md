@@ -25,10 +25,22 @@ gh secret set ETA_RELEASE_KEY_ALIAS
 gh secret set ETA_RELEASE_KEY_PASSWORD
 ```
 
+## 持续集成
+
+- `PR Check`：向 `main` 的 Pull Request 与非 `main` 分支的推送会自动运行
+  `Android Lint 检查`、`单元测试`、`构建 Debug APK`，不读取任何签名 Secrets，
+  Fork 仓库的 PR 同样可以运行。
+- `Eta Build`：只在可信事件运行（向 `main` 推送、`v*` 标签、手运行），
+  负责生成签名后的 Release APK。
+
+建议在仓库 `Settings > Branches` 为 `main` 开启分支保护，要求
+`PR Check / Lint / Test / Debug Build` 通过后才能合并。
+
 ## 构建与发布
 
 以下情况会在同一次工作流中生成 Debug APK 和经过签名验证的 Release APK，
-并作为两个可直接下载的 Actions Artifact 保存 14 天：
+并作为两个可直接下载的 Actions Artifact（`app-debug-apk-<sha>` 与
+`app-release-apk-<sha>`）保存 14 天：
 
 - 向 `main` 推送提交
 - 推送 `v*` 标签
@@ -46,7 +58,7 @@ git push origin v2.2.2
 
 标签推送后，等待 `Eta Build` 工作流完成，然后：
 
-1. 从该次工作流的 `Artifacts` 下载 `app-release.apk`。
+1. 从该次工作流的 `Artifacts` 下载 `app-release-apk-<sha>`（内含 `app-release.apk`）。
 2. 在仓库的 `Releases > Draft a new release` 中选择已有标签。
 3. 填写 Release Notes 并上传 APK。
 4. 检查版本、说明和附件后，由维护者手动发布。
