@@ -205,6 +205,20 @@ internal object AgentDeviceToolCatalog {
             .put(searchFunction("search_personal_orders", "检索系统记忆中识别的外卖、购物、快递、票券和出行订单。"))
             .put(searchFunction("search_qq_chat_images", "检索 QQ 聊天图片缓存，返回最近文件的时间、大小、类型和私有路径。仅在安装 QQ 且缓存仍存在时可用。"))
             .put(searchFunction("search_wechat_chat_images", "检索微信聊天图片缓存，返回最近文件的时间、大小和私有路径。仅在安装微信且缓存仍存在时可用。"))
+            .put(
+                function(
+                    "search_nearby_places",
+                    "基于最近系统位置检索周边地点（餐厅、店、银行、站点等），返回名称、类别、地址和距离。" +
+                        "位置来自系统最近定位，不唤醒 GPS；定位过期或不可用时返回错误，不编造结果。" +
+                        "适合“附近有什么”“最近的 xxx”这类需求；需要精确导航或实时营业状态时仍应打开地图应用确认。",
+                    properties(
+                        "query" to string("地点名称或类别关键词，例如 餐厅、瑞幸、银行", 100),
+                        "radius_m" to integer("搜索半径米数，默认 1500", 100, 10_000),
+                        "limit" to integer("最多返回数量，默认 10", 1, 30),
+                    ),
+                    "query",
+                ),
+            )
     }
 
     private fun appendSensitiveActionTools(tools: JSONArray) {

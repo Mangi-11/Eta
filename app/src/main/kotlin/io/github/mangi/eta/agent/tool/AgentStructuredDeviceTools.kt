@@ -37,6 +37,7 @@ internal class AgentStructuredDeviceTools(
     private val colorOs: () -> Boolean = { AgentToolCapabilities.isColorOsDevice() },
 ) {
     private val personalDataTools = AgentPersonalDataTools(root)
+    private val nearbyPlaces = NearbyPlacesTool(context, logger)
     private val colorOsMemoryTools = AgentColorOsMemoryTools(context, root)
     private val personalContextTools = AgentPersonalContextTools(context)
     private val privateDatabaseTools = AgentPrivateDatabaseTools(context, root)
@@ -61,6 +62,7 @@ internal class AgentStructuredDeviceTools(
             "get_setting" -> sensitive(getSetting(args))
             "wifi_credentials" -> sensitive(wifiCredentials(args))
             "recent_notifications" -> sensitive(recentNotifications(args))
+            "search_nearby_places" -> sensitive(nearbyPlaces.search(args))
             "read_sms_code" -> sensitive(readSmsCode(args))
             "get_logcat" -> sensitive(getLogcat(args))
             "set_setting" -> text(setSetting(args))

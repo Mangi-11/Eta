@@ -37,6 +37,13 @@ internal object AgentPromptBuilder {
         if (roleplayContext == null && config.systemPrompt.isNotBlank()) {
             messages.put(systemMessage(config.systemPrompt))
         }
+        if (roleplayContext == null) {
+            messages.put(
+                systemMessage(
+                    buildToolCapabilityMap(config, memoryContext, skillContext, rootAvailable)
+                )
+            )
+        }
         messages.put(
             systemMessage(
                 (if (roleplayContext == null) {
@@ -54,9 +61,14 @@ internal object AgentPromptBuilder {
                     "就主动调用当前已公开的只读工具获取证据，不要先凭常识猜测、给出模板答案、要求用户逐项指定数据源或重复询问授权；" +
                     "用户目标明确且已经具备可靠执行参数时，立即调用工具，不要先输出计划、解释或中间进度；" +
                     "可以根据上下文合理确定的细节自行处理；缺少会影响执行结果的关键信息时，再简短询问，不猜测关键参数；" +
-                    "不依赖中间界面变化的连续操作可以在同一轮一并调用，不要为了展示思考而拆成多个回合；" +
+                    "同一轮可并发的只限于不改变界面的只读调用（例如多次检索、读取上下文、查询时间位置）。" +
+                    "任何会改变界面或依赖上一次观察结果的连续操作（点击、滚动、输入、打开应用、等待后观察）必须串行：" +
+                    "一次一个，等结果返回并据此重新观察后再进行下一步，不要为了展示思考而拆成多个回合，" +
+                    "也不要在同一轮把会互相影响的界面操作批量发出。" +
                     "工具已向你公开表示对应能力已由用户开启。用户要求‘了解我’、分析最近状态或活动、总结习惯与偏好、判断工作生活情况，" +
                     "或请求个性化建议时，应主动选择相册、日历、联系人、通话、短信、便签、录音、系统记忆、文件、通知和聊天图片等当前可用来源。" +
+                    "查询通知时按场景选择：当前通知栏里的未读/最新通知用 recent_notifications；" +
+                    "需要回溯历史、按关键词或按应用筛选时用 search_notification_history。" +
                     "面对宽泛问题，应从多个相关来源按时间和代表性取样后再归纳，不要拿到一条结果就停止；某个来源为空时继续尝试其他相关可用来源。" +
                     (if (rootAvailable) {
                         "专用读取工具不存在或数据不足时，只要 Root Shell、文件或终端工具当前已公开，可以主动使用它们定位并只读检查相关应用私有文件与数据库；先识别路径、格式和 schema，再执行有界查询，不修改源数据。"
@@ -91,9 +103,9 @@ internal object AgentPromptBuilder {
                     "任何工具返回 ACTION_OUTCOME_UNKNOWN 或 DIRECTION_MISMATCH 时，必须先重新观察，禁止直接重放动作；" +
                     "输入精确文本优先用 replace_text 或 paste_text，长文本/中文/特殊字符优先用 paste_text；" +
                     "用户明确要求发送消息时，直接使用通用 GUI 工具完成输入和点击发送，不让用户手动完成，也不追加二次确认；" +
-                    "成功的点击、输入或打开应用后，不要例行调用 observe_screen、wait、wait_for_text 或 wait_for_package；" +
-                    "只有任务需要读取或汇总屏幕信息、后续目标或界面状态未知、工具报告节点过期或结果不确定，" +
-                    "以及任务结束前确实需要确认最终结果时，才观察屏幕；仅当后续操作依赖特定文本或应用出现时使用 wait_for_text/wait_for_package。" +
+                    "不要机械地、无条件地在每次动作后都观察屏幕或等待；" +
+                    "只有任务确实需要读取或汇总屏幕信息、后续目标或界面状态未知、工具报告节点过期或结果不确定，" +
+                    "以及任务结束前确实需要确认最终结果时才观察；仅当后续操作依赖特定文本或应用出现时使用 wait_for_text/wait_for_package。" +
                     "屏幕观察与 GUI 操作前会确认 Eta 无障碍服务；只有系统保护后端可用时才会请求有限重绑。" +
                     "若工具返回 ACCESSIBILITY_UNAVAILABLE、ACCESSIBILITY_PROTECTION_UNAVAILABLE 或 ACCESSIBILITY_REPAIR_TIMEOUT，说明动作未执行，" +
                     "不要改用坐标或 Shell 重放 GUI 动作。"
@@ -102,33 +114,35 @@ internal object AgentPromptBuilder {
         if (config.terminalTools) {
             messages.put(
                 systemMessage(
-                    "任务需要在手机上执行命令、查看 Linux/Android 系统信息、读取/写入文件、查询包名或使用 shell 时，" +
-                        "必须调用 terminal 或 run_command/read_file/write_file/list_directory 工具。" +
-                        "Android 应用与当前身份可访问的设备文件使用 terminal 的 environment=android；" +
-                        "用户选择的 Alpine 或 Debian 工具环境统一使用 environment=linux；不要自行改用另一发行版。" +
-                        "如果返回 LINUX_ENVIRONMENT_NOT_READY，" +
-                        "准确告知用户先到设置安装对应的 Linux 工具环境，不要把 Android 缺少命令误报成设备不支持。" +
-                        "若 Linux 基础命令不存在，准确告知用户先在 Linux 工具环境页面完成“安装基础工具”；Python/uv、Node.js、SSH 与 APK 分析都在当前选中的发行版中分别按需安装。不要在 Android 环境冒充或自行下载工具。" +
-                        "Linux 环境默认在 /workspace 工作；它映射到当前环境的宿主工作区，实际路径以终端返回为准；" +
-                        "只有已经获得文件访问权限的共享目录才可读写，不要假定 /sdcard 或其他 Android 路径一定可访问。" +
-                        "用户配置的共享文件夹挂载在 Linux 环境 /workspace/mounts/ 下，每个子目录对应一个 Android 目录；" +
-                        "用户提到共享文件、手机目录或要处理设备上的文件时，先 ls /workspace/mounts/ 确认已有共享，再读写对应子目录。" +
-                        "分析 APK 时优先在 linux 环境使用 jadx、apktool、smali 或 baksmali；若命令不存在，" +
-                        "准确告知用户在 Linux 工具环境页面安装“APK 分析”，不要自行下载不受校验的工具。" +
-                        "当前 Apktool 只支持解码与检查，不支持 build/回编译；不要绕过该限制或宣称已经生成可安装 APK。" +
+                    // 执行环境与路径
+                    "执行命令、读写文件或使用 shell 必须调用 terminal/run_command/read_file/write_file/list_directory。" +
+                        "Android 命令用 environment=android；Alpine/Debian 统一用 environment=linux，不要自行改用另一发行版。" +
                         (if (rootAvailable) {
-                            "用户说‘执行命令 xxx’且未指定环境时，首轮调用 terminal，action=open_and_exec，environment=android，command=xxx；Android 可使用 root 身份，Linux 身份由已选择的后端决定；"
+                            "未指定环境时首轮调用 terminal(action=open_and_exec,environment=android)；Android 可用 root，Linux 身份由后端决定。"
                         } else {
-                            "当前终端只支持 identity=user，以 Eta 的 App UID 执行；Linux 内模拟 root 不授予 Android 特权。用户未指定环境的命令使用 terminal 的 environment=android、action=open_and_exec；"
+                            "未指定环境时使用 terminal(action=open_and_exec,environment=android,identity=user)。"
                         }) +
-                        "连续多步 shell 工作先 action=open 获取 session_id，再 action=exec 复用会话；" +
-                        "长时间命令使用 async=true 启动后用 read_async_result 轮询，完成后 close；" +
-                        "需要长期驻留的后台服务（监听端口、Web 面板等）用 action=daemon_start 启动，daemon_list 查看状态、daemon_logs 读日志、daemon_stop 停止；" +
-                        "守护任务不随 run 或会话结束回收，也不要用 nohup 或 & 手工后台化；" +
-                        "async 后台命令是独立 shell，不要和 session_id 混用。不要调用 search_apps 查询“终端”或“Termux”。" +
-                        "Eta 已内置终端，不要回答‘没有终端应用’或要求另装终端 App。" +
-                        "读取图片内容必须调用 read_image。同一轮模型回复最多调用一次 read_image；需要查看多张图片时，" +
-                        "必须等待当前图片返回并观察内容，再在下一轮调用下一张，禁止在同一轮并行或批量调用多个 read_image。"
+                        "Linux 环境工作目录为 /workspace；用户共享的 Android 目录挂载在 /workspace/mounts/，处理共享文件前先 ls /workspace/mounts/。" +
+                        "使用前确认路径，不假定 /sdcard 可访问。" +
+                        "LINUX_ENVIRONMENT_NOT_READY → 告知在设置安装 Linux 环境；基础命令缺失 → 告知安装基础工具。" +
+                        "Eta 已内置终端，不要回答‘没有终端应用’；不要用 search_apps 查找终端或 Termux。不要自行下载工具。"
+                )
+            )
+            messages.put(
+                systemMessage(
+                    // 会话与生命周期
+                    "多步 shell 工作：action=open 获取 session_id，用 exec 复用。" +
+                        "长时间命令：async=true 启动，read_async_result 轮询，完成后 close。" +
+                        "后台服务（端口监听、Web 面板）：daemon_start 启动，daemon_list/daemon_logs/daemon_stop 管理。" +
+                        "守护任务不随 run/会话结束回收；不要用 nohup/& 手工后台化；async 后台命令是独立 shell，不与 session_id 混用。"
+                )
+            )
+            messages.put(
+                systemMessage(
+                    // 图片与 APK 工具边界
+                    "读取图片：必须用 read_image，同一轮最多一次；多张图片逐张等待返回后再继续，禁止并行或批量调用。" +
+                        "APK 分析：优先 linux 环境用 jadx/apktool/smali/baksmali；缺工具 → 告知安装‘APK 分析’。" +
+                        "Apktool 只支持解码/检查，不支持 build/回编译；不要绕过该限制。"
                 )
             )
         }
@@ -137,6 +151,8 @@ internal object AgentPromptBuilder {
                 systemMessage(
                     "网页浏览、读取、交互和截图使用 browser_use：它是 Agent 共享的离屏浏览器，不会把页面显式交给外部应用；" +
                         "每次调用只执行一个 action。通常先 navigate，再用 get_readable 提取正文，或用 find_elements 找到可交互元素后操作。" +
+                        "navigate 之后目标可能发生重定向，先用 get_page_info 确认落地页 URL 与标题，再据此决定后续操作，" +
+                        "不要基于重定向前地址规划点击或提取。" +
                         "只有需要把 URI 交给外部应用时才使用 open_uri；open_uri 不用于读取网页。"
                 )
             )
@@ -145,6 +161,24 @@ internal object AgentPromptBuilder {
         buildMemorySystemMessage(memoryContext, writable = roleplayContext == null)?.let(messages::put)
         buildSkillSystemMessage(skillContext)?.let(messages::put)
         return messages
+    }
+
+    private fun buildToolCapabilityMap(
+        config: AgentModelClient.ModelConfig,
+        memoryContext: AgentMemoryContext,
+        skillContext: SkillContext,
+        rootAvailable: Boolean,
+    ): String = buildString {
+        append("当前本轮已启用的工具组（以此为准，未列出的能力视为不可用）：")
+        append("terminal=").append(if (config.terminalTools) "on" else "off")
+        append(", browser=").append(if (config.browserTools) "on" else "off")
+        append(", device_direct=").append(if (config.deviceDirectTools) "on" else "off")
+        append(", sensitive_read=").append(if (config.deviceSensitiveReadTools) "on" else "off")
+        append(", sensitive_action=").append(if (config.deviceSensitiveActionTools) "on" else "off")
+        append(", memory=").append(if (memoryContext.enabled) "on" else "off")
+        append(", skills=").append(skillContext.installedSkills.size)
+        append(", root=").append(if (rootAvailable) "on" else "off")
+        append("。工具开关由用户控制，执行前会再次校验；返回权限错误时按提示处理，不要重试被拒绝的调用。")
     }
 
     private fun buildMemorySystemMessage(context: AgentMemoryContext, writable: Boolean): JSONObject? {
