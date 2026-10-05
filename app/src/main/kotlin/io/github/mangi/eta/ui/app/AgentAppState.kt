@@ -21,6 +21,8 @@ import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.device.AgentFileReferenceGateway
 import io.github.mangi.eta.agent.device.DeviceLocationProvider
 import io.github.mangi.eta.agent.device.RootAccess
+import io.github.mangi.eta.agent.device.ShizukuAccess
+import io.github.mangi.eta.agent.device.ShizukuStatus
 import io.github.mangi.eta.agent.media.AgentImageCodec
 import io.github.mangi.eta.agent.memory.AgentMemoryContextBuilder
 import io.github.mangi.eta.agent.model.AgentFileReference
@@ -172,6 +174,9 @@ internal class AgentAppState(
         observeRuntimeSelection()
         scope.launch {
             RootAccess.state.collectLatest { refreshPermissionHealth() }
+        }
+        scope.launch {
+            ShizukuAccess.state.collectLatest { refreshPermissionHealth() }
         }
         runtimeRecoveryInProgress.set(true)
         scope.launch(Dispatchers.IO) {
@@ -2794,6 +2799,7 @@ private fun buildPermissionHealthState(context: Context): PermissionHealthUiStat
     val appListEnabled = hasAppListAccess(context)
     val accessibilityEnabled = isAgentAccessibilityEnabled(context) || AgentAccessibilityService.isAvailable()
     val rootEnabled = RootAccess.isGranted
+    val shizukuStatus = ShizukuAccess.state.value.status
     val notificationsEnabled = context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
     val locationAccess = DeviceLocationProvider.accessState(context)
     val notificationHistoryEnabled = io.github.mangi.eta.agent.device.AgentNotificationHistoryService.isEnabled(context)
@@ -2893,6 +2899,25 @@ private fun buildPermissionHealthState(context: Context): PermissionHealthUiStat
                 summary = context.getString(R.string.capability_optional_root),
                 status = if (rootEnabled) PermissionStatusUi.Available else PermissionStatusUi.Disabled,
                 primaryActionLabel = if (rootEnabled) null else context.getString(R.string.state_ui_to_open_13ec17),
+            ),
+            PermissionHealthItemUi(
+                id = "shizuku",
+                title = context.getString(R.string.capability_shizuku_title),
+                summary = when (shizukuStatus) {
+                    ShizukuStatus.GRANTED -> context.getString(R.string.capability_shizuku_granted)
+                    ShizukuStatus.NOT_GRANTED -> context.getString(R.string.capability_shizuku_not_granted)
+                    ShizukuStatus.DENIED -> context.getString(R.string.capability_shizuku_denied)
+                    else -> context.getString(R.string.capability_shizuku_unavailable)
+                },
+                status = when (shizukuStatus) {
+                    ShizukuStatus.GRANTED -> PermissionStatusUi.Available
+                    ShizukuStatus.NOT_GRANTED -> PermissionStatusUi.Missing
+                    else -> PermissionStatusUi.Disabled
+                },
+                primaryActionLabel = when (shizukuStatus) {
+                    ShizukuStatus.GRANTED -> null
+                    else -> context.getString(R.string.state_ui_to_authorize_762ec4)
+                },
             ),
         )
     )

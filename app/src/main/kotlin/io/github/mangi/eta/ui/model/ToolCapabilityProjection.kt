@@ -11,9 +11,19 @@ internal fun toolCardRequirement(id: String): LocalToolRequirement {
     return requireNotNull(AgentToolRequirements.find(toolName)) { "Unknown tool card: $id" }
 }
 
-internal fun visibleOnCurrentDevice(id: String, rootGranted: Boolean, colorOs: Boolean): Boolean {
+internal fun visibleOnCurrentDevice(id: String, rootGranted: Boolean, colorOs: Boolean): Boolean =
+    visibleOnCurrentDevice(id, rootGranted, shizukuGranted = false, colorOs = colorOs)
+
+internal fun visibleOnCurrentDevice(
+    id: String,
+    rootGranted: Boolean,
+    shizukuGranted: Boolean,
+    colorOs: Boolean,
+): Boolean {
     val requirement = toolCardRequirement(id)
-    return (rootGranted || requirement.rootRequirement != RootRequirement.REQUIRED) &&
+    val elevated = rootGranted ||
+        (shizukuGranted && AgentToolRequirements.shizukuSatisfiedTools.contains(actualToolName(id)))
+    return (elevated || requirement.rootRequirement != RootRequirement.REQUIRED) &&
         (colorOs || !requirement.colorOs)
 }
 
@@ -23,8 +33,17 @@ internal fun actualToolName(id: String): String = when (id) {
 }
 
 internal fun projectToolGroups(groups: List<ToolGroupUi>, showAll: Boolean, rootGranted: Boolean, colorOs: Boolean): List<ToolGroupUi> =
+    projectToolGroups(groups, showAll, rootGranted, shizukuGranted = false, colorOs = colorOs)
+
+internal fun projectToolGroups(
+    groups: List<ToolGroupUi>,
+    showAll: Boolean,
+    rootGranted: Boolean,
+    shizukuGranted: Boolean,
+    colorOs: Boolean,
+): List<ToolGroupUi> =
     groups.map { group ->
-        group.copy(tools = group.tools.filter { showAll || visibleOnCurrentDevice(it.id, rootGranted, colorOs) })
+        group.copy(tools = group.tools.filter { showAll || visibleOnCurrentDevice(it.id, rootGranted, shizukuGranted, colorOs) })
     }.filter { it.tools.isNotEmpty() }
 
 /** 普通权限的缺失优先给出可执行的授权入口，查看增强说明本身不会请求 Root。 */
@@ -34,7 +53,8 @@ internal fun toolCardAction(id: String, capabilities: AgentToolCapabilities): Ag
         "ROOT_REQUIRED", "DEVICE_UNSUPPORTED" -> AgentToolsAction.OpenEnhancements
         null -> when {
             id.startsWith("browser_") -> AgentToolsAction.OpenBrowser
-            !capabilities.rootAvailable && requirement.rootRequirement == RootRequirement.PARTIAL ->
+            !capabilities.rootAvailable && !capabilities.shizukuAvailable &&
+                requirement.rootRequirement == RootRequirement.PARTIAL ->
                 AgentToolsAction.OpenEnhancements
             else -> null
         }

@@ -18,7 +18,17 @@ Eta 支持 Android 13 及以上版本，使用同一个 APK，根据系统版本
 | Android Shell、文件与图片 | App UID，私有工作区或已授权来源 | Root 用户保留特权路径 |
 | Alpine、Debian、PTY、Kimi Web | 通过 PRoot 运行 | 可另外安装 chroot |
 | 系统修改、冻结应用、私有数据读取 | 不向模型提供 | 需要 Root；部分数据还要求对应 ROM |
+| ADB 级系统能力（读写系统设置、开关 Wi-Fi/蓝牙、启停与冻结应用、读取 logcat 与应用资源统计） | 不向模型提供 | 需要 Root，或 Shizuku 授权（无需 Root，见下） |
 | 厂商助手接管、Gemini 与一圈即搜 | 可在系统增强中了解 | 需要 LSPosed 与对应 ROM，系统化另需 Root |
+
+## Shizuku（免 Root 的 ADB 级授权）
+
+并不是所有人都有 Root 权限（issue #92）：安装 [Shizuku 管理器](https://github.com/RikkaApps/Shizuku) 并按其指引启动服务后，在权限健康页的 Shizuku 行完成授权，Eta 即可经 Shizuku UserService 以 shell 身份执行 ADB 级命令。
+
+- **Shizuku 可替代 Root**：`set_setting`、`set_device_state`、`app_state_control`、`get_logcat`、`top_memory_apps`、`top_storage_apps`（均为 Root REQUIRED，Shizuku 可用时保留在模型目录中）。`get_setting`、`recent_notifications`、`network_info` 本为 PARTIAL（公开读或通知监听优先），无 Root 时同样经特权通道兜底系统来源。
+- **仍需 Root**：联系人、短信、日历、通话记录、相册/文件 provider 查询中的受保护域，闹钟/剪贴板/健康/小布记忆等私有数据库快照，Wi-Fi 密码，以及终端 `root` 身份、chroot、Root daemon、系统化安装。shell 身份受 DAC/SELinux 与运行时权限模型限制，读不到这些路径。
+- Shizuku 断连或撤权后，ADB 级工具自动降级，开关与已保存配置不受影响；Root 授权与 Shizuku 授权相互独立，可同时存在，执行时 Root 优先。
+- 错误码约定：无任何提权通道时为 `ROOT_REQUIRED`；Shizuku 通道自身失败为 `SHIZUKU_UNAVAILABLE` / `SHIZUKU_COMMAND_FAILED` / `SHIZUKU_COMMAND_REJECTED`。
 
 工具页默认“当前设备”。普通 Android 权限尚未开启的功能仍可发现；“全部能力”显示额外介绍与实际条件，查看不会申请权限，也不扩大模型权限。系统增强入口使用普通设置行，不持续提示未授权。Root 用户原有配置位置保持不变；失联时保留已使用配置，设置页顶部不显示重连提示卡片，框架通信状态可在系统增强页查看。
 

@@ -37,6 +37,10 @@
 
 # 配置 key 是字符串常量并通过静态调用访问，不需要保留类名或成员名。
 
+# Shizuku 通过 Manifest 中的 provider 类名字符串加载；允许混淆时需保留入口。
+# Shizuku 主类为直接引用（R8 自动保留可达代码），provider 覆写方法需显式保留。
+-keep class rikka.shizuku.ShizukuProvider { *; }
+
 # ── Release 日志策略 ────────────────────────────────────────────────────────
 # 仅删除 Eta 自有代码中的 Android VERBOSE/DEBUG 调用；INFO/WARN/ERROR 必须保留，
 # 第三方依赖的日志策略由依赖自身决定。

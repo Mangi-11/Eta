@@ -21,7 +21,7 @@
     <string name="capability_root_features">Root capabilities</string>
     <string name="capability_system_features">System assistant and enhancements</string>
     <string name="capability_root_device">App and system management</string>
-    <string name="capability_root_device_summary">Freeze and stop apps, modify protected system settings, and read system logs. Eta requires Root access.</string>
+    <string name="capability_root_device_summary">Freeze and stop apps, modify protected system settings, and read system logs. Requires Root or Shizuku authorization.</string>
     <string name="capability_root_data">Protected data and files</string>
     <string name="capability_root_data_summary">Access some data saved by other apps and the system. Requires Root; availability depends on the system, app versions, and enabled tool permissions.</string>
     <string name="capability_root_linux">Linux and terminal enhancements</string>
@@ -33,6 +33,11 @@
     <string name="capability_hook_accessibility">Accessibility protection</string>
     <string name="capability_hook_accessibility_summary">Maintain service activation through system_server. Requires the LSPosed system scope. Accessibility can still be enabled manually in standard mode.</string>
     <string name="capability_optional_root">Optional enhancement permissions</string>
+    <string name="capability_shizuku_title">Shizuku</string>
+    <string name="capability_shizuku_granted">Shizuku authorized; ADB-level features available without Root</string>
+    <string name="capability_shizuku_not_granted">Shizuku connected; authorization required for ADB-level features</string>
+    <string name="capability_shizuku_denied">Shizuku authorization denied; re-authorize in the Shizuku manager</string>
+    <string name="capability_shizuku_unavailable">Shizuku not configured; ADB-level features unavailable</string>
     <string name="capability_import_denied">Cannot read this path. Import the file or authorize a shared directory.</string>
     <string name="capability_import_failed">File import failed. Try again.</string>
     <string name="capability_import_too_large">Files larger than 32 MiB cannot be imported</string>

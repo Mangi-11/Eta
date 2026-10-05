@@ -55,6 +55,8 @@ sealed interface AgentSystemEnhanceAction {
     data object NavigateBack : AgentSystemEnhanceAction
     data object RequestRoot : AgentSystemEnhanceAction
     data object RefreshRoot : AgentSystemEnhanceAction
+    data object RequestShizuku : AgentSystemEnhanceAction
+    data object RefreshShizuku : AgentSystemEnhanceAction
 }
 
 sealed interface AgentMemoryAction {

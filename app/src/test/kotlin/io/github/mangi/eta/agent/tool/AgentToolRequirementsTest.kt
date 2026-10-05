@@ -80,6 +80,45 @@ class AgentToolRequirementsTest {
     }
 
     @Test
+    fun shizukuRetainsAdbLevelToolsWhileKeepingPrivateDataRootOnly() {
+        val original = catalog(root = true)
+        val projected = AgentToolRequirements.project(original, rootAvailable = false, shizukuAvailable = true)
+        val names = projected.names()
+        assertTrue(setOf(
+            "set_setting", "set_device_state", "app_state_control",
+            "get_logcat", "top_memory_apps", "top_storage_apps",
+        ).all { it in names })
+        // get_setting 为 PARTIAL：常驻投影（公开读优先，特权通道兜底），与 Shizuku 门控无关。
+        assertTrue("get_setting" in names)
+        assertTrue(setOf(
+            "wifi_credentials", "read_sms_code", "search_contacts", "search_messages",
+            "search_calendar_events", "list_alarms", "get_health_summary",
+            "search_coloros_memories", "search_wechat_chat_images",
+        ).none { it in names })
+    }
+
+    @Test
+    fun shizukuSatisfiedToolsAreNotDeniedButRootOnlyToolsStillAre() {
+        assertFalse(AgentToolRequirements.rootDenied("set_setting", JSONObject(), false, shizukuAvailable = true))
+        assertFalse(AgentToolRequirements.rootDenied("get_logcat", JSONObject(), false, shizukuAvailable = true))
+        assertTrue(AgentToolRequirements.rootDenied("wifi_credentials", JSONObject(), false, shizukuAvailable = true))
+        assertTrue(AgentToolRequirements.rootDenied("read_sms_code", JSONObject(), false, shizukuAvailable = true))
+        assertTrue(AgentToolRequirements.rootDenied("search_contacts", JSONObject(), false, shizukuAvailable = true))
+        assertTrue(AgentToolRequirements.rootDenied("terminal", JSONObject().put("identity", "root"), false, shizukuAvailable = true))
+        assertFalse(AgentToolRequirements.rootDenied("terminal", JSONObject().put("identity", "user"), false, shizukuAvailable = true))
+    }
+
+    @Test
+    fun shizukuCapabilitiesExposeAdbToolsWithoutUnlockingRootShell() {
+        val shizukuOnly = AgentToolCapabilities(rootAvailable = false, shizukuAvailable = true)
+        assertEquals(null, shizukuOnly.unavailableCode("set_setting"))
+        assertEquals(null, shizukuOnly.unavailableCode("get_logcat"))
+        assertEquals("ROOT_REQUIRED", shizukuOnly.unavailableCode("wifi_credentials"))
+        assertEquals("ROOT_REQUIRED", shizukuOnly.unavailableCode("search_contacts"))
+        assertEquals("ROOT_REQUIRED", AgentToolCapabilities(rootAvailable = false).unavailableCode("set_setting"))
+    }
+
+    @Test
     fun frameworkConnectionDoesNotGrantRootAndRootSnapshotDoesNotRequireFramework() {
         assertEquals(LsposedRequirement.OPTIONAL, AgentToolRequirements.find("search_coloros_memories")?.lsposedRequirement)
         assertEquals("ROOT_REQUIRED", AgentToolCapabilities(rootAvailable = false, lsposedAvailable = true)

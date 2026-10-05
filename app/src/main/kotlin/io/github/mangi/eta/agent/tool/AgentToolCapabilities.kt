@@ -9,12 +9,14 @@ import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.accessibility.AccessibilityProtectionClient
 import io.github.mangi.eta.agent.device.AgentNotificationHistoryService
 import io.github.mangi.eta.agent.device.RootAccess
+import io.github.mangi.eta.agent.device.ShizukuAccess
 import java.util.Locale
 import org.json.JSONArray
 
 /** 每轮冻结的运行条件；不包含用户开关，也不触发授权请求。 */
 internal data class AgentToolCapabilities(
     val rootAvailable: Boolean,
+    val shizukuAvailable: Boolean = false,
     val lsposedAvailable: Boolean = false,
     val accessibilityAvailable: Boolean = true,
     val accessibilityRecoveryAvailable: Boolean = false,
@@ -33,7 +35,11 @@ internal data class AgentToolCapabilities(
         if (name in setOf("get_flashlight", "set_flashlight") && !flashlightAvailable) return "DEVICE_UNSUPPORTED"
         if (name in setOf("get_hotspot", "set_hotspot") && !hotspotAvailable) return "DEVICE_UNSUPPORTED"
         val requirement = AgentToolRequirements.find(name) ?: return "UNKNOWN_TOOL"
-        if (requirement.rootRequirement == RootRequirement.REQUIRED && !rootAvailable) return "ROOT_REQUIRED"
+        if (requirement.rootRequirement == RootRequirement.REQUIRED && !rootAvailable &&
+            !(shizukuAvailable && AgentToolRequirements.shizukuSatisfiedTools.contains(name))
+        ) {
+            return "ROOT_REQUIRED"
+        }
         if (requirement.lsposedRequirement == LsposedRequirement.REQUIRED && !lsposedAvailable) return "LSPOSED_REQUIRED"
         if (requirement.colorOs && !colorOs) return "DEVICE_UNSUPPORTED"
         if (requirement.accessibility && !accessibilityAvailable && !accessibilityRecoveryAvailable) {
@@ -44,8 +50,8 @@ internal data class AgentToolCapabilities(
             ToolSystemAccess.CALENDAR_WRITE -> if (rootAvailable || calendarWritable) null else "CALENDAR_PERMISSION_REQUIRED"
             ToolSystemAccess.NONE -> null
             ToolSystemAccess.NOTIFICATIONS -> if (notificationsAllowed ||
-                (rootAvailable && (name == "recent_notifications" ||
-                    (name == "search_personal_orders" && colorOs)))
+                ((rootAvailable || shizukuAvailable) && name == "recent_notifications") ||
+                (rootAvailable && name == "search_personal_orders" && colorOs)
             ) null else "NOTIFICATION_ACCESS_REQUIRED"
             ToolSystemAccess.USAGE -> if (usageAllowed) null else "APP_USAGE_ACCESS_REQUIRED"
             ToolSystemAccess.LOCATION -> if (locationAllowed) null else "LOCATION_PERMISSION_REQUIRED"
@@ -53,7 +59,7 @@ internal data class AgentToolCapabilities(
     }
 
     fun project(tools: JSONArray): JSONArray {
-        val rootProjected = AgentToolRequirements.project(tools, rootAvailable)
+        val rootProjected = AgentToolRequirements.project(tools, rootAvailable, shizukuAvailable)
         return JSONArray().also { visible ->
             for (index in 0 until rootProjected.length()) {
                 val tool = rootProjected.getJSONObject(index)
@@ -75,6 +81,7 @@ internal data class AgentToolCapabilities(
 
         fun capture(context: Context): AgentToolCapabilities = AgentToolCapabilities(
             rootAvailable = RootAccess.isGranted,
+            shizukuAvailable = ShizukuAccess.isAvailable,
             lsposedAvailable = EtaApp.serviceInstance != null,
             accessibilityAvailable = AgentAccessibilityService.isAvailable(),
             accessibilityRecoveryAvailable = EtaApp.serviceInstance != null &&

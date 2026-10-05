@@ -11,6 +11,7 @@ import io.github.mangi.eta.agent.device.DeviceControlUnavailableException
 import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.device.RootShellDeviceController
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
+import io.github.mangi.eta.agent.device.ShizukuAccess
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.model.AgentHttpClient
 import io.github.mangi.eta.agent.device.LocalNetworkPermission
@@ -96,6 +97,7 @@ internal class AgentLocalTools(
     runAvailableSkillIds: Set<String> = emptySet(),
     pendingSkillConflict: PendingSkillConflictCapability? = null,
     private val rootAvailable: () -> Boolean = { RootAccess.isGranted },
+    private val shizukuAvailable: () -> Boolean = { ShizukuAccess.isAvailable },
 ) : AgentModelClient.ToolExecutor, AutoCloseable {
 
     private val closed = AtomicBoolean(false)
@@ -106,6 +108,7 @@ internal class AgentLocalTools(
         logger = logger,
         root = rootCommandExecutor,
         rootAvailable = rootAvailable,
+        shizukuAvailable = shizukuAvailable,
     )
     private val imageTools = AgentImageTools(context, rootCommandExecutor, rootAvailable)
     private val webTools = AgentWebTools(
@@ -161,9 +164,15 @@ internal class AgentLocalTools(
         runCatching {
             val args = JSONObject(toolCall.argumentsJson.ifBlank { "{}" })
             if (AgentToolRequirements.find(toolCall.name) != null &&
-                AgentToolRequirements.rootDenied(toolCall.name, args, rootAvailable())
+                AgentToolRequirements.rootDenied(toolCall.name, args, rootAvailable(), shizukuAvailable())
             ) {
-                return@runCatching textResult(errorResult("ROOT_REQUIRED", "此操作需要 Root 授权，本次未执行"))
+                val needsRootOnly = !AgentToolRequirements.shizukuSatisfiedTools.contains(toolCall.name)
+                val message = if (needsRootOnly) {
+                    "此操作需要 Root 授权，本次未执行"
+                } else {
+                    "此操作需要 Root 或 Shizuku 授权，本次未执行"
+                }
+                return@runCatching textResult(errorResult("ROOT_REQUIRED", message))
             }
             deviceToolPermissionError(toolCall.name)?.let { return@runCatching it }
             memoryToolPermissionError(toolCall.name)?.let { return@runCatching it }

@@ -21,7 +21,7 @@
     <string name="capability_root_features">Root 能力</string>
     <string name="capability_system_features">系统助手与增强</string>
     <string name="capability_root_device">应用与系统管理</string>
-    <string name="capability_root_device_summary">冻结与停止应用、修改受保护系统设置、读取系统日志。需要 Eta 获得 Root 授权。</string>
+    <string name="capability_root_device_summary">冻结与停止应用、修改受保护系统设置、读取系统日志。需要 Root 或 Shizuku 授权。</string>
     <string name="capability_root_data">受保护数据与文件</string>
     <string name="capability_root_data_summary">访问其他应用和系统保存的部分数据。需要 Root，具体范围取决于系统、应用版本与已开启的工具权限。</string>
     <string name="capability_root_linux">Linux 与终端增强</string>
@@ -33,6 +33,11 @@
     <string name="capability_hook_accessibility">无障碍保护</string>
     <string name="capability_hook_accessibility_summary">通过 system_server 维护服务启用状态，需要 LSPosed 的系统作用域。普通模式仍可手动开启无障碍。</string>
     <string name="capability_optional_root">可选增强权限</string>
+    <string name="capability_shizuku_title">Shizuku</string>
+    <string name="capability_shizuku_granted">已授权 Shizuku，无需 Root 即可使用 ADB 级能力</string>
+    <string name="capability_shizuku_not_granted">已连接 Shizuku，需要授权后才能使用 ADB 级能力</string>
+    <string name="capability_shizuku_denied">Shizuku 授权被拒绝，请在 Shizuku 管理器中重新授权</string>
+    <string name="capability_shizuku_unavailable">未配置 Shizuku，ADB 级能力不可用</string>
     <string name="capability_import_denied">没有权限读取该路径，请选择文件导入或授权共享目录</string>
     <string name="capability_import_failed">文件导入失败，请重试</string>
     <string name="capability_import_too_large">文件超过 32 MiB，无法导入</string>

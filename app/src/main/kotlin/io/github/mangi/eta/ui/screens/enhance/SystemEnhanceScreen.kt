@@ -9,6 +9,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.runtime.Composable
@@ -17,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.device.ShizukuStatus
 import io.github.mangi.eta.ui.app.description
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.components.EtaCard
@@ -38,6 +40,7 @@ fun SystemEnhanceScreen(
     val context = LocalContext.current
     val capabilities = rememberDeviceCapabilities()
     val canRequestRoot = capabilities.root.suPresent && !capabilities.root.isGranted
+    val canRequestShizuku = capabilities.shizuku.status == ShizukuStatus.NOT_GRANTED
     MiuixScaffoldPage(
         title = stringResource(R.string.capability_enhancements),
         onBack = { onAction(AgentSystemEnhanceAction.NavigateBack) },
@@ -60,6 +63,27 @@ fun SystemEnhanceScreen(
                                 onAction(
                                     if (canRequestRoot) AgentSystemEnhanceAction.RequestRoot
                                     else AgentSystemEnhanceAction.RefreshRoot,
+                                )
+                            },
+                        )
+                    },
+                )
+                EtaPreferenceDivider(hasLeading = true)
+                EtaPreference(
+                    title = stringResource(R.string.capability_shizuku_title),
+                    summary = capabilities.shizuku.description(context),
+                    startAction = { EtaPreferenceIcon(Icons.Rounded.Memory, tint = EtaPreferenceColors.Blue) },
+                    endActions = {
+                        EtaTextButton(
+                            text = stringResource(
+                                if (canRequestShizuku) R.string.capability_root_request
+                                else R.string.capability_root_refresh,
+                            ),
+                            enabled = !capabilities.shizuku.isChecking,
+                            onClick = {
+                                onAction(
+                                    if (canRequestShizuku) AgentSystemEnhanceAction.RequestShizuku
+                                    else AgentSystemEnhanceAction.RefreshShizuku,
                                 )
                             },
                         )
