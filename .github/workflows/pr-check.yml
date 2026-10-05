@@ -1,5 +1,7 @@
 name: PR Check
 
+# push + pull_request 双触发是刻意取舍：未开 PR 的分支推送同样需要 CI 反馈；
+# 代价是已开 PR 的分支每次推送会跑两次 run，已在 PR #123 确认接受。
 on:
   pull_request:
     branches:
@@ -24,13 +26,15 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - name: 校验 Gradle Wrapper
-        uses: gradle/wrapper-validation-action@f9c9c575b8b21b6485636a91ffecd10e558c62f6 # v3
-
       - name: 检出代码
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+
+      # 必须在检出之后运行：空 workspace 下找不到 gradle-wrapper.jar，
+      # 验证会直接通过而失去供应链保护作用。
+      - name: 校验 Gradle Wrapper
+        uses: gradle/wrapper-validation-action@f9c9c575b8b21b6485636a91ffecd10e558c62f6 # v3
 
       - name: 配置 JDK 25
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
@@ -53,7 +57,10 @@ jobs:
       - name: 安装 Android SDK 37（canary 通道）
         # compileSdk = 37 目前只在 canary 通道提供，与 android-release.yml 同源；
         # 待 37 进入 stable 后可合并回上一步的 packages 并删除本步。
-        run: sdkmanager --channel=3 "platforms;android-37.0"
+        # 先接受全部 SDK 许可，避免 canary 包因缺许可而挂起或失败。
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --channel=3 "platforms;android-37.0"
 
       - name: 输出环境版本
         run: |
@@ -89,6 +96,7 @@ jobs:
             app/build/reports/lint-results-debug.*
             app/build/reports/lint-results-debug_files/
           if-no-files-found: ignore
+          overwrite: true
           retention-days: 7
 
       - name: 上传测试报告
@@ -100,4 +108,5 @@ jobs:
             app/build/reports/tests/
             app/build/test-results/
           if-no-files-found: ignore
+          overwrite: true
           retention-days: 7
