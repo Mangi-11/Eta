@@ -54,6 +54,9 @@ Eta 内置 Agent Runtime，通过 Agent Loop 编排模型调用、工具执行�
 - **个人上下文**：按需检索通知、应用使用情况与位置；相册、日历、短信、录音、健康摘要、聊天图片等专用检索需要 Root，部分来源还要求对应 ROM 与应用支持。
 - **长期记忆**：使用本机 `MEMORY.md` 保存跨对话背景，核心内容按预算加入上下文，其余按需读取；支持编辑、清空和关闭。
 - **Skills**：按需加载任务方法、参考资料与脚本资源，支持公开 GitHub 仓库安装和本地 ZIP 导入；安装不会执行脚本或开启额外权限。
+- **经验学习**：任务完成后可自动追加持久记忆，并将已验证的操作方法生成或更新为用户技能；新任务优先，自动学习可分别关闭。见 [自动记忆与操作经验](docs/EXPERIENCE_LEARNING.md)。
+- **自动任务**：AI 辅助创建一次性、间隔、每日与事件规则，支持本地匹配、冷却、次数限制、运行记录及取消。Android 后台调度可能延迟，见 [定时与事件任务](docs/AUTOMATION.md)。
+- **Root 虚拟屏（实验性）**：在独立 display 中启动、观察和点击受支持的应用，可从通知打开查看页。需要 Android 14+、Root 和用户开关；熄屏执行另需许可，兼容与验证范围见 [虚拟屏](docs/VIRTUAL_SCREEN.md)。
 - **MCP**：通过 Streamable HTTP 连接远程工具，支持 Bearer Token；工具逐项启用，与本机工具共同参与任务。
 
 ### Agent Runtime
@@ -183,12 +186,16 @@ Eta 先从现有 Android 上的模型、上下文与工具做起。真正落地�
 - [设备支持与权限边界](docs/ROOTLESS_SUPPORT.md)：普通设备、Root、文件工作区与后台运行。
 - [技术实现](docs/TECHNICAL.md)：设备工具、数据检索、浏览器、终端与系统集成。
 - [Agent Runtime](docs/AGENT_RUNTIME.md)：Agent Loop、Provider、steering、transcript 与结果恢复。
+- [自动记忆与操作经验](docs/EXPERIENCE_LEARNING.md)：后台复盘、用户技能写入与权限边界。
+- [定时与事件任务](docs/AUTOMATION.md)：模型工具、触发器、规则和调度限制。
+- [Root 虚拟屏](docs/VIRTUAL_SCREEN.md)与 [vivo 原子通知](docs/VIVO_ATOMIC_NOTIFICATIONS.md)：实验原型及平台接入步骤。
 - [HyperOS 系统入口](docs/HYPEROS_SYSTEM_ENTRY.md)：电源键、一圈即搜的适配条件与验证边界。
 - [终端原生组件](docs/TERMINAL_NATIVE.md)：PTY、PRoot 及随包源码的构建方式。
 
 ## 参考与致谢
 
 - [Pi Coding Agent](https://github.com/earendil-works/pi)：Eta Agent Runtime 的核心参考，包括 Agent Loop、Tool Calling、steering 与 transcript 状态管理。
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent)：后台经验复盘、技能管理与任务调度的设计参考。
 - [OmniBot](https://github.com/omnimind-ai/OmniBot)：Android AI Agent 方向的参考项目。
 - [libxposed API](https://github.com/libxposed/api)：现代 Xposed API。
 - [Miuix](https://github.com/compose-miuix-ui/miuix)：UI 组件库。

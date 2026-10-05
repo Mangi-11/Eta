@@ -64,3 +64,6 @@
 -keep class io.github.mangi.eta.agent.phone.PhoneCommandMain {
     public static void main(java.lang.String[]);
 }
+-keep class io.github.mangi.eta.agent.display.RootDisplayCommandMain {
+    public static void main(java.lang.String[]);
+}

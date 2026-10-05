@@ -21,6 +21,7 @@ import io.github.mangi.eta.agent.overlay.AgentOverlayVisibilityPolicy
 import io.github.mangi.eta.agent.skill.SkillCompatibilityChecker
 import io.github.mangi.eta.agent.skill.SkillContext
 import io.github.mangi.eta.agent.skill.SkillRuntime
+import io.github.mangi.eta.agent.skill.SkillAuthoringService
 import io.github.mangi.eta.agent.skill.PublicGitHubSkillSource
 import io.github.mangi.eta.agent.tool.AgentLocalTools
 import io.github.mangi.eta.agent.tool.AgentToolRequirements
@@ -50,6 +51,7 @@ internal class AgentRuntimeRunExecutor(
         AgentRuntimeWire.RunResult,
         List<AgentEvent>,
     ) -> Unit,
+    private val reviewGeneration: Long? = null,
 ) {
     data class Outcome(
         val result: AgentRuntimeWire.RunResult,
@@ -72,6 +74,7 @@ internal class AgentRuntimeRunExecutor(
         var toolsBinding: AgentRunController.ResourceBinding? = null
         var response: AgentModelClient.ModelResponse.Text? = null
         var cancelled = false
+        var roleplayRun = false
         var checkpointRecorder: AgentRunCheckpointRecorder? = null
         val timing = AgentRunTiming(AndroidAgentLogger)
 
@@ -106,6 +109,7 @@ internal class AgentRuntimeRunExecutor(
             val roleplayContext = conversationId?.let { id ->
                 runBlocking { RoleplayRunContext.resolve(appContext, id, contextWindow, memoryEnabled) }
             }
+            roleplayRun = roleplayContext != null
             if (request.operation == AgentRuntimeWire.OP_REWRITE_REPLY) {
                 require(roleplayContext != null) { "只有角色会话可以改写角色回复" }
                 val target = request.rewriteTargetMessageId?.takeIf { it.isNotBlank() && it.length <= 256 }
@@ -173,31 +177,37 @@ internal class AgentRuntimeRunExecutor(
                     entrySurfaceGuard?.consumeScreenshotExcludedPackages().orEmpty()
                 },
                 beforeToolExecution = { toolName ->
-                    val requiresAccessibility =
-                        AgentToolRequirements.requiresAccessibility(toolName)
-                    if (
-                        !requiresAccessibility &&
-                        !AgentOverlayVisibilityPolicy.requiresEntrySurfaceDismissal(toolName)
-                    ) {
-                        ToolExecutionDecision.Allow
+                    if (io.github.mangi.eta.agent.automation.AgentTaskScheduler.isRegistered(request.runId) &&
+                        (toolName in io.github.mangi.eta.agent.automation.AgentTaskTools.names || AgentToolRequirements.requiresAccessibility(toolName) ||
+                            AgentOverlayVisibilityPolicy.isForegroundOperationTool(toolName) || toolName in setOf("terminal", "run_command", "browser_use"))) {
+                        ToolExecutionDecision.Reject("AUTOMATION_ACTION_UNAVAILABLE", "自动任务暂不支持创建其他任务或操作主屏；需要独立虚拟屏执行环境")
                     } else {
-                        val accessibility = if (requiresAccessibility) {
-                            AgentAccessibilityKeeper.ensureEnabledForGuiOperation(appContext)
+                        val requiresAccessibility =
+                            AgentToolRequirements.requiresAccessibility(toolName)
+                        if (
+                            !requiresAccessibility &&
+                            !AgentOverlayVisibilityPolicy.requiresEntrySurfaceDismissal(toolName)
+                        ) {
+                            ToolExecutionDecision.Allow
                         } else {
-                            null
-                        }
-                        when {
-                            accessibility != null && !accessibility.available ->
-                                ToolExecutionDecision.Reject(
-                                    code = accessibility.code,
-                                    message = accessibility.message,
-                                )
-                            entrySurfaceGuard?.dismissOnce() == false ->
-                                ToolExecutionDecision.Reject(
-                                    code = "ENTRY_SURFACE_NOT_READY",
-                                    message = "入口窗口关闭未完成；本次工具未执行，请勿在当前任务中重复调用",
-                                )
-                            else -> ToolExecutionDecision.Allow
+                            val accessibility = if (requiresAccessibility) {
+                                AgentAccessibilityKeeper.ensureEnabledForGuiOperation(appContext)
+                            } else {
+                                null
+                            }
+                            when {
+                                accessibility != null && !accessibility.available ->
+                                    ToolExecutionDecision.Reject(
+                                        code = accessibility.code,
+                                        message = accessibility.message,
+                                    )
+                                entrySurfaceGuard?.dismissOnce() == false ->
+                                    ToolExecutionDecision.Reject(
+                                        code = "ENTRY_SURFACE_NOT_READY",
+                                        message = "入口窗口关闭未完成；本次工具未执行，请勿在当前任务中重复调用",
+                                    )
+                                else -> ToolExecutionDecision.Allow
+                            }
                         }
                     }
                 },
@@ -208,6 +218,7 @@ internal class AgentRuntimeRunExecutor(
                 skillPackageInstaller = skillPackageInstaller,
                 runAvailableSkillIds = skillContext.installedSkills.mapTo(mutableSetOf()) { it.id },
                 pendingSkillConflict = pendingSkillConflict,
+                skillAuthoringService = SkillAuthoringService(skillIndexService, skillPackageInstaller),
             )
             val routingExecutor = RoutingToolExecutor(
                 local = executor,
@@ -370,6 +381,13 @@ internal class AgentRuntimeRunExecutor(
                         "Agent runtime artifact persistence failed: type=${throwable.safeLogType()}"
                     )
                 }
+        }
+        val reviewEpoch = reviewGeneration
+        if (committed && result.ok && !cancelled && !roleplayRun && reviewEpoch != null) {
+            response?.let { completed ->
+                runCatching { AgentExperienceReview.submit(appContext, reviewEpoch, completedRequest, completed, archivedEvents.toList()) }
+                    .onFailure { error -> AndroidAgentLogger.warn("Experience review submission failed: type=${error.safeLogType()}") }
+            }
         }
         return Outcome(
             result = result,

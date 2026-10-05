@@ -91,6 +91,22 @@ internal fun AgentMemoryScreen(
                             onCheckedChange = { onAction(AgentMemoryAction.ToggleEnabled(it)) },
                         )
                         EtaPreferenceDivider(hasLeading = false)
+                        EtaSwitchPreference(
+                            title = stringResource(R.string.auto_memory_title),
+                            summary = stringResource(R.string.auto_memory_summary),
+                            checked = state.autoMemoryEnabled,
+                            enabled = !state.isLoading && state.enabled,
+                            onCheckedChange = { onAction(AgentMemoryAction.ToggleAutoMemory(it)) },
+                        )
+                        EtaPreferenceDivider(hasLeading = false)
+                        EtaSwitchPreference(
+                            title = stringResource(R.string.auto_skills_title),
+                            summary = stringResource(R.string.auto_skills_summary),
+                            checked = state.autoSkillsEnabled,
+                            enabled = !state.isLoading,
+                            onCheckedChange = { onAction(AgentMemoryAction.ToggleAutoSkills(it)) },
+                        )
+                        EtaPreferenceDivider(hasLeading = false)
                         EtaPreference(
                             title = stringResource(R.string.ui_core_memory_injection_budget_48b5d5),
                             summary = stringResource(R.string.memory_budget_summary, formatNumber(state.coreBudgetChars)),

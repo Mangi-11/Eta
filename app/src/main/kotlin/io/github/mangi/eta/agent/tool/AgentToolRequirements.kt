@@ -39,8 +39,9 @@ internal object AgentToolRequirements {
             "search_notification_history", "recent_app_activity", "app_usage_summary",
             "get_current_location", "get_device_environment", "memory_get", "memory_write",
             "character_memory_get", "character_memory_write",
-            "skills_list", "skills_read", "skills_read_resource", "skills_list_curated",
+            "skills_list", "skills_read", "skills_read_resource", "skills_list_curated", "skills_manage",
             "skills_inspect_github", "skills_install_from_github",
+            "tasks_triggers", "tasks_list", "tasks_create", "tasks_update", "tasks_delete", "tasks_run", "tasks_cancel", "tasks_history",
         )
         register(
             RootRequirement.PARTIAL,
@@ -50,6 +51,7 @@ internal object AgentToolRequirements {
         )
         register(
             RootRequirement.REQUIRED,
+            "virtual_screen",
             "top_memory_apps", "top_storage_apps", "wifi_credentials", "read_sms_code",
             "get_logcat", "set_setting", "set_device_state", "app_state_control",
             "list_alarms", "list_active_timers", "get_health_summary", "search_clipboard_history",

@@ -16,19 +16,22 @@ internal object SkillParser {
      */
     fun parseSkillFile(skillFile: File): ParsedSkillFile? {
         if (!skillFile.exists() || !skillFile.isFile) return null
-        val raw = skillFile.readText()
+        val bytes = skillFile.readBytes()
+        val raw = bytes.toString(Charsets.UTF_8)
+        val revision = skillRevision(bytes)
         if (!raw.startsWith("---")) {
-            return ParsedSkillFile(frontmatter = emptyMap(), body = raw.trim())
+            return ParsedSkillFile(frontmatter = emptyMap(), body = raw.trim(), revision = revision)
         }
         val markerIndex = raw.indexOf("\n---", startIndex = 3)
         if (markerIndex <= 0) {
-            return ParsedSkillFile(frontmatter = emptyMap(), body = raw.trim())
+            return ParsedSkillFile(frontmatter = emptyMap(), body = raw.trim(), revision = revision)
         }
         val frontmatterText = raw.substring(3, markerIndex).trim('\n', '\r')
         val body = raw.substring(markerIndex + 4).trim()
         return ParsedSkillFile(
             frontmatter = parseSimpleFrontmatter(frontmatterText),
             body = body,
+            revision = revision,
         )
     }
 

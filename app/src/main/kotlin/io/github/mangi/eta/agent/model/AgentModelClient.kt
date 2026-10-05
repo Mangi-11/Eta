@@ -105,6 +105,7 @@ internal object AgentModelClient {
         assistantScreenContext: String = "",
         onContextSnapshot: (AgentContextSnapshot) -> Unit = {},
         onTranscript: (List<ConversationMessage>) -> Unit = {},
+        restrictedToolNames: Set<String>? = null,
         onEvent: (AgentEvent) -> Unit = {}
     ): ModelResponse.Text {
         config.validate()
@@ -153,7 +154,12 @@ internal object AgentModelClient {
             for (index in 0 until additionalTools.length()) {
                 tools.put(additionalTools.opt(index))
             }
-            return tools
+            return if (restrictedToolNames == null) tools else JSONArray().also { filtered ->
+                for (index in 0 until tools.length()) {
+                    val schema = tools.getJSONObject(index)
+                    if (schema.optJSONObject("function")?.optString("name") in restrictedToolNames) filtered.put(schema)
+                }
+            }
         }
         val tools = toolsFor(initialCapabilities)
         onEvent(
@@ -176,7 +182,11 @@ internal object AgentModelClient {
             messages = messages,
             tools = tools,
             provider = provider,
-            toolExecutor = toolExecutor,
+            toolExecutor = if (restrictedToolNames == null) toolExecutor else ToolExecutor { call ->
+                if (call.name in restrictedToolNames) toolExecutor.execute(call)
+                else ToolResult(JSONObject().put("ok", false).put("code", "REVIEW_TOOL_DENIED")
+                    .put("message", "此工具不属于自动复盘能力").toString())
+            },
             runController = runController,
             traceFormatter = traceFormatter,
             onEvent = onEvent,

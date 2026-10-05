@@ -50,6 +50,11 @@ internal object SettingsDataStore {
     private val SELECTED_MODEL_ID = stringPreferencesKey("selected_model_id")
     private val OFFICIAL_MODEL_CATALOG_REVISION = intPreferencesKey("official_model_catalog_revision")
     private val MEMORY_ENABLED = booleanPreferencesKey("memory_enabled")
+    private val AUTO_MEMORY_ENABLED = booleanPreferencesKey("auto_memory_enabled")
+    private val AUTO_SKILLS_ENABLED = booleanPreferencesKey("auto_skills_enabled")
+    private val VIRTUAL_SCREEN_ENABLED = booleanPreferencesKey("virtual_screen_enabled")
+    private val VIRTUAL_SCREEN_OFF_ENABLED = booleanPreferencesKey("virtual_screen_off_enabled")
+    private val VIVO_ATOMIC_SCENE = stringPreferencesKey("vivo_atomic_scene")
     private val LINUX_DISTRIBUTION = stringPreferencesKey("linux_distribution")
     private val APPEARANCE_THEME_MODE = stringPreferencesKey("appearance_theme_mode")
     private val APPEARANCE_MONET_ENABLED = booleanPreferencesKey("appearance_monet_enabled")
@@ -111,6 +116,11 @@ internal object SettingsDataStore {
             prefs.putOrRemove(SELECTED_PROVIDER_ID, updated.selectedProviderId)
             prefs.putOrRemove(SELECTED_MODEL_ID, updated.selectedModelId)
             prefs[MEMORY_ENABLED] = updated.memoryEnabled
+            prefs[AUTO_MEMORY_ENABLED] = updated.autoMemoryEnabled
+            prefs[AUTO_SKILLS_ENABLED] = updated.autoSkillsEnabled
+            prefs[VIRTUAL_SCREEN_ENABLED] = updated.virtualScreenEnabled
+            prefs[VIRTUAL_SCREEN_OFF_ENABLED] = updated.virtualScreenOffEnabled
+            prefs[VIVO_ATOMIC_SCENE] = updated.vivoAtomicScene
             prefs.putAppearance(updated.appearance.normalized())
         }
     }
@@ -237,6 +247,11 @@ internal object SettingsDataStore {
         selectedProviderId = this[SELECTED_PROVIDER_ID],
         selectedModelId = this[SELECTED_MODEL_ID],
         memoryEnabled = this[MEMORY_ENABLED] ?: true,
+        autoMemoryEnabled = this[AUTO_MEMORY_ENABLED] ?: true,
+        autoSkillsEnabled = this[AUTO_SKILLS_ENABLED] ?: true,
+        virtualScreenEnabled = this[VIRTUAL_SCREEN_ENABLED] ?: false,
+        virtualScreenOffEnabled = this[VIRTUAL_SCREEN_OFF_ENABLED] ?: false,
+        vivoAtomicScene = this[VIVO_ATOMIC_SCENE] ?: "",
         appearance = AppearanceSettings(
             themeMode = AppearanceThemeMode.fromPersistedValue(this[APPEARANCE_THEME_MODE]),
             monetEnabled = this[APPEARANCE_MONET_ENABLED] ?: false,

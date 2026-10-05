@@ -58,6 +58,13 @@ class EtaApp : Application(), XposedServiceHelper.OnServiceListener {
         AgentMemoryRepository.init(this)
         ProviderRepository.init(this)
         McpServerRepository.init(this)
+        applicationScope.launch(Dispatchers.IO) {
+            runCatching {
+                io.github.mangi.eta.data.db.EtaDatabase.get(this@EtaApp).agentTaskDao().recoverInterrupted(System.currentTimeMillis())
+                io.github.mangi.eta.agent.automation.AgentTaskScheduler.enqueueDue(this@EtaApp)
+                io.github.mangi.eta.agent.automation.AgentTaskScheduler.refresh(this@EtaApp)
+            }.onFailure { AndroidAgentLogger.warn("Automation recovery unavailable") }
+        }
         XposedServiceHelper.registerListener(this)
         applicationScope.launch {
             try {

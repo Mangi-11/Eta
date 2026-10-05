@@ -303,6 +303,18 @@ private fun SettingsPageContent(
                         },
                         onClick = { onNavigate(AppRoute.Memory) },
                     )
+                    EtaPreferenceDivider()
+                    EtaArrowPreference(
+                        title = stringResource(R.string.automation_title),
+                        startAction = { EtaPreferenceIcon(icon = Icons.Rounded.FilterAlt, tint = EtaPreferenceColors.Blue) },
+                        onClick = { onNavigate(AppRoute.Tasks) },
+                    )
+                    EtaPreferenceDivider()
+                    EtaArrowPreference(
+                        title = stringResource(R.string.virtual_screen_title),
+                        startAction = { EtaPreferenceIcon(icon = Icons.Rounded.Smartphone, tint = EtaPreferenceColors.Blue) },
+                        onClick = { onNavigate(AppRoute.VirtualScreen) },
+                    )
 
                     EtaPreferenceDivider()
                     EtaArrowPreference(

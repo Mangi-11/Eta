@@ -115,6 +115,17 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val packageName = event.packageName?.toString().orEmpty()
+            val eventWindow = windows.firstOrNull { it.id == event.windowId }
+            if (eventWindow?.displayId == android.view.Display.DEFAULT_DISPLAY &&
+                packageName.isNotBlank() && packageName != lastTriggerPackage) {
+                lastTriggerPackage = packageName
+                if (packageName != this.packageName) {
+                    io.github.mangi.eta.agent.automation.AgentTaskScheduler.publish(this, "app_foreground", "${event.eventTime}:$packageName", JSONObject().put("packageName", packageName))
+                }
+            }
+        }
         when (event?.eventType) {
             AccessibilityEvent.TYPE_WINDOWS_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
@@ -133,6 +144,7 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() = Unit
+    private var lastTriggerPackage: String = ""
 
     /**
      * 一次观察与其节点句柄组成不可变快照。调用方必须把同一实例传回节点动作，

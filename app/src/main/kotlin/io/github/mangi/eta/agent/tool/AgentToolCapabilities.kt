@@ -29,8 +29,10 @@ internal data class AgentToolCapabilities(
     val nfcAvailable: Boolean = true,
     val nightLightAvailable: Boolean = true,
     val vivo: Boolean = false,
+    val virtualDisplayAvailable: Boolean = true,
 ) {
     fun unavailableCode(name: String): String? {
+        if (name == "virtual_screen" && !virtualDisplayAvailable) return "DEVICE_UNSUPPORTED"
         if (name in setOf("get_flashlight", "set_flashlight") && !flashlightAvailable) return "DEVICE_UNSUPPORTED"
         if (name in setOf("get_hotspot", "set_hotspot") && !hotspotAvailable) return "DEVICE_UNSUPPORTED"
         val requirement = AgentToolRequirements.find(name) ?: return "UNKNOWN_TOOL"
@@ -90,6 +92,7 @@ internal data class AgentToolCapabilities(
                     context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED),
             colorOs = isColorOsDevice(),
             vivo = isVivoDevice(),
+            virtualDisplayAvailable = Build.VERSION.SDK_INT >= 34,
             calendarReadable = io.github.mangi.eta.agent.device.CalendarPermissions.granted(context, false),
             calendarWritable = io.github.mangi.eta.agent.device.CalendarPermissions.granted(context, true),
             flashlightAvailable = context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH),

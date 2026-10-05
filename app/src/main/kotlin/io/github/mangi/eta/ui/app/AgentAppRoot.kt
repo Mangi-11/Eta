@@ -78,6 +78,7 @@ import io.github.mangi.eta.ui.screens.home.AgentHomeScreen
 import io.github.mangi.eta.ui.screens.mcp.McpServerDetailScreen
 import io.github.mangi.eta.ui.screens.mcp.McpServersScreen
 import io.github.mangi.eta.ui.screens.memory.AgentMemoryScreen
+import io.github.mangi.eta.ui.screens.tasks.AgentTasksScreen
 import io.github.mangi.eta.ui.screens.permissions.PermissionHealthScreen
 import io.github.mangi.eta.ui.screens.skills.AgentSkillsScreen
 import io.github.mangi.eta.ui.screens.terminal.LinuxEnvironmentScreen
@@ -582,6 +583,12 @@ fun AgentAppRoot(
                     onBack = ::popRoute
                 )
             }
+            entry<AppRoute.Tasks>(swipeDismiss = swipeDismiss) {
+                AgentTasksScreen(onBack = { popRoute() })
+            }
+            entry<AppRoute.VirtualScreen>(swipeDismiss = swipeDismiss) {
+                io.github.mangi.eta.ui.screens.tasks.VirtualScreenSettingsScreen(onBack = { popRoute() })
+            }
             entry<AppRoute.SpeechSettings>(swipeDismiss = swipeDismiss) {
                 SpeechSettingsScreen(
                     onBack = ::popRoute,
@@ -621,6 +628,8 @@ fun AgentAppRoot(
                         when (action) {
                             AgentMemoryAction.NavigateBack -> popRoute()
                             is AgentMemoryAction.ToggleEnabled -> agentState.setMemoryEnabled(action.enabled)
+                            is AgentMemoryAction.ToggleAutoMemory -> agentState.setAutomaticReview(memory = action.enabled)
+                            is AgentMemoryAction.ToggleAutoSkills -> agentState.setAutomaticReview(skills = action.enabled)
                             is AgentMemoryAction.DraftChanged -> agentState.updateMemoryDraft(action.content)
                             AgentMemoryAction.Save -> agentState.saveMemory()
                             AgentMemoryAction.Clear -> agentState.clearMemory()

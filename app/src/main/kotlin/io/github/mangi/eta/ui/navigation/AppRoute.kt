@@ -64,6 +64,10 @@ sealed interface AppRoute : NavKey {
 
     @Serializable
     data object Memory : AppRoute
+    @Serializable
+    data object Tasks : AppRoute
+    @Serializable
+    data object VirtualScreen : AppRoute
 
     @Serializable
     data object LinuxEnvironment : AppRoute

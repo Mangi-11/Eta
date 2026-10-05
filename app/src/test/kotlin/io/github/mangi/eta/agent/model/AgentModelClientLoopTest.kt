@@ -16,6 +16,31 @@ import org.junit.Test
 
 class AgentModelClientLoopTest {
     @Test
+    fun backgroundReviewWhitelistRestrictsSchemasAndRejectsInventedToolsAtDispatch() {
+        val publishedTools = mutableListOf<List<String>>()
+        fun record(request: ProviderRequest) {
+            publishedTools += (0 until request.tools.length()).map { request.tools.getJSONObject(it).getJSONObject("function").getString("name") }
+        }
+        val provider = ScriptedProvider(listOf(
+            { request, _ -> record(request); assistant(finishReason = "tool_calls", toolCalls = listOf(
+                toolCall("deny", "terminal", "{}"),
+                toolCall("allow", "skills_list", "{}"),
+            )) },
+            { request, _ -> record(request); assistant(content = "复盘完成", finishReason = "stop") },
+        ))
+        val executed = mutableListOf<String>()
+        AgentModelClient.complete(
+            config = modelConfig().copy(terminalTools = true), prompt = "复盘", provider = provider,
+            restrictedToolNames = setOf("skills_list"),
+            toolExecutor = AgentModelClient.ToolExecutor { call -> executed += call.name; AgentModelClient.ToolResult("{\"ok\":true}") },
+        )
+        assertEquals(listOf("skills_list"), executed)
+        assertEquals(listOf(listOf("skills_list"), listOf("skills_list")), publishedTools)
+        val result = provider.requests.last().toString()
+        assertTrue(result.contains("INVALID_TOOL_ARGUMENTS"))
+    }
+
+    @Test
     fun hostedSearchReplacesOnlyTheLocalSearchInSupportedConfigurations() {
         for (providerType in listOf(ProviderTypes.OPENAI_COMPATIBLE, ProviderTypes.ANTHROPIC)) {
             for (endpoint in listOf(OpenAiEndpointMode.RESPONSES, OpenAiEndpointMode.CHAT_COMPLETIONS)) {
