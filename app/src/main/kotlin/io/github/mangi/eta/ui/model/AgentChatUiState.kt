@@ -25,6 +25,8 @@ internal data class AgentChatUiState(
     val messageEdit: MessageEditUiState? = null,
     val roleplay: RoleplayBinding? = null,
     val roleplayMessages: RoleplayMessageState = RoleplayMessageState(),
+    // Issue #127: 每會話綁定的模型（本地 Model.id），null = 跟隨全域預設。
+    val modelId: String? = null,
 ) {
     val canCompactContext: Boolean get() = !isStreaming && messageEdit == null && history.any {
         !it.contextSummary && (it.role == "assistant" || it.role == "tool")

@@ -103,6 +103,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 internal class AgentAppState(
@@ -132,6 +134,12 @@ internal class AgentAppState(
     private var pendingSkillZipSha256: String? = null
     private var currentReasoningCapabilities: ModelReasoningCapabilities? = null
     private var fileAttachmentOwnerVersion = 0L
+    // Issue #127: 會話模型還原任務（單一 Job 序列化，新的還原取消舊的，避免快速切換競態）。
+    private var restoreModelJob: Job? = null
+    @Volatile
+    private var restoreModelVersion = 0L
+    // Issue #127: 全域模型寫入互斥（selectModel 與還原共用，避免併發 last-writer-wins 污染全域）。
+    private val modelWriteMutex = Mutex()
 
     private var selectedConversationId: String? = initialConversations.selectedConversationId
     private var conversationsById: Map<String, AgentChatHomeUiState> = initialConversations.conversationsById
@@ -745,7 +753,11 @@ internal class AgentAppState(
             ?: ReasoningEffort.fromLegacy(defaultThinkingEnabled)
         val existingState = conversationsById[conversationId] ?: emptyChatState(
             archivedEffort.enablesReasoning
-        ).copy(reasoningEffort = archivedEffort)
+        ).copy(
+            reasoningEffort = archivedEffort,
+            // Issue #127: 外部歸檔（語音/Hook）會話跟隨當時全域，與普通會話首發快照語義一致。
+            modelId = modelPickerState.selectedModel?.id,
+        )
         val alreadyImported = AgentRuntimeHistoryReducer.wasApplied(existingState, runId) ||
             existingState.messages.any {
                 it is AgentMessageUi &&
@@ -804,16 +816,25 @@ internal class AgentAppState(
     fun selectModel(modelId: String) {
         if (
             homeState.isStreaming ||
-            modelPickerState.isChanging ||
             modelPickerState.selectedModel?.id == modelId
         ) {
             return
         }
+        // Issue #127: 顯式切模型搶佔還原任務；樂觀更新當前會話綁定，避免發送競態用舊模型。
+        restoreModelJob?.cancel()
+        restoreModelJob = null
+        restoreModelVersion += 1
+        val version = restoreModelVersion
+        bindCurrentConversationToModel(modelId)
         modelPickerState = modelPickerState.copy(isChanging = true)
         scope.launch(Dispatchers.IO) {
             try {
-                RuntimeConfigRepository.setSelectedModelId(modelId)
-                RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                modelWriteMutex.withLock {
+                    // 寫入前版本再驗：若期間有更新的 select/restore，已被取代則放棄，避免舊寫覆蓋用戶意圖。
+                    if (restoreModelVersion != version) return@withLock
+                    RuntimeConfigRepository.setSelectedModelId(modelId)
+                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
@@ -822,10 +843,29 @@ internal class AgentAppState(
                 }
             } finally {
                 withContext(Dispatchers.Main) {
-                    modelPickerState = modelPickerState.copy(isChanging = false)
+                    // 與還原任務共用版本守衛，避免覆蓋後起還原的 isChanging。
+                    if (restoreModelVersion == version) {
+                        modelPickerState = modelPickerState.copy(isChanging = false)
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Issue #127: 將當前會話綁定到指定模型並持久化。
+     * 已選中會話更新 conversationsById + homeState；尚未落庫的新草稿只更新 homeState，
+     * 首條訊息發送時會隨新會話一起落庫。
+     */
+    private fun bindCurrentConversationToModel(modelId: String) {
+        val bound = homeState.copy(modelId = modelId)
+        val conversationId = selectedConversationId
+        if (conversationId == null) {
+            homeState = bound
+        } else {
+            updateConversation(conversationId, bound, updateTimestamp = false)
+        }
+        persistConversations()
     }
 
     fun updateSearchQuery(query: String) {
@@ -849,6 +889,69 @@ internal class AgentAppState(
         homeState = resolvedState
         conversationPaneState = conversationPaneState.copy(selectedConversationId = conversationId)
         persistConversations()
+        // Issue #127: 切回會話時自動還原該會話綁定的模型（寫回全域預設，Hook/懸浮窗跟著生效）。
+        restoreBoundModelIfNeeded(conversationId, resolvedState.modelId)
+    }
+
+    /**
+     * Issue #127: 若目標會話有有效綁定且與當前全域不同，則將全域切到綁定模型。
+     * 綁定已失效（模型被刪/disable）時清除綁定，fallback 全域，不崩潰。
+     * 快速切換時取消舊還原、只保留最新；寫入前重驗選中會話仍是目標，避免過期寫入覆蓋用戶意圖。
+     * 進行中 run 已快照配置，切全域不影響當前 streaming，故不擋 streaming。
+     */
+    private fun restoreBoundModelIfNeeded(conversationId: String, boundModelId: String?) {
+        if (boundModelId.isNullOrBlank()) return
+        if (boundModelId == modelPickerState.selectedModel?.id) return
+        restoreModelJob?.cancel()
+        modelPickerState = modelPickerState.copy(isChanging = true)
+        restoreModelVersion += 1
+        val version = restoreModelVersion
+        restoreModelJob = scope.launch(Dispatchers.IO) {
+            try {
+                if (!RuntimeConfigRepository.isModelAvailable(boundModelId)) {
+                    withContext(Dispatchers.Main) {
+                        val current = conversationsById[conversationId]
+                        if (current?.modelId == boundModelId) {
+                            val cleared = current.copy(modelId = null)
+                            updateConversation(conversationId, cleared, updateTimestamp = false)
+                            if (conversationId == selectedConversationId) homeState = cleared
+                            persistConversations()
+                        }
+                    }
+                    return@launch
+                }
+                // 寫入前重驗：用戶可能已切到其他會話或手動切模型，過期任務直接放棄。
+                val stillTarget = withContext(Dispatchers.Main) {
+                    selectedConversationId == conversationId &&
+                        conversationsById[conversationId]?.modelId == boundModelId
+                }
+                if (!stillTarget) return@launch
+                modelWriteMutex.withLock {
+                    // 鎖內二次驗版本 + 目標，避免「驗過後、寫入前」的手動切換被覆蓋。
+                    if (restoreModelVersion != version) return@withLock
+                    val stillAfterLock = withContext(Dispatchers.Main) {
+                        selectedConversationId == conversationId &&
+                            conversationsById[conversationId]?.modelId == boundModelId
+                    }
+                    if (!stillAfterLock) return@withLock
+                    RuntimeConfigRepository.setSelectedModelId(boundModelId)
+                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                AndroidAgentLogger.error(
+                    "Restore session model failed: type=${failure.safeLogType()}"
+                )
+            } finally {
+                withContext(Dispatchers.Main) {
+                    // 只有仍是最新還原任務才清 flag，避免已取消的舊任務覆蓋新任務/手動切換的狀態。
+                    if (restoreModelVersion == version) {
+                        modelPickerState = modelPickerState.copy(isChanging = false)
+                    }
+                }
+            }
+        }
     }
 
     fun createConversation() {
@@ -911,6 +1014,8 @@ internal class AgentAppState(
                 selectedConversationId = nextId
                 homeState = conversationsById.getValue(nextId).withCurrentReasoningCapabilities()
                 conversationsById = conversationsById + (nextId to homeState)
+                // Issue #127: 刪除當前會話後切到下一會話，同樣還原其綁定模型。
+                restoreBoundModelIfNeeded(nextId, homeState.modelId)
             } else {
                 selectedConversationId = null
                 homeState = emptyChatState(defaultThinkingEnabled).withCurrentReasoningCapabilities()
@@ -1025,6 +1130,11 @@ internal class AgentAppState(
 
         val conversationId = selectedConversationId ?: newConversationId().also {
             selectedConversationId = it
+        }
+        // Issue #127: 新會話首發時快照當前全域模型為綁定；已有綁定則沿用。
+        val boundModelId = homeState.modelId ?: modelPickerState.selectedModel?.id
+        if (boundModelId != null && homeState.modelId != boundModelId) {
+            homeState = homeState.copy(modelId = boundModelId)
         }
         val runId = "run-${UUID.randomUUID()}"
         val userMessage = UserMessageUi(
@@ -1259,7 +1369,10 @@ internal class AgentAppState(
         operation: String = AgentRuntimeWire.OP_CHAT,
         rewriteTargetMessageId: String? = null,
     ) {
-        if (modelPickerState.selectedModel?.contextWindow == null && modelPickerState.selectedModel != null) {
+        // Issue #127: 全域還原可能落後於會話綁定；綁定與全域不同時跳過全域 contextWindow 檢查，
+        // 改由 preparationJob 內 runtimeConfigForModelId(state.modelId) 精確解析（無效則 fallback 全域）。
+        val isBoundDifferent = state.modelId != null && state.modelId != modelPickerState.selectedModel?.id
+        if (!isBoundDifferent && modelPickerState.selectedModel?.contextWindow == null && modelPickerState.selectedModel != null) {
             Toast.makeText(appContext, appContext.getString(R.string.context_no_model_limit), Toast.LENGTH_LONG).show()
             return
         }
@@ -1332,7 +1445,10 @@ internal class AgentAppState(
             } else {
                 ReasoningEffort.OFF
             }
-            val config = RuntimeConfigRepository.currentRuntimeConfig()?.copy(
+            // Issue #127: 優先使用會話綁定模型，避免切換會話後的全局還原競態導致用錯模型。
+            val baseConfig = RuntimeConfigRepository.runtimeConfigForModelId(state.modelId)
+                ?: RuntimeConfigRepository.currentRuntimeConfig()
+            val config = baseConfig?.copy(
                 terminalTools = agentBooleanForUi(Prefs.Keys.AGENT_TERMINAL_TOOLS),
                 browserTools = agentBooleanForUi(Prefs.Keys.AGENT_BROWSER_TOOLS),
                 deviceDirectTools = agentBooleanForUi(Prefs.Keys.AGENT_DEVICE_DIRECT_TOOLS),
@@ -2446,6 +2562,8 @@ internal class AgentAppState(
             availableReasoningEfforts = currentReasoningCapabilities?.selectableEfforts.orEmpty(),
             pendingImages = draft.pendingImages,
             pendingFileReferences = draft.pendingFileReferences,
+            // Issue #127: 草稿移至新會話時保留模型綁定意圖。
+            modelId = draft.modelId ?: modelPickerState.selectedModel?.id,
         )
         conversationPaneState = conversationPaneState.copy(selectedConversationId = null)
     }

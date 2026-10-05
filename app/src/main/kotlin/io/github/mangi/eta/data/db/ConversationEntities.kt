@@ -20,6 +20,8 @@ internal data class ConversationEntity(
     @ColumnInfo(name = "applied_runtime_run_ids_json") val appliedRuntimeRunIdsJson: String = "[]",
     @ColumnInfo(name = "roleplay_json", defaultValue = "''") val roleplayJson: String = "",
     @ColumnInfo(name = "revisions_json", defaultValue = "''") val revisionsJson: String = "",
+    // Issue #127: 每會話綁定的模型（存本地 Model.id，可空 = 跟隨全域預設）。
+    @ColumnInfo(name = "model_id") val modelId: String? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )
@@ -32,6 +34,7 @@ internal data class ConversationMetadata(
     @ColumnInfo(name = "applied_runtime_run_ids_json") val appliedRuntimeRunIdsJson: String,
     @ColumnInfo(name = "roleplay_json") val roleplayJson: String = "",
     @ColumnInfo(name = "revisions_json") val revisionsJson: String = "",
+    @ColumnInfo(name = "model_id") val modelId: String? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )

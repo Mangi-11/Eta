@@ -11,6 +11,8 @@ import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -21,7 +23,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class EtaDatabaseMigrationTest {
     @Test
-    fun migration6To21PreservesDataAndMovesCompleteConversationContext() {
+    fun migration6To22PreservesDataAndMovesCompleteConversationContext() {
         val context = RuntimeEnvironment.getApplication() as Context
         val databaseName = "migration-${UUID.randomUUID()}.db"
         createVersion6Database(context, databaseName)
@@ -54,6 +56,7 @@ class EtaDatabaseMigrationTest {
                 EtaDatabase.MIGRATION_18_19,
                 EtaDatabase.MIGRATION_19_20,
                 EtaDatabase.MIGRATION_20_21,
+                EtaDatabase.MIGRATION_21_22,
             )
             .build()
         try {
@@ -129,6 +132,100 @@ class EtaDatabaseMigrationTest {
                 listOf(ModelSource.CATALOG, ModelSource.MANUAL),
                 provider.models.map { it.source },
             )
+            // Issue #127: 舊會話升級後 model_id 應為 null（跟隨全域），且可寫入/讀回綁定。
+            assertNull(conversations.first { it.id == "conv-1" }.modelId)
+            runBlocking(Dispatchers.IO) {
+                database.conversationDao().insertConversations(
+                    listOf(
+                        ConversationEntity(
+                            id = "conv-model-bound",
+                            title = "綁定模型",
+                            thinkingEnabled = false,
+                            reasoningEffort = "off",
+                            historyJson = "[]",
+                            appliedRuntimeRunIdsJson = "[]",
+                            roleplayJson = "",
+                            revisionsJson = "",
+                            modelId = "model-123",
+                            createdAt = 10,
+                            updatedAt = 10,
+                        ),
+                    ),
+                )
+            }
+            val bound = runBlocking(Dispatchers.IO) {
+                database.conversationDao().conversations().first { it.id == "conv-model-bound" }
+            }
+            assertEquals("model-123", bound.modelId)
+            val boundEntity = runBlocking(Dispatchers.IO) {
+                database.conversationDao().conversationEntities().first { it.id == "conv-model-bound" }
+            }
+            assertEquals("model-123", boundEntity.modelId)
+        } finally {
+            database.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun migration21To22AddsNullableModelId() {
+        // Issue #127: 同一個 EtaDatabase 類別 version=22，不能用缺 21→22 的 builder 假裝開 v21
+        //（Room 會直接拋 missing migration）。改為單次全量遷移後驗 schema + 數據語義。
+        val context = RuntimeEnvironment.getApplication() as Context
+        val databaseName = "migration-21-22-${UUID.randomUUID()}.db"
+        createVersion6Database(context, databaseName)
+        val database = Room.databaseBuilder(context, EtaDatabase::class.java, databaseName)
+            .addMigrations(
+                EtaDatabase.MIGRATION_6_7,
+                EtaDatabase.MIGRATION_7_8,
+                EtaDatabase.MIGRATION_8_9,
+                EtaDatabase.MIGRATION_9_10,
+                EtaDatabase.MIGRATION_10_11,
+                EtaDatabase.MIGRATION_11_12,
+                EtaDatabase.MIGRATION_12_13,
+                EtaDatabase.MIGRATION_13_14,
+                EtaDatabase.MIGRATION_14_15,
+                EtaDatabase.MIGRATION_15_16,
+                EtaDatabase.MIGRATION_16_17,
+                EtaDatabase.MIGRATION_17_18,
+                EtaDatabase.MIGRATION_18_19,
+                EtaDatabase.MIGRATION_19_20,
+                EtaDatabase.MIGRATION_20_21,
+                EtaDatabase.MIGRATION_21_22,
+            )
+            .build()
+        try {
+            // PRAGMA 驗證 model_id 存在且可空（notnull==0）。
+            val modelIdColumn = database.openHelper.readableDatabase
+                .query("PRAGMA table_info(conversations)")
+                .use { cursor ->
+                    var foundNotNull: Int? = null
+                    val nameIdx = cursor.getColumnIndex("name")
+                    val notNullIdx = cursor.getColumnIndex("notnull")
+                    while (cursor.moveToNext()) {
+                        if (cursor.getString(nameIdx) == "model_id") {
+                            foundNotNull = cursor.getInt(notNullIdx)
+                            break
+                        }
+                    }
+                    foundNotNull
+                }
+            assertTrue("conversations.model_id 應存在", modelIdColumn != null)
+            assertEquals("conversations.model_id 應可空", 0, modelIdColumn)
+            val rows = runBlocking(Dispatchers.IO) {
+                database.conversationDao().conversations()
+            }
+            // 舊行升級後全部為 null，不丟數據。
+            assertTrue(rows.isNotEmpty())
+            val idsOrdered = rows.map { it.id }
+            rows.forEach { assertNull(it.modelId) }
+            // 分頁路徑同樣帶出 model_id，且順序/數量一致。
+            val paged = runBlocking(Dispatchers.IO) {
+                database.conversationDao().conversationsPage(64, 0)
+            }
+            assertEquals(rows.size, paged.size)
+            assertEquals(idsOrdered, paged.map { it.id })
+            paged.forEach { assertNull(it.modelId) }
         } finally {
             database.close()
             context.deleteDatabase(databaseName)
