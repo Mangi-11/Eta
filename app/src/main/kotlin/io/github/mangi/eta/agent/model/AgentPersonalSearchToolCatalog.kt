@@ -10,7 +10,7 @@ internal object AgentPersonalSearchToolCatalog {
             tools.put(
                 function(
                     spec.name,
-                    spec.description + "结果来自历史索引，可能延迟；返回 ref 可读取详情。",
+                    spec.description + "请以结果的 backend 和 freshness 判断原始来源或历史索引；返回 ref 可读取详情。",
                     searchProperties(),
                 )
             )
@@ -18,7 +18,7 @@ internal object AgentPersonalSearchToolCatalog {
         tools.put(
             function(
                 "read_personal_item",
-                "使用个人数据查询返回的 ref 读取索引详情；不能用该引用直接修改原始记录。",
+                "使用个人数据查询返回的 ref 读取详情；支持 ColorOS 索引与 vivo 原始只读引用，不能用该引用直接修改记录。",
                 JSONObject().put("ref", string("查询结果中的 ref", 160)),
                 "ref",
             )

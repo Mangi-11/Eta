@@ -722,7 +722,7 @@
   <string name="injected_screen_tool">屏幕工具</string>
   <string name="injected_reasoning_label">思考</string>
   <string name="tool_ui_agent_browser_a66bd5">Agent 浏览器</string>
-  <string name="tool_ui_coloros_notes_6c324c">ColorOS 便签</string>
+  <string name="tool_ui_coloros_notes_6c324c">系统便签</string>
   <string name="tool_ui_coloros_recording_a4e425">ColorOS 录音</string>
   <string name="tool_ui_coloros_system_memory_eff961">ColorOS 系统记忆</string>
   <string name="tool_ui_qq_chat_pictures_e21bf9">QQ 聊天图片</string>

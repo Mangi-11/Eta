@@ -15,7 +15,7 @@ internal object PersonalSearchTools {
     val searches =
         listOf(
             Search("search_bills", "bills", "查询账单", "按商户、内容和时间查找账单记录。"),
-            Search("search_todos", "todos", "查询待办线索", "查询系统从个人信息中提取的待办线索，未识别时间的记录不能按时间命中。"),
+            Search("search_todos", "todos", "查询待办线索", "ColorOS 查询系统提取的待办线索；vivo 查询原子笔记的待办，时间筛选使用最后修改时间，planned_time 是计划提醒时间。"),
             Search("search_calendar_todos", "calendar_todos", "查询日历待办", "查询日历中的待办及其计划时间。"),
             Search("search_memory_collections", "collections", "查询记忆合集", "查找已保存的记忆合集，不支持业务时间筛选。"),
             Search("search_daily_events", "events", "查询生活事件", "查找系统记录或推断的生活事件，不把推断当成确认事实。"),

@@ -735,7 +735,7 @@
   <string name="injected_screen_tool">screen tool</string>
   <string name="injected_reasoning_label">Reasoning</string>
   <string name="tool_ui_agent_browser_a66bd5">Agent browser</string>
-  <string name="tool_ui_coloros_notes_6c324c">ColorOS Notes</string>
+  <string name="tool_ui_coloros_notes_6c324c">System Notes</string>
   <string name="tool_ui_coloros_recording_a4e425">ColorOS recording</string>
   <string name="tool_ui_coloros_system_memory_eff961">ColorOS system memory</string>
   <string name="tool_ui_qq_chat_pictures_e21bf9">QQ chat pictures</string>

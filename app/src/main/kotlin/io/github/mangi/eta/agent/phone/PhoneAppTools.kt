@@ -40,12 +40,22 @@ internal class PhoneAppTools(
                 if (calendar) "CALENDAR_PERMISSION_REQUIRED" else "ROOT_REQUIRED",
                 if (calendar) "请在权限健康页授予日历读取和写入权限" else "此一方应用接口需要 Root",
             )
+        return executeRoot(tool, arguments)
+    }
+
+    fun executeVivoPersonal(tool: String, arguments: JSONObject): JSONObject {
+        if (!rootAvailable()) return PhoneOperation.failure("ROOT_REQUIRED", "vivo 个人数据接口需要 Root")
+        return executeRoot(tool, arguments, "vivo_personal")
+    }
+
+    private fun executeRoot(tool: String, arguments: JSONObject, backend: String? = null): JSONObject {
         val request =
             JSONObject()
                 .put("version", 1)
                 .put("tool", tool)
                 .put("user_id", DeviceToolContract.appUserId(context))
                 .put("arguments", arguments)
+        backend?.let { request.put("backend", it) }
         val command =
             "CLASSPATH=${DeviceToolContract.quote(context.applicationInfo.sourceDir)} app_process /system/bin io.github.mangi.eta.agent.phone.PhoneCommandMain"
         val result =

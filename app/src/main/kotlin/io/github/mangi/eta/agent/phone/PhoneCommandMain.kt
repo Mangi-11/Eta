@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.phone
 import android.content.Context
 import android.os.Looper
 import android.os.Process
+import io.github.mangi.eta.agent.context.VivoPersonalContextQuery
 import kotlin.system.exitProcess
 import org.json.JSONObject
 
@@ -22,7 +23,8 @@ internal object PhoneCommandMain {
                 if (request.optInt("version") != 1)
                     PhoneOperation.error("PHONE_PROTOCOL_UNSUPPORTED", "请求协议不兼容")
                 val tool = PhoneOperation.text(request, "tool", true, 80)!!
-                if (tool !in PhoneOperation.tools && tool != "capabilities")
+                val vivo = request.optString("backend") == "vivo_personal"
+                if (if (vivo) tool !in VivoPersonalContextQuery.tools else tool !in PhoneOperation.tools && tool != "capabilities")
                     PhoneOperation.error("UNKNOWN_TOOL", "未知一方应用操作")
                 val userId = PhoneOperation.integer(request, "user_id", 0, 21474).toInt()
                 if (Looper.getMainLooper() == null) Looper.prepareMainLooper()
@@ -30,7 +32,11 @@ internal object PhoneCommandMain {
                 val thread = activityThread.getMethod("systemMain").invoke(null)
                 val context = activityThread.getMethod("getSystemContext").invoke(thread) as Context
                 val access = RootPhoneProviderAccess(userId)
-                if (tool == "capabilities") {
+                if (vivo) {
+                    if (!android.os.Build.MANUFACTURER.equals("vivo", ignoreCase = true))
+                        PhoneOperation.error("DEVICE_UNSUPPORTED", "需要 vivo 数据接口")
+                    VivoPersonalContextQuery(access, userId).execute(tool, request.getJSONObject("arguments"))
+                } else if (tool == "capabilities") {
                     val sources = JSONObject()
                     val queries = NativePersonalQueries(access, userId)
                     for (name in listOf("search_media", "search_notes", "search_messages")) {
