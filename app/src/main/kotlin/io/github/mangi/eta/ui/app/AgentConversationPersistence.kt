@@ -37,16 +37,19 @@ internal class AgentConversationPersistence(initial: AgentConversationStore.Snap
         val messages: List<AgentChatMessageUi>,
         val history: List<AgentModelClient.ConversationMessage>,
         val journal: List<AgentModelClient.ConversationMessage>,
+        // Issue #127: 每會話綁定的模型（本地 Model.id），null = 跟隨全域。
+        val modelId: String? = null,
     ) {
         constructor(state: AgentChatHomeUiState, title: String, updatedAt: Long) : this(
             title, updatedAt, state.reasoningEffort, state.appliedRuntimeRunIds,
             state.roleplay, if (state.roleplay == null) RoleplayMessageState() else state.roleplayMessages,
             state.messages, state.history, state.journal.ifEmpty { state.history },
+            state.modelId,
         )
 
         fun sameMetadata(other: Content): Boolean =
             title == other.title && updatedAt == other.updatedAt && reasoningEffort == other.reasoningEffort &&
                 appliedRuntimeRunIds == other.appliedRuntimeRunIds && roleplay == other.roleplay &&
-                roleplayMessages == other.roleplayMessages
+                roleplayMessages == other.roleplayMessages && modelId == other.modelId
     }
 }

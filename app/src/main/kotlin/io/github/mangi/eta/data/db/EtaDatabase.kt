@@ -26,7 +26,7 @@ import androidx.room.migration.Migration
         CharacterEntity::class,
         UserPersonaEntity::class,
     ],
-    version = 21,
+    version = 22,
     exportSchema = false,
 )
 internal abstract class EtaDatabase : RoomDatabase() {
@@ -64,6 +64,7 @@ internal abstract class EtaDatabase : RoomDatabase() {
                         MIGRATION_18_19,
                         MIGRATION_19_20,
                         MIGRATION_20_21,
+                        MIGRATION_21_22,
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
@@ -106,6 +107,11 @@ internal abstract class EtaDatabase : RoomDatabase() {
             database.execSQL("CREATE TABLE IF NOT EXISTS roleplay_user_persona (" +
                 "id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL)")
             createTextChunkCleanup(database)
+        }
+
+        internal val MIGRATION_21_22 = Migration(21, 22) { database ->
+            // Issue #127: 每會話綁定模型（存本地 Model.id），可空 = 跟隨全域預設，舊會話預設 NULL。
+            database.execSQL("ALTER TABLE conversations ADD COLUMN model_id TEXT")
         }
 
         private fun createTextChunkCleanup(database: androidx.sqlite.db.SupportSQLiteDatabase) {

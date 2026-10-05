@@ -100,6 +100,8 @@ internal object AgentConversationStore {
                                     appliedRuntimeRunIdsJson = json.encodeToString(state.appliedRuntimeRunIds),
                                     roleplayJson = state.roleplay?.let { json.encodeToString(it) }.orEmpty(),
                                     revisionsJson = if (state.roleplay == null) "" else json.encodeToString(state.roleplayMessages),
+                                    // Issue #127: 持久化每會話模型綁定。
+                                    modelId = state.modelId,
                                     createdAt = stored[id]?.createdAt ?: state.updatedAt.takeIf { it != 0L } ?: System.currentTimeMillis(),
                                     updatedAt = state.updatedAt.takeIf { it != 0L } ?: System.currentTimeMillis(),
                                 )
@@ -206,6 +208,8 @@ internal object AgentConversationStore {
                 isStreaming = false,
                 thinkingEnabled = conversation.reasoningEffortValue.enablesReasoning,
                 reasoningEffort = conversation.reasoningEffortValue,
+                // Issue #127: 還原每會話模型綁定（null = 跟隨全域）。
+                modelId = conversation.modelId,
             ).let(RoleplayConversationReducer::decorate)
             titles[conversation.id] = conversation.title.takeUnless { it == LEGACY_UNNAMED_TITLE }.orEmpty()
             updatedAt[conversation.id] = conversation.updatedAt

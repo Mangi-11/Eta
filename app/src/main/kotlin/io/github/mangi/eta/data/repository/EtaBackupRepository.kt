@@ -161,8 +161,18 @@ internal object EtaBackupRepository {
                         dao.deleteConversations()
                         dao.deleteState()
                         phase = "restore_conversations"
+                        // Issue #127: 髒綁定修復式匯入：備份內不存在的 modelId 置 null（跟隨全域），避免還原後跑錯模型。
+                        val validModelIds = document.providers
+                            .flatMap { entry -> entry.models.map { it.id } }
+                            .toSet()
                         staged.conversations { row ->
-                            dao.insertConversations(listOf(CharacterBackupTransfer.remapConversation(row, avatarPaths)))
+                            val remapped = CharacterBackupTransfer.remapConversation(row, avatarPaths)
+                            val sanitized = if (remapped.modelId != null && remapped.modelId !in validModelIds) {
+                                remapped.copy(modelId = null)
+                            } else {
+                                remapped
+                            }
+                            dao.insertConversations(listOf(sanitized))
                         }
                         phase = "restore_messages"
                         staged.messages { dao.insertMessages(listOf(it)) }

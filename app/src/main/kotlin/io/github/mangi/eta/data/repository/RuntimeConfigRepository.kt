@@ -73,6 +73,30 @@ internal object RuntimeConfigRepository {
         return buildRuntimeConfig(provider, model)
     }
 
+    /**
+     * Issue #127: 取指定本地 Model.id 的運行配置（會話綁定用）。
+     * 傳 null/blank 表示跟隨全域；精確命中才回配置，否則回 null 由呼叫方 fallback 全域。
+     * 不做同 provider 降級，避免「顯示綁定 A、實際跑 B」的抖動。
+     */
+    suspend fun runtimeConfigForModelId(modelId: String?): AgentModelClient.ModelConfig? {
+        if (modelId.isNullOrBlank()) return null
+        ProviderRepository.ensureBuiltInsMerged()
+        val provider = runCatching { ProviderRepository.providerByModelId(modelId) }.getOrNull()
+            ?.takeIf { it.isEnabled } ?: return null
+        val model = provider.models.firstOrNull { it.id == modelId && it.isEnabled } ?: return null
+        return buildRuntimeConfig(provider, model)
+    }
+
+    /** Issue #127: 會話綁定的 modelId 是否仍有效（存在且啟用）。 */
+    suspend fun isModelAvailable(modelId: String?): Boolean {
+        if (modelId.isNullOrBlank()) return false
+        ProviderRepository.ensureBuiltInsMerged()
+        val provider = runCatching { ProviderRepository.providerByModelId(modelId) }.getOrNull()
+            ?: return false
+        if (!provider.isEnabled) return false
+        return provider.models.any { it.id == modelId && it.isEnabled }
+    }
+
     suspend fun syncToRemotePreferences(service: XposedService?): Boolean {
         val prefs = Prefs.remotePreferencesForUi(service) ?: return false
         val config = currentRuntimeConfig() ?: return clearRuntimeConfig(prefs)
