@@ -1235,10 +1235,6 @@ internal class AgentAppState(
         operation: String = AgentRuntimeWire.OP_CHAT,
         rewriteTargetMessageId: String? = null,
     ) {
-        if (modelPickerState.selectedModel?.contextWindow == null && modelPickerState.selectedModel != null) {
-            Toast.makeText(appContext, appContext.getString(R.string.context_no_model_limit), Toast.LENGTH_LONG).show()
-            return
-        }
         runConversationIds[runId] = conversationId
         currentRunId = runId
 

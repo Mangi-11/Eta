@@ -76,7 +76,8 @@ internal class AgentRuntimeRunExecutor(
         val timing = AgentRunTiming(AndroidAgentLogger)
 
         val result = try {
-            val contextWindow = request.config.requireContextWindow()
+            // 仅用于角色设定预算，不把兜底值写回模型窗口或用于压缩。
+            val roleplayContextWindow = request.config.contextWindow?.takeIf { it > 0 } ?: 128_000
             checkpointRecorder = AgentRunCheckpointRecorder.create(appContext, request)
             entrySurfaceGuard = EntrySurfaceGuard.from(
                 handoff = request.handoff,
@@ -104,7 +105,7 @@ internal class AgentRuntimeRunExecutor(
             val conversationId = uiPayload?.conversationId
                 ?.takeIf { it.isNotBlank() }
             val roleplayContext = conversationId?.let { id ->
-                runBlocking { RoleplayRunContext.resolve(appContext, id, contextWindow, memoryEnabled) }
+                runBlocking { RoleplayRunContext.resolve(appContext, id, roleplayContextWindow, memoryEnabled) }
             }
             if (request.operation == AgentRuntimeWire.OP_REWRITE_REPLY) {
                 require(roleplayContext != null) { "只有角色会话可以改写角色回复" }

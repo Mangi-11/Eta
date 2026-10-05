@@ -18,7 +18,7 @@ internal class AgentContextSession(
     private val transcriptSize: () -> Int = { 0 },
     private val roleplay: Boolean = false,
 ) {
-    private val contextWindow = config.requireContextWindow()
+    private val contextWindow = config.contextWindow?.takeIf { it > 0 }
     private var inputTokens: Int? = null
     private var compacted = false
     private var consumedSupplementCount = 0
@@ -60,6 +60,7 @@ internal class AgentContextSession(
     }
 
     fun compact(force: Boolean = false, final: Boolean = false) {
+        if (force) config.requireContextWindow()
         val before = inputTokens
         if (AnthropicEphemeralState.hasPendingToolResponse(messages)) {
             if (force) {
@@ -67,7 +68,7 @@ internal class AgentContextSession(
             }
             return
         }
-        if (!force && (!config.autoCompactionEnabled || before == null || before < contextWindow * TRIGGER_RATIO)) {
+        if (!force && (!config.autoCompactionEnabled || contextWindow == null || before == null || before < contextWindow * TRIGGER_RATIO)) {
             try {
                 publishSnapshot()
             } catch (failure: Exception) {

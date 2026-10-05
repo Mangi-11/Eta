@@ -15,16 +15,63 @@ class AgentContextRecoveryTest {
     )
 
     @Test
-    fun missingOrInvalidWindowFailsBeforeAnyProviderRequest() {
+    fun manualCompactionRequiresPositiveWindowBeforeAnyProviderRequest() {
         for (window in listOf(null, 0, -1)) {
             val failure = assertThrows(AgentModelFailure::class.java) {
-                AgentModelClient.complete(config.copy(contextWindow = window), "继续",
+                AgentModelClient.complete(config.copy(contextWindow = window), "",
                     AgentModelClient.ToolExecutor { error("不应执行工具") },
-                    provider = provider { _, _ -> error("未设置窗口不能请求模型") })
+                    history = history(), compactOnly = true,
+                    provider = provider { _, _ -> error("未设置窗口不能请求摘要") })
             }
             assertEquals("CONTEXT_WINDOW_REQUIRED", failure.code)
             assertTrue(failure.message!!.contains("设置"))
             assertTrue(failure.message!!.contains("fixture"))
+        }
+    }
+
+    @Test
+    fun missingOrInvalidWindowAllowsChatWithoutAutomaticCompaction() {
+        for (window in listOf(null, 0, -1)) {
+            for (enabled in listOf(false, true)) {
+                var requests = 0
+                val events = mutableListOf<AgentEvent>()
+                val result = AgentModelClient.complete(
+                    config.copy(contextWindow = window, autoCompactionEnabled = enabled), "继续",
+                    AgentModelClient.ToolExecutor { error("不应执行工具") },
+                    history = history(), onEvent = events::add,
+                    provider = provider { request, emit ->
+                        requests++
+                        assertEquals(ProviderRequestPurpose.CHAT, request.purpose)
+                        assertEquals(window, request.config.contextWindow)
+                        emit(ProviderEvent.Usage(AgentTokenUsage(inputTokens = Int.MAX_VALUE)))
+                        response("完成")
+                    },
+                )
+                assertEquals("完成", result.content)
+                assertEquals(1, requests)
+                assertNull(result.contextSnapshot)
+                assertTrue(events.none { it is AgentEvent.ContextCompaction })
+            }
+        }
+    }
+
+    @Test
+    fun unknownWindowSessionSkipsAutomaticButRejectsForcedCompaction() {
+        for (window in listOf(null, 0, -1)) {
+            val messages = messages()
+            val original = messages.toString()
+            val session = AgentContextSession(
+                config.copy(contextWindow = window, autoCompactionEnabled = true), messages, 1, "operation",
+                provider { _, _ -> error("未知窗口不能请求摘要") }, AgentRunController(), { emptySet() },
+                { fail("未知窗口不能触发压缩事件") }, { fail("未知窗口不能提交摘要") },
+            )
+            session.observeInputTokens(Int.MAX_VALUE)
+            session.compact()
+            session.compact(final = true)
+            val failure = assertThrows(AgentModelFailure::class.java) { session.compact(force = true) }
+            assertEquals("CONTEXT_WINDOW_REQUIRED", failure.code)
+            assertEquals(original, messages.toString())
+            assertNull(session.snapshot())
         }
     }
 
