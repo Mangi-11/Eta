@@ -460,9 +460,6 @@ internal class AgentStructuredDeviceTools(
             return it.toString()
         }
         val namespace = args.getString("namespace").lowercase(Locale.ROOT)
-        if (namespace != "system" && namespace != "secure" && namespace != "global") {
-            return error("INVALID_ARGUMENT", "不支持的设置命名空间")
-        }
         val key = args.getString("key")
         if (!DeviceToolContract.validSetting(namespace, key))
             return error("INVALID_ARGUMENT", "设置命名空间或键格式无效")
@@ -594,7 +591,6 @@ internal class AgentStructuredDeviceTools(
                     }
                 },
             )
-            })
             .put("truncated", result.truncated)
             .toString()
     }
@@ -766,7 +762,6 @@ internal class AgentStructuredDeviceTools(
                 else -> "ROOT_COMMAND_FAILED"
             }
         return error(code, "特权通道执行失败（exit=${result.exitCode}）")
-    }
     }
 
     private fun parseJsonArrayLine(source: String, prefix: String): JSONArray? =

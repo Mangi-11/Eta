@@ -166,7 +166,9 @@ internal class AgentLocalTools(
             if (AgentToolRequirements.find(toolCall.name) != null &&
                 AgentToolRequirements.rootDenied(toolCall.name, args, rootAvailable(), shizukuAvailable())
             ) {
-                val needsRootOnly = !AgentToolRequirements.shizukuSatisfiedTools.contains(toolCall.name)
+                val needsRootOnly = !AgentToolRequirements.shizukuSatisfiedTools.contains(
+                    io.github.mangi.eta.agent.context.PersonalSearchTools.canonical(toolCall.name)
+                )
                 val message = if (needsRootOnly) {
                     "此操作需要 Root 授权，本次未执行"
                 } else {

@@ -123,7 +123,9 @@ private fun toolRequirementText(
 ): String? {
     val requirement = toolCardRequirement(id)
     val elevated = rootGranted ||
-        (shizukuGranted && AgentToolRequirements.shizukuSatisfiedTools.contains(actualToolName(id)))
+        (shizukuGranted && AgentToolRequirements.shizukuSatisfiedTools.contains(
+            io.github.mangi.eta.agent.context.PersonalSearchTools.canonical(actualToolName(id))
+        ))
     val unavailableCode = capabilities.unavailableCode(actualToolName(id))
     return when {
         !elevated && requirement.rootRequirement == RootRequirement.REQUIRED -> stringResource(R.string.capability_root_required)

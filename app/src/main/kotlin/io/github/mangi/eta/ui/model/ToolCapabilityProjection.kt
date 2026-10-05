@@ -22,7 +22,9 @@ internal fun visibleOnCurrentDevice(
 ): Boolean {
     val requirement = toolCardRequirement(id)
     val elevated = rootGranted ||
-        (shizukuGranted && AgentToolRequirements.shizukuSatisfiedTools.contains(actualToolName(id)))
+        (shizukuGranted && AgentToolRequirements.shizukuSatisfiedTools.contains(
+            io.github.mangi.eta.agent.context.PersonalSearchTools.canonical(actualToolName(id))
+        ))
     return (elevated || requirement.rootRequirement != RootRequirement.REQUIRED) &&
         (colorOs || !requirement.colorOs)
 }

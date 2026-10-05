@@ -215,7 +215,7 @@ rootfs 内文件归 root 所有，Linux 工具环境页还提供只读的文件�
 
 - **状态**：`ShizukuAccess`（主进程单例，`StateFlow`）跟踪 `UNKNOWN/UNAVAILABLE/NOT_GRANTED/GRANTED/DENIED`，`DENIED` 指用户勾选不再询问（`shouldShowRequestPermissionRationale`）。binder 收发/死亡与授权结果经 `Shizuku` listener 自动刷新；`:voice`/`:recognition` 进程不直调 Shizuku。
 - **执行**：`ShizukuUserService`（`:shizuku` 独立进程）由 Shizuku 以 shell 身份启动，Binder 内跑 `sh -c` 固定命令；`onTransact` 校验调用方 UID（自身/应用/shell/root/system 白名单），第三方直 bind 被拒。双流并发排空（与 Root 执行器同模式），reply 双流总额 256 KB（Binder ~1MB/UTF-16 水位），命令上限 8 KB。
-- **网关**：`PrivilegedCommandExecutor` 按 Root→Shizuku 顺序降级；无通道时沿用 `ROOT_REQUIRED` 错误码（调用方映射不分裂）。`AgentToolRequirements.shizukuSatisfiedTools`（`set_setting/set_device_state/app_state_control/get_logcat/top_memory_apps/top_storage_apps`）在投影与门控层保留；`get_setting/recent_notifications/network_info` 为 PARTIAL（公开读/监听优先，特权通道兜底）；私有库快照、WifiConfigStore、短信等需运行时权限的 provider、终端 root 身份、chroot/daemon/系统化维持 Root 专用。
+- **网关**：`PrivilegedCommandExecutor` 按 Root→Shizuku 顺序降级；无通道时沿用 `ROOT_REQUIRED` 错误码（调用方映射不分裂）。`AgentToolRequirements.shizukuSatisfiedTools`（`set_setting/set_device_state/get_device_state/get_display_state/set_brightness/set_screen_timeout/set_do_not_disturb/app_state_control/get_logcat/top_memory_apps/top_storage_apps`；`get/set_device_state` 的 `mobile_data`/`night_light` 子目标经一方应用进程注入，仍仅 Root）在投影与门控层保留；`get_setting/recent_notifications/network_info` 为 PARTIAL（公开读/监听优先，特权通道兜底）；私有库快照、WifiConfigStore、短信等需运行时权限的 provider、终端 root 身份、chroot/daemon/系统化维持 Root 专用。
 - **错误码**：Shizuku 分支失败透出 `SHIZUKU_UNAVAILABLE`（未授权/binder 不存活）、`SHIZUKU_COMMAND_FAILED`（binder 调用失败）、`SHIZUKU_COMMAND_REJECTED`（调用方被拒或命令非法），调用方按 `errorCode` 透传；无任何提权通道时统一为 `ROOT_REQUIRED`。
 
 ## 长期记忆

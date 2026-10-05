@@ -10,6 +10,7 @@ import io.github.mangi.eta.agent.accessibility.AccessibilityProtectionClient
 import io.github.mangi.eta.agent.device.AgentNotificationHistoryService
 import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.device.ShizukuAccess
+import io.github.mangi.eta.agent.context.PersonalSearchTools
 import java.util.Locale
 import org.json.JSONArray
 
@@ -36,7 +37,7 @@ internal data class AgentToolCapabilities(
         if (name in setOf("get_hotspot", "set_hotspot") && !hotspotAvailable) return "DEVICE_UNSUPPORTED"
         val requirement = AgentToolRequirements.find(name) ?: return "UNKNOWN_TOOL"
         if (requirement.rootRequirement == RootRequirement.REQUIRED && !rootAvailable &&
-            !(shizukuAvailable && AgentToolRequirements.shizukuSatisfiedTools.contains(name))
+            !(shizukuAvailable && AgentToolRequirements.shizukuSatisfiedTools.contains(canonicalName(name)))
         ) {
             return "ROOT_REQUIRED"
         }
@@ -65,9 +66,16 @@ internal data class AgentToolCapabilities(
                 val tool = rootProjected.getJSONObject(index)
                 val name = tool.getJSONObject("function").getString("name")
                 if (unavailableCode(name) == null) {
-                    if (name in setOf("get_device_state", "set_device_state") && (!nfcAvailable || !nightLightAvailable)) {
-                        val target = tool.getJSONObject("function").getJSONObject("parameters").getJSONObject("properties").getJSONObject("target")
-                        target.put("enum", JSONArray(SystemStateControls.targets.filterNot { it == "nfc" && !nfcAvailable || it == "night_light" && !nightLightAvailable }))
+                    if (name in setOf("get_device_state", "set_device_state")) {
+                        val targets =
+                            SystemStateControls.targets
+                                .filterNot { it == "nfc" && !nfcAvailable || it == "night_light" && !nightLightAvailable }
+                                // mobile_data/night_light 经一方应用进程注入，仅 Root 可用；Shizuku 通道下不提供。
+                                .filterNot { it in setOf("mobile_data", "night_light") && !rootAvailable && shizukuAvailable }
+                        if (targets.size != SystemStateControls.targets.size) {
+                            val target = tool.getJSONObject("function").getJSONObject("parameters").getJSONObject("properties").getJSONObject("target")
+                            target.put("enum", JSONArray(targets))
+                        }
                     }
                     visible.put(tool)
                 }
@@ -79,7 +87,9 @@ internal data class AgentToolCapabilities(
         fun isColorOsDevice(): Boolean = Build.MANUFACTURER.lowercase(Locale.ROOT) in
             setOf("oppo", "oneplus", "realme")
 
-        fun capture(context: Context): AgentToolCapabilities = AgentToolCapabilities(
+        private fun canonicalName(name: String): String = PersonalSearchTools.canonical(name)
+
+    fun capture(context: Context): AgentToolCapabilities = AgentToolCapabilities(
             rootAvailable = RootAccess.isGranted,
             shizukuAvailable = ShizukuAccess.isAvailable,
             lsposedAvailable = EtaApp.serviceInstance != null,

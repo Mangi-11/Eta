@@ -33,6 +33,11 @@ internal object AgentToolRequirements {
     val shizukuSatisfiedTools: Set<String> = setOf(
         "set_setting",
         "set_device_state",
+        "get_device_state",
+        "get_display_state",
+        "set_brightness",
+        "set_screen_timeout",
+        "set_do_not_disturb",
         "app_state_control",
         "get_logcat",
         "top_memory_apps",
@@ -127,7 +132,7 @@ internal object AgentToolRequirements {
         shizukuAvailable: Boolean,
     ): Boolean {
         if (rootAvailable) return false
-        if (shizukuAvailable && shizukuSatisfiedTools.contains(name)) return false
+        if (shizukuAvailable && shizukuSatisfiedTools.contains(PersonalSearchTools.canonical(name))) return false
         if (rootRequirement(name) == RootRequirement.REQUIRED) return true
         return when (name) {
             "terminal", in AgentFileToolCatalog.names -> arguments.optString("identity").equals("root", ignoreCase = true)
@@ -147,7 +152,7 @@ internal object AgentToolRequirements {
             val name = original.getJSONObject("function").getString("name")
             val requirement = rootRequirement(name)
             if (!rootAvailable && requirement == RootRequirement.REQUIRED &&
-                !(shizukuAvailable && shizukuSatisfiedTools.contains(name))
+                !(shizukuAvailable && shizukuSatisfiedTools.contains(PersonalSearchTools.canonical(name)))
             ) {
                 continue
             }
