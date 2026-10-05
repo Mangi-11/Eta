@@ -1132,6 +1132,11 @@
   <string name="chat_input_hint">交给 Eta 去完成</string>
   <string name="chat_stop">停止</string>
   <string name="chat_send">发送</string>
+  <string name="chat_supplement_queued">已排队，将于下一轮送出</string>
+  <string name="chat_supplement_failed_resend">本轮刚结束，草稿已恢复，请重新发送</string>
+  <string name="chat_supplement_attachments_wait">图片/文件需等本轮结束后才能发送</string>
+  <string name="chat_supplement_too_long">补充内容过长，请缩短后重发</string>
+  <string name="chat_supplement_busy_wait">请等本轮结束后再操作</string>
   <string name="chat_reasoning_effort">思考强度，当前为 %1$s</string>
   <string name="status_unsupported">不支持</string>
   <string name="attachment_image">图片</string>

@@ -103,6 +103,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 internal class AgentAppState(
@@ -119,6 +121,13 @@ internal class AgentAppState(
     private val runEventFlushJobs = mutableMapOf<String, Job>()
     private var currentRunId: String? = null
     private var currentRunJob: Job? = null
+    /**
+     * Issue #129：補充指令發送序列化。連發多條時按調用順序排隊進 [AgentRunController]，
+     * 避免 IO 線程池交錯導致 Binder 到達亂序（Mutex 等待者按 FIFO 喚醒）。
+     * 常態毫秒級；Service 死亡等超時路徑下後續排隊最長按 8s/條線性等待，UI 不凍結、
+     * 輸入框已先清空，用戶可繼續輸入，屬已知取捨。
+     */
+    private val supplementSendMutex = Mutex()
     private val persistenceLock = Any()
     private var persistenceJob: Job? = null
     // 导入期间暂停保存：旧状态的增量保存会删除刚导入的会话；导入成功后整体重载，失败时数据库已回滚。
@@ -976,10 +985,13 @@ internal class AgentAppState(
         val prompt = (submittedText ?: homeState.input).trim()
         val pendingImages = homeState.pendingImages
         val pendingFileReferences = homeState.pendingFileReferences
-        if (
-            (prompt.isBlank() && pendingImages.isEmpty() && pendingFileReferences.isEmpty()) ||
-            homeState.isStreaming
-        ) {
+        if (prompt.isBlank() && pendingImages.isEmpty() && pendingFileReferences.isEmpty()) {
+            return
+        }
+        // Issue #129：streaming 中直接送出走補充指令排隊，不再要求先按停止。
+        // 圖片/附件與消息編輯仍需等本輪結束（補充通道僅傳純文本）。
+        if (homeState.isStreaming) {
+            supplementCurrentRun(prompt, pendingImages, pendingFileReferences)
             return
         }
         homeState.messageEdit?.takeIf { it.preserveFollowingMessages }?.let { edit ->
@@ -1079,6 +1091,98 @@ internal class AgentAppState(
             ),
             reasoningEffort = homeState.reasoningEffort,
         )
+    }
+
+    /**
+     * Issue #129：streaming 中的送出走跨進程補充指令排隊。
+     *
+     * 語義對齊 opencode：輸入框不鎖定，送出即清空、可連發多條；後端不取消當前
+     * 模型請求/工具批次，補充在當前 turn 結束後逐條注入下輪。顯示層不做本地樂觀
+     * 插入（Service 側分配 supplement index），以 [AgentEvent.UserSupplementReceived]
+     * 事件回流為準，避免本地 index 與 Service 計數器錯位。
+     *
+     * 限制：補充通道僅傳純文本。圖片/文件引用與消息編輯仍需等本輪結束，
+     * 此處 Toast 提示並保留草稿。超長文本同樣保留草稿不發送。
+     * [AgentRuntimeClient.supplementRun] 須在後台線程調用，此處經 [scope] 切 IO。
+     */
+    private fun supplementCurrentRun(
+        prompt: String,
+        pendingImages: List<PendingImageUi>,
+        pendingFileReferences: List<PendingFileReferenceUi>,
+    ) {
+        // 防禦分支：streaming 中理論上不會處於編輯態，仍給提示而不吞字。
+        if (homeState.messageEdit != null) {
+            Toast.makeText(
+                appContext,
+                appContext.getString(R.string.chat_supplement_busy_wait),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        // 收尾競態：currentRunId 已清空但 isStreaming 尚未傳播，草稿保留並提示重送。
+        val runId = currentRunId
+        if (runId == null) {
+            Toast.makeText(
+                appContext,
+                appContext.getString(R.string.chat_supplement_failed_resend),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        // 先檢查附件再檢查空文本：純附件送出也有 Toast，而不是靜默無反應。
+        if (pendingImages.isNotEmpty() || pendingFileReferences.isNotEmpty()) {
+            Toast.makeText(
+                appContext,
+                appContext.getString(R.string.chat_supplement_attachments_wait),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        if (prompt.isBlank()) return
+        if (prompt.length > AgentRuntimeWire.MAX_SUPPLEMENT_CHARS) {
+            Toast.makeText(
+                appContext,
+                appContext.getString(R.string.chat_supplement_too_long),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        // 先清空輸入框（fire-and-forget 體驗，可連發）；失敗時按需恢復，避免丟字。
+        updateCurrentConversation(homeState.copy(input = ""))
+        refreshConversationSummaries()
+        persistConversations()
+        scope.launch(Dispatchers.IO) {
+            // 序列化發送：連發按調用順序到達 Service FIFO，避免 IO 並發亂序。
+            val accepted = supplementSendMutex.withLock {
+                runCatching {
+                    AgentRuntimeClient(appContext, AndroidAgentLogger).supplementRun(runId, prompt)
+                }.getOrDefault(false)
+            }
+            withContext(Dispatchers.Main) {
+                if (accepted) {
+                    Toast.makeText(
+                        appContext,
+                        appContext.getString(R.string.chat_supplement_queued),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                } else {
+                    // sealed/terminal/換 run 競態：不誤報已接收，恢復草稿由用戶重送。
+                    // 失敗的老文本在前、等待期新輸入在後；雙連發皆失敗的極端交錯下
+                    // 順序可能顛倒，但不丟字，用戶重送時可自行調整。
+                    val currentInput = homeState.input
+                    updateCurrentConversation(homeState.copy(
+                        input = if (currentInput.isBlank()) prompt else "$prompt\n$currentInput",
+                    ))
+                    refreshConversationSummaries()
+                    persistConversations()
+                    Toast.makeText(
+                        appContext,
+                        appContext.getString(R.string.chat_supplement_failed_resend),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        }
     }
 
     fun beginMessageEdit(messageId: String) {
