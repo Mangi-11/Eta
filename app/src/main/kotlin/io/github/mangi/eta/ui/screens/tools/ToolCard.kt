@@ -19,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
+import io.github.mangi.eta.agent.tool.AgentToolRequirements
 import io.github.mangi.eta.agent.tool.RootRequirement
 import io.github.mangi.eta.ui.components.EtaFeatureCard
 import io.github.mangi.eta.ui.components.EtaPreferenceColors
@@ -39,6 +40,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun ToolCard(
     tool: ToolItemUi,
     rootGranted: Boolean,
+    shizukuGranted: Boolean = false,
     capabilities: AgentToolCapabilities,
     onAction: (AgentToolsAction) -> Unit,
     modifier: Modifier = Modifier,
@@ -49,7 +51,7 @@ internal fun ToolCard(
     } else {
         tool.summary
     }
-    val requirementText = toolRequirementText(tool.id, rootGranted, capabilities)
+    val requirementText = toolRequirementText(tool.id, rootGranted, shizukuGranted, capabilities)
     val action = toolCardAction(tool.id, capabilities)
     val actionText = when (action) {
         AgentToolsAction.OpenBrowser -> stringResource(R.string.action_open_browser)
@@ -113,17 +115,26 @@ internal fun ToolCard(
 }
 
 @Composable
-private fun toolRequirementText(id: String, rootGranted: Boolean, capabilities: AgentToolCapabilities): String? {
+private fun toolRequirementText(
+    id: String,
+    rootGranted: Boolean,
+    shizukuGranted: Boolean,
+    capabilities: AgentToolCapabilities,
+): String? {
     val requirement = toolCardRequirement(id)
+    val elevated = rootGranted ||
+        (shizukuGranted && AgentToolRequirements.shizukuSatisfiedTools.contains(
+            io.github.mangi.eta.agent.context.PersonalSearchTools.canonical(actualToolName(id))
+        ))
     val unavailableCode = capabilities.unavailableCode(actualToolName(id))
     return when {
-        !rootGranted && requirement.rootRequirement == RootRequirement.REQUIRED -> stringResource(R.string.capability_root_required)
+        !elevated && requirement.rootRequirement == RootRequirement.REQUIRED -> stringResource(R.string.capability_root_required)
         !capabilities.accessibilityAvailable && requirement.accessibility -> stringResource(R.string.capability_accessibility_required)
         unavailableCode == "NOTIFICATION_ACCESS_REQUIRED" -> stringResource(R.string.capability_notification_access_required)
         unavailableCode == "APP_USAGE_ACCESS_REQUIRED" -> stringResource(R.string.capability_usage_access_required)
         unavailableCode == "LOCATION_PERMISSION_REQUIRED" -> stringResource(R.string.capability_location_access_required)
         requirement.colorOs -> stringResource(R.string.capability_coloros_required)
-        !rootGranted && requirement.rootRequirement == RootRequirement.PARTIAL -> stringResource(R.string.capability_root_partial)
+        !rootGranted && !shizukuGranted && requirement.rootRequirement == RootRequirement.PARTIAL -> stringResource(R.string.capability_root_partial)
         else -> null
     }
 }

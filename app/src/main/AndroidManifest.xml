@@ -31,6 +31,8 @@
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Shizuku：v11 以下旧版 Manager 的 API 权限；v11+ 走运行时动态授权，无需常驻授权。 -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <permission
         android:name="io.github.mangi.eta.permission.CONTROL_ACCESSIBILITY_PROTECTION"
@@ -39,6 +41,7 @@
     <uses-permission android:name="io.github.mangi.eta.permission.CONTROL_ACCESSIBILITY_PROTECTION" />
 
     <queries>
+        <package android:name="moe.shizuku.privileged.api" />
         <package android:name="com.google.android.googlequicksearchbox" />
         <intent>
             <action android:name="android.speech.RecognitionService" />
@@ -163,12 +166,31 @@
             </intent-filter>
         </service>
 
+        <!-- Shizuku UserService：由 Shizuku 以 shell 身份在独立进程启动并执行固定命令；
+             exported=true 为 Shizuku 启动所必需，onTransact 内做调用方 UID 白名单校验，
+             第三方直接 bind 会被拒绝。独立进程避免污染主进程。 -->
+        <service
+            android:name=".agent.device.ShizukuUserService"
+            android:enabled="true"
+            android:exported="true"
+            android:process=":shizuku" />
+
         <provider
             android:name=".agent.accessibility.AgentAccessibilityHealthProvider"
             android:authorities="io.github.mangi.eta.accessibility.health"
             android:exported="true"
             android:grantUriPermissions="false"
             android:permission="android.permission.MANAGE_ACCESSIBILITY" />
+
+        <!-- Shizuku 通道：exported=true + INTERACT_ACROSS_USERS_FULL 为官方要求（RikkaApps/Shizuku-API README），
+             仅 shell 可跨进程取 binder；multiprocess=false，server 只在启动时取一次 uid。 -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
     </application>
 
 </manifest>

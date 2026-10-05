@@ -18,10 +18,14 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.device.RootAccessState
 import io.github.mangi.eta.agent.device.RootAccessStatus
+import io.github.mangi.eta.agent.device.ShizukuAccess
+import io.github.mangi.eta.agent.device.ShizukuAccessState
+import io.github.mangi.eta.agent.device.ShizukuStatus
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
 
 internal data class DeviceCapabilitiesUi(
     val root: RootAccessState,
+    val shizuku: ShizukuAccessState,
     // 服务回调只反映 Binder 连接，不能用于判断管理器中的模块开关或 Hook 生效状态。
     val xposedConnected: Boolean,
     val tools: AgentToolCapabilities,
@@ -34,6 +38,7 @@ internal data class DeviceCapabilitiesUi(
 internal fun rememberDeviceCapabilities(): DeviceCapabilitiesUi {
     val context = LocalContext.current.applicationContext
     val root by RootAccess.state.collectAsState()
+    val shizuku by ShizukuAccess.state.collectAsState()
     var xposedConnected by remember { mutableStateOf(EtaApp.serviceInstance != null) }
     var tools by remember { mutableStateOf(AgentToolCapabilities.capture(context)) }
     val owner = LocalLifecycleOwner.current
@@ -46,6 +51,7 @@ internal fun rememberDeviceCapabilities(): DeviceCapabilitiesUi {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 RootAccess.refresh(context)
+                ShizukuAccess.refresh(context)
                 tools = AgentToolCapabilities.capture(context)
             }
         }
@@ -56,7 +62,12 @@ internal fun rememberDeviceCapabilities(): DeviceCapabilitiesUi {
             owner.lifecycle.removeObserver(observer)
         }
     }
-    return DeviceCapabilitiesUi(root, xposedConnected, tools.copy(rootAvailable = root.isGranted))
+    return DeviceCapabilitiesUi(
+        root = root,
+        shizuku = shizuku,
+        xposedConnected = xposedConnected,
+        tools = tools.copy(rootAvailable = root.isGranted, shizukuAvailable = shizuku.isAvailable),
+    )
 }
 
 internal fun RootAccessState.description(context: Context): String = context.getString(
@@ -66,5 +77,14 @@ internal fun RootAccessState.description(context: Context): String = context.get
         status == RootAccessStatus.UNAVAILABLE -> R.string.capability_root_unavailable
         status == RootAccessStatus.TIMED_OUT -> R.string.capability_root_timeout
         else -> R.string.capability_root_not_granted
+    },
+)
+
+internal fun ShizukuAccessState.description(context: Context): String = context.getString(
+    when (status) {
+        ShizukuStatus.GRANTED -> R.string.capability_shizuku_granted
+        ShizukuStatus.NOT_GRANTED -> R.string.capability_shizuku_not_granted
+        ShizukuStatus.DENIED -> R.string.capability_shizuku_denied
+        else -> R.string.capability_shizuku_unavailable
     },
 )

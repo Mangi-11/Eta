@@ -21,7 +21,7 @@
     <string name="capability_root_features">Root 能力</string>
     <string name="capability_system_features">系統助理與增強</string>
     <string name="capability_root_device">應用程式與系統管理</string>
-    <string name="capability_root_device_summary">凍結與停止應用程式、修改受保護的系統設定、讀取系統日誌。需要 Eta 取得 Root 授權。</string>
+    <string name="capability_root_device_summary">凍結與停止應用程式、修改受保護的系統設定、讀取系統日誌。需要 Root 或 Shizuku 授權。</string>
     <string name="capability_root_data">受保護的資料與檔案</string>
     <string name="capability_root_data_summary">存取其他應用程式和系統儲存的部分資料。需要 Root，具體範圍取決於系統、應用程式版本與已開啟的工具權限。</string>
     <string name="capability_root_linux">Linux 與終端增強</string>
@@ -33,6 +33,11 @@
     <string name="capability_hook_accessibility">無障礙保護</string>
     <string name="capability_hook_accessibility_summary">透過 system_server 維護服務啟用狀態，需要 LSPosed 的系統作用範圍。一般模式仍可手動開啟無障礙。</string>
     <string name="capability_optional_root">可選的增強權限</string>
+    <string name="capability_shizuku_title">Shizuku</string>
+    <string name="capability_shizuku_granted">已授權 Shizuku，無需 Root 即可使用 ADB 級能力</string>
+    <string name="capability_shizuku_not_granted">已連接 Shizuku，需要授權後才能使用 ADB 級能力</string>
+    <string name="capability_shizuku_denied">Shizuku 授權被拒絕，請在 Shizuku 管理器中重新授權</string>
+    <string name="capability_shizuku_unavailable">未設定 Shizuku，ADB 級能力不可用</string>
     <string name="capability_import_denied">沒有權限讀取此路徑，請選擇檔案匯入或授權共用目錄</string>
     <string name="capability_import_failed">檔案匯入失敗，請重試</string>
     <string name="capability_import_too_large">檔案超過 32 MiB，無法匯入</string>

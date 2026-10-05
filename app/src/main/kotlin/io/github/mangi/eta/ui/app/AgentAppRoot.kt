@@ -47,6 +47,7 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
 import io.github.mangi.eta.agent.device.DeviceLocationProvider
 import io.github.mangi.eta.agent.device.RootAccess
+import io.github.mangi.eta.agent.device.ShizukuAccess
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.AppearanceSettingsScreen
@@ -137,6 +138,7 @@ fun AgentAppRoot(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 RootAccess.refresh(context)
+                ShizukuAccess.refresh(context)
                 appViewModel.refreshKimiWeb()
                 agentState.refreshPermissionHealth()
                 agentState.refreshRuntimeResults()
@@ -555,6 +557,10 @@ fun AgentAppRoot(
                                             .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
                                     }
                                     "root" -> pushRoute(AppRoute.SystemEnhance)
+                                    "shizuku" -> {
+                                        requestShizukuAuthorization(context)
+                                        agentState.refreshPermissionHealth()
+                                    }
                                 }
                             }
                         }
@@ -568,6 +574,8 @@ fun AgentAppRoot(
                             AgentSystemEnhanceAction.NavigateBack -> popRoute()
                             AgentSystemEnhanceAction.RequestRoot -> { RootAccess.request(context) }
                             AgentSystemEnhanceAction.RefreshRoot -> { RootAccess.refresh(context) }
+                            AgentSystemEnhanceAction.RequestShizuku -> requestShizukuAuthorization(context)
+                            AgentSystemEnhanceAction.RefreshShizuku -> { ShizukuAccess.refresh(context) }
                         }
                     },
                 )
@@ -822,3 +830,36 @@ private data class MessageMutationTarget(
     val messageId: String,
     val laterTurnCount: Int,
 )
+
+private const val SHIZUKU_REQUEST_CODE = 0xE7A1
+
+/**
+ * Shizuku 授权入口（权限健康页与系统增强页共用）：
+ * 可再求时直接弹授权；不再询问/未安装时打开 Shizuku Manager，都没有则刷新状态。
+ * 授权结果经 Shizuku.OnRequestPermissionResultListener 自动刷新。
+ */
+private fun requestShizukuAuthorization(context: android.content.Context) {
+    val status = ShizukuAccess.state.value.status
+    if (status == io.github.mangi.eta.agent.device.ShizukuStatus.DENIED ||
+        !ShizukuAccess.isManagerInstalled(context)
+    ) {
+        openShizukuManager(context)
+        return
+    }
+    if (!ShizukuAccess.requestPermission(SHIZUKU_REQUEST_CODE)) {
+        openShizukuManager(context)
+    }
+}
+
+private fun openShizukuManager(context: android.content.Context) {
+    val managerIntent = context.packageManager
+        .getLaunchIntentForPackage(ShizukuAccess.MANAGER_PACKAGE)
+    if (managerIntent != null) {
+        runCatching {
+            managerIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(managerIntent)
+        }
+    } else {
+        ShizukuAccess.refresh(context)
+    }
+}

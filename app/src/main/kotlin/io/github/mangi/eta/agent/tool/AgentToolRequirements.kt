@@ -21,6 +21,28 @@ internal data class LocalToolRequirement(
 
 /** 展示、模型目录与执行边界共同使用的本地工具能力合同。未登记的工具不能发布。 */
 internal object AgentToolRequirements {
+    /**
+     * 无 Root 但有 Shizuku（shell 身份）时仍可保留的 Root REQUIRED 工具。
+     * 仅限 ADB/shell 级命令；私有数据库快照、WifiConfigStore、需运行时权限的
+     * provider 查询（sms/contacts/calendar 等）不在此列，维持 Root 专用。
+     *
+     * 注：`get_setting`/`recent_notifications`/`network_info` 为 PARTIAL（公开读或
+     * 监听器优先、特权通道兜底），不受 REQUIRED 门控约束，故不在此集合内；
+     * 其执行侧同样经 PrivilegedCommandExecutor 走 Root→Shizuku 降级。
+     */
+    val shizukuSatisfiedTools: Set<String> = setOf(
+        "set_setting",
+        "set_device_state",
+        "get_device_state",
+        "get_display_state",
+        "set_brightness",
+        "set_screen_timeout",
+        "set_do_not_disturb",
+        "app_state_control",
+        "get_logcat",
+        "top_memory_apps",
+        "top_storage_apps",
+    )
     private val definitions = buildMap {
         fun register(root: RootRequirement, vararg names: String) {
             names.forEach { name ->
@@ -99,8 +121,18 @@ internal object AgentToolRequirements {
 
     fun requiresAccessibility(name: String): Boolean = find(name)?.accessibility == true
 
-    fun rootDenied(name: String, arguments: JSONObject, rootAvailable: Boolean): Boolean {
+    fun rootDenied(name: String, arguments: JSONObject, rootAvailable: Boolean): Boolean =
+        rootDenied(name, arguments, rootAvailable, shizukuAvailable = false)
+
+    /** Shizuku 可满足 [shizukuSatisfiedTools] 中的 REQUIRED 工具，不再视为拒绝。 */
+    fun rootDenied(
+        name: String,
+        arguments: JSONObject,
+        rootAvailable: Boolean,
+        shizukuAvailable: Boolean,
+    ): Boolean {
         if (rootAvailable) return false
+        if (shizukuAvailable && shizukuSatisfiedTools.contains(PersonalSearchTools.canonical(name))) return false
         if (rootRequirement(name) == RootRequirement.REQUIRED) return true
         return when (name) {
             "terminal", in AgentFileToolCatalog.names -> arguments.optString("identity").equals("root", ignoreCase = true)
@@ -110,12 +142,20 @@ internal object AgentToolRequirements {
     }
 
     /** 复制后收窄，不能修改下一轮或另一个 run 共用的原始 Schema。 */
-    fun project(tools: JSONArray, rootAvailable: Boolean): JSONArray = JSONArray().also { result ->
+    fun project(tools: JSONArray, rootAvailable: Boolean): JSONArray =
+        project(tools, rootAvailable, shizukuAvailable = false)
+
+    /** Shizuku 可用时保留 [shizukuSatisfiedTools]，其余 REQUIRED 仍按无 Root 移除。 */
+    fun project(tools: JSONArray, rootAvailable: Boolean, shizukuAvailable: Boolean): JSONArray = JSONArray().also { result ->
         for (index in 0 until tools.length()) {
             val original = tools.getJSONObject(index)
             val name = original.getJSONObject("function").getString("name")
             val requirement = rootRequirement(name)
-            if (!rootAvailable && requirement == RootRequirement.REQUIRED) continue
+            if (!rootAvailable && requirement == RootRequirement.REQUIRED &&
+                !(shizukuAvailable && shizukuSatisfiedTools.contains(PersonalSearchTools.canonical(name)))
+            ) {
+                continue
+            }
             val tool = JSONObject(original.toString())
             if (!rootAvailable) projectUnprivileged(tool.getJSONObject("function"))
             result.put(tool)

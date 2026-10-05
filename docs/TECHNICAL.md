@@ -209,6 +209,15 @@ rootfs 内文件归 root 所有，Linux 工具环境页还提供只读的文件�
 
 聊天输入栏可以引用任意本地绝对路径下的普通文件或文件夹，发送后以附件名称和原始请求分开展示。Eta 只把经过 Root 解析的规范绝对路径写入模型上下文，不上传、不复制或缓存原文件；模型再按任务调用文件或终端工具读取。系统文件选择器会解析内部存储文档，以及能转换为本地媒体库路径的“最近”文件；云盘和其他只有 `content://` URI 的来源不会降级为上传。
 
+## Shizuku 特权通道
+
+无 Root 设备经 Shizuku 获得 ADB/shell 级能力，无需 `su`。依赖 `dev.rikka.shizuku:api:provider:13.1.5`（`gradle/libs.versions.toml` 集中声明），Manifest 按官方要求声明 `ShizukuProvider`（`authorities="${applicationId}.shizuku"`、`exported=true`、`multiprocess=false`、`permission=INTERACT_ACROSS_USERS_FULL`）与 `moe.shizuku.privileged.api` queries；release 保留 `rikka.shizuku.ShizukuProvider`（`proguard-rules.pro`），主类为直接引用、R8 自动保留可达代码。
+
+- **状态**：`ShizukuAccess`（主进程单例，`StateFlow`）跟踪 `UNKNOWN/UNAVAILABLE/NOT_GRANTED/GRANTED/DENIED`，`DENIED` 指用户勾选不再询问（`shouldShowRequestPermissionRationale`）。binder 收发/死亡与授权结果经 `Shizuku` listener 自动刷新；`:voice`/`:recognition` 进程不直调 Shizuku。
+- **执行**：`ShizukuUserService`（`:shizuku` 独立进程）由 Shizuku 以 shell 身份启动，Binder 内跑 `sh -c` 固定命令；`onTransact` 校验调用方 UID（自身/应用/shell/root/system 白名单），第三方直 bind 被拒。双流并发排空（与 Root 执行器同模式），reply 双流总额 256 KB（Binder ~1MB/UTF-16 水位），命令上限 8 KB。
+- **网关**：`PrivilegedCommandExecutor` 按 Root→Shizuku 顺序降级；无通道时沿用 `ROOT_REQUIRED` 错误码（调用方映射不分裂）。`AgentToolRequirements.shizukuSatisfiedTools`（`set_setting/set_device_state/get_device_state/get_display_state/set_brightness/set_screen_timeout/set_do_not_disturb/app_state_control/get_logcat/top_memory_apps/top_storage_apps`；`get/set_device_state` 的 `mobile_data`/`night_light` 子目标经一方应用进程注入，仍仅 Root）在投影与门控层保留；`get_setting/recent_notifications/network_info` 为 PARTIAL（公开读/监听优先，特权通道兜底）；私有库快照、WifiConfigStore、短信等需运行时权限的 provider、终端 root 身份、chroot/daemon/系统化维持 Root 专用。
+- **错误码**：Shizuku 分支失败透出 `SHIZUKU_UNAVAILABLE`（未授权/binder 不存活）、`SHIZUKU_COMMAND_FAILED`（binder 调用失败）、`SHIZUKU_COMMAND_REJECTED`（调用方被拒或命令非法），调用方按 `errorCode` 透传；无任何提权通道时统一为 `ROOT_REQUIRED`。
+
 ## 长期记忆
 
 跨对话长期记忆保存在 App 私有目录中的单一 `MEMORY.md`，不额外调用提取模型或运行后台整理任务。当前对话的主模型根据需要调用 `memory_get` 与 `memory_write`，负责去重、修正冲突和删除过期信息。

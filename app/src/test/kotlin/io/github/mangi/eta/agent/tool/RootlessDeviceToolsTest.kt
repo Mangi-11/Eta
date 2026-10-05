@@ -85,6 +85,44 @@ class RootlessDeviceToolsTest {
     }
 
     @Test
+    fun shizukuSatisfiesAdbSettingWriteButNotWifiCredentials() {
+        val context = RuntimeEnvironment.getApplication()
+        rejectingRootExecutor().use { root ->
+            val shizukuOnly = AgentStructuredDeviceTools(
+                context, NoOpLogger, root,
+                rootAvailable = { false }, shizukuAvailable = { true },
+            )
+            // 无 Shizuku binder 的测试环境：走到 Shizuku 分支但执行失败，错误码透出 SHIZUKU_* 而非 ROOT_REQUIRED。
+            val setting = JSONObject(shizukuOnly.execute("set_setting", JSONObject()
+                .put("namespace", "global").put("key", "eta_test_key").put("value", "1"))!!.content)
+            assertEquals("SHIZUKU_UNAVAILABLE", setting.getString("code"))
+            // Root 专用工具不受 Shizuku 影响：目录/执行双重门控仍要求 Root。
+            assertTrue(AgentToolRequirements.rootDenied("wifi_credentials", JSONObject(), false, shizukuAvailable = true))
+            assertTrue(AgentToolRequirements.rootDenied("read_sms_code", JSONObject(), false, shizukuAvailable = true))
+            val capabilities = AgentToolCapabilities(rootAvailable = false, shizukuAvailable = true)
+            assertEquals("ROOT_REQUIRED", capabilities.unavailableCode("wifi_credentials"))
+            assertEquals("ROOT_REQUIRED", capabilities.unavailableCode("read_sms_code"))
+        }
+    }
+
+    @Test
+    fun invalidSettingNamespaceIsRejectedWithoutPrivilege() {
+        val context = RuntimeEnvironment.getApplication()
+        rejectingRootExecutor().use { root ->
+            val tools = AgentStructuredDeviceTools(
+                context, NoOpLogger, root,
+                rootAvailable = { true }, shizukuAvailable = { true },
+            )
+            val get = JSONObject(tools.execute("get_setting", JSONObject()
+                .put("namespace", "activity").put("key", "k"))!!.content)
+            assertEquals("INVALID_ARGUMENT", get.getString("code"))
+            val set = JSONObject(tools.execute("set_setting", JSONObject()
+                .put("namespace", "activity").put("key", "k").put("value", "v"))!!.content)
+            assertEquals("INVALID_ARGUMENT", set.getString("code"))
+        }
+    }
+
+    @Test
     fun currentNotificationsUseConnectedListenerAndRejectStaleConnection() {
         val context = RuntimeEnvironment.getApplication()
         val manager = context.getSystemService(NotificationManager::class.java)

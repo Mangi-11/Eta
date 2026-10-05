@@ -61,8 +61,8 @@ class AgentToolRequirementsTest {
         val names = restricted.project(catalog(root = true)).names()
         assertTrue(setOf("launch_app", "open_uri", "terminal", "browser_use").all { it in names })
         assertTrue(setOf("observe_screen", "wait_for_text", "wait_for_package", "recent_notifications", "app_usage_summary", "get_current_location").none { it in names })
-        assertEquals("ROOT_REQUIRED", restricted.unavailableCode("search_coloros_notes"))
-        assertEquals("DEVICE_UNSUPPORTED", restricted.copy(rootAvailable = true).unavailableCode("search_coloros_notes"))
+        assertEquals("ROOT_REQUIRED", restricted.unavailableCode("search_notes"))
+        assertEquals("DEVICE_UNSUPPORTED", restricted.copy(rootAvailable = true).unavailableCode("search_notes"))
         assertEquals(null, restricted.copy(notificationsAllowed = true).unavailableCode("recent_notifications"))
         assertEquals("NOTIFICATION_ACCESS_REQUIRED", restricted.copy(rootAvailable = true).unavailableCode("search_personal_orders"))
         assertEquals(null, restricted.copy(rootAvailable = true, colorOs = true).unavailableCode("search_personal_orders"))
@@ -80,12 +80,79 @@ class AgentToolRequirementsTest {
     }
 
     @Test
+    fun shizukuRetainsAdbLevelToolsWhileKeepingPrivateDataRootOnly() {
+        val original = catalog(root = true)
+        val projected = AgentToolRequirements.project(original, rootAvailable = false, shizukuAvailable = true)
+        val names = projected.names()
+        assertTrue(setOf(
+            "set_setting", "set_device_state", "get_device_state",
+            "get_display_state", "set_brightness", "set_screen_timeout",
+            "set_do_not_disturb", "app_state_control",
+            "get_logcat", "top_memory_apps", "top_storage_apps",
+        ).all { it in names })
+        // get_setting 为 PARTIAL：常驻投影（公开读优先，特权通道兜底），与 Shizuku 门控无关。
+        assertTrue("get_setting" in names)
+        // search_calendar_events 在 main 改为 PARTIAL（CALENDAR_READ），同样常驻投影。
+        assertTrue("search_calendar_events" in names)
+        assertTrue(setOf(
+            "wifi_credentials", "read_sms_code", "search_contacts", "search_messages",
+            "list_alarms", "get_health_summary",
+            "search_system_memories", "search_wechat_chat_images",
+        ).none { it in names })
+    }
+
+    @Test
+    fun shizukuSatisfiedToolsAreNotDeniedButRootOnlyToolsStillAre() {
+        assertFalse(AgentToolRequirements.rootDenied("set_setting", JSONObject(), false, shizukuAvailable = true))
+        assertFalse(AgentToolRequirements.rootDenied("get_logcat", JSONObject(), false, shizukuAvailable = true))
+        assertTrue(AgentToolRequirements.rootDenied("wifi_credentials", JSONObject(), false, shizukuAvailable = true))
+        assertTrue(AgentToolRequirements.rootDenied("read_sms_code", JSONObject(), false, shizukuAvailable = true))
+        assertTrue(AgentToolRequirements.rootDenied("search_contacts", JSONObject(), false, shizukuAvailable = true))
+        assertTrue(AgentToolRequirements.rootDenied("terminal", JSONObject().put("identity", "root"), false, shizukuAvailable = true))
+        assertFalse(AgentToolRequirements.rootDenied("terminal", JSONObject().put("identity", "user"), false, shizukuAvailable = true))
+    }
+
+    @Test
+    fun shizukuCapabilitiesExposeAdbToolsWithoutUnlockingRootShell() {
+        val shizukuOnly = AgentToolCapabilities(rootAvailable = false, shizukuAvailable = true)
+        assertEquals(null, shizukuOnly.unavailableCode("set_setting"))
+        assertEquals(null, shizukuOnly.unavailableCode("get_logcat"))
+        assertEquals(null, shizukuOnly.unavailableCode("get_device_state"))
+        assertEquals(null, shizukuOnly.unavailableCode("get_display_state"))
+        assertEquals(null, shizukuOnly.unavailableCode("set_brightness"))
+        assertEquals(null, shizukuOnly.unavailableCode("set_screen_timeout"))
+        assertEquals(null, shizukuOnly.unavailableCode("set_do_not_disturb"))
+        assertEquals("ROOT_REQUIRED", shizukuOnly.unavailableCode("wifi_credentials"))
+        assertEquals("ROOT_REQUIRED", shizukuOnly.unavailableCode("search_contacts"))
+        assertEquals("ROOT_REQUIRED", AgentToolCapabilities(rootAvailable = false).unavailableCode("set_setting"))
+    }
+
+    @Test
+    fun shizukuOnlyNarrowsPhoneInjectedDeviceStateTargets() {
+        val shizukuOnly = AgentToolCapabilities(rootAvailable = false, shizukuAvailable = true)
+        val projected = shizukuOnly.project(catalog(root = true))
+        val targets = projected.properties("get_device_state").getJSONObject("target").getJSONArray("enum")
+        val values = (0 until targets.length()).map { targets.getString(it) }.toSet()
+        assertTrue("wifi" in values)
+        assertTrue("mobile_data" !in values)
+        assertTrue("night_light" !in values)
+        val setTargets = projected.properties("set_device_state").getJSONObject("target").getJSONArray("enum")
+        val setValues = (0 until setTargets.length()).map { setTargets.getString(it) }.toSet()
+        assertTrue("wifi" in setValues)
+        assertTrue("mobile_data" !in setValues)
+        val rooted = AgentToolCapabilities(rootAvailable = true).project(catalog(root = true))
+        val rootedValues = (0 until rooted.properties("get_device_state").getJSONObject("target").getJSONArray("enum").length())
+            .map { rooted.properties("get_device_state").getJSONObject("target").getJSONArray("enum").getString(it) }.toSet()
+        assertTrue("mobile_data" in rootedValues)
+    }
+
+    @Test
     fun frameworkConnectionDoesNotGrantRootAndRootSnapshotDoesNotRequireFramework() {
-        assertEquals(LsposedRequirement.OPTIONAL, AgentToolRequirements.find("search_coloros_memories")?.lsposedRequirement)
+        assertEquals(LsposedRequirement.OPTIONAL, AgentToolRequirements.find("search_system_memories")?.lsposedRequirement)
         assertEquals("ROOT_REQUIRED", AgentToolCapabilities(rootAvailable = false, lsposedAvailable = true)
-            .unavailableCode("search_coloros_memories"))
+            .unavailableCode("search_system_memories"))
         assertEquals(null, AgentToolCapabilities(rootAvailable = true, lsposedAvailable = false)
-            .unavailableCode("search_coloros_memories"))
+            .unavailableCode("search_system_memories"))
     }
 
     @Test

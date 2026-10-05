@@ -24,7 +24,10 @@ import io.github.mangi.eta.agent.device.AgentNotificationHistoryService
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
 import io.github.mangi.eta.agent.device.DeviceToolContract
 import io.github.mangi.eta.agent.device.FlashlightController
+import io.github.mangi.eta.agent.device.PrivilegedCommandExecutor
 import io.github.mangi.eta.agent.device.RootAccess
+import io.github.mangi.eta.agent.device.ShizukuAccess
+import io.github.mangi.eta.agent.device.ShizukuShellExecutor
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.phone.PhoneAppTools
 import io.github.mangi.eta.agent.phone.PhoneOperation
@@ -43,8 +46,21 @@ internal class AgentStructuredDeviceTools(
     private val root: BoundedRootCommandExecutor,
     private val rootAvailable: () -> Boolean = { RootAccess.isGranted },
     private val colorOs: () -> Boolean = { AgentToolCapabilities.isColorOsDevice() },
+    private val shizukuAvailable: () -> Boolean = { ShizukuAccess.isAvailable },
+    shizukuExecutor: ShizukuShellExecutor? = null,
+    privilegedExecutor: PrivilegedCommandExecutor? = null,
 ) {
     private val chatImages = ChatImageSearchTools(root)
+    private val privileged: PrivilegedCommandExecutor = privilegedExecutor
+        ?: PrivilegedCommandExecutor(
+            root = root,
+            shizuku = shizukuExecutor ?: ShizukuShellExecutor(context, logger, shizukuAvailable),
+            rootAvailable = rootAvailable,
+            shizukuAvailable = shizukuAvailable,
+        )
+
+    /** ADB/shell 级通道（Root 或 Shizuku）是否可用；私有数据快照仍仅看 Root。 */
+    private fun elevatedAvailable(): Boolean = rootAvailable() || shizukuAvailable()
     private val colorOsMemoryTools = AgentColorOsMemoryTools(context, root)
     private val personalContextTools = AgentPersonalContextTools(context)
     private val indexedPersonalContext by lazy {
@@ -55,15 +71,15 @@ internal class AgentStructuredDeviceTools(
     private val personalSearch by lazy { IndexedPersonalSearch(indexedPersonalContext) }
     private val phoneApps = PhoneAppTools(context, root, rootAvailable, colorOs)
     private val displaySound =
-        DisplaySoundControls(context) { root.execute(it, maxOutputBytes = 32 * 1024) }
+        DisplaySoundControls(context) { privileged.execute(it, maxOutputBytes = 32 * 1024) }
     private val systemStates =
-        SystemStateControls(context) { root.execute(it, maxOutputBytes = 32 * 1024) }
+        SystemStateControls(context) { privileged.execute(it, maxOutputBytes = 32 * 1024) }
     private val privateDatabaseTools = AgentPrivateDatabaseTools(context, root)
     private val notificationHistory by lazy { NotificationHistoryRepository(context) }
     private val appInspection = AppInspectionTool(context)
     private val stateMutations =
-        DeviceStateMutations(context) { root.execute(it, maxOutputBytes = 32 * 1024) }
-    private val logcatQuery = LogcatQuery { root.execute(it, maxOutputBytes = 512 * 1024) }
+        DeviceStateMutations(context) { privileged.execute(it, maxOutputBytes = 32 * 1024) }
+    private val logcatQuery = LogcatQuery { privileged.execute(it, maxOutputBytes = 512 * 1024) }
 
     fun execute(name: String, args: JSONObject): AgentModelClient.ToolResult? {
         val canonical = PersonalSearchTools.canonical(name)
@@ -387,8 +403,8 @@ internal class AgentStructuredDeviceTools(
         val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val info = runCatching { wifi.connectionInfo }.getOrNull()
         val rootWifiStatus =
-            if (rootAvailable())
-                root
+            if (elevatedAvailable())
+                privileged
                     .execute("cmd wifi status", maxOutputBytes = 32 * 1024)
                     .takeIf { it.ok }
                     ?.stdout
@@ -463,12 +479,12 @@ internal class AgentStructuredDeviceTools(
                 publicReadFailure = "SETTING_READ_FAILED"
                 null
             }
-        if (publicReadFailure != null && !rootAvailable()) {
+        if (publicReadFailure != null && !elevatedAvailable()) {
             return error(publicReadFailure, "系统不允许读取此设置，或设置服务暂不可用")
         }
         val rootValue =
-            if (publicValue == null && rootAvailable())
-                root.execute(
+            if (publicValue == null && elevatedAvailable())
+                privileged.execute(
                     "settings --user $userId get ${shellQuote(namespace)} ${shellQuote(key)}"
                 )
             else null
@@ -496,7 +512,7 @@ internal class AgentStructuredDeviceTools(
 
     private fun topMemoryApps(args: JSONObject): String {
         val limit = args.optInt("limit", 10).coerceIn(1, 30)
-        val result = root.execute("ps -A -o PID,RSS,NAME", maxOutputBytes = 512 * 1024)
+        val result = privileged.execute("ps -A -o PID,RSS,NAME", maxOutputBytes = 512 * 1024)
         if (!result.ok) return rootError(result)
         val items =
             result.stdout
@@ -531,12 +547,11 @@ internal class AgentStructuredDeviceTools(
 
     private fun topStorageApps(args: JSONObject): String {
         val limit = args.optInt("limit", 10).coerceIn(1, 30)
-        val result =
-            root.execute(
-                "dumpsys diskstats",
-                timeoutMillis = 20_000L,
-                maxOutputBytes = 2 * 1024 * 1024,
-            )
+        val result = privileged.execute(
+            "dumpsys diskstats",
+            timeoutMillis = 20_000L,
+            maxOutputBytes = 2 * 1024 * 1024,
+        )
         if (!result.ok) return rootError(result)
         val packages = parseJsonArrayLine(result.stdout, "Package Names:")
         val appSizes = parseLongArrayLine(result.stdout, "App Sizes:")
@@ -576,6 +591,7 @@ internal class AgentStructuredDeviceTools(
                     }
                 },
             )
+            .put("truncated", result.truncated)
             .toString()
     }
 
@@ -621,8 +637,8 @@ internal class AgentStructuredDeviceTools(
     private fun recentNotifications(args: JSONObject): String {
         val limit = args.optInt("limit", 10).coerceIn(1, 20)
         val packageFilter = args.optString("package_name").trim()
-        if (!rootAvailable()) return listenerNotifications(packageFilter, limit)
-        val listed = root.execute("cmd notification list", maxOutputBytes = 256 * 1024)
+        if (!elevatedAvailable()) return listenerNotifications(packageFilter, limit)
+        val listed = privileged.execute("cmd notification list", maxOutputBytes = 256 * 1024)
         if (!listed.ok) return rootError(listed)
         val items = JSONArray()
         listed.stdout
@@ -631,11 +647,10 @@ internal class AgentStructuredDeviceTools(
             .filter { it.isNotBlank() && (!packageFilter.isNotBlank() || "|$packageFilter|" in it) }
             .take(limit)
             .forEach { key ->
-                val detail =
-                    root.execute(
-                        "cmd notification get ${shellQuote(key)}",
-                        maxOutputBytes = 128 * 1024,
-                    )
+                val detail = privileged.execute(
+                    "cmd notification get ${shellQuote(key)}",
+                    maxOutputBytes = 128 * 1024,
+                )
                 if (!detail.ok) return@forEach
                 val text = detail.stdout
                 items.put(
@@ -746,7 +761,7 @@ internal class AgentStructuredDeviceTools(
                 result.timedOut -> "ROOT_COMMAND_TIMEOUT"
                 else -> "ROOT_COMMAND_FAILED"
             }
-        return error(code, "Root 系统接口执行失败（exit=${result.exitCode}）")
+        return error(code, "特权通道执行失败（exit=${result.exitCode}）")
     }
 
     private fun parseJsonArrayLine(source: String, prefix: String): JSONArray? =

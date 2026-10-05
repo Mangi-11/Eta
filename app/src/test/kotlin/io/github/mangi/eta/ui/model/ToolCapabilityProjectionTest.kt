@@ -49,6 +49,19 @@ class ToolCapabilityProjectionTest {
             toolCardAction("search_coloros_memories", capabilities.copy(rootAvailable = true, colorOs = false)))
     }
 
+    @Test fun shizukuShowsAdbToolsButNotRootOnlyDataTools() {
+        val groups = listOf(ToolGroupUi("device", "设备",
+            listOf(card("set_setting"), card("get_logcat"), card("wifi_credentials"), card("search_contacts"))))
+        assertEquals(listOf("set_setting", "get_logcat"),
+            projectToolGroups(groups, false, false, true, true).single().tools.map { it.id })
+        // 旧三参重载保持无 Shizuku 语义。
+        assertTrue(projectToolGroups(groups, false, false, true).isEmpty())
+        assertTrue(visibleOnCurrentDevice("set_setting", false, true, true))
+        assertFalse(visibleOnCurrentDevice("wifi_credentials", false, true, true))
+        assertFalse(visibleOnCurrentDevice("search_contacts", false, true, true))
+        assertTrue(visibleOnCurrentDevice("set_setting", true, false, true))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun unknownCardCannotSilentlyAcquireCapabilityDefaults() {
         toolCardRequirement("unknown")

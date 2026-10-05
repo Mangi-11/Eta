@@ -140,6 +140,10 @@ dependencies {
     // 只使用 GFM 解析器；聊天渲染层由 ui/markdown 自建，按块冻结并接入逐字显现。
     implementation(libs.intellij.markdown)
     implementation(libs.hidden.api.bypass)
+    // Shizuku：为无 Root 设备提供 ADB/shell 级能力（settings/cmd/dumpsys 等）；
+    // 兼容旧版 Shizuku Manager 的 provider 通道一并引入。
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
 
     // DataStore：Provider / Model 结构化 JSON 与当前选中 ID 等键值
     implementation(libs.datastore.preferences)

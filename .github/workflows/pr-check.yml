@@ -1,0 +1,112 @@
+name: PR Check
+
+# push + pull_request 双触发是刻意取舍：未开 PR 的分支推送同样需要 CI 反馈；
+# 代价是已开 PR 的分支每次推送会跑两次 run，已在 PR #123 确认接受。
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches-ignore:
+      - main
+    tags-ignore:
+      - "**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-check-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint / Test / Debug Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      # 必须在检出之后运行：空 workspace 下找不到 gradle-wrapper.jar，
+      # 验证会直接通过而失去供应链保护作用。
+      - name: 校验 Gradle Wrapper
+        uses: gradle/wrapper-validation-action@f9c9c575b8b21b6485636a91ffecd10e558c62f6 # v3
+
+      - name: 配置 JDK 25
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: 配置 Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+        with:
+          cache-provider: basic
+
+      - name: 配置 Android SDK（稳定通道）
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
+        with:
+          # NDK 版本与 gradle/libs.versions.toml 的 ndk 对齐；
+          # build-tools 用 AGP 9.4.1 默认的 36.0.0，避免隐式漂移。
+          packages: "platform-tools build-tools;36.0.0 ndk;30.0.16248370"
+
+      - name: 安装 Android SDK 37（canary 通道）
+        # compileSdk = 37 目前只在 canary 通道提供，与 android-release.yml 同源；
+        # 待 37 进入 stable 后可合并回上一步的 packages 并删除本步。
+        # 先接受全部 SDK 许可，避免 canary 包因缺许可而挂起或失败。
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --channel=3 "platforms;android-37.0"
+
+      - name: 输出环境版本
+        run: |
+          java --version
+          ./gradlew --version
+
+      # --no-configuration-cache 是刻意 workaround：gradle/actions v6 移除了
+      # configuration-cache 的实验性支持，而 gradle.properties 本地仍开启，
+      # CI 显式关闭以避免缓存不命中导致误红。待上游恢复支持后再移除。
+      - name: Android Lint 检查
+        run: >-
+          ./gradlew --no-daemon --no-configuration-cache
+          :app:lintDebug
+
+      - name: 单元测试
+        if: always()
+        run: >-
+          ./gradlew --no-daemon --no-configuration-cache
+          :app:testDebugUnitTest --continue
+
+      - name: 构建 Debug APK（无签名，不读 Secrets）
+        if: always()
+        run: >-
+          ./gradlew --no-daemon --no-configuration-cache
+          :app:assembleDebug
+
+      - name: 上传 Lint 报告
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr-lint-reports-${{ github.sha }}
+          path: |
+            app/build/reports/lint-results-debug.*
+            app/build/reports/lint-results-debug_files/
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr-test-reports-${{ github.sha }}
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7

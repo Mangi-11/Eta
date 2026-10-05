@@ -50,7 +50,10 @@ fun AgentToolsScreen(
     var showAll by rememberSaveable { mutableStateOf(false) }
     val currentListState = rememberLazyListState()
     val allListState = rememberLazyListState()
-    val groups = projectToolGroups(state.groups, showAll, capabilities.root.isGranted, capabilities.tools.colorOs)
+    val groups = projectToolGroups(
+        state.groups, showAll,
+        capabilities.root.isGranted, capabilities.shizuku.isAvailable, capabilities.tools.colorOs,
+    )
     MiuixScaffoldPage(
         title = stringResource(R.string.ui_tool_ability_9f0f80),
         onBack = { onAction(AgentToolsAction.NavigateBack) },
@@ -85,6 +88,7 @@ fun AgentToolsScreen(
                 ToolGridRow(
                     tools = row,
                     rootGranted = capabilities.root.isGranted,
+                    shizukuGranted = capabilities.shizuku.isAvailable,
                     capabilities = capabilities.tools,
                     onAction = onAction,
                 )
@@ -97,6 +101,7 @@ fun AgentToolsScreen(
 private fun ToolGridRow(
     tools: List<ToolItemUi>,
     rootGranted: Boolean,
+    shizukuGranted: Boolean,
     capabilities: AgentToolCapabilities,
     onAction: (AgentToolsAction) -> Unit,
 ) {
@@ -113,6 +118,7 @@ private fun ToolGridRow(
                     ToolCard(
                         tool = tool,
                         rootGranted = rootGranted,
+                        shizukuGranted = shizukuGranted,
                         capabilities = capabilities,
                         onAction = onAction,
                         modifier = Modifier.fillMaxWidth(),
@@ -130,6 +136,7 @@ private fun ToolGridRow(
                     ToolCard(
                         tool = tool,
                         rootGranted = rootGranted,
+                        shizukuGranted = shizukuGranted,
                         capabilities = capabilities,
                         onAction = onAction,
                         modifier = Modifier
