@@ -7,7 +7,7 @@
   <string name="settings_language">Language</string>
   <string name="settings_language_system">Follow system</string>
   <string name="app_name">Eta</string>
-  <string name="xposed_description">A system-level AI agent that takes over Breeno and Super XiaoAI, enables Gemini and Circle to Search, and integrates browser, terminal, and device tools.</string>
+  <string name="xposed_description">A system-level AI agent that integrates Breeno, Super XiaoAI and Xiao V, enables Gemini and Circle to Search, and includes browser, terminal, and device tools.</string>
   <string name="agent_accessibility_label">Eta Agent</string>
   <string name="agent_accessibility_description">Read screen content and perform taps, swipes, text input, and other actions to help the agent complete tasks.</string>
   <string name="notification_history_service_label">Eta notification history</string>
@@ -360,7 +360,10 @@
   <string name="ui_install_087db6">Install</string>
   <string name="ui_convert_google_apps_to_system_apps_0f6d89">Convert Google Apps to system apps</string>
   <string name="ui_this_will_close_the_current_page_and_clear_eta_brows_1cd331">This will close the current page and clear Eta Browser\'s cookies and site data. External browsers are not affected.</string>
-  <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">Xiaobu/Xiaoai compatible entrance</string>
+  <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">Vendor assistant integrations</string>
+  <string name="ui_vivo_custom_model">Use Eta models in Xiao V (6.8.5.3)</string>
+  <string name="ui_vivo_require_prefix">Xiao V: only take over with /agent prefix</string>
+  <string name="injected_vivo_configure_model">Open Eta and configure a model, API key and context window first.</string>
   <string name="ui_display_name_ed16be">Display name</string>
   <string name="ui_tool_a72ef1">tool</string>
   <string name="ui_tool_ability_9f0f80">Tools</string>

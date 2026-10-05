@@ -7,7 +7,7 @@
   <string name="settings_language">语言</string>
   <string name="settings_language_system">跟随系统</string>
   <string name="app_name">Eta</string>
-  <string name="xposed_description">系统级 AI Agent，接管小布与小爱，解锁 Gemini 与一圈即搜，集成浏览器、终端与设备工具</string>
+  <string name="xposed_description">系统级 AI Agent，接管小布、小爱与小 V，解锁 Gemini 与一圈即搜，集成浏览器、终端与设备工具</string>
   <string name="agent_accessibility_label">Eta Agent</string>
   <string name="agent_accessibility_description">读取屏幕内容并执行点击、滑动、文字输入等操作，协助 Agent 完成任务。</string>
   <string name="notification_history_service_label">Eta 通知历史</string>
@@ -348,7 +348,10 @@
   <string name="ui_install_087db6">安装</string>
   <string name="ui_convert_google_apps_to_system_apps_0f6d89">将 Google App 转为系统应用</string>
   <string name="ui_this_will_close_the_current_page_and_clear_eta_brows_1cd331">将关闭当前页面并清除 Eta 浏览器的 Cookie 与站点数据。外部浏览器不会受到影响。</string>
-  <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">小布/小爱兼容入口</string>
+  <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">厂商助手兼容入口</string>
+  <string name="ui_vivo_custom_model">小 V 使用 Eta 模型（6.8.5.3）</string>
+  <string name="ui_vivo_require_prefix">小 V 仅接管带 /agent 前缀的请求</string>
+  <string name="injected_vivo_configure_model">请先打开 Eta，配置模型、API Key 和上下文窗口大小。</string>
   <string name="ui_display_name_ed16be">展示名称</string>
   <string name="ui_tool_a72ef1">工具</string>
   <string name="ui_tool_ability_9f0f80">工具能力</string>

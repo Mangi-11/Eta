@@ -20,6 +20,7 @@ import io.github.mangi.eta.hook.hyperos.HyperOsScreenSearchHooks
 import io.github.mangi.eta.hook.system.SystemServerHooks
 import io.github.mangi.eta.hook.system.SystemUiHooks
 import io.github.mangi.eta.hook.xiaoai.XiaoAiHooks
+import io.github.mangi.eta.hook.vivo.VivoHooks
 
 class ModuleMain : XposedModule() {
 
@@ -105,6 +106,12 @@ class ModuleMain : XposedModule() {
                 }
             }
 
+            ModuleConfig.VIVO_COPILOT_PACKAGE -> {
+                if (currentProcessName == ModuleConfig.VIVO_COPILOT_PACKAGE) {
+                    recordInstallation(VivoHooks.install(this, logger, param.classLoader))
+                }
+            }
+
             ModuleConfig.XIAOAI_PACKAGE -> {
                 if (isCurrentPackageProcess(ModuleConfig.XIAOAI_PACKAGE)) {
                     recordInstallation(HyperOsScreenSearchHooks.install(this, logger, param.classLoader))
@@ -141,7 +148,8 @@ class ModuleMain : XposedModule() {
             isPackageProcess(processName, ModuleConfig.COLOR_DIRECT_PACKAGE) ||
             isPackageProcess(processName, ModuleConfig.BREENO_PACKAGE) ||
             processName == ModuleConfig.COLOROS_MEMORY_PACKAGE ||
-            isPackageProcess(processName, ModuleConfig.XIAOAI_PACKAGE)
+            isPackageProcess(processName, ModuleConfig.XIAOAI_PACKAGE) ||
+            processName == ModuleConfig.VIVO_COPILOT_PACKAGE
     }
 
     private fun isCurrentXiaoAiProcess(): Boolean {

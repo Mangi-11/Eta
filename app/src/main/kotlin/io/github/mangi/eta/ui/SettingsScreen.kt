@@ -512,6 +512,24 @@ private fun SettingsPageContent(
                             icon = Icons.Rounded.FilterAlt,
                             iconTint = EtaPreferenceColors.Blue,
                         )
+                        EtaPreferenceDivider()
+                        SwitchPref(
+                            context = context,
+                            prefs = prefs,
+                            title = stringResource(R.string.ui_vivo_custom_model),
+                            key = Prefs.Keys.VIVO_CUSTOM_MODEL,
+                            icon = Icons.Rounded.Cloud,
+                            iconTint = EtaPreferenceColors.Blue,
+                        )
+                        EtaPreferenceDivider()
+                        SwitchPref(
+                            context = context,
+                            prefs = prefs,
+                            title = stringResource(R.string.ui_vivo_require_prefix),
+                            key = Prefs.Keys.VIVO_REQUIRE_PREFIX,
+                            icon = Icons.Rounded.FilterAlt,
+                            iconTint = EtaPreferenceColors.Blue,
+                        )
                     }
                 }
             }
