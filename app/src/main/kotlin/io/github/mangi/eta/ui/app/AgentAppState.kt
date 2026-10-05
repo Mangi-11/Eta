@@ -981,7 +981,19 @@ internal class AgentAppState(
     )
 
     fun sendCurrentMessage(submittedText: String? = null) {
-        if (homeState.isCompacting) return
+        // Issue #129：UI 送出時已先清空本地輸入框再回調此處，以下所有拒收分支都必須
+        // 把 submittedText 寫回 homeState.input（經 InputBar 的 LaunchedEffect 同步回可見），
+        // 否則已清空的本地文本永久遺失。
+        if (homeState.isCompacting) {
+            val prompt = (submittedText ?: homeState.input).trim()
+            if (prompt.isNotBlank()) restoreSubmittedDraft(prompt)
+            Toast.makeText(
+                appContext,
+                appContext.getString(R.string.chat_supplement_busy_wait),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
         val prompt = (submittedText ?: homeState.input).trim()
         val pendingImages = homeState.pendingImages
         val pendingFileReferences = homeState.pendingFileReferences
@@ -995,7 +1007,19 @@ internal class AgentAppState(
             return
         }
         homeState.messageEdit?.takeIf { it.preserveFollowingMessages }?.let { edit ->
-            val updated = RoleplayConversationReducer.edit(homeState, edit.targetMessageId, prompt) ?: return
+            val updated = RoleplayConversationReducer.edit(homeState, edit.targetMessageId, prompt)
+            if (updated == null) {
+                // 編輯目標已失效：退出編輯並把送出的文本作為普通草稿恢復，避免丟字。
+                updateCurrentConversation(homeState.copy(
+                    input = prompt,
+                    pendingImages = edit.previousImages,
+                    pendingFileReferences = edit.previousFileReferences,
+                    messageEdit = null,
+                ))
+                refreshConversationSummaries()
+                persistConversations()
+                return
+            }
             updateCurrentConversation(updated.copy(
                 input = edit.previousInput,
                 pendingImages = edit.previousImages,
@@ -1018,6 +1042,7 @@ internal class AgentAppState(
                 appContext.getString(R.string.state_ui_file_path_reference_requires_opening_the_termina_deca4c),
                 Toast.LENGTH_SHORT,
             ).show()
+            if (prompt.isNotBlank()) restoreSubmittedDraft(prompt)
             return
         }
         val runtimePrompt = AgentFileReferencePromptCodec.format(prompt, fileReferences)
@@ -1031,7 +1056,16 @@ internal class AgentAppState(
             AgentConversationRevisionReducer.boundary(homeState, it.targetMessageId)
         }
         if (edit != null && editBoundary == null) {
-            cancelMessageEdit()
+            // 編輯邊界已失效（如目標消息被刪）：退出編輯並把送出的文本作為普通草稿恢復，
+            // 而不是 cancelMessageEdit 的 previousInput 覆蓋，避免丟字。
+            updateCurrentConversation(homeState.copy(
+                input = prompt,
+                pendingImages = edit.previousImages,
+                pendingFileReferences = edit.previousFileReferences,
+                messageEdit = null,
+            ))
+            refreshConversationSummaries()
+            persistConversations()
             return
         }
 
@@ -1094,6 +1128,17 @@ internal class AgentAppState(
     }
 
     /**
+     * UI 送出時本地已清空，以下拒收分支把文本寫回外部 input，經 InputBar 同步恢復可見。
+     * 合併（如等待期新輸入）由 UI 側完成，此處只做單純寫回，避免雙重合併導致重複。
+     */
+    private fun restoreSubmittedDraft(prompt: String) {
+        if (prompt.isBlank()) return
+        updateCurrentConversation(homeState.copy(input = prompt))
+        refreshConversationSummaries()
+        persistConversations()
+    }
+
+    /**
      * Issue #129：streaming 中的送出走跨進程補充指令排隊。
      *
      * 語義對齊 opencode：輸入框不鎖定，送出即清空、可連發多條；後端不取消當前
@@ -1110,8 +1155,9 @@ internal class AgentAppState(
         pendingImages: List<PendingImageUi>,
         pendingFileReferences: List<PendingFileReferenceUi>,
     ) {
-        // 防禦分支：streaming 中理論上不會處於編輯態，仍給提示而不吞字。
+        // 防禦分支：streaming 中理論上不會處於編輯態；本地已清空，仍需寫回避免丟字。
         if (homeState.messageEdit != null) {
+            restoreSubmittedDraft(prompt)
             Toast.makeText(
                 appContext,
                 appContext.getString(R.string.chat_supplement_busy_wait),
@@ -1119,9 +1165,10 @@ internal class AgentAppState(
             ).show()
             return
         }
-        // 收尾競態：currentRunId 已清空但 isStreaming 尚未傳播，草稿保留並提示重送。
+        // 收尾競態：currentRunId 已清空但 isStreaming 尚未傳播，寫回草稿提示重送。
         val runId = currentRunId
         if (runId == null) {
+            restoreSubmittedDraft(prompt)
             Toast.makeText(
                 appContext,
                 appContext.getString(R.string.chat_supplement_failed_resend),
@@ -1130,7 +1177,9 @@ internal class AgentAppState(
             return
         }
         // 先檢查附件再檢查空文本：純附件送出也有 Toast，而不是靜默無反應。
+        // UI 已把附件組合擋在 Stop 鍵，此為建議詞等旁路的安全網，同樣寫回避免丟字。
         if (pendingImages.isNotEmpty() || pendingFileReferences.isNotEmpty()) {
+            restoreSubmittedDraft(prompt)
             Toast.makeText(
                 appContext,
                 appContext.getString(R.string.chat_supplement_attachments_wait),
@@ -1140,6 +1189,7 @@ internal class AgentAppState(
         }
         if (prompt.isBlank()) return
         if (prompt.length > AgentRuntimeWire.MAX_SUPPLEMENT_CHARS) {
+            restoreSubmittedDraft(prompt)
             Toast.makeText(
                 appContext,
                 appContext.getString(R.string.chat_supplement_too_long),
@@ -1147,7 +1197,7 @@ internal class AgentAppState(
             ).show()
             return
         }
-        // 先清空輸入框（fire-and-forget 體驗，可連發）；失敗時按需恢復，避免丟字。
+        // 先清空輸入框（fire-and-forget 體驗，可連發）；失敗時寫回，經 UI 同步恢復。
         updateCurrentConversation(homeState.copy(input = ""))
         refreshConversationSummaries()
         persistConversations()
@@ -1166,15 +1216,10 @@ internal class AgentAppState(
                         Toast.LENGTH_SHORT,
                     ).show()
                 } else {
-                    // sealed/terminal/換 run 競態：不誤報已接收，恢復草稿由用戶重送。
-                    // 失敗的老文本在前、等待期新輸入在後；雙連發皆失敗的極端交錯下
-                    // 順序可能顛倒，但不丟字，用戶重送時可自行調整。
-                    val currentInput = homeState.input
-                    updateCurrentConversation(homeState.copy(
-                        input = if (currentInput.isBlank()) prompt else "$prompt\n$currentInput",
-                    ))
-                    refreshConversationSummaries()
-                    persistConversations()
+                    // sealed/terminal/換 run 競態：不誤報已接收，只寫回原文，
+                    // 等待期新輸入的合併由 UI 側完成（避免 State/UI 雙重合併導致重複）。
+                    // 雙連發皆失敗的極端交錯下順序可能顛倒，但不丟字。
+                    restoreSubmittedDraft(prompt)
                     Toast.makeText(
                         appContext,
                         appContext.getString(R.string.chat_supplement_failed_resend),
