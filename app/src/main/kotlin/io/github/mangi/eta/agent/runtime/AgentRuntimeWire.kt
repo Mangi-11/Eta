@@ -32,6 +32,13 @@ import kotlinx.serialization.json.Json
  */
 internal object AgentRuntimeWire {
     const val MSG_READ_CONTEXT_RESULT = 15
+    // 13/14 保留未用；补充指令使用 16/17，避免与历史编号冲突。
+    /** client -> service：向仍在执行的 run 追加补充指令，不中断当前模型请求或工具批次。 */
+    const val MSG_SUPPLEMENT = 16
+    /** service -> client：返回补充指令是否已排入下轮。 */
+    const val MSG_SUPPLEMENT_RESPONSE = 17
+    /** 跨进程补充指令的文本上限，避免占用 Binder 事务缓冲区。 */
+    const val MAX_SUPPLEMENT_CHARS = 16_000
     const val OP_CHAT = "chat"
     const val OP_COMPACT = "compact"
     const val OP_REWRITE_REPLY = "rewrite_reply"
@@ -146,6 +153,7 @@ internal object AgentRuntimeWire {
     private const val LEGACY_BREENO_HANDOFF_SOURCE = "breeno"
     private const val KEY_CREATED_AT = "created_at"
     private const val KEY_RESULTS = "results"
+    private const val KEY_SUPPLEMENT_TEXT = "supplement_text"
     private const val MAX_RESULT_CONTENT_CHARS = 64_000
     private const val MAX_RESULT_REASONING_CHARS = 32_000
     private const val MAX_DRAIN_CONTENT_CHARS = 16_000
@@ -601,6 +609,41 @@ internal object AgentRuntimeWire {
     }
 
     fun attachRunSucceeded(bundle: Bundle): Boolean = bundle.getBoolean(KEY_OK)
+
+    /**
+     * 补充指令请求体：只带 runId 与纯文本，不带图片与历史，避免占用 Binder 缓冲区。
+     * 空文本由调用方拒绝，此处仅做长度上限校验。
+     */
+    data class SupplementRequest(val runId: String, val text: String)
+
+    fun supplementBundle(runId: String, text: String): Bundle {
+        require(runId.isNotBlank()) { "补充指令缺少 runId" }
+        require(text.trim().isNotBlank()) { "补充指令为空" }
+        require(text.length <= MAX_SUPPLEMENT_CHARS) {
+            "补充指令过长（${text.length} 字符，上限 $MAX_SUPPLEMENT_CHARS）；请缩短后重试"
+        }
+        return Bundle().apply {
+            putString(KEY_RUN_ID, runId)
+            putString(KEY_SUPPLEMENT_TEXT, text)
+        }
+    }
+
+    fun supplementFromBundle(bundle: Bundle): SupplementRequest =
+        SupplementRequest(
+            runId = bundle.getString(KEY_RUN_ID).orEmpty(),
+            text = bundle.getString(KEY_SUPPLEMENT_TEXT).orEmpty(),
+        ).also {
+            require(it.runId.isNotBlank()) { "补充指令缺少 runId" }
+            require(it.text.trim().isNotBlank()) { "补充指令为空" }
+            require(it.text.length <= MAX_SUPPLEMENT_CHARS) { "补充指令过长" }
+        }
+
+    fun supplementResponseBundle(runId: String, accepted: Boolean): Bundle = Bundle().apply {
+        putString(KEY_RUN_ID, runId)
+        putBoolean(KEY_OK, accepted)
+    }
+
+    fun supplementAccepted(bundle: Bundle): Boolean = bundle.getBoolean(KEY_OK)
 
     fun runIdFromBundle(bundle: Bundle): String =
         bundle.getString(KEY_RUN_ID).orEmpty()

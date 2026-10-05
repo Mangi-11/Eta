@@ -120,6 +120,46 @@ internal class AgentRuntimeClient(
         }
     }
 
+    /**
+     * 向仍在执行的 run 追加补充指令（Issue #129）。
+     *
+     * fire-and-forget 不足以支撑“sealed/terminal 时降级开新 run”，此处同步等待
+     * Service 的 [AgentRuntimeWire.MSG_SUPPLEMENT_RESPONSE]（最多 [RESPONSE_TIMEOUT_SECONDS] 秒）。
+     * 空文本直接返回 false，不发送 IPC；超时/断连同样返回 false，由调用方降级处理。
+     *
+     * 必须在后台线程调用：回執经主线程 [SupplementHandler] 分发，主线程同步等待会
+     * 阻塞分发直到超时（并有 ANR 风险）。与既有 [queryActiveRun]/[drainCompletedRuns]
+     * 同一约束。服務死亡同樣收斂為 false（fail-closed，靠超時發現，與 [queryActiveRun] 一致）。
+     */
+    @androidx.annotation.WorkerThread
+    fun supplementRun(runId: String, text: String): Boolean {
+        if (runId.isBlank() || text.trim().isBlank()) return false
+        if (text.length > AgentRuntimeWire.MAX_SUPPLEMENT_CHARS) return false
+        val responseLatch = CountDownLatch(1)
+        val acceptedRef = AtomicReference<Boolean?>(null)
+        val clientMessenger = Messenger(
+            SupplementHandler { accepted ->
+                acceptedRef.set(accepted)
+                responseLatch.countDown()
+            }
+        )
+        return withRuntimeMessenger(false) { serviceMessenger ->
+            val msg = Message.obtain(null, AgentRuntimeWire.MSG_SUPPLEMENT)
+            msg.replyTo = clientMessenger
+            msg.data = try {
+                AgentRuntimeWire.supplementBundle(runId, text)
+            } catch (_: IllegalArgumentException) {
+                return@withRuntimeMessenger false
+            }
+            serviceMessenger.send(msg)
+            if (!responseLatch.await(RESPONSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                false
+            } else {
+                acceptedRef.get() == true
+            }
+        }
+    }
+
     fun ackResult(runId: String): Boolean {
         if (runId.isBlank()) return false
         return withRuntimeMessenger(false) { serviceMessenger ->
@@ -325,6 +365,16 @@ internal class AgentRuntimeClient(
         override fun handleMessage(msg: Message) {
             if (msg.what == AgentRuntimeWire.MSG_QUERY_ACTIVE_RUN_RESPONSE) {
                 onResponse(AgentRuntimeWire.runIdFromBundle(msg.data ?: return))
+            }
+        }
+    }
+
+    private class SupplementHandler(
+        private val onResponse: (Boolean) -> Unit,
+    ) : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) {
+            if (msg.what == AgentRuntimeWire.MSG_SUPPLEMENT_RESPONSE) {
+                onResponse(AgentRuntimeWire.supplementAccepted(msg.data ?: return))
             }
         }
     }
