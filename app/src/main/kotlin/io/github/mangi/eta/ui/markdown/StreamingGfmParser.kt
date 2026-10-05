@@ -83,9 +83,8 @@ internal object StreamingGfmProjection {
     }
 
     /**
-     * projected 是 source 的前綴子串（表格截斷後），其上的 math 區間可過濾重用；
-     * 若被截斷導致尾部 math 區間越界則截斷，pend/link 階段 source 變化時回退重算由調用方保證。
-     * 簡化起見：若 projected 與 source 等長直接重用，否則按 projected 重算（仍只算一次/分支）。
+     * projected 恆為 source 的前綴子串（表格/連結截斷後），偏移 0..len-1 與原串 1:1。
+     * 若等長直接重用 math；被截斷則按 projected 重算（短串，最多 +1~2 次/幀，可接受）。
      */
     private fun mathFor(projected: String, source: String, math: List<IntRange>): List<IntRange> {
         if (projected.length == source.length) return math
@@ -93,7 +92,7 @@ internal object StreamingGfmProjection {
         return mathRanges(projected)
     }
 
-    private fun ambiguousTableStart(source: String, math: List<IntRange> = mathRanges(source)): Int? {
+    private fun ambiguousTableStart(source: String, math: List<IntRange>): Int? {
         if ('|' !in source) return null
         val lines = source.toLineSlices()
         if (lines.isEmpty()) return null
@@ -148,7 +147,7 @@ internal object StreamingGfmProjection {
         return openFence
     }
 
-    private fun findPendingLinkStart(source: String, math: List<IntRange> = mathRanges(source)): Int? {
+    private fun findPendingLinkStart(source: String, math: List<IntRange>): Int? {
         if ('[' !in source) return null
         // Issue #101：公式裡的 `[0,1]`、`a[0]` 不能當未閉合連結截斷，否則流式公式後半消失。
         fun inMath(index: Int): Boolean = math.containsSorted(index)
@@ -219,7 +218,7 @@ internal object StreamingGfmProjection {
         }
     }
 
-    private fun findInlineClosures(source: String, math: List<IntRange> = mathRanges(source)): String {
+    private fun findInlineClosures(source: String, math: List<IntRange>): String {
         if (!source.any { it == '*' || it == '_' || it == '~' || it == '`' }) return ""
         var inlineCodeTicks = 0
         val delimiterStack = ArrayDeque<String>()

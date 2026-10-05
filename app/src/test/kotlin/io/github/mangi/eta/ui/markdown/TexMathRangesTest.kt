@@ -36,7 +36,18 @@ class TexMathRangesTest {
     @Test
     fun dollarCloserAllowsTrailingText() {
         // Closer 只看 prev（"$x$ 是" 合法），不檢查 next。
-        assertEquals(1, mathRanges("\$x\$ 是").size)
+        val source = "\$x\$ 是"
+        val ranges = mathRanges(source)
+        assertEquals(1, ranges.size)
+        assertEquals("\$x\$", source.substring(ranges.single().first, ranges.single().last + 1))
+    }
+
+    @Test
+    fun doubleDollarClosedRange() {
+        val source = "\$\$E=mc^2\$\$"
+        val ranges = mathRanges(source)
+        assertEquals(1, ranges.size)
+        assertEquals(source, source.substring(ranges.single().first, ranges.single().last + 1))
     }
 
     @Test
@@ -50,16 +61,19 @@ class TexMathRangesTest {
     @Test
     fun pipeInsideMathDoesNotTriggerTableBuffering() {
         val session = StreamingGfmParserSession()
-        // 流式：公式內的 | 不能被當表格緩衝截斷。
-        val snapshot = session.parse("公式 \$a|b\$ 結束", isComplete = false)
-        assertTrue(snapshot.renderedSource.contains("a|b"))
+        // 流式：公式內的 | 不能被當表格緩衝截斷，整行應原樣保留。
+        val source = "公式 \$a|b\$ 結束"
+        val snapshot = session.parse(source, isComplete = false)
+        assertEquals(source, snapshot.renderedSource)
     }
 
     @Test
     fun bracketsInsideMathAreNotTruncatedAsLink() {
         val session = StreamingGfmParserSession()
-        val snapshot = session.parse("公式 \$a[0,1]\$ 結束", isComplete = false)
-        assertTrue(snapshot.renderedSource.contains("[0,1]"))
+        // 流式：公式內的 [0,1] 不能被當未閉合連結截斷，整行應原樣保留。
+        val source = "公式 \$a[0,1]\$ 結束"
+        val snapshot = session.parse(source, isComplete = false)
+        assertEquals(source, snapshot.renderedSource)
     }
 
     @Test
@@ -68,6 +82,23 @@ class TexMathRangesTest {
             .parse("行內 \\(a_i+b_j\\) 結束", isComplete = true)
             .document.blocks.single() as MarkdownParagraph
         assertTrue(paragraph.text.text.contains("a_i+b_j"))
+        // a_i 不應被配成斜體：含 a_i 的 span 不帶 Italic。
+        assertFalse(
+            paragraph.text.spanStyles.any {
+                it.item.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic &&
+                    paragraph.text.text.substring(it.start, it.end).contains("a_i")
+            },
+        )
+    }
+
+    @Test
+    fun intrawordUnderscoreStreamingDoesNotCreateEmphasis() {
+        // 流式：公式內 _ 不應觸發強調虛擬閉合（findInlineClosures 跳過 math 區間）。
+        val session = StreamingGfmParserSession()
+        val source = "公式 \$a_i+b_j\$ 後綴"
+        val snapshot = session.parse(source, isComplete = false)
+        assertTrue(snapshot.renderedSource.contains("a_i+b_j"))
+        assertFalse(snapshot.renderedSource.contains("*") || snapshot.renderedSource.contains("_*"))
     }
 
     @Test
