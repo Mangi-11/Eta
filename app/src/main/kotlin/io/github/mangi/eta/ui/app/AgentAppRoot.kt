@@ -6,6 +6,7 @@ import io.github.mangi.eta.ui.voice.SpeechSettingsScreen
 import io.github.mangi.eta.ui.voice.SpeechSynthesisScreen
 import android.Manifest
 import android.app.Activity
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -44,6 +45,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
 import io.github.mangi.eta.agent.device.DeviceLocationProvider
@@ -232,6 +234,16 @@ fun AgentAppRoot(
         conversationPaneOpen = false
     }
 
+    fun openAccessibilitySettings() {
+        focusManager.clearFocus()
+        // Android's per-service settings action is not exposed in the public SDK.
+        val details = Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS")
+            .putExtra("android.intent.extra.COMPONENT_NAME", ComponentName(context, AgentAccessibilityService::class.java))
+        if (runCatching { context.startActivity(details) }.isFailure) {
+            runCatching { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        }
+    }
+
     @Composable
     fun RoutedShell(
         route: AppRoute,
@@ -296,6 +308,8 @@ fun AgentAppRoot(
             onOpenCharacters = { pushRoute(AppRoute.Characters) },
             onOpenPermissions = { pushRoute(AppRoute.Permissions) },
             onOpenSettings = { pushRoute(AppRoute.Settings) },
+            onOpenRootSettings = { focusManager.clearFocus(); pushRoute(AppRoute.SystemEnhance) },
+            onOpenAccessibilitySettings = ::openAccessibilitySettings,
             onOpenModelProviders = { pushRoute(AppRoute.ModelProviders) },
             onOpenTasks = { pushRoute(AppRoute.Tasks) },
         ) { padding ->
