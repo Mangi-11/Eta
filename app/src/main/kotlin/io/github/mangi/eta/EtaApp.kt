@@ -88,6 +88,7 @@ class EtaApp : Application(), XposedServiceHelper.OnServiceListener {
 
     override fun onServiceBind(service: XposedService) {
         serviceInstance = service
+        Prefs.reconcileVendorAssistantPreferences(service)
         Prefs.reconcileAgentPreferences(service)
         dispatch(service)
     }

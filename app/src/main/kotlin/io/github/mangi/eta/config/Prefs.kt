@@ -37,6 +37,7 @@ internal object Prefs {
         const val SCREEN_ON_VOICE_COMMAND = "screen_on_voice_command"
         const val AGENT_CUSTOM_MODEL = "agent_custom_model"
         const val AGENT_REQUIRE_PREFIX = "agent_require_prefix"
+        // 旧版小 V Hook 仍会读取这些 key；与厂商助手公共开关同步，不再单独展示。
         const val VIVO_CUSTOM_MODEL = "vivo_custom_model"
         const val VIVO_REQUIRE_PREFIX = "vivo_require_prefix"
         const val AGENT_TERMINAL_TOOLS = "agent_terminal_tools"
@@ -150,6 +151,43 @@ internal object Prefs {
      */
     fun remotePreferencesForUi(service: XposedService?): SharedPreferences? =
         runCatching { service?.getRemotePreferences(GROUP) }.getOrNull()
+
+    /** 合并旧版小 V 设置，并让仍在运行的旧 Hook 同步读取公共开关。 */
+    fun reconcileVendorAssistantPreferences(service: XposedService?) {
+        val preferences = remotePreferencesForUi(service) ?: return
+        runCatching {
+            val editor = preferences.edit()
+            var changed = false
+            vendorAssistantAliases.forEach { (key, legacyKey) ->
+                val default = Keys.BOOLEAN_DEFAULTS.getValue(key)
+                val value = if (!preferences.contains(key) && preferences.contains(legacyKey)) {
+                    preferences.getBoolean(legacyKey, default)
+                } else {
+                    preferences.getBoolean(key, default)
+                }
+                listOf(key, legacyKey).forEach { target ->
+                    if (!preferences.contains(target) || preferences.getBoolean(target, default) != value) {
+                        editor.putBoolean(target, value)
+                        changed = true
+                    }
+                }
+            }
+            if (changed) editor.commit()
+        }
+    }
+
+    /** 公共开关与旧版小 V 别名一次提交，兼容尚未重启的助手进程。 */
+    fun putBooleanForUi(preferences: SharedPreferences, key: String, value: Boolean): Boolean =
+        runCatching {
+            val editor = preferences.edit().putBoolean(key, value)
+            vendorAssistantAliases[key]?.let { editor.putBoolean(it, value) }
+            editor.commit()
+        }.getOrDefault(false)
+
+    private val vendorAssistantAliases = mapOf(
+        Keys.AGENT_CUSTOM_MODEL to Keys.VIVO_CUSTOM_MODEL,
+        Keys.AGENT_REQUIRE_PREFIX to Keys.VIVO_REQUIRE_PREFIX,
+    )
 
     /** Eta 设置页与 Runtime 使用的本地 Agent 配置，不依赖 LSPosed。 */
     fun localAgentPreferences(): SharedPreferences? = localAgent

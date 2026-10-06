@@ -151,8 +151,8 @@ internal object VivoHooks {
         if (ownership.owns(request.turn.traceId, request.turn.requestId)) return true
         if (!VivoTakeoverPolicy.isSupportedInputMode(request.inputMode, request.fullDuplex)) return false
         val prompt = VivoTakeoverPolicy.prompt(
-            request.text, Prefs.isEnabled(Prefs.Keys.VIVO_CUSTOM_MODEL),
-            Prefs.isEnabled(Prefs.Keys.VIVO_REQUIRE_PREFIX), request.hasAttachments,
+            request.text, Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL),
+            Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX), request.hasAttachments,
         ) ?: return false
         val context = AgentAppContext.resolve() ?: return false
         val bridge = targets.bind() ?: return false
