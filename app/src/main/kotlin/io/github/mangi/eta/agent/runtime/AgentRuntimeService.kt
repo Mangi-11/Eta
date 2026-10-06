@@ -412,8 +412,13 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         entrySurfaceGuard: EntrySurfaceGuard?,
     ) {
         if (activeSession !== session) return
-        val revealsForegroundOperation = AgentOverlayVisibilityPolicy.shouldRevealFor(event)
-        val requiresEntrySurfaceDismissal =
+        if (event is AgentEvent.ToolStarted &&
+            kotlinx.coroutines.runBlocking { io.github.mangi.eta.data.datastore.SettingsDataStore.settings() }.virtualScreenEnabled) {
+            session.virtualUiRouted.set(true)
+        }
+        val virtualUi = session.virtualUiRouted.get()
+        val revealsForegroundOperation = !virtualUi && AgentOverlayVisibilityPolicy.shouldRevealFor(event)
+        val requiresEntrySurfaceDismissal = !virtualUi &&
             AgentOverlayVisibilityPolicy.shouldDismissEntrySurfaceFor(event)
         val entrySurfaceReady = if (requiresEntrySurfaceDismissal && entrySurfaceGuard != null) {
             runCatching { entrySurfaceGuard.dismissOnce() }.getOrDefault(false)
@@ -423,7 +428,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         mainHandler.post {
             if (activeSession !== session) return@post
             if (
-                AgentOverlayVisibilityPolicy.shouldRecordForegroundExecution(
+                !virtualUi && AgentOverlayVisibilityPolicy.shouldRecordForegroundExecution(
                     event,
                     entrySurfaceReady,
                 )

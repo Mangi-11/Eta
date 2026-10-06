@@ -2,6 +2,7 @@ package io.github.mangi.eta.agent.display
 
 import android.content.Context
 import android.util.Base64
+import android.os.SystemClock
 import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.data.datastore.SettingsDataStore
@@ -11,10 +12,15 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicLong
+import java.util.UUID
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 
-/** 单个 Runtime 所有的虚拟屏；查看页只观察同一会话，不抢占主屏。 */
+/** Runtime owns the display; viewer inputs are serialized with its tools. */
 internal object VirtualScreenSession {
     private val lock = Any()
     private val deadlines = Executors.newSingleThreadScheduledExecutor { r ->
@@ -24,6 +30,9 @@ internal object VirtualScreenSession {
         ).apply { isDaemon = true }
     }
     private val session = AtomicReference<Session?>()
+    private val viewerState = MutableStateFlow(VirtualScreenViewerState())
+    val state = viewerState.asStateFlow()
+    private val gestureIds = AtomicLong()
     private val cleanup = Executors.newSingleThreadExecutor { r ->
         Thread(r, "eta-display-cleanup").apply {
             isDaemon = true
@@ -39,9 +48,12 @@ internal object VirtualScreenSession {
         val height: Int,
         val allowOff: Boolean
     ) {
+        val id = UUID.randomUUID().toString()
+        var displayId: Int = -1
         val closed = AtomicBoolean()
         fun close() {
             if (!closed.compareAndSet(false, true)) return
+            viewerState.update { if (it.display?.sessionId == id) VirtualScreenViewerState() else it }
             // 不等待 execute 持有的锁或正在读取的帧；主线程取消必须立即返回。
             process.destroy()
             cleanup.execute {
@@ -115,6 +127,11 @@ internal object VirtualScreenSession {
                     current.close()
                     error(response.optString("code", "ROOT_DISPLAY_UNAVAILABLE"))
                 }
+                current.displayId = response.getInt("displayId")
+                viewerState.value = VirtualScreenViewerState(
+                    display = VirtualDisplayInfo(current.id, owner, current.displayId, width, height),
+                    lastAction = "create",
+                )
                 deadlines.schedule(
                     { if (session.compareAndSet(current, null)) current.close() },
                     15,
@@ -128,10 +145,14 @@ internal object VirtualScreenSession {
             require(!current.allowOff || settings.virtualScreenOffEnabled) { "SCREEN_OFF_PERMISSION_REQUIRED" }
             val timeout = deadlines.schedule({ current.close() }, 15, TimeUnit.SECONDS)
             val result = try {
+                publishGesture(current, args)
                 current.input.write(args.toString()); current.input.newLine(); current.input.flush()
                 readResponse(current.output)
             } finally {
                 timeout.cancel(false)
+            }
+            if (action !in setOf("observe", "probe")) {
+                viewerState.update { it.copy(lastAction = action) }
             }
             if (action == "close") {
                 current.close(); session.compareAndSet(current, null)
@@ -176,6 +197,54 @@ internal object VirtualScreenSession {
             ?: return@synchronized AgentModelClient.ToolResult("{\"ok\":false,\"code\":\"NO_VIRTUAL_SCREEN\"}")
         execute(context, current.owner, JSONObject().put("action", "observe"))
     }
+
+    fun inputForViewer(context: Context, sessionId: String, args: JSONObject): AgentModelClient.ToolResult = synchronized(lock) {
+        val current = session.get()
+        if (current == null || current.id != sessionId || args.optString("action") !in setOf("tap", "swipe", "long_press", "back", "key")) {
+            return@synchronized failure("STALE_VIRTUAL_SCREEN")
+        }
+        viewerState.update { state -> state.copy(display = state.display?.let {
+            it.copy(manualInputGeneration = it.manualInputGeneration + 1)
+        }) }
+        execute(context, current.owner, args)
+    }
+
+    /** Probe the Root process while holding the same lock as manual input and other tools. */
+    fun withDisplay(
+        context: Context,
+        owner: String,
+        isCancelled: () -> Boolean = { false },
+        block: (VirtualDisplayInfo) -> AgentModelClient.ToolResult,
+    ): AgentModelClient.ToolResult = synchronized(lock) {
+        val probe = execute(context, owner, JSONObject().put("action", "probe"), isCancelled)
+        if (!JSONObject(probe.content).optBoolean("ok")) return@synchronized probe
+        val info = viewerState.value.display ?: return@synchronized failure("NO_VIRTUAL_SCREEN")
+        block(info)
+    }
+
+    fun showNodeGesture(info: VirtualDisplayInfo, action: String, x: Int, y: Int, durationMs: Int = 500, endX: Int = x, endY: Int = y) {
+        val current = session.get()?.takeIf { it.id == info.sessionId } ?: return
+        publishGesture(current, JSONObject().put("action", action).put("x", x).put("y", y)
+            .put("x1", x).put("y1", y).put("x2", endX).put("y2", endY).put("durationMs", durationMs))
+    }
+
+    private fun publishGesture(current: Session, args: JSONObject) {
+        val action = args.optString("action")
+        if (action !in setOf("tap", "long_press", "swipe")) return
+        val x = args.optInt(if (action == "swipe") "x1" else "x", -1)
+        val y = args.optInt(if (action == "swipe") "y1" else "y", -1)
+        val endX = if (action == "swipe") args.optInt("x2", -1) else x
+        val endY = if (action == "swipe") args.optInt("y2", -1) else y
+        if (x !in 0 until current.width || y !in 0 until current.height || endX !in 0 until current.width || endY !in 0 until current.height) return
+        viewerState.update { state -> state.copy(gesture = VirtualScreenGesture(
+            gestureIds.incrementAndGet(), current.id, action, x, y, endX, endY,
+            args.optInt("durationMs", 500), SystemClock.elapsedRealtime(),
+        )) }
+    }
+
+    private fun failure(code: String) = AgentModelClient.ToolResult(
+        JSONObject().put("ok", false).put("code", code).toString(), sensitive = true,
+    )
 
     fun closeOwner(owner: String) {
         session.get()?.takeIf { it.owner == owner }?.let { current ->

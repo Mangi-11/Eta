@@ -12,6 +12,8 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
@@ -144,6 +146,44 @@ object GestureIndicator {
     private const val FADE_OUT_DURATION_MS = 180L
     private const val MIN_LONG_PRESS_HOLD_MS = 240L
     private const val MAX_LONG_PRESS_HOLD_MS = 620L
+}
+
+/** Same indicator artwork, contained in the virtual-screen viewer rather than a system overlay. */
+internal class GestureIndicatorHost(context: Context) : FrameLayout(context) {
+    private var active: AnimatedIndicatorView? = null
+
+    fun showPress(x: Float, y: Float, longPress: Boolean, durationMs: Int) {
+        val view = PressIndicatorView(context, if (longPress) PressKind.LONG_PRESS else PressKind.TAP,
+            if (longPress) (durationMs.toLong() - 380).coerceIn(240, 620) else 100)
+        val size = (60 * resources.displayMetrics.density).toInt()
+        attach(view, LayoutParams(size, size).apply {
+            leftMargin = x.toInt() - size / 2
+            topMargin = y.toInt() - size / 2
+        })
+    }
+
+    fun showSwipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Int) {
+        attach(SwipeIndicatorView(context, x1, y1, x2, y2, durationMs),
+            LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
+    private fun attach(view: AnimatedIndicatorView, params: LayoutParams) {
+        clear()
+        active = view
+        addView(view, params)
+        view.startIndicatorAnimation { if (active === view) clear() }
+    }
+
+    private fun clear() {
+        active?.cancelIndicatorAnimation()
+        active = null
+        removeAllViews()
+    }
+
+    override fun onDetachedFromWindow() {
+        clear()
+        super.onDetachedFromWindow()
+    }
 }
 
 private enum class PressKind { TAP, LONG_PRESS }

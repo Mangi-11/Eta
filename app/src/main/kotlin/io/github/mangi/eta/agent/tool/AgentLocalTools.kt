@@ -2,6 +2,10 @@ package io.github.mangi.eta.agent.tool
 
 import android.content.Context
 import io.github.mangi.eta.agent.automation.AgentTaskTools
+import io.github.mangi.eta.agent.display.VirtualScreenRoutingPolicy
+import io.github.mangi.eta.agent.display.VirtualScreenUiTools
+import io.github.mangi.eta.data.datastore.SettingsDataStore
+import io.github.mangi.eta.data.model.Settings
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
@@ -99,9 +103,14 @@ internal class AgentLocalTools(
     pendingSkillConflict: PendingSkillConflictCapability? = null,
     private val rootAvailable: () -> Boolean = { RootAccess.isGranted },
     private val skillAuthoringService: SkillAuthoringService? = null,
+    private val virtualScreenSettings: () -> Settings = { runBlocking { SettingsDataStore.settings() } },
+    private val virtualUiExecutor: ((String, JSONObject) -> AgentModelClient.ToolResult)? = null,
 ) : AgentModelClient.ToolExecutor, AutoCloseable {
 
     private val closed = AtomicBoolean(false)
+    private val virtualRouting = VirtualScreenRoutingPolicy()
+    private val virtualUiTools by lazy { VirtualScreenUiTools(context, browserRunId, closed::get,
+        { args -> textResult(launchApp(args)) }, { args -> textResult(openUri(args)) }) }
     private val deviceController = RootShellDeviceController(logger, screenshotExcludedPackages, rootAvailable)
     private val rootCommandExecutor = BoundedRootCommandExecutor(logger, rootAvailable = rootAvailable)
     private val structuredDeviceTools = AgentStructuredDeviceTools(
@@ -164,17 +173,26 @@ internal class AgentLocalTools(
     override fun execute(toolCall: AgentModelClient.ToolCall): AgentModelClient.ToolResult =
         runCatching {
             val args = JSONObject(toolCall.argumentsJson.ifBlank { "{}" })
+            val virtualSettings = if (toolCall.name in VirtualScreenRoutingPolicy.uiTools) virtualScreenSettings() else null
+            val virtualUi = virtualRouting.shouldRoute(toolCall.name, virtualSettings?.virtualScreenEnabled == true)
+            if (virtualUi && virtualSettings?.virtualScreenEnabled != true) {
+                return@runCatching textResult(errorResult("VIRTUAL_SCREEN_DISABLED", "本次运行已使用虚拟屏；权限关闭后不切换主屏"))
+            }
+            if (virtualUi && !rootAvailable()) {
+                return@runCatching textResult(errorResult("ROOT_REQUIRED", "启用虚拟屏后 UI 操作需要 Root；不会回退到主屏"))
+            }
             if (AgentToolRequirements.find(toolCall.name) != null &&
                 AgentToolRequirements.rootDenied(toolCall.name, args, rootAvailable())
             ) {
                 return@runCatching textResult(errorResult("ROOT_REQUIRED", "此操作需要 Root 授权，本次未执行"))
             }
             deviceToolPermissionError(toolCall.name)?.let { return@runCatching it }
+            if (virtualUi) deviceToolPermissionError("virtual_screen")?.let { return@runCatching it }
             memoryToolPermissionError(toolCall.name)?.let { return@runCatching it }
             if (toolCall.name in AgentTaskTools.names) {
                 if (!memoryWritable) return@runCatching textResult(errorResult("TASKS_READ_ONLY", "角色会话不能管理自动任务"))
             }
-            when (val decision = beforeToolExecution(toolCall.name)) {
+            when (val decision = beforeToolExecution(if (virtualUi) "virtual_screen" else toolCall.name)) {
                 ToolExecutionDecision.Allow -> Unit
                 is ToolExecutionDecision.Reject -> {
                     if (decision.code.startsWith("ACCESSIBILITY_")) publishedObservation.set(PublishedObservation())
@@ -185,6 +203,9 @@ internal class AgentLocalTools(
                         ),
                     )
                 }
+            }
+            if (virtualUi) {
+                return@runCatching virtualUiExecutor?.invoke(toolCall.name, args) ?: virtualUiTools.execute(toolCall.name, args)
             }
             when (toolCall.name) {
                 "virtual_screen" -> io.github.mangi.eta.agent.display.VirtualScreenSession.execute(context, browserRunId, args, closed::get)
@@ -630,7 +651,8 @@ internal class AgentLocalTools(
         val appName = args.optString("app_name").trim().ifBlank { null }
 
         val app = if (packageName != null) {
-            findAppByPackage(packageName) ?: AppInfo(packageName = packageName, appName = appName ?: packageName)
+            // An exact package does not require enumerating all installed apps.
+            AppInfo(packageName = packageName, appName = appName ?: packageName)
         } else {
             if (appName == null) {
                 return errorResult("INVALID_ARGUMENT", "package_name 和 app_name 至少提供一个")
@@ -661,6 +683,10 @@ internal class AgentLocalTools(
                 message = "应用不可启动或未安装：${app.packageName}"
             )
         }
+        if (virtualRouting.shouldRoute("launch_app", virtualScreenSettings().virtualScreenEnabled)) {
+            val component = launchIntent.component ?: return errorResult("NO_ACTIVITY", "没有确定的启动 Activity")
+            return virtualUiTools.launchComponent(component.flattenToString()).content
+        }
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         context.startActivity(launchIntent)
         logger.info("Agent local tool action=launch_app outcome=started")
@@ -684,6 +710,14 @@ internal class AgentLocalTools(
         val context = requireContext()
         val intent = Intent(Intent.ACTION_VIEW, uri)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (virtualRouting.shouldRoute("open_uri", virtualScreenSettings().virtualScreenEnabled)) {
+            val target = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo
+                ?: return errorResult("NO_ACTIVITY", "没有确定的 URI 处理应用")
+            if (target.packageName == "android" || target.name.contains("ResolverActivity")) {
+                return errorResult("AMBIGUOUS_APP", "URI 没有默认处理应用，请提供具体应用入口")
+            }
+            return virtualUiTools.launchComponent(android.content.ComponentName(target.packageName, target.name).flattenToString(), uriText).content
+        }
         if (!HookSupport.resolvesActivity(context, intent)) {
             return errorResult("NO_ACTIVITY", "没有应用可以处理该 URI")
         }
@@ -709,9 +743,6 @@ internal class AgentLocalTools(
         )
 
     private fun terminal(args: JSONObject): String = terminalController.terminalAction(args)
-
-    private fun findAppByPackage(packageName: String): AppInfo? =
-        installedLauncherApps().firstOrNull { it.packageName == packageName }
 
     private fun findAppsByName(query: String, includeSystem: Boolean): List<AppInfo> {
         val normalizedQuery = query.normalized()

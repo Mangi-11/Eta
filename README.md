@@ -56,7 +56,7 @@ Eta 内置 Agent Runtime，通过 Agent Loop 编排模型调用、工具执行�
 - **Skills**：按需加载任务方法、参考资料与脚本资源，支持公开 GitHub 仓库安装和本地 ZIP 导入；安装不会执行脚本或开启额外权限。
 - **经验学习**：任务完成后可自动追加持久记忆，并将已验证的操作方法生成或更新为用户技能；新任务优先，自动学习可分别关闭。见 [自动记忆与操作经验](docs/EXPERIENCE_LEARNING.md)。
 - **自动任务**：AI 辅助创建一次性、间隔、每日与事件规则，支持本地匹配、冷却、次数限制、运行记录及取消。Android 后台调度可能延迟，见 [定时与事件任务](docs/AUTOMATION.md)。
-- **Root 虚拟屏（实验性）**：在独立 display 中启动、观察和点击受支持的应用，可从通知打开查看页。需要 Android 14+、Root 和用户开关；熄屏执行另需许可，兼容与验证范围见 [虚拟屏](docs/VIRTUAL_SCREEN.md)。
+- **Root 虚拟屏（实验性）**：启用后全部 AI UI 工具自动路由到独立 display，可从通知打开带触控和操作指示的查看页。需要 Android 14+、Root 和用户开关；熄屏执行另需许可，兼容与验证范围见 [虚拟屏](docs/VIRTUAL_SCREEN.md)。
 - **MCP**：通过 Streamable HTTP 连接远程工具，支持 Bearer Token；工具逐项启用，与本机工具共同参与任务。
 
 ### Agent Runtime

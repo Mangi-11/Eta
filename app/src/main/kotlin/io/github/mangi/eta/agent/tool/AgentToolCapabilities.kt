@@ -9,6 +9,7 @@ import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.accessibility.AccessibilityProtectionClient
 import io.github.mangi.eta.agent.device.AgentNotificationHistoryService
 import io.github.mangi.eta.agent.device.RootAccess
+import io.github.mangi.eta.agent.display.VirtualScreenRoutingPolicy
 import java.util.Locale
 import org.json.JSONArray
 
@@ -30,8 +31,14 @@ internal data class AgentToolCapabilities(
     val nightLightAvailable: Boolean = true,
     val vivo: Boolean = false,
     val virtualDisplayAvailable: Boolean = true,
+    val virtualScreenEnabled: Boolean = false,
 ) {
     fun unavailableCode(name: String): String? {
+        if (virtualScreenEnabled && name in VirtualScreenRoutingPolicy.uiTools) {
+            if (!rootAvailable) return "ROOT_REQUIRED"
+            if (!virtualDisplayAvailable) return "DEVICE_UNSUPPORTED"
+            if (name in VirtualScreenRoutingPolicy.unavailableTools) return "VIRTUAL_ACTION_UNSUPPORTED"
+        }
         if (name == "virtual_screen" && !virtualDisplayAvailable) return "DEVICE_UNSUPPORTED"
         if (name in setOf("get_flashlight", "set_flashlight") && !flashlightAvailable) return "DEVICE_UNSUPPORTED"
         if (name in setOf("get_hotspot", "set_hotspot") && !hotspotAvailable) return "DEVICE_UNSUPPORTED"
@@ -39,7 +46,8 @@ internal data class AgentToolCapabilities(
         if (requirement.rootRequirement == RootRequirement.REQUIRED && !rootAvailable) return "ROOT_REQUIRED"
         if (requirement.lsposedRequirement == LsposedRequirement.REQUIRED && !lsposedAvailable) return "LSPOSED_REQUIRED"
         if (requirement.colorOs && !colorOs && !(vivo && requirement.vivoAlternative)) return "DEVICE_UNSUPPORTED"
-        if (requirement.accessibility && !accessibilityAvailable && !accessibilityRecoveryAvailable) {
+        if (requirement.accessibility && !accessibilityAvailable && !accessibilityRecoveryAvailable &&
+            !(virtualScreenEnabled && name in VirtualScreenRoutingPolicy.coordinateTools)) {
             return "ACCESSIBILITY_UNAVAILABLE"
         }
         return when (requirement.systemAccess) {
@@ -62,6 +70,15 @@ internal data class AgentToolCapabilities(
                 val tool = rootProjected.getJSONObject(index)
                 val name = tool.getJSONObject("function").getString("name")
                 if (unavailableCode(name) == null) {
+                    if (virtualScreenEnabled && name in VirtualScreenRoutingPolicy.uiTools) {
+                        val function = tool.getJSONObject("function")
+                        function.put("description", function.getString("description") + " 当前已启用虚拟屏：此工具只作用于独立 display，自动创建会话；不会操作主屏。")
+                        if (name == "press_key") function.getJSONObject("parameters").getJSONObject("properties")
+                            .getJSONObject("button").put("enum", JSONArray().put("BACK").put("ENTER").put("PASTE"))
+                        if (name in setOf("set_clipboard", "get_clipboard")) {
+                            function.put("description", "仅访问本次虚拟屏运行的临时剪贴板，不读取或修改用户系统剪贴板。")
+                        }
+                    }
                     if (name in setOf("get_device_state", "set_device_state") && (!nfcAvailable || !nightLightAvailable)) {
                         val target = tool.getJSONObject("function").getJSONObject("parameters").getJSONObject("properties").getJSONObject("target")
                         target.put("enum", JSONArray(SystemStateControls.targets.filterNot { it == "nfc" && !nfcAvailable || it == "night_light" && !nightLightAvailable }))
@@ -93,6 +110,7 @@ internal data class AgentToolCapabilities(
             colorOs = isColorOsDevice(),
             vivo = isVivoDevice(),
             virtualDisplayAvailable = Build.VERSION.SDK_INT >= 34,
+            virtualScreenEnabled = kotlinx.coroutines.runBlocking { io.github.mangi.eta.data.datastore.SettingsDataStore.settings() }.virtualScreenEnabled,
             calendarReadable = io.github.mangi.eta.agent.device.CalendarPermissions.granted(context, false),
             calendarWritable = io.github.mangi.eta.agent.device.CalendarPermissions.granted(context, true),
             flashlightAvailable = context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH),

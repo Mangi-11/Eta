@@ -59,7 +59,7 @@ internal object RootDisplayCommandMain {
             val frameStore = FrameStore()
             reader.setOnImageAvailableListener({ source ->
                 source.acquireLatestImage()?.use { image ->
-                    if (SystemClock.elapsedRealtime() - frameStore.lastEncoded < 250) return@use
+                    if (SystemClock.elapsedRealtime() - frameStore.lastEncoded < 100) return@use
                     val plane = image.planes.firstOrNull() ?: return@use
                     if (plane.pixelStride != 4) return@use
                     val paddedWidth = plane.rowStride / plane.pixelStride
@@ -122,6 +122,8 @@ internal object RootDisplayCommandMain {
                     require(displayManager.getDisplay(id) != null) { "DISPLAY_GONE" }
                     require(allowOff || (power.isInteractive && !keyguard.isDeviceLocked)) { "SCREEN_OFF_PERMISSION_REQUIRED" }
                     val result = when (request.getString("action")) {
+                        "probe" -> JSONObject().put("ok", true).put("displayId", id)
+                            .put("packageName", runningTasks().firstOrNull { taskDisplayId(it) == id }?.topActivity?.packageName.orEmpty())
                         "observe" -> frameStore.jpeg?.let { jpeg ->
                             JSONObject().put("ok", true).put("displayId", id)
                                 .put("width", width).put("height", height)
@@ -151,8 +153,12 @@ internal object RootDisplayCommandMain {
                                 Int::class.javaPrimitiveType
                             ).invoke(null, resizeMode) as Boolean
                             require(info.enabled && info.exported && resizable && info.launchMode <= ActivityInfo.LAUNCH_SINGLE_TOP) { "DISPLAY_APP_UNSUPPORTED" }
-                            // 任何已有应用任务都拒绝迁移；多个 display 不等于应用数据隔离。
-                            require(runningTasks().none { it.baseActivity?.packageName == packageName || it.topActivity?.packageName == packageName }) { "APP_ALREADY_RUNNING" }
+                            // Allow re-entry to our own display, but never migrate a user's task.
+                            require(runningTasks().none {
+                                (it.baseActivity?.packageName == packageName || it.topActivity?.packageName == packageName) && taskDisplayId(it) != id
+                            }) { "APP_ALREADY_RUNNING" }
+                            val uri = request.optString("uri")
+                            require(uri.length <= 8192 && !uri.contains('\u0000')) { "INVALID_URI" }
                             val output = command(
                                 listOf(
                                     "/system/bin/am",
@@ -163,13 +169,13 @@ internal object RootDisplayCommandMain {
                                     "0x18000000",
                                     "-n",
                                     component
-                                )
+                                ) + if (uri.isNotBlank()) listOf("-a", "android.intent.action.VIEW", "-d", uri) else emptyList()
                             )
                             require(!output.contains("Error:") && !output.contains("Warning: Activity not started")) { "DISPLAY_LAUNCH_REJECTED" }
                             val launched =
                                 runningTasks().filter { it.baseActivity?.packageName == packageName || it.topActivity?.packageName == packageName }
                             require(launched.isNotEmpty() && launched.all {
-                                it.javaClass.getField("displayId").getInt(it) == id
+                                taskDisplayId(it) == id
                             }) { "DISPLAY_LAUNCH_MISMATCH" }
                             JSONObject().put("ok", true).put("displayId", id)
                                 .put("component", component)
@@ -199,6 +205,23 @@ internal object RootDisplayCommandMain {
                         "back" -> {
                             input(id, "keyevent", "4"); JSONObject().put("ok", true)
                                 .put("displayId", id)
+                        }
+
+                        "key" -> {
+                            val code = when (request.getString("button")) {
+                                "BACK" -> 4
+                                "ENTER" -> 66
+                                else -> error("VIRTUAL_ACTION_UNSUPPORTED")
+                            }
+                            input(id, "keyevent", code.toString())
+                            JSONObject().put("ok", true).put("displayId", id)
+                        }
+
+                        "long_press" -> {
+                            val x = integer(request, "x", 0, width - 1).toString()
+                            val y = integer(request, "y", 0, height - 1).toString()
+                            input(id, "swipe", x, y, x, y, integer(request, "durationMs", 300, 3000).toString())
+                            JSONObject().put("ok", true).put("displayId", id)
                         }
 
                         else -> failure("UNKNOWN_DISPLAY_ACTION")
@@ -231,6 +254,9 @@ internal object RootDisplayCommandMain {
     }
 
     private fun flag(name: String) = DisplayManager::class.java.getField(name).getInt(null)
+
+    private fun taskDisplayId(task: ActivityManager.RunningTaskInfo): Int =
+        android.app.TaskInfo::class.java.getField("displayId").getInt(task)
 
     // Called only by the UID 0 app_process helper, never in Eta's application process.
     // An unavailable task API aborts launch before any activity or input is sent.
