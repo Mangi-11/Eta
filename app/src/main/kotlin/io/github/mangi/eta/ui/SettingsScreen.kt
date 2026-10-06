@@ -538,6 +538,7 @@ private fun SettingsPageContent(
                             context = context,
                             prefs = prefs,
                             title = stringResource(R.string.ui_vivo_require_prefix),
+                            summary = stringResource(R.string.ui_vivo_require_prefix_summary),
                             key = Prefs.Keys.VIVO_REQUIRE_PREFIX,
                             icon = Icons.Rounded.FilterAlt,
                             iconTint = EtaPreferenceColors.Blue,

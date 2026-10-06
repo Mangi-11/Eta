@@ -7,6 +7,9 @@ internal object VivoTakeoverPolicy {
 
     fun isSupportedVersion(versionCode: Long): Boolean = versionCode == SUPPORTED_VERSION_CODE
 
+    fun isSupportedInputMode(inputMode: String?, fullDuplex: Boolean): Boolean =
+        !fullDuplex && inputMode in setOf("inputmode_keyboard", "voice", "longpress_voice")
+
     fun prompt(
         text: String,
         enabled: Boolean,

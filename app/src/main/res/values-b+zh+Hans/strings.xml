@@ -351,6 +351,7 @@
   <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">厂商助手兼容入口</string>
   <string name="ui_vivo_custom_model">小 V 使用 Eta 模型（6.8.5.3）</string>
   <string name="ui_vivo_require_prefix">小 V 仅接管带 /agent 前缀的请求</string>
+  <string name="ui_vivo_require_prefix_summary">关闭后接管普通打字和单次语音请求；仍需开启“小 V 使用 Eta 模型”。</string>
   <string name="injected_vivo_configure_model">请先打开 Eta，配置模型、API Key 和上下文窗口大小。</string>
   <string name="ui_display_name_ed16be">展示名称</string>
   <string name="ui_tool_a72ef1">工具</string>

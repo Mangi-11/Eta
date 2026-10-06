@@ -34,6 +34,8 @@ internal object VivoHooks {
     private val deferredHandles = CopyOnWriteArrayList<HookHandle>()
     private val active = AtomicReference<Run?>()
     private val history = VivoConversationHistory()
+    private val ownership = VivoTurnOwnership()
+    private val cancellingNative = ThreadLocal<Boolean>()
     private val main = Handler(Looper.getMainLooper())
     private val executor = ThreadPoolExecutor(
         1, 1, 30L, TimeUnit.SECONDS, ArrayBlockingQueue(2),
@@ -81,24 +83,54 @@ internal object VivoHooks {
             }
             intercept("vivo.cancel", targets.cancel, "Vivo GPT cancellation") { chain ->
                 val node = (chain.args.firstOrNull() as? Enum<*>)?.name
-                if (node == "GPT" || node == "GPTONLY") cancelActive()
+                if (cancellingNative.get() != true && (node == "GPT" || node == "GPTONLY")) {
+                    cancelActive(notify = true)
+                }
                 chain.proceed()
+            }
+            val events = runCatching { targets.nativeEvents(loader) }.getOrNull()
+            if (events == null) {
+                missing("vivo.decision", "CopilotEventCenter.post", "未找到小 V 语音完成入口")
+            } else {
+                intercept("vivo.decision", events.dispatch, "Vivo final text and ASR request") { chain ->
+                    val event = chain.args.firstOrNull()
+                    val claimed = try {
+                        when {
+                            event == null || VivoChatBridge.isPostingReply(event) || !events.isDecision(event) -> false
+                            ownership.owns(events.traceId(event), events.requestId(event)) -> true
+                            events.state(event) != 1 || events.fullDuplex(event) -> false
+                            else -> {
+                                val request = events.message(event)?.let(targets::request)
+                                val accepted = request != null && tryClaim(logger, targets, request)
+                                if (accepted) {
+                                    // The speech SDK can already be generating a native reply when ASR ends.
+                                    // Cancel it without treating our own cancellation as a user stopping Eta.
+                                    cancellingNative.set(true)
+                                    try {
+                                        runCatching { events.cancelNativeReply() }.onFailure {
+                                            logger.warn("小 V 原生回答取消失败: type=${it.safeLogType()}")
+                                        }
+                                    } finally {
+                                        cancellingNative.remove()
+                                    }
+                                }
+                                accepted
+                            }
+                        }
+                    } catch (exception: Exception) {
+                        logger.warnThrottled("vivo_decision_failed") {
+                            "小 V 聊天事件检查失败: type=${exception.safeLogType()}"
+                        }
+                        false
+                    }
+                    if (claimed) null else chain.proceed()
+                }
             }
             intercept("vivo.text", targets.sendChat, "Vivo ordinary text request") { chain ->
                 val claimed = try {
                     val message = chain.args.firstOrNull()
                     val request = message?.let(targets::request)
-                    val prompt = request?.let {
-                        VivoTakeoverPolicy.prompt(
-                            it.text, Prefs.isEnabled(Prefs.Keys.VIVO_CUSTOM_MODEL),
-                            Prefs.isEnabled(Prefs.Keys.VIVO_REQUIRE_PREFIX), it.hasAttachments,
-                        )
-                    }
-                    if (request != null && prompt != null) {
-                        val context = AgentAppContext.resolve()
-                        val bridge = targets.bind()
-                        context != null && bridge != null && claim(context, logger, request, prompt, bridge)
-                    } else false
+                    request != null && tryClaim(logger, targets, request)
                 } catch (exception: Exception) {
                     logger.warnThrottled("vivo_admission_failed") {
                         "小 V 接管检查失败: type=${exception.safeLogType()}"
@@ -115,6 +147,18 @@ internal object VivoHooks {
         rootLogger.scoped("Vivo").info(installation.report.summary())
     }
 
+    private fun tryClaim(logger: ModuleLogger, targets: VivoChatBridge.Targets, request: VivoChatBridge.Request): Boolean {
+        if (ownership.owns(request.turn.traceId, request.turn.requestId)) return true
+        if (!VivoTakeoverPolicy.isSupportedInputMode(request.inputMode, request.fullDuplex)) return false
+        val prompt = VivoTakeoverPolicy.prompt(
+            request.text, Prefs.isEnabled(Prefs.Keys.VIVO_CUSTOM_MODEL),
+            Prefs.isEnabled(Prefs.Keys.VIVO_REQUIRE_PREFIX), request.hasAttachments,
+        ) ?: return false
+        val context = AgentAppContext.resolve() ?: return false
+        val bridge = targets.bind() ?: return false
+        return claim(context, logger, request, prompt, bridge)
+    }
+
     private fun claim(
         context: Context,
         logger: ModuleLogger,
@@ -122,12 +166,14 @@ internal object VivoHooks {
         prompt: String,
         bridge: VivoChatBridge,
     ): Boolean {
-        val run = Run(request, prompt, bridge)
+        if (!ownership.claim(request.turn)) return true
+        val run = Run(context, request, prompt, bridge)
         val task = FutureTask<Unit> { execute(context, logger, run) }
         run.task = task
         try {
             executor.execute(task)
         } catch (_: RejectedExecutionException) {
+            ownership.release(request.turn)
             return false
         }
         // Once queued, ownership is irrevocable: a rendering failure must never send the prompt twice.
@@ -140,7 +186,7 @@ internal object VivoHooks {
             }
             run.activated.countDown()
         }
-        logger.info("已接管小 V 文字请求: queryChars=${prompt.length}")
+        logger.info("已接管小 V 请求: inputMode=${request.inputMode}, queryChars=${prompt.length}")
         return true
     }
 
@@ -218,11 +264,22 @@ internal object VivoHooks {
 
     private fun text(context: Context, id: Int, fallback: String) = EtaInjectedStrings.get(context, id, fallback)
 
-    private fun cancelActive() {
-        active.getAndSet(null)?.cancel()
+    private fun cancelActive(notify: Boolean = false) {
+        val run = active.getAndSet(null) ?: return
+        run.cancel()
+        if (notify) main.post {
+            runCatching {
+                run.bridge.complete(run.request, text(run.context, R.string.overlay_stopped, "Stopped"))
+            }
+        }
     }
 
-    private class Run(val request: VivoChatBridge.Request, val prompt: String, val bridge: VivoChatBridge) {
+    private class Run(
+        val context: Context,
+        val request: VivoChatBridge.Request,
+        val prompt: String,
+        val bridge: VivoChatBridge,
+    ) {
         val id = UUID.randomUUID().toString()
         val activated = CountDownLatch(1)
         val cancelled = AtomicBoolean()

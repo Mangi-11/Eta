@@ -30,6 +30,26 @@ class VivoTakeoverPolicyTest {
     }
 
     @Test
+    fun prefixSwitchOnlyChangesAdmissionAndNeverDisablesTheMasterSwitch() {
+        listOf("inputmode_keyboard", "voice", "longpress_voice").forEach { mode ->
+            assertTrue(VivoTakeoverPolicy.isSupportedInputMode(mode, fullDuplex = false))
+            assertNull(VivoTakeoverPolicy.prompt("你好", enabled = true, requirePrefix = true))
+            assertEquals("你好", VivoTakeoverPolicy.prompt("你好", enabled = true, requirePrefix = false))
+            assertEquals("你好", VivoTakeoverPolicy.prompt("/agent 你好", true, false))
+            assertNull(VivoTakeoverPolicy.prompt("你好", enabled = false, requirePrefix = false))
+        }
+    }
+
+    @Test
+    fun realtimeCallsDrivingAndUnknownModesStayNative() {
+        listOf("call", "driving", "", "future-mode").forEach {
+            assertFalse(VivoTakeoverPolicy.isSupportedInputMode(it, fullDuplex = false))
+        }
+        assertFalse(VivoTakeoverPolicy.isSupportedInputMode(null, fullDuplex = false))
+        assertFalse(VivoTakeoverPolicy.isSupportedInputMode("voice", fullDuplex = true))
+    }
+
+    @Test
     fun unknownAssistantVersionsKeepNativeBehavior() {
         assertTrue(VivoTakeoverPolicy.isSupportedVersion(68503L))
         assertFalse(VivoTakeoverPolicy.isSupportedVersion(68504L))

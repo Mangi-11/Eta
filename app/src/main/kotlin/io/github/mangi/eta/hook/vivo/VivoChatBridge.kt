@@ -19,6 +19,8 @@ internal class VivoChatBridge private constructor(
         val turn: VivoReplyProtocol.Turn,
         val text: String,
         val hasAttachments: Boolean,
+        val inputMode: String,
+        val fullDuplex: Boolean,
     )
 
     fun start(request: Request) {
@@ -36,7 +38,19 @@ internal class VivoChatBridge private constructor(
         requestField.set(event, request.message)
         resultField.set(event, result)
         traceField.set(event, request.turn.traceId)
-        post.invoke(center, event)
+        val previous = postingReply.get()
+        postingReply.set(event)
+        try {
+            post.invoke(center, event)
+        } finally {
+            if (previous == null) postingReply.remove() else postingReply.set(previous)
+        }
+    }
+
+    companion object {
+        private val postingReply = ThreadLocal<Any>()
+
+        fun isPostingReply(event: Any): Boolean = postingReply.get() === event
     }
 
     internal class Targets private constructor(
@@ -51,6 +65,8 @@ internal class VivoChatBridge private constructor(
         private val getRequestId: Method,
         private val getSessionId: Method,
         private val getProductId: Method,
+        private val getInputMode: Method,
+        private val getFullDuplex: Method,
         private val extentsClass: Class<*>,
         private val getImages: Method,
         private val getFiles: Method,
@@ -82,6 +98,29 @@ internal class VivoChatBridge private constructor(
                 message, turn, text,
                 hasAttachments = !images.isNullOrEmpty() || !files.isNullOrEmpty() ||
                     (!fileType.isNullOrBlank() && fileType != "text"),
+                inputMode = getInputMode.invoke(params) as? String ?: "",
+                fullDuplex = getFullDuplex.invoke(message) as? Boolean ?: true,
+            )
+        }
+
+        /** Final ASR requests bypass sendChat and enter through the host's decision events. */
+        fun nativeEvents(loader: ClassLoader): NativeEvents? {
+            val center = centerField.get(null) ?: return null
+            val dispatch = HookSupport.findMethod(center.javaClass, "post", *post.parameterTypes)
+                ?.takeUnless { java.lang.reflect.Modifier.isAbstract(it.modifiers) } ?: return null
+            val event = eventConstructor.declaringClass
+            val state = HookSupport.findField(event, "a")?.takeIf { it.type == Int::class.javaPrimitiveType }
+                ?: return null
+            val duplex = HookSupport.findField(event, "j")?.takeIf { it.type == Boolean::class.javaPrimitiveType }
+                ?: return null
+            val holder = HookSupport.findClassOrNull(loader, "repackage_name.wt2") ?: return null
+            val linker = HookSupport.findField(holder, "a")?.get(null)
+                ?.takeIf { cancel.declaringClass.isInstance(it) } ?: return null
+            val node = cancel.parameterTypes[0].enumConstants
+                ?.firstOrNull { (it as? Enum<*>)?.name == "GPT" } ?: return null
+            return NativeEvents(
+                dispatch, event, state, duplex, requestField, traceField, getGptParams,
+                getRequestId, linker, cancel, node,
             )
         }
 
@@ -126,6 +165,8 @@ internal class VivoChatBridge private constructor(
                     HookSupport.findMethod(params, "getRequest_id") ?: return null,
                     HookSupport.findMethod(params, "getSid") ?: return null,
                     HookSupport.findMethod(params, "getPro_id") ?: return null,
+                    HookSupport.findMethod(params, "getInputmode") ?: return null,
+                    HookSupport.findMethod(message, "isFullDuplex") ?: return null,
                     extents,
                     HookSupport.findMethod(extents, "getLocalImageList2") ?: return null,
                     HookSupport.findMethod(extents, "getLocalFileList") ?: return null,
@@ -136,6 +177,33 @@ internal class VivoChatBridge private constructor(
                     requestField, resultField, traceField,
                 )
             }
+        }
+    }
+
+    internal class NativeEvents(
+        val dispatch: Method,
+        private val eventClass: Class<*>,
+        private val stateField: Field,
+        private val duplexField: Field,
+        private val requestField: Field,
+        private val traceField: Field,
+        private val getGptParams: Method,
+        private val getRequestId: Method,
+        private val linker: Any,
+        private val cancel: Method,
+        private val gptNode: Any,
+    ) {
+        fun isDecision(event: Any): Boolean = eventClass.isInstance(event)
+        fun state(event: Any): Int = stateField.getInt(event)
+        fun fullDuplex(event: Any): Boolean = duplexField.getBoolean(event)
+        fun message(event: Any): Any? = requestField.get(event)
+        fun traceId(event: Any): String? = traceField.get(event) as? String
+        fun requestId(event: Any): String? = message(event)?.let {
+            getGptParams.invoke(it)?.let { params -> getRequestId.invoke(params) as? String }
+        }
+
+        fun cancelNativeReply() {
+            cancel.invoke(linker, gptNode, false)
         }
     }
 }

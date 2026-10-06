@@ -363,6 +363,7 @@
   <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">Vendor assistant integrations</string>
   <string name="ui_vivo_custom_model">Use Eta models in Xiao V (6.8.5.3)</string>
   <string name="ui_vivo_require_prefix">Xiao V: only take over with /agent prefix</string>
+  <string name="ui_vivo_require_prefix_summary">When off, ordinary typed and single voice requests use Eta. Keep “Use Eta models in Xiao V” enabled.</string>
   <string name="injected_vivo_configure_model">Open Eta and configure a model, API key and context window first.</string>
   <string name="ui_display_name_ed16be">Display name</string>
   <string name="ui_tool_a72ef1">tool</string>
