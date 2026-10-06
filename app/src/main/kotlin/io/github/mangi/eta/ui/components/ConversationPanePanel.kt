@@ -74,7 +74,7 @@ import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Create
 import top.yukonga.miuix.kmp.icon.extended.Alarm
 import top.yukonga.miuix.kmp.icon.extended.Contacts
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -85,7 +85,6 @@ import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Layers
 import top.yukonga.miuix.kmp.icon.extended.Lock
 import top.yukonga.miuix.kmp.icon.extended.Notes
-import top.yukonga.miuix.kmp.icon.extended.Recent
 import top.yukonga.miuix.kmp.icon.extended.Rename
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -194,7 +193,7 @@ internal fun ConversationPanePanel(
                             )
                         }
                         IconButton(onClick = onNewConversation, modifier = Modifier.clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHighest)) {
-                            Icon(MiuixIcons.Add, contentDescription = stringResource(R.string.action_new_conversation), modifier = Modifier.size(22.dp))
+                            Icon(MiuixIcons.Create, contentDescription = stringResource(R.string.action_new_conversation), modifier = Modifier.size(22.dp))
                         }
                     }
                     Spacer(Modifier.height(ConversationPanelMetrics.AfterActionBar))
@@ -242,17 +241,9 @@ internal fun ConversationPanePanel(
                     }
                 }
                 item(key = "history-heading") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-                            .padding(top = 16.dp, bottom = 4.dp).semantics { heading() },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Icon(MiuixIcons.Recent, contentDescription = null, modifier = Modifier.size(16.dp),
-                            tint = MiuixTheme.colorScheme.onSurface)
-                        Text(stringResource(R.string.action_conversation_history), style = MiuixTheme.textStyles.body2,
-                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MiuixTheme.colorScheme.onSurface)
-                    }
+                    Text(stringResource(R.string.action_conversation_history), style = MiuixTheme.textStyles.body2,
+                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, bottom = 4.dp).semantics { heading() })
                 }
                 if (state.conversations.isEmpty()) {
                     item {
