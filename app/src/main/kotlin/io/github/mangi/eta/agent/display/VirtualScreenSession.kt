@@ -34,6 +34,7 @@ internal object VirtualScreenSession {
     private val viewerState = MutableStateFlow(VirtualScreenViewerState())
     val state = viewerState.asStateFlow()
     private val gestureIds = AtomicLong()
+    private val operationIds = AtomicLong()
     private val cleanup = Executors.newSingleThreadExecutor { r ->
         Thread(r, "eta-display-cleanup").apply {
             isDaemon = true
@@ -58,7 +59,12 @@ internal object VirtualScreenSession {
         fun close() {
             if (!closed.compareAndSet(false, true)) return
             session.compareAndSet(this, null)
-            viewerState.update { if (it.display?.sessionId == id) VirtualScreenViewerState() else it }
+            viewerState.update {
+                if (it.display?.sessionId != id) it else it.copy(
+                    display = null, gesture = null, activeRunId = null,
+                    taskPhase = if (it.taskPhase == VirtualScreenTaskPhase.RUNNING) VirtualScreenTaskPhase.STOPPED else it.taskPhase,
+                )
+            }
             VirtualScreenNotification.cancel(context, id)
             AgentExecutionService.release("virtual-screen-$id")
             // 不等待 execute 持有的锁或正在读取的帧；主线程取消必须立即返回。
@@ -84,15 +90,29 @@ internal object VirtualScreenSession {
             current.close()
             return@synchronized true
         }
-        if (current.owner == owner) return@synchronized current.runLease.acquire(runId)
+        if (current.owner == owner) {
+            val acquired = current.runLease.acquire(runId)
+            if (acquired) viewerState.update { if (it.display?.sessionId == current.id) it.beginRun(runId) else it }
+            return@synchronized acquired
+        }
         if (!current.runLease.retireIdle()) return@synchronized false
         current.close()
         true
     }
 
-    fun releaseRun(owner: String, runId: String, retain: Boolean) {
+    fun releaseRun(owner: String, runId: String, retain: Boolean, cancelled: Boolean = false) {
         val current = session.get()?.takeIf { it.owner == owner } ?: return
-        if (current.runLease.release(runId, retain) && !retain) current.close()
+        if (!current.runLease.release(runId, retain)) return
+        viewerState.update { if (it.display?.sessionId == current.id) it.finishRun(runId, retain, cancelled) else it }
+        if (!retain) current.close()
+    }
+
+    fun recordOperation(owner: String, runId: String?, name: String, success: Boolean, manual: Boolean = false) {
+        val current = session.get()?.takeIf { it.owner == owner && !it.closed.get() } ?: return
+        val operation = VirtualScreenOperation(operationIds.incrementAndGet(), name, System.currentTimeMillis(), success, manual)
+        viewerState.update {
+            if (it.display?.sessionId != current.id || runId != null && it.activeRunId != runId) it else it.record(operation)
+        }
     }
 
     fun execute(
@@ -154,6 +174,7 @@ internal object VirtualScreenSession {
                     input.write(
                         JSONObject().put("action", "create").put("width", width)
                             .put("height", height).put("density", density)
+                            .put("sessionId", current.id)
                             .put("allowScreenOff", allowOff).toString()
                     ); input.newLine(); input.flush()
                     readResponse(output)
@@ -170,6 +191,8 @@ internal object VirtualScreenSession {
                 viewerState.value = VirtualScreenViewerState(
                     display = VirtualDisplayInfo(current.id, owner, current.displayId, width, height, density = density),
                     lastAction = "create",
+                    taskPhase = if (runId == null) VirtualScreenTaskPhase.IDLE else VirtualScreenTaskPhase.RUNNING,
+                    activeRunId = runId,
                 )
                 VirtualScreenNotification.show(context, current.id)
                 if (current.closed.get()) {
@@ -238,21 +261,29 @@ internal object VirtualScreenSession {
         }
     }
 
-    fun observeForViewer(context: Context): AgentModelClient.ToolResult = synchronized(lock) {
+    fun observeForViewer(context: Context, afterFrameId: Long = 0): AgentModelClient.ToolResult = synchronized(lock) {
         val current = session.get()
             ?: return@synchronized AgentModelClient.ToolResult("{\"ok\":false,\"code\":\"NO_VIRTUAL_SCREEN\"}")
-        execute(context, current.owner, JSONObject().put("action", "observe"))
+        execute(context, current.owner, JSONObject().put("action", "observe").put("afterFrameId", afterFrameId))
     }
 
     fun inputForViewer(context: Context, sessionId: String, args: JSONObject): AgentModelClient.ToolResult = synchronized(lock) {
         val current = session.get()
-        if (current == null || current.id != sessionId || args.optString("action") !in setOf("tap", "swipe", "long_press", "back", "key")) {
+        if (current == null || current.id != sessionId || args.optString("action") !in setOf("tap", "swipe", "long_press", "back", "key", "switch_task")) {
             return@synchronized failure("STALE_VIRTUAL_SCREEN")
         }
         viewerState.update { state -> state.copy(display = state.display?.let {
             it.copy(manualInputGeneration = it.manualInputGeneration + 1)
         }) }
-        execute(context, current.owner, args)
+        execute(context, current.owner, args).also { result ->
+            val name = if (args.optString("action") == "key") args.optString("button").lowercase() else args.optString("action")
+            recordOperation(current.owner, null, name, JSONObject(result.content).optBoolean("ok"), manual = true)
+        }
+    }
+
+    fun tasksForViewer(context: Context, sessionId: String): AgentModelClient.ToolResult = synchronized(lock) {
+        val current = session.get()?.takeIf { it.id == sessionId } ?: return@synchronized failure("STALE_VIRTUAL_SCREEN")
+        execute(context, current.owner, JSONObject().put("action", "tasks"))
     }
 
     /** Probe the Root process while holding the same lock as manual input and other tools. */

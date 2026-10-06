@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.display
 import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.app.ActivityManager
+import android.app.ActivityOptions
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.ActivityInfo
@@ -10,6 +11,7 @@ import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.hardware.display.VirtualDisplayConfig
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
@@ -21,8 +23,10 @@ import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 import org.json.JSONObject
+import org.json.JSONArray
 
 /** Root 子进程持有独立 Surface；只接受固定操作。管道结束即释放 display。 */
+@androidx.annotation.RequiresApi(34)
 internal object RootDisplayCommandMain {
     private const val MARKER = "ETA_DISPLAY_RESULT:"
     @JvmStatic
@@ -59,7 +63,7 @@ internal object RootDisplayCommandMain {
             val frameStore = FrameStore()
             reader.setOnImageAvailableListener({ source ->
                 source.acquireLatestImage()?.use { image ->
-                    if (SystemClock.elapsedRealtime() - frameStore.lastEncoded < 100) return@use
+                    if (SystemClock.elapsedRealtime() - frameStore.lastEncoded < 33) return@use
                     val plane = image.planes.firstOrNull() ?: return@use
                     if (plane.pixelStride != 4) return@use
                     val paddedWidth = plane.rowStride / plane.pixelStride
@@ -74,8 +78,9 @@ internal object RootDisplayCommandMain {
                     val encoded = ByteArrayOutputStream()
                     try {
                         cropped.compress(Bitmap.CompressFormat.JPEG, 75, encoded)
-                        frameStore.jpeg = encoded.toByteArray().takeIf { it.size <= 2_000_000 }
-                        frameStore.lastEncoded = SystemClock.elapsedRealtime()
+                        encoded.toByteArray().takeIf { it.size <= 2_000_000 }?.let {
+                            frameStore.frame = EncodedFrame(it, SystemClock.elapsedRealtime())
+                        }
                     } finally {
                         if (cropped !== padded) cropped.recycle(); padded.recycle()
                     }
@@ -89,12 +94,9 @@ internal object RootDisplayCommandMain {
                         flag("VIRTUAL_DISPLAY_FLAG_STEAL_TOP_FOCUS_DISABLED") or flag("VIRTUAL_DISPLAY_FLAG_DESTROY_CONTENT_ON_REMOVAL")
             if (allowOff) flags = flags or flag("VIRTUAL_DISPLAY_FLAG_ALWAYS_UNLOCKED")
             display = displayManager.createVirtualDisplay(
-                "Eta virtual task",
-                width,
-                height,
-                dpi,
-                reader.surface,
-                flags
+                VirtualDisplayConfig.Builder("Eta virtual task", width, height, dpi)
+                    .setSurface(reader.surface).setFlags(flags)
+                    .setRequestedRefreshRate(120f).build(),
             )
                 ?: error("DISPLAY_CREATE_FAILED")
             val id = display.display.displayId
@@ -104,7 +106,8 @@ internal object RootDisplayCommandMain {
                     .apply { acquire(15 * 60_000L) }
             reply(
                 JSONObject().put("ok", true).put("displayId", id).put("width", width)
-                    .put("height", height).put("density", dpi).put("independentFocus", true)
+                    .put("height", height).put("density", dpi).put("refreshRate", display.display.refreshRate)
+                    .put("independentFocus", true)
             )
             while (true) {
                 val line = input.readLine() ?: break
@@ -123,16 +126,33 @@ internal object RootDisplayCommandMain {
                     require(allowOff || (power.isInteractive && !keyguard.isDeviceLocked)) { "SCREEN_OFF_PERMISSION_REQUIRED" }
                     val result = when (request.getString("action")) {
                         "probe" -> JSONObject().put("ok", true).put("displayId", id)
+                            .put("refreshRate", display.display.refreshRate)
                             .put("packageName", runningTasks().firstOrNull { taskDisplayId(it) == id }?.topActivity?.packageName.orEmpty())
-                        "observe" -> frameStore.jpeg?.let { jpeg ->
+                        "tasks" -> JSONObject().put("ok", true).put("tasks", JSONArray(
+                            runningTasks().filter { taskDisplayId(it) == id &&
+                                it.baseActivity?.className != VirtualScreenHomeActivity::class.java.name
+                            }.mapNotNull { task -> task.baseActivity?.let { component ->
+                                JSONObject().put("taskId", task.taskId).put("packageName", component.packageName)
+                            } },
+                        ))
+                        "switch_task" -> {
+                            val taskId = integer(request, "taskId", 1, Int.MAX_VALUE)
+                            switchTask(id, taskId)
+                            JSONObject().put("ok", true).put("displayId", id)
+                        }
+                        "observe" -> frameStore.frame?.let { frame ->
                             JSONObject().put("ok", true).put("displayId", id)
                                 .put("width", width).put("height", height)
+                                .put("frameId", frame.id)
                                 .put("mimeType", "image/jpeg")
                                 .put(
                                     "frameAgeMs",
-                                    SystemClock.elapsedRealtime() - frameStore.lastEncoded
+                                    SystemClock.elapsedRealtime() - frame.id
                                 )
-                                .put("image", Base64.encodeToString(jpeg, Base64.NO_WRAP))
+                                .apply {
+                                    if (request.optLong("afterFrameId") == frame.id) put("unchanged", true)
+                                    else put("image", Base64.encodeToString(frame.jpeg, Base64.NO_WRAP))
+                                }
                         } ?: failure("DISPLAY_FRAME_PENDING")
 
                         "launch" -> {
@@ -208,12 +228,26 @@ internal object RootDisplayCommandMain {
                         }
 
                         "key" -> {
-                            val code = when (request.getString("button")) {
+                            val button = request.getString("button")
+                            val code = when (button) {
                                 "BACK" -> 4
                                 "ENTER" -> 66
+                                "HOME", "MENU" -> {
+                                    // Secondary displays have no isolated system Recents window.
+                                    // Open our own navigator on this display, without routing global keys.
+                                    val sessionId = setup.optString("sessionId")
+                                    require(Regex("[a-fA-F0-9-]{36}").matches(sessionId)) { "DISPLAY_OWNER_REQUIRED" }
+                                    val output = command(listOf("/system/bin/am", "start", "--display", id.toString(),
+                                        "-f", "0x10020000", "-n",
+                                        "io.github.mangi.eta/${VirtualScreenHomeActivity::class.java.name}",
+                                        "--es", "sessionId", sessionId, "--es", "mode", button))
+                                    require(!output.contains("Error:")) { "DISPLAY_LAUNCH_REJECTED" }
+                                    require(runningTasks().any { it.topActivity?.className == VirtualScreenHomeActivity::class.java.name && taskDisplayId(it) == id }) { "DISPLAY_LAUNCH_MISMATCH" }
+                                    null
+                                }
                                 else -> error("VIRTUAL_ACTION_UNSUPPORTED")
                             }
-                            input(id, "keyevent", code.toString())
+                            if (code != null) input(id, "keyevent", code.toString())
                             JSONObject().put("ok", true).put("displayId", id)
                         }
 
@@ -246,17 +280,29 @@ internal object RootDisplayCommandMain {
         }
     }
 
+    private data class EncodedFrame(val jpeg: ByteArray, val id: Long)
+
     private class FrameStore {
-        @Volatile
-        var jpeg: ByteArray? = null;
-        @Volatile
-        var lastEncoded = 0L
+        @Volatile var frame: EncodedFrame? = null
+        val lastEncoded: Long get() = frame?.id ?: 0
     }
 
     private fun flag(name: String) = DisplayManager::class.java.getField(name).getInt(null)
 
     private fun taskDisplayId(task: ActivityManager.RunningTaskInfo): Int =
         android.app.TaskInfo::class.java.getField("displayId").getInt(task)
+
+    // This runs only in the UID 0 helper; application-process hidden API limits do not apply.
+    @SuppressLint("BlockedPrivateApi")
+    private fun switchTask(displayId: Int, taskId: Int) {
+        require(runningTasks().any { it.taskId == taskId && taskDisplayId(it) == displayId }) { "VIRTUAL_TASK_UNAVAILABLE" }
+        val service = Class.forName("android.app.ActivityTaskManager").getDeclaredMethod("getService").invoke(null)
+        val method = Class.forName("android.app.IActivityTaskManager").getMethod(
+            "startActivityFromRecents", Int::class.javaPrimitiveType, android.os.Bundle::class.java,
+        )
+        val result = method.invoke(service, taskId, ActivityOptions.makeBasic().setLaunchDisplayId(displayId).toBundle()) as Int
+        require(result >= 0 && runningTasks().any { it.taskId == taskId && taskDisplayId(it) == displayId }) { "VIRTUAL_TASK_UNAVAILABLE" }
+    }
 
     // Called only by the UID 0 app_process helper, never in Eta's application process.
     // An unavailable task API aborts launch before any activity or input is sent.

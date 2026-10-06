@@ -93,6 +93,10 @@
         <receiver android:name=".agent.display.MainScreenFallbackReceiver" android:exported="false" />
         <activity android:name=".agent.display.VirtualScreenViewerActivity" android:exported="false"
             android:label="@string/virtual_screen_title" android:theme="@style/Theme.Eta" />
+        <activity android:name=".agent.display.VirtualScreenHomeActivity" android:exported="false"
+            android:excludeFromRecents="true" android:resizeableActivity="true"
+            android:taskAffinity="io.github.mangi.eta.virtualscreen"
+            android:theme="@style/Theme.Eta" />
 
         <service
             android:name=".agent.voice.EtaVoiceInteractionService"

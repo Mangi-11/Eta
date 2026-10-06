@@ -3,8 +3,8 @@ package io.github.mangi.eta.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -35,16 +35,16 @@ internal fun ConversationStatusCapsules(messages: List<AgentChatMessageUi>, mode
             NumberFormat.getPercentInstance().apply { maximumFractionDigits = 1 }.format(tokens.toDouble() / window)
         }
     }
-    val contextText = stringResource(R.string.conversation_context_capsule) + " " + count +
-        (limit?.let { " / $it" } ?: "") + (percent?.let { " · $it" } ?: "")
+    val contextText = count + (limit?.let { "/$it" } ?: "") + (percent?.let { " · $it" } ?: "")
+    val contextDescription = stringResource(R.string.conversation_context_capsule) + " " + contextText
     val speed = (lastUsage ?: messages.asReversed().filterIsInstance<AgentMessageUi>()
         .firstOrNull { it.usage != null }?.usage)?.averageTokensPerSecond
     val speedText = speed?.let {
         NumberFormat.getNumberInstance().apply { maximumFractionDigits = 1 }.format(it)
     } ?: "—"
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        StatusCapsule(contextText, Modifier.weight(1f))
+    Row(Modifier.widthIn(max = 232.dp).padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        StatusCapsule(contextText, Modifier.weight(1f, fill = false), contextDescription)
         StatusCapsule("$speedText tok/s", Modifier, stringResource(R.string.conversation_speed_description, speedText))
     }
 }
@@ -53,9 +53,9 @@ internal fun ConversationStatusCapsules(messages: List<AgentChatMessageUi>, mode
 private fun StatusCapsule(text: String, modifier: Modifier, description: String = text) {
     Text(text,
         modifier = modifier.background(MiuixTheme.colorScheme.surfaceContainer, CircleShape)
-            .semantics { contentDescription = description }.padding(horizontal = 10.dp, vertical = 6.dp),
+            .semantics { contentDescription = description }.padding(horizontal = 8.dp, vertical = 5.dp),
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        style = MiuixTheme.textStyles.footnote1, fontSize = 12.sp,
+        style = MiuixTheme.textStyles.footnote1, fontSize = 11.sp,
         maxLines = 1, overflow = TextOverflow.Ellipsis,
     )
 }

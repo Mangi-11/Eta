@@ -297,6 +297,7 @@ fun AgentAppRoot(
             onOpenPermissions = { pushRoute(AppRoute.Permissions) },
             onOpenSettings = { pushRoute(AppRoute.Settings) },
             onOpenModelProviders = { pushRoute(AppRoute.ModelProviders) },
+            onOpenTasks = { pushRoute(AppRoute.Tasks) },
         ) { padding ->
             Box(
                 modifier = Modifier

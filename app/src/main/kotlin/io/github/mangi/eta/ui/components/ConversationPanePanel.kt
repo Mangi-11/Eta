@@ -28,6 +28,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AddComment
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Delete
@@ -53,6 +55,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,6 +67,7 @@ import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
@@ -82,11 +86,6 @@ private object ConversationPanelMetrics {
     val AfterActionBar = 8.dp
     val BottomInset = 2.dp
     val ActionIconSize = 20.dp
-    val SectionTopPadding = 8.dp
-    val SectionBottomPadding = 10.dp
-    val SectionIconSize = 14.dp
-    val SectionIconGap = 8.dp
-    val SectionCountGap = 12.dp
     val RowMinHeight = 48.dp
     val RowGap = 4.dp
     val RowCornerRadius = 12.dp
@@ -96,8 +95,6 @@ private object ConversationPanelMetrics {
     val ActiveDotGap = 10.dp
     val EmptyVerticalPadding = 28.dp
     val DockTopGap = 2.dp
-    val DockEntryCornerRadius = 12.dp
-    val DockEntryIconSize = 20.dp
 }
 
 /**
@@ -118,6 +115,7 @@ internal fun ConversationPanePanel(
     width: androidx.compose.ui.unit.Dp,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onSearchChange: (String) -> Unit,
+    onNewConversation: () -> Unit,
     onConversationSelected: (String) -> Unit,
     onConversationRename: (ConversationSummaryUi) -> Unit,
     onConversationExport: (ConversationSummaryUi) -> Unit,
@@ -128,10 +126,12 @@ internal fun ConversationPanePanel(
     onOpenSkills: () -> Unit,
     onOpenCharacters: () -> Unit,
     onOpenPermissions: () -> Unit,
+    onOpenTasks: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // state.conversations 已由 AgentAppState 按标题、预览与消息内容过滤。
     val query = state.searchQuery.trim()
+    var searchVisible by remember { mutableStateOf(false) }
     val groups = remember(state.conversations) { state.conversations.groupForDrawer() }
 
     Surface(
@@ -152,7 +152,19 @@ internal fun ConversationPanePanel(
                         .padding(horizontal = ConversationPanelMetrics.PaneHorizontalPadding),
                 ) {
                     Spacer(Modifier.height(ConversationPanelMetrics.TopInset))
-                    PaneActionBar(query = state.searchQuery, onSearchChange = onSearchChange)
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null, tint = Color.Unspecified,
+                            modifier = Modifier.size(32.dp).clip(CircleShape))
+                        Text(stringResource(R.string.app_name), style = MiuixTheme.textStyles.headline2,
+                            fontWeight = FontWeight.Bold, color = MiuixTheme.colorScheme.onSurface, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                        IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) onSearchChange("") }) {
+                            Icon(Icons.Rounded.Search, contentDescription = stringResource(R.string.conversation_search_hint), modifier = Modifier.size(22.dp))
+                        }
+                        IconButton(onClick = onNewConversation, modifier = Modifier.clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHighest)) {
+                            Icon(Icons.Rounded.AddComment, contentDescription = stringResource(R.string.action_new_conversation), modifier = Modifier.size(22.dp))
+                        }
+                    }
+                    if (searchVisible || state.searchQuery.isNotBlank()) PaneActionBar(query = state.searchQuery, onSearchChange = onSearchChange)
                     Spacer(Modifier.height(ConversationPanelMetrics.AfterActionBar))
                 }
             }
@@ -172,6 +184,22 @@ internal fun ConversationPanePanel(
                 verticalArrangement = Arrangement.spacedBy(ConversationPanelMetrics.RowGap),
                 overscrollEffect = null,
             ) {
+                if (query.isBlank()) {
+                    item(key = "shortcuts") {
+                        Column(Modifier.fillMaxWidth().padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            PaneShortcut(Icons.Rounded.Dashboard, stringResource(R.string.ui_tool_ability_9f0f80), onOpenTools)
+                            PaneShortcut(Icons.Rounded.Schedule, stringResource(R.string.automation_title), onOpenTasks)
+                            PaneShortcut(Icons.Rounded.ImportContacts, stringResource(R.string.sidebar_skills), onOpenSkills)
+                            PaneShortcut(Icons.Rounded.SportsBar, stringResource(R.string.sidebar_characters), onOpenCharacters)
+                            PaneShortcut(Icons.Rounded.Cloud, stringResource(R.string.sidebar_models), onOpenModelProviders)
+                            PaneShortcut(Icons.Rounded.Lock, stringResource(R.string.sidebar_permissions), onOpenPermissions)
+                        }
+                    }
+                }
+                item(key = "history-heading") {
+                    Text(stringResource(R.string.action_conversation_history), style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary, modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp))
+                }
                 if (state.conversations.isEmpty()) {
                     item {
                         EmptyConversations(isSearching = query.isNotBlank())
@@ -206,14 +234,7 @@ internal fun ConversationPanePanel(
                         .padding(horizontal = ConversationPanelMetrics.PaneHorizontalPadding),
                 ) {
                     Spacer(Modifier.height(ConversationPanelMetrics.DockTopGap))
-                    PaneDock(
-                        onOpenSettings = onOpenSettings,
-                        onOpenModelProviders = onOpenModelProviders,
-                        onOpenTools = onOpenTools,
-                        onOpenSkills = onOpenSkills,
-                        onOpenCharacters = onOpenCharacters,
-                        onOpenPermissions = onOpenPermissions,
-                    )
+                    PaneShortcut(Icons.Rounded.Settings, stringResource(R.string.sidebar_settings), onOpenSettings)
                     Spacer(Modifier.height(ConversationPanelMetrics.BottomInset))
                 }
             }
@@ -264,39 +285,10 @@ private fun PaneActionBar(
 }
 
 @Composable
-private fun ConversationSectionHeader(
-    group: ConversationDrawerGroup,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                top = ConversationPanelMetrics.SectionTopPadding,
-                bottom = ConversationPanelMetrics.SectionBottomPadding,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.Schedule,
-            contentDescription = null,
-            modifier = Modifier.size(ConversationPanelMetrics.SectionIconSize),
-            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-        )
-        Spacer(modifier = Modifier.width(ConversationPanelMetrics.SectionIconGap))
-        Text(
-            text = group.localizedLabel(),
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            style = MiuixTheme.textStyles.footnote1,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(modifier = Modifier.width(ConversationPanelMetrics.SectionCountGap))
-        Text(
-            text = group.items.size.toString(),
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-            style = MiuixTheme.textStyles.footnote1,
-            fontWeight = FontWeight.Medium,
-        )
-    }
+private fun ConversationSectionHeader(group: ConversationDrawerGroup) {
+    Text(group.localizedLabel(), color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+        style = MiuixTheme.textStyles.footnote1,
+        modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 4.dp))
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -474,77 +466,12 @@ private fun EmptyConversations(isSearching: Boolean) {
 }
 
 @Composable
-private fun PaneDock(
-    onOpenSettings: () -> Unit,
-    onOpenModelProviders: () -> Unit,
-    onOpenTools: () -> Unit,
-    onOpenSkills: () -> Unit,
-    onOpenCharacters: () -> Unit,
-    onOpenPermissions: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        DockEntry(
-            icon = Icons.Rounded.Settings,
-            label = "设置",
-            onClick = onOpenSettings,
-            modifier = Modifier.weight(1f),
-        )
-        DockEntry(
-            icon = Icons.Rounded.Cloud,
-            label = "模型",
-            onClick = onOpenModelProviders,
-            modifier = Modifier.weight(1f),
-        )
-        DockEntry(
-            icon = Icons.Rounded.Dashboard,
-            label = "工具",
-            onClick = onOpenTools,
-            modifier = Modifier.weight(1f),
-        )
-        DockEntry(
-            icon = Icons.Rounded.ImportContacts,
-            label = "Skills",
-            onClick = onOpenSkills,
-            modifier = Modifier.weight(1f),
-        )
-        DockEntry(
-            icon = Icons.Rounded.Lock,
-            label = "权限",
-            onClick = onOpenPermissions,
-            modifier = Modifier.weight(1f),
-        )
-        DockEntry(
-            icon = Icons.Rounded.SportsBar,
-            label = "角色",
-            onClick = onOpenCharacters,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun DockEntry(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(ConversationPanelMetrics.DockEntryCornerRadius))
-            .clickable(onClickLabel = label, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            modifier = Modifier.size(ConversationPanelMetrics.DockEntryIconSize),
-            tint = MiuixTheme.colorScheme.onSurface,
-        )
+private fun PaneShortcut(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+        .clickable(onClickLabel = label, onClick = onClick).padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = MiuixTheme.colorScheme.onSurface)
+        Text(label, style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface)
     }
 }
 

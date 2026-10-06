@@ -73,6 +73,7 @@ fun ConversationSidePaneScaffold(
     onOpen: () -> Unit,
     onDismiss: () -> Unit,
     onSearchChange: (String) -> Unit,
+    onNewConversation: () -> Unit,
     onConversationSelected: (String) -> Unit,
     onConversationRename: (ConversationSummaryUi) -> Unit,
     onConversationExport: (ConversationSummaryUi) -> Unit,
@@ -83,6 +84,7 @@ fun ConversationSidePaneScaffold(
     onOpenSkills: () -> Unit,
     onOpenCharacters: () -> Unit,
     onOpenPermissions: () -> Unit,
+    onOpenTasks: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -225,6 +227,7 @@ fun ConversationSidePaneScaffold(
                         width = paneWidth,
                         listState = panelListState,
                         onSearchChange = onSearchChange,
+                        onNewConversation = onNewConversation,
                         onConversationSelected = onConversationSelected,
                         onConversationRename = onConversationRename,
                         onConversationExport = onConversationExport,
@@ -235,6 +238,7 @@ fun ConversationSidePaneScaffold(
                         onOpenSkills = onOpenSkills,
                         onOpenCharacters = onOpenCharacters,
                         onOpenPermissions = onOpenPermissions,
+                        onOpenTasks = onOpenTasks,
                         modifier = Modifier
                             .focusProperties { onEnter = { if (!isRevealed) cancelFocusChange() } }
                             .focusGroup()

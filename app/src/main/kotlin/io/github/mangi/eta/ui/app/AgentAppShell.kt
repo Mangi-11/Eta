@@ -85,6 +85,7 @@ fun AgentAppShell(
     onOpenPermissions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenModelProviders: () -> Unit,
+    onOpenTasks: () -> Unit,
     conversationStatus: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: @Composable (PaddingValues) -> Unit,
@@ -141,6 +142,7 @@ fun AgentAppShell(
                 onOpen = onOpenConversationPane,
                 onDismiss = onDismissConversationPane,
                 onSearchChange = onSearchConversations,
+                onNewConversation = onNewConversation,
                 onConversationSelected = onSelectConversation,
                 onConversationRename = onConversationRename,
                 onConversationExport = onConversationExport,
@@ -151,6 +153,7 @@ fun AgentAppShell(
                 onOpenSkills = onOpenSkills,
                 onOpenCharacters = onOpenCharacters,
                 onOpenPermissions = onOpenPermissions,
+                onOpenTasks = onOpenTasks,
             ) {
                 pageContent()
             }
@@ -193,6 +196,7 @@ private fun AgentTopBar(
     }
     val actions: @Composable RowScope.() -> Unit = {
         if (isHome) {
+            conversationStatus?.invoke()
             TopBarOverflowMenu(
                 onNewConversation = onNewConversation,
                 onOpenTerminal = onOpenTerminal,
@@ -214,7 +218,6 @@ private fun AgentTopBar(
             scrollBehavior = scrollBehavior,
             navigationIcon = navigationIcon,
             actions = actions,
-            bottomContent = { conversationStatus?.invoke() },
         )
     } else {
         AdaptiveTopAppBar(

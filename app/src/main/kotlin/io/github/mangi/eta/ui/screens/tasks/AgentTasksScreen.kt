@@ -15,6 +15,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.awaitCancellation
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +65,9 @@ internal fun AgentTasksScreen(onBack: () -> Unit) {
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
     val runs by dao.observeRuns().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    var triggers by remember { mutableStateOf<List<TaskTriggerUi>>(emptyList()) }
+    var selectedTrigger by remember { mutableStateOf<TaskTriggerUi?>(null) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     var notice by remember { mutableStateOf<String?>(null) }
     fun execute(tool: String, args: JSONObject) {
         scope.launch(Dispatchers.IO) {
@@ -70,7 +77,15 @@ internal fun AgentTasksScreen(onBack: () -> Unit) {
             }
         }
     }
-    LaunchedEffect(Unit) { scope.launch(Dispatchers.IO) { AgentTaskScheduler.refresh(context) } }
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            triggers = withContext(Dispatchers.IO) {
+                AgentTaskScheduler.refresh(context)
+                loadTaskTriggers(context)
+            }
+            awaitCancellation()
+        }
+    }
     MiuixScaffoldPage(
         title = stringResource(R.string.automation_title),
         onBack = onBack,
@@ -81,6 +96,15 @@ internal fun AgentTasksScreen(onBack: () -> Unit) {
                     title = stringResource(R.string.automation_create_hint),
                     summary = stringResource(R.string.automation_create_summary),
                 )
+            }
+        }
+        item(key = "trigger-catalog-heading") {
+            TriggerCatalogHeading(triggers)
+        }
+        TaskTriggerGroup.entries.forEach { group ->
+            val groupTriggers = triggers.filter { it.group == group }
+            if (groupTriggers.isNotEmpty()) item(key = "trigger-group-" + group.name) {
+                TriggerCatalogGroup(group, groupTriggers) { selectedTrigger = it }
             }
         }
         notice?.let { message ->
@@ -196,6 +220,7 @@ internal fun AgentTasksScreen(onBack: () -> Unit) {
             }
         }
     }
+    selectedTrigger?.let { trigger -> TriggerDetails(trigger) { selectedTrigger = null } }
 }
 
 @Composable
@@ -272,7 +297,7 @@ private fun triggerSummary(context: Context, rule: JSONObject): String =
         else -> eventLabel(context, rule.optString("type"))
     }
 
-private fun eventLabel(context: Context, type: String): String {
+internal fun eventLabel(context: Context, type: String): String {
     val label = when (type) {
         "notification_posted" -> R.string.automation_event_notification_posted
         "notification_removed" -> R.string.automation_event_notification_removed
