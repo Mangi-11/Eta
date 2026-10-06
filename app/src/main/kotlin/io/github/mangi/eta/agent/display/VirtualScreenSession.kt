@@ -5,6 +5,7 @@ import android.util.Base64
 import android.os.SystemClock
 import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.runtime.AgentExecutionService
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import java.io.BufferedReader
 import java.io.BufferedWriter
@@ -40,20 +41,26 @@ internal object VirtualScreenSession {
     }
 
     private class Session(
+        val context: Context,
         val owner: String,
         val process: java.lang.Process,
         val input: BufferedWriter,
         val output: BufferedReader,
         val width: Int,
         val height: Int,
-        val allowOff: Boolean
+        val allowOff: Boolean,
+        runId: String?,
     ) {
         val id = UUID.randomUUID().toString()
         var displayId: Int = -1
         val closed = AtomicBoolean()
+        val runLease = VirtualScreenRunLease(runId)
         fun close() {
             if (!closed.compareAndSet(false, true)) return
+            session.compareAndSet(this, null)
             viewerState.update { if (it.display?.sessionId == id) VirtualScreenViewerState() else it }
+            VirtualScreenNotification.cancel(context, id)
+            AgentExecutionService.release("virtual-screen-$id")
             // 不等待 execute 持有的锁或正在读取的帧；主线程取消必须立即返回。
             process.destroy()
             cleanup.execute {
@@ -66,11 +73,34 @@ internal object VirtualScreenSession {
 
     fun isActive(): Boolean = session.get()?.let { !it.closed.get() && it.process.isAlive } == true
 
+    fun isOwnedBy(owner: String): Boolean = session.get()?.let {
+        it.owner == owner && !it.closed.get() && it.process.isAlive
+    } == true
+
+    /** Idle displays may be replaced by another conversation; an executing run keeps exclusive ownership. */
+    fun prepareForRun(owner: String, runId: String): Boolean = synchronized(lock) {
+        val current = session.get() ?: return@synchronized true
+        if (current.closed.get() || !current.process.isAlive) {
+            current.close()
+            return@synchronized true
+        }
+        if (current.owner == owner) return@synchronized current.runLease.acquire(runId)
+        if (!current.runLease.retireIdle()) return@synchronized false
+        current.close()
+        true
+    }
+
+    fun releaseRun(owner: String, runId: String, retain: Boolean) {
+        val current = session.get()?.takeIf { it.owner == owner } ?: return
+        if (current.runLease.release(runId, retain) && !retain) current.close()
+    }
+
     fun execute(
         context: Context,
         owner: String,
         args: JSONObject,
-        isCancelled: () -> Boolean = { false }
+        isCancelled: () -> Boolean = { false },
+        runId: String? = null,
     ): AgentModelClient.ToolResult = synchronized(lock) {
         try {
             check(!isCancelled()) { "DISPLAY_CANCELLED" }
@@ -84,9 +114,10 @@ internal object VirtualScreenSession {
                 require(session.get() == null) { "DISPLAY_ALREADY_ACTIVE" }
                 val allowOff = args.optBoolean("allowScreenOff", false)
                 require(!allowOff || settings.virtualScreenOffEnabled) { "SCREEN_OFF_PERMISSION_REQUIRED" }
-                val width = bounded(args, "width", 320, 1080, 720)
-                val height = bounded(args, "height", 480, 1920, 1280)
-                val density = bounded(args, "density", 160, 480, 280)
+                val profile = VirtualScreenProfile.from(context)
+                val width = bounded(args, "width", 320, VirtualScreenProfile.MAX_WIDTH, profile.width)
+                val height = bounded(args, "height", 480, VirtualScreenProfile.MAX_HEIGHT, profile.height)
+                val density = bounded(args, "density", 120, VirtualScreenProfile.MAX_DENSITY, profile.density)
                 val apk = context.applicationInfo.sourceDir
                 fun quote(value: String) = "'" + value.replace("'", "'\\''") + "'"
                 val process = ProcessBuilder(
@@ -105,9 +136,17 @@ internal object VirtualScreenSession {
                 }.apply { isDaemon = true; start() }
                 val input = process.outputStream.bufferedWriter()
                 val output = process.inputStream.bufferedReader()
-                val current = Session(owner, process, input, output, width, height, allowOff)
+                val current = Session(context.applicationContext, owner, process, input, output, width, height, allowOff, runId)
                 check(session.compareAndSet(null, current))
-                if (isCancelled()) {
+                Thread {
+                    runCatching { process.waitFor() }
+                    current.close()
+                }.apply { name = "eta-display-exit"; isDaemon = true; start() }
+                if (!AgentExecutionService.acquire(context, "virtual-screen-${current.id}", onStop = current::close)) {
+                    current.close(); error("DISPLAY_LIFECYCLE_UNAVAILABLE")
+                }
+                if (isCancelled() || current.closed.get()) {
+                    AgentExecutionService.release("virtual-screen-${current.id}")
                     current.close(); error("DISPLAY_CANCELLED")
                 }
                 val deadline = deadlines.schedule({ current.close() }, 15, TimeUnit.SECONDS)
@@ -129,9 +168,15 @@ internal object VirtualScreenSession {
                 }
                 current.displayId = response.getInt("displayId")
                 viewerState.value = VirtualScreenViewerState(
-                    display = VirtualDisplayInfo(current.id, owner, current.displayId, width, height),
+                    display = VirtualDisplayInfo(current.id, owner, current.displayId, width, height, density = density),
                     lastAction = "create",
                 )
+                VirtualScreenNotification.show(context, current.id)
+                if (current.closed.get()) {
+                    viewerState.update { if (it.display?.sessionId == current.id) VirtualScreenViewerState() else it }
+                    VirtualScreenNotification.cancel(context, current.id)
+                    error("DISPLAY_CANCELLED")
+                }
                 deadlines.schedule(
                     { if (session.compareAndSet(current, null)) current.close() },
                     15,
@@ -173,7 +218,8 @@ internal object VirtualScreenSession {
             AgentModelClient.ToolResult(result.toString(), images, sensitive = true)
         } catch (error: Exception) {
             session.get()?.let { current ->
-                if (current.closed.get() || !current.process.isAlive) {
+                if (current.closed.get() || !current.process.isAlive ||
+                    current.owner == owner && error.message in setOf("ROOT_REQUIRED", "VIRTUAL_SCREEN_DISABLED", "SCREEN_OFF_PERMISSION_REQUIRED")) {
                     current.close()
                     session.compareAndSet(current, null)
                 }

@@ -3,8 +3,8 @@ package io.github.mangi.eta.agent.display
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Once a run uses virtual coordinates, revoking permission must not redirect it to the main screen. */
-internal class VirtualScreenRoutingPolicy {
-    private val routed = AtomicBoolean(false)
+internal class VirtualScreenRoutingPolicy(initiallyRouted: Boolean = false) {
+    private val routed = AtomicBoolean(initiallyRouted)
     private val primaryApproved = AtomicBoolean(false)
     val usesPrimary: Boolean get() = primaryApproved.get()
 
@@ -19,6 +19,7 @@ internal class VirtualScreenRoutingPolicy {
     companion object {
         val fallbackErrors = setOf(
             "ROOT_REQUIRED", "DEVICE_UNSUPPORTED", "ROOT_DISPLAY_UNAVAILABLE", "VIRTUAL_SCREEN_FAILED",
+            "DISPLAY_LIFECYCLE_UNAVAILABLE",
             "DISPLAY_GONE", "NO_VIRTUAL_SCREEN", "ROOT_DISPLAY_DISCONNECTED", "DISPLAY_FRAME_PENDING",
             "APP_ALREADY_RUNNING", "DISPLAY_APP_UNSUPPORTED", "DISPLAY_LAUNCH_REJECTED", "DISPLAY_LAUNCH_MISMATCH",
             "VIRTUAL_ACTION_UNSUPPORTED", "ACCESSIBILITY_UNAVAILABLE",

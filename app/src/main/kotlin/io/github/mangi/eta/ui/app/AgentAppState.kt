@@ -791,7 +791,7 @@ internal class AgentAppState(
         runConversationIds[runId] = conversationId
         updateConversation(
             conversationId,
-            existingState.copy(
+            ExternalConversationHistory.appendUser(existingState, runId, payload.userText).copy(
                 input = "",
                 isStreaming = true,
                 thinkingEnabled = archivedEffort.enablesReasoning,
@@ -1042,9 +1042,6 @@ internal class AgentAppState(
         val runtimePrompt = AgentFileReferencePromptCodec.format(prompt, fileReferences)
 
         val edit = homeState.messageEdit
-        if (edit == null && selectedConversationId?.isReadOnlyExternalArchiveConversation() == true) {
-            moveCurrentDraftToNewConversation()
-        }
 
         val editBoundary = edit?.let {
             AgentConversationRevisionReducer.boundary(homeState, it.targetMessageId)
@@ -2173,6 +2170,11 @@ internal class AgentAppState(
             }
 
             is AgentEvent.ContextCompaction -> {
+                if (event.phase == AgentEvent.ContextCompaction.PHASE_COMPLETED) conversationIdForRun(runId)?.let { id ->
+                    conversationsById[id]?.let { current -> updateConversation(id, current.copy(
+                        lastModelUsage = current.lastModelUsage?.copy(contextTokens = null),
+                    )) }
+                }
                 updateMessages(runId) { messages ->
                     val id = "assistant-$runId-compaction-${event.operationId}"
                     messages.filterNot { it.id == id } + SystemNoticeMessageUi(
@@ -2315,6 +2317,9 @@ internal class AgentAppState(
 
     private fun updateAssistantUsage(runId: String, round: Int, usage: TokenUsageUi) {
         if (usage.isEmpty) return
+        conversationIdForRun(runId)?.let { id -> conversationsById[id]?.let {
+            updateConversation(id, it.copy(lastModelUsage = usage))
+        } }
         // 只补充 token 用量。不能触碰 isStreaming：Usage 事件紧跟在文本块结束之后，
         // 若把 isStreaming 改回 true，流式渲染会在流式/静态两种视图间反复切换，整段重渲染。
         updateMessages(runId) { messages ->
@@ -2465,20 +2470,6 @@ internal class AgentAppState(
         } else {
             updateConversation(conversationId, state)
         }
-    }
-
-    private fun moveCurrentDraftToNewConversation() {
-        val draft = homeState
-        selectedConversationId = null
-        homeState = emptyChatState(defaultThinkingEnabled).copy(
-            input = draft.input,
-            thinkingEnabled = draft.reasoningEffort.enablesReasoning,
-            reasoningEffort = draft.reasoningEffort,
-            availableReasoningEfforts = currentReasoningCapabilities?.selectableEfforts.orEmpty(),
-            pendingImages = draft.pendingImages,
-            pendingFileReferences = draft.pendingFileReferences,
-        )
-        conversationPaneState = conversationPaneState.copy(selectedConversationId = null)
     }
 
     private fun updateConversation(
@@ -2650,27 +2641,8 @@ private data class ContentMatchCacheEntry(
     val matches: Boolean,
 )
 
-private const val EXTERNAL_ARCHIVE_CONVERSATION_PREFIX = "archive-"
-
-private fun String.isReadOnlyExternalArchiveConversation(): Boolean =
-    startsWith(EXTERNAL_ARCHIVE_CONVERSATION_PREFIX)
-
-private fun archiveConversationId(source: String, conversationKey: String): String {
-    val prefix = if (source == AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE) {
-        ASSISTANT_CONVERSATION_PREFIX
-    } else {
-        EXTERNAL_ARCHIVE_CONVERSATION_PREFIX
-    }
-    return prefix + stableArchiveId("$source:$conversationKey")
-}
-
-private const val ASSISTANT_CONVERSATION_PREFIX = "assistant-"
-
-private fun stableArchiveId(value: String): String =
-    java.security.MessageDigest.getInstance("SHA-256")
-        .digest(value.toByteArray(Charsets.UTF_8))
-        .take(12)
-        .joinToString(separator = "") { byte -> "%02x".format(byte) }
+private fun archiveConversationId(source: String, conversationKey: String): String =
+    AgentExternalArchivePayload.conversationId(source, conversationKey)
 
 internal fun buildToolsState(context: Context): AgentToolsUiState =
     AgentToolsUiState(
@@ -2940,6 +2912,7 @@ private fun AgentTokenUsage.toUi(): TokenUsageUi =
         outputTokens = outputTokens,
         reasoningTokens = reasoningTokens,
         cachedTokens = cachedTokens,
+        requestDurationMs = requestDurationMs,
     )
 
 private fun isAgentAccessibilityEnabled(context: Context): Boolean {

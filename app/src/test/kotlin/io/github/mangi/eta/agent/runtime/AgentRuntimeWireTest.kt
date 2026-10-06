@@ -28,6 +28,28 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33, 36])
 class AgentRuntimeWireTest {
     @Test
+    fun generationDurationSurvivesBundlesArchivesAndOldEventsWithoutTiming() {
+        val event = AgentEvent.UsageReceived(2, AgentTokenUsage(contextTokens = 1200, outputTokens = 80, requestDurationMs = 2000))
+        val bundle = AgentRuntimeWire.eventToBundle(event)
+        assertEquals(event, AgentRuntimeWire.eventFromBundle(bundle))
+        assertEquals(event, AgentEventJsonCodec.decode(AgentEventJsonCodec.encode(event)))
+        bundle.remove("usage_duration_ms")
+        assertNull((AgentRuntimeWire.eventFromBundle(bundle) as AgentEvent.UsageReceived).usage.requestDurationMs)
+    }
+
+    @Test
+    fun vivoAndImportedEtaTurnsShareTheVirtualDisplayOwner() {
+        val handoff = io.github.mangi.eta.hook.vivo.VivoHandoff.create("one", "trace", "request", "session", "操作应用")
+        val config = AgentModelClient.ModelConfig(baseUrl = "https://example.invalid", apiKey = "fixture", model = "fixture", systemPrompt = "")
+        val vivo = AgentRuntimeWire.RunRequest("one", "操作应用", config, emptyList(), handoff = handoff)
+        val id = AgentExternalArchivePayload.conversationId("vivo", "session")
+        val eta = vivo.copy(runId = "two", handoff = AgentRuntimeWire.EntryHandoff("two", AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE, id))
+        assertEquals(id, vivo.virtualScreenOwner)
+        assertEquals(vivo.virtualScreenOwner, eta.virtualScreenOwner)
+        assertEquals(id, eta.copy(runId = "three").virtualScreenOwner)
+    }
+
+    @Test
     fun automaticCompactionSettingSurvivesIpcAndDefaultsForOldRequests() {
         val config = AgentModelClient.ModelConfig(
             baseUrl = "https://example.invalid", apiKey = "fixture", model = "fixture", systemPrompt = "",

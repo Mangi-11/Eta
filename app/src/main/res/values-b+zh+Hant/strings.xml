@@ -1417,4 +1417,9 @@
     <string name="virtual_screen_fallback_reason_app">此應用程式無法在虛擬螢幕執行</string>
     <string name="virtual_screen_fallback_reason_device">裝置暫時無法提供虛擬螢幕</string>
     <string name="virtual_screen_fallback_reason_action">此操作無法在虛擬螢幕繼續</string>
+    <string name="virtual_screen_notification_channel">虛擬螢幕</string>
+    <string name="virtual_screen_notification_title">虛擬螢幕正在執行</string>
+    <string name="virtual_screen_notification_content">點擊查看並操作虛擬螢幕目前內容</string>
+    <string name="conversation_context_capsule">上下文</string>
+    <string name="conversation_speed_description">最近一次模型請求：平均每秒產生 %1$s 個輸出 token，包含首字等待時間。</string>
 </resources>

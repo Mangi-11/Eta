@@ -242,6 +242,12 @@ fun AgentAppRoot(
             isCurrentRoute = backStack.lastOrNull() == route,
             conversationPaneState = agentState.conversationPaneState,
             isConversationPaneOpen = conversationPaneOpen,
+            conversationStatus = {
+                io.github.mangi.eta.ui.components.ConversationStatusCapsules(
+                    agentState.homeState.messages, agentState.modelPickerState.selectedModel,
+                    agentState.homeState.lastModelUsage,
+                )
+            },
             onBack = { popRoute() },
             onOpenConversationPane = { conversationPaneOpen = true },
             onDismissConversationPane = { conversationPaneOpen = false },

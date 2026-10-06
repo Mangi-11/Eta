@@ -172,6 +172,13 @@ internal object AgentRuntimeWire {
                     ?.let { AgentUiHandoffPayload.from(it.payload).conversationId }
                     ?.takeIf { it.isNotBlank() } ?: runId
             }
+
+        val virtualScreenOwner: String
+            get() = handoff?.let { entry ->
+                AgentExternalArchivePayload.from(entry.payload)?.let {
+                    AgentExternalArchivePayload.conversationId(entry.source, it.conversationKey)
+                }
+            } ?: effectiveModelSessionId
     }
 
     /**
@@ -919,8 +926,10 @@ internal object AgentRuntimeWire {
         usage.outputTokens?.let { putInt("usage_output", it) }
         usage.reasoningTokens?.let { putInt("usage_reasoning", it) }
         usage.cachedTokens?.let { putInt("usage_cache", it) }
+        usage.requestDurationMs?.let { putLong("usage_duration_ms", it) }
     }
 
+    @Suppress("DEPRECATION")
     private fun Bundle.getTokenUsage(): AgentTokenUsage =
         AgentTokenUsage(
             contextTokens = optionalInt("usage_context"),
@@ -928,6 +937,7 @@ internal object AgentRuntimeWire {
             outputTokens = optionalInt("usage_output"),
             reasoningTokens = optionalInt("usage_reasoning"),
             cachedTokens = optionalInt("usage_cache"),
+            requestDurationMs = (get("usage_duration_ms") as? Number)?.toLong()?.takeIf { it > 0 },
         )
 
     private fun decodeCustomHeaders(raw: String?): List<CustomHeader> =

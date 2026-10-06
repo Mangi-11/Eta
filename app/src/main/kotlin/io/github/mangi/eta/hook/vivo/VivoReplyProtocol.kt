@@ -11,7 +11,11 @@ internal object VivoReplyProtocol {
         val productId: String,
     )
 
-    fun reply(turn: Turn, text: String): String = JSONObject()
+    const val STREAM_TOKEN = "eta_stream_token"
+    const val STREAM_TEXT = "eta_stream_text"
+
+    fun reply(turn: Turn, text: String, index: Int = 1, isLast: Boolean = true,
+        streamToken: String? = null, fullText: String = text): String = JSONObject()
         .put("main_type", "data")
         .put("subs_type", "talk")
         .put("trace_id", turn.traceId)
@@ -21,9 +25,11 @@ internal object VivoReplyProtocol {
         .put("code", 0)
         .put("desc", "success")
         .put("ack", false)
-        .put("is_last", true)
+        .put("is_last", isLast)
         .put("multi_task_end", false)
-        .put("idx", 1)
-        .put("data", JSONObject().put("text", text))
+        .put("idx", index)
+        .put("data", JSONObject().put("text", text).also { data ->
+            streamToken?.let { data.put("extras", JSONObject().put(STREAM_TOKEN, it).put(STREAM_TEXT, fullText)) }
+        })
         .toString()
 }

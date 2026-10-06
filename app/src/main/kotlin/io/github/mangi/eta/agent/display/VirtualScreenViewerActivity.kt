@@ -187,7 +187,7 @@ internal class VirtualScreenViewerActivity : ComponentActivity() {
                             }
                             display?.let {
                                 Text(
-                                    "${it.width} × ${it.height}",
+                                    "${it.width} × ${it.height} · ${it.density} dpi",
                                     style = MiuixTheme.textStyles.footnote1,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )

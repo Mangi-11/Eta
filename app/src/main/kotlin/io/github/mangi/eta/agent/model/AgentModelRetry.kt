@@ -2,9 +2,11 @@ package io.github.mangi.eta.agent.model
 
 import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 
 /** 重试只包围模型请求；完整响应返回前不提交历史或执行本地工具。 */
 internal class AgentModelRetry(
+    private val nanoTime: () -> Long = System::nanoTime,
     private val waitBeforeRetry: (AgentRunController, Long) -> Unit = { controller, delay ->
         controller.awaitRetryDelay(delay)
     },
@@ -27,11 +29,25 @@ internal class AgentModelRetry(
             onEvent(AgentEvent.RoundStarted(round, request.messages.length()))
             var hostedToolStarted = false
             var callbackFailed = false
+            var startedAt = nanoTime()
+            var usage: AgentTokenUsage? = null
             try {
                 val response = provider.complete(request, controller) { event ->
+                    if (event == ProviderEvent.RequestStarted) startedAt = nanoTime()
+                    if (event is ProviderEvent.Usage) usage = (usage ?: AgentTokenUsage()).merge(event.usage)
                     if (event is ProviderEvent.HostedToolStarted) hostedToolStarted = true
                     try {
                         onProviderEvent(round, event)
+                    } catch (failure: Exception) {
+                        callbackFailed = true
+                        throw failure
+                    }
+                }
+                usage?.let {
+                    try {
+                        onEvent(AgentEvent.UsageReceived(round, it.copy(
+                            requestDurationMs = ((nanoTime() - startedAt) / 1_000_000).coerceAtLeast(1),
+                        )))
                     } catch (failure: Exception) {
                         callbackFailed = true
                         throw failure

@@ -397,6 +397,51 @@ class AgentConversationStoreTest {
     }
 
     @Test
+    fun latestModelMetricsPersistForToolOnlyRoundsAndUpdateWithoutChangingMessageRows() = runBlocking {
+        val usage = TokenUsageUi(contextTokens = 1200, outputTokens = 96, requestDurationMs = 3000)
+        var chat = AgentChatHomeUiState(messages = listOf(ToolActivityMessageUi("tool", "observe_screen",
+            ToolActivityStatusUi.Success, "", resultSummary = "ok")), input = "", isStreaming = false,
+            thinkingEnabled = false, lastModelUsage = usage)
+        val persistence = AgentConversationPersistence()
+        repeat(2) { turn ->
+            if (turn == 1) chat = chat.copy(lastModelUsage = usage.copy(outputTokens = 48))
+            persistence.save(context, AgentConversationStore.Snapshot("metrics", mapOf("metrics" to chat), mapOf("metrics" to "指标"), mapOf("metrics" to 1L)))
+            val restored = AgentConversationStore.load(context).conversationsById.getValue("metrics")
+            assertEquals(chat.lastModelUsage, restored.lastModelUsage)
+            assertEquals(if (turn == 0) 32.0 else 16.0, restored.lastModelUsage!!.averageTokensPerSecond!!, 0.001)
+            assertEquals(chat.messages, restored.messages)
+        }
+    }
+
+    @Test
+    fun vivoArchiveContinuesInTheSameConversationWithRecoveredUserHistoryAndSavedSpeed() = runBlocking {
+        val id = io.github.mangi.eta.agent.runtime.AgentExternalArchivePayload.conversationId("vivo", "session")
+        val usage = TokenUsageUi(contextTokens = 1200, outputTokens = 80, requestDurationMs = 2000)
+        val answer = AgentModelClient.ConversationMessage(role = "assistant", content = "记住了", messageId = "assistant-old-run-1")
+        val old = AgentChatHomeUiState(
+            messages = listOf(UserMessageUi("user-old-run", "记住我的约束"), AgentMessageUi(answer.messageId, answer.content, usage = usage)),
+            history = listOf(answer), journal = listOf(answer), input = "", isStreaming = false, thinkingEnabled = false,
+        )
+        AgentConversationStore.save(context, id, mapOf(id to old), mapOf(id to "小 V"), mapOf(id to 1L))
+        val restored = AgentConversationStore.load(context)
+        val chat = restored.conversationsById.getValue(id)
+        assertEquals(listOf("user", "assistant"), chat.history.map { it.role })
+        assertTrue(id in restored.unalignedConversationIds)
+        AgentConversationPersistence(restored).save(context, restored)
+        assertEquals(listOf("user", "assistant"), AgentConversationCodec.decodeTranscript(
+            EtaDatabase.get(context).conversationDao().contextCheckpoint(id)!!.historyJson).map { it.role })
+        assertEquals(40.0, (chat.messages.last() as AgentMessageUi).usage!!.averageTokensPerSecond!!, 0.001)
+        val scope = CoroutineScope(SupervisorJob().apply { cancel() } + Dispatchers.Main)
+        try {
+            val state = AgentAppState(context, scope, initialConversations = restored)
+            state.sendCurrentMessage("继续")
+            assertEquals(id, state.conversationPaneState.selectedConversationId)
+            assertEquals(listOf("记住我的约束", "记住了", "继续"), state.homeState.history.map { it.content })
+            assertEquals(1, state.conversationPaneState.conversations.size)
+        } finally { scope.cancel() }
+    }
+
+    @Test
     fun etaIslandOpensTheExistingUiConversationWithoutCreatingAnArchive() = runBlocking {
         AgentConversationStore.save(
             context, "other", mapOf(

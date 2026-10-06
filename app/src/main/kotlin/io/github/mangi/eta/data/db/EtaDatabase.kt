@@ -28,7 +28,7 @@ import androidx.room.migration.Migration
         AgentTaskEntity::class,
         AgentTaskRunEntity::class,
     ],
-    version = 22,
+    version = 24,
     exportSchema = false,
 )
 internal abstract class EtaDatabase : RoomDatabase() {
@@ -68,6 +68,8 @@ internal abstract class EtaDatabase : RoomDatabase() {
                         MIGRATION_19_20,
                         MIGRATION_20_21,
                         MIGRATION_21_22,
+                        MIGRATION_22_23,
+                        MIGRATION_23_24,
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
@@ -84,6 +86,14 @@ internal abstract class EtaDatabase : RoomDatabase() {
                 instance?.close()
                 instance = null
             }
+        }
+
+        internal val MIGRATION_23_24 = Migration(23, 24) { database ->
+            database.execSQL("ALTER TABLE conversations ADD COLUMN last_model_usage_json TEXT NOT NULL DEFAULT ''")
+        }
+
+        internal val MIGRATION_22_23 = Migration(22, 23) { database ->
+            database.execSQL("ALTER TABLE conversation_messages ADD COLUMN request_duration_ms INTEGER")
         }
 
         internal val MIGRATION_21_22 = Migration(21, 22) { database ->

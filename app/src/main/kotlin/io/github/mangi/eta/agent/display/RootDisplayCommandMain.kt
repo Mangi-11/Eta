@@ -46,9 +46,9 @@ internal object RootDisplayCommandMain {
             val input = System.`in`.bufferedReader()
             val setup = JSONObject(input.readLine() ?: return)
             require(setup.optString("action") == "create")
-            val width = integer(setup, "width", 320, 1080)
-            val height = integer(setup, "height", 480, 1920)
-            val dpi = integer(setup, "density", 160, 480)
+            val width = integer(setup, "width", 320, VirtualScreenProfile.MAX_WIDTH)
+            val height = integer(setup, "height", 480, VirtualScreenProfile.MAX_HEIGHT)
+            val dpi = integer(setup, "density", 120, VirtualScreenProfile.MAX_DENSITY)
             val allowOff = setup.optBoolean("allowScreenOff", false)
             val displayManager = context.getSystemService(DisplayManager::class.java)
             val keyguard = context.getSystemService(KeyguardManager::class.java)
@@ -104,7 +104,7 @@ internal object RootDisplayCommandMain {
                     .apply { acquire(15 * 60_000L) }
             reply(
                 JSONObject().put("ok", true).put("displayId", id).put("width", width)
-                    .put("height", height).put("independentFocus", true)
+                    .put("height", height).put("density", dpi).put("independentFocus", true)
             )
             while (true) {
                 val line = input.readLine() ?: break

@@ -36,6 +36,10 @@ internal object VivoHooks {
     private val active = AtomicReference<Run?>()
     private val history = VivoConversationHistory()
     private val ownership = VivoTurnOwnership()
+    private val streamTokens = java.util.Collections.synchronizedMap(object : LinkedHashMap<String, String>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean = size > 64
+    })
+    @Volatile private var streamingSupported = false
     private val cancellingNative = ThreadLocal<Boolean>()
     @Volatile private var islandNotifications: VivoIslandNotifications? = null
     private val main = Handler(Looper.getMainLooper())
@@ -120,6 +124,22 @@ internal object VivoHooks {
                 missing("vivo.text", "CopilotSpeechGptLinker.sendChat", "小 V 请求或回答协议不完整，保持原生行为")
                 return@install
             }
+            val streaming = VivoStreamingTargets.resolve(loader)
+            if (streaming != null) {
+                val handle = intercept("vivo.stream", streaming.onResult, "Vivo incremental reply accumulator") { chain ->
+                    runCatching {
+                        val processor = chain.thisObject
+                        val message = chain.args.getOrNull(1)
+                        if (processor != null && message != null) streaming.prepare(processor, message) { trace, request, token ->
+                            ownership.owns(trace, request) && streamTokens["$trace:$request"] == token
+                        }
+                    }.onFailure { logger.warnThrottled("vivo_stream_accumulator_failed") {
+                        "小 V 流式文本同步失败: type=${it.safeLogType()}"
+                    } }
+                    chain.proceed()
+                }
+                streamingSupported = handle != null
+            } else missing("vivo.stream", "TalkBusinessProcessor.onResult", "未找到流式回答累加器，使用完整回答回写")
             intercept("vivo.cancel", targets.cancel, "Vivo GPT cancellation") { chain ->
                 val node = (chain.args.firstOrNull() as? Enum<*>)?.name
                 if (cancellingNative.get() != true && (node == "GPT" || node == "GPTONLY")) {
@@ -217,6 +237,7 @@ internal object VivoHooks {
         }
         // Once queued, ownership is irrevocable: a rendering failure must never send the prompt twice.
         active.getAndSet(run)?.cancel()
+        streamTokens["${request.turn.traceId}:${request.turn.requestId}"] = run.id
         main.post {
             if (!run.cancelled.get() && active.get() === run) {
                 islandNotifications?.start(run.id, request.turn.sessionId.ifBlank { request.turn.traceId })
@@ -256,9 +277,7 @@ internal object VivoHooks {
                         run.request.turn.sessionId, run.prompt,
                     ),
                 ),
-                onEvent = { event ->
-                    if (!run.cancelled.get() && active.get() === run) islandNotifications?.update(run.id, event)
-                },
+                onEvent = { event -> updateRun(logger, run, event) },
             )
             val content = if (result.ok) result.content.trim().ifBlank {
                 text(context, R.string.injected_completed, "Eta completed this task")
@@ -287,6 +306,21 @@ internal object VivoHooks {
         }
     }
 
+    private fun updateRun(logger: ModuleLogger, run: Run, event: io.github.mangi.eta.agent.runtime.AgentEvent) {
+        if (run.cancelled.get() || active.get() !== run) return
+        islandNotifications?.update(run.id, event)
+        if (streamingSupported && run.reply.accept(event) && run.flushScheduled.compareAndSet(false, true)) {
+            main.postDelayed({
+                run.flushScheduled.set(false)
+                if (!run.cancelled.get() && active.get() === run) runCatching {
+                    run.reply.flush()?.let { run.bridge.stream(run.request, run.id, it) }
+                }.onFailure { logger.warnThrottled("vivo_stream_delivery_failed") {
+                    "小 V 流式回写失败: type=${it.safeLogType()}"
+                } }
+            }, 80)
+        }
+    }
+
     private fun deliver(logger: ModuleLogger, run: Run, content: String): Boolean {
         if (run.cancelled.get() || active.get() !== run) return false
         val delivered = AtomicBoolean()
@@ -294,7 +328,7 @@ internal object VivoHooks {
         main.post {
             try {
                 if (!run.cancelled.get() && active.get() === run) {
-                    run.bridge.complete(run.request, content)
+                    completeReply(run, content)
                     delivered.set(true)
                 }
             } catch (exception: Exception) {
@@ -313,6 +347,11 @@ internal object VivoHooks {
 
     private fun text(context: Context, id: Int, fallback: String) = EtaInjectedStrings.get(context, id, fallback)
 
+    private fun completeReply(run: Run, content: String) {
+        if (streamingSupported) run.reply.complete(content).forEach { run.bridge.stream(run.request, run.id, it) }
+        else run.bridge.complete(run.request, content)
+    }
+
     private fun cancelActive(notify: Boolean = false, expectedRunId: String? = null) {
         val run = active.get() ?: return
         if (expectedRunId != null && run.id != expectedRunId) return
@@ -320,7 +359,7 @@ internal object VivoHooks {
         run.cancel()
         if (notify) main.post {
             runCatching {
-                run.bridge.complete(run.request, text(run.context, R.string.overlay_stopped, "Stopped"))
+                if (active.get() == null) completeReply(run, text(run.context, R.string.overlay_stopped, "Stopped"))
             }
         }
     }
@@ -334,6 +373,8 @@ internal object VivoHooks {
         val id = UUID.randomUUID().toString()
         val activated = CountDownLatch(1)
         val cancelled = AtomicBoolean()
+        val reply = VivoReplyStream()
+        val flushScheduled = AtomicBoolean()
         lateinit var task: FutureTask<Unit>
 
         fun cancel() {

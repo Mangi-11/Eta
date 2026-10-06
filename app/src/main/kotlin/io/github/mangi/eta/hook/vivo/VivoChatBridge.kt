@@ -33,6 +33,12 @@ internal class VivoChatBridge private constructor(
         post(request, state = 5)
     }
 
+    fun stream(request: Request, token: String, packet: VivoReplyStream.Packet) {
+        post(request, state = 3, result = VivoReplyProtocol.reply(request.turn, packet.text,
+            packet.index, packet.isLast, token, packet.fullText))
+        if (packet.isLast) post(request, state = 5)
+    }
+
     private fun post(request: Request, state: Int, result: String? = null) {
         val event = eventConstructor.newInstance(state)
         requestField.set(event, request.message)

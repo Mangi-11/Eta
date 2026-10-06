@@ -1443,4 +1443,9 @@
     <string name="virtual_screen_fallback_reason_app">此应用不能在虚拟屏运行</string>
     <string name="virtual_screen_fallback_reason_device">设备暂时无法提供虚拟屏</string>
     <string name="virtual_screen_fallback_reason_action">此操作无法在虚拟屏继续</string>
+    <string name="virtual_screen_notification_channel">虚拟屏</string>
+    <string name="virtual_screen_notification_title">虚拟屏正在运行</string>
+    <string name="virtual_screen_notification_content">点击查看并操作虚拟屏当前内容</string>
+    <string name="conversation_context_capsule">上下文</string>
+    <string name="conversation_speed_description">最近一次模型请求：平均每秒生成 %1$s 个输出 token，包含首字等待时间。</string>
 </resources>

@@ -85,6 +85,7 @@ fun AgentAppShell(
     onOpenPermissions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenModelProviders: () -> Unit,
+    conversationStatus: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -114,6 +115,7 @@ fun AgentAppShell(
                             onStopKimiWeb = onStopKimiWeb,
                             onRefreshKimiWeb = onRefreshKimiWeb,
                             onOpenBrowser = onOpenBrowser,
+                            conversationStatus = conversationStatus,
                         )
                     }
                 }
@@ -173,6 +175,7 @@ private fun AgentTopBar(
     onStopKimiWeb: () -> Unit,
     onRefreshKimiWeb: () -> Unit,
     onOpenBrowser: () -> Unit,
+    conversationStatus: (@Composable () -> Unit)?,
 ) {
     val isHome = route is AppRoute.Home
     val navigationIcon: @Composable () -> Unit = {
@@ -211,6 +214,7 @@ private fun AgentTopBar(
             scrollBehavior = scrollBehavior,
             navigationIcon = navigationIcon,
             actions = actions,
+            bottomContent = { conversationStatus?.invoke() },
         )
     } else {
         AdaptiveTopAppBar(

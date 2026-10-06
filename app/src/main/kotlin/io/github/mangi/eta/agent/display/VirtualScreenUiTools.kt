@@ -19,6 +19,7 @@ internal class VirtualScreenUiTools(
     private val isCancelled: () -> Boolean,
     private val launchApp: (JSONObject) -> AgentModelClient.ToolResult,
     private val openUri: (JSONObject) -> AgentModelClient.ToolResult,
+    private val runId: String = owner,
 ) {
     private var snapshot: AgentAccessibilityService.NodeSnapshot? = null
     private var observedSession: String? = null
@@ -63,10 +64,11 @@ internal class VirtualScreenUiTools(
         check(!isCancelled()) { "DISPLAY_CANCELLED" }
         val settings = runBlocking { SettingsDataStore.settings() }
         require(settings.virtualScreenEnabled) { "VIRTUAL_SCREEN_DISABLED" }
+        require(VirtualScreenSession.prepareForRun(owner, runId)) { "DISPLAY_BUSY" }
         if (!VirtualScreenSession.isActive()) {
             val created = VirtualScreenSession.execute(
                 context, owner, JSONObject().put("action", "create")
-                    .put("allowScreenOff", settings.virtualScreenOffEnabled), isCancelled
+                    .put("allowScreenOff", settings.virtualScreenOffEnabled), isCancelled, runId
             )
             if (!JSONObject(created.content).optBoolean("ok")) return created
         }
