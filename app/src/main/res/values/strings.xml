@@ -376,6 +376,7 @@
   <string name="injected_vivo_island_tool">Working: %1$s</string>
   <string name="injected_vivo_island_tool_generic">Using a tool</string>
   <string name="injected_vivo_island_answer_ready">View the answer in Xiao V or Eta</string>
+  <string name="injected_vivo_island_eta_answer_ready">View the answer in Eta</string>
   <string name="ui_display_name_ed16be">Display name</string>
   <string name="ui_tool_a72ef1">tool</string>
   <string name="ui_tool_ability_9f0f80">Tools</string>

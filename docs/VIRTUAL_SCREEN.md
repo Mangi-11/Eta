@@ -38,7 +38,7 @@
 
 本轮回退授权另外通过 29 项真机检查：关闭开关保持虚拟屏、通知动作要求解锁、任务等待授权、拒绝后不重复申请、旧通知不能授权新运行、允许后释放虚拟屏、不重放旧坐标、重新启动及观察主屏后节点点击、撤销停止操作、取消及待授权期间关闭开关，以及设置页开关与通知场景删除。实机截图确认卡片和查看按钮左右对齐，顶部与底部使用统一列表页安全间距。
 
-全量 JVM 测试共 1544 项，0 失败、0 错误、2 项既有跳过；覆盖缩放与留白换算、手势取消/会话替换、自动路由、授权令牌和权限撤销，以及无障碍窗口与输入范围。真机仅操作构造界面，临时无障碍与虚拟屏设置在测试后恢复，测试 APK 删除；没有申请应用列表权限或调用付费模型。主屏回退授权使用 Android 普通通知，小 V 接管任务的原子岛支持见 [通知支持范围](VIVO_ATOMIC_NOTIFICATIONS.md)。
+全量 JVM 测试共 1544 项，0 失败、0 错误、2 项既有跳过；覆盖缩放与留白换算、手势取消/会话替换、自动路由、授权令牌和权限撤销，以及无障碍窗口与输入范围。真机仅操作构造界面，临时无障碍与虚拟屏设置在测试后恢复，测试 APK 删除；没有申请应用列表权限或调用付费模型。主屏回退授权使用 Android 普通通知，Eta 任务的原子岛支持见 [通知支持范围](VIVO_ATOMIC_NOTIFICATIONS.md)。
 
 实现参考 Android [多屏 Activity 启动](https://source.android.com/docs/core/display/multi_display/activity-launch)、[多屏输入路由](https://source.android.com/docs/core/display/multi_display/input-routing)及 Android 16 的 [DisplayManager 标志](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-release/core/java/android/hardware/display/DisplayManager.java)。
 

@@ -1,6 +1,7 @@
 package io.github.mangi.eta.hook.vivo
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
@@ -72,6 +73,9 @@ internal object VivoHooks {
                         }.onFailure {
                             logger.warn("小 V 原子岛初始化不可用: type=${it.safeLogType()}")
                         }.getOrNull()
+                        islandNotifications?.let { notifications ->
+                            installIslandRelay(module, rootLogger, classLoader, context, notifications)
+                        }
                     }
                     installBusinessHooks(module, rootLogger, classLoader)
                 } else {
@@ -80,6 +84,31 @@ internal object VivoHooks {
                 result
             }
         }
+    }
+
+    private fun installIslandRelay(
+        module: XposedModule,
+        logger: ModuleLogger,
+        loader: ClassLoader,
+        context: Context,
+        notifications: VivoIslandNotifications,
+    ) {
+        val hooks = HookRegistrar(module, logger, "VivoIsland")
+        val installation = hooks.install {
+            val service = HookSupport.findClassOrNull(loader, VivoIslandWire.SERVICE)
+            val onBind = service?.let { HookSupport.findMethod(it, "onBind", Intent::class.java) }
+            if (onBind == null) {
+                missing("vivo.island", "WidgetTaskService.onBind", "未找到 Eta 任务原子岛入口")
+                return@install
+            }
+            val relay = VivoIslandRelay(context, notifications) { active.get() != null }
+            intercept("vivo.island", onBind, "Eta runtime island binding") { chain ->
+                if ((chain.args.firstOrNull() as? Intent)?.action == VivoIslandWire.ACTION_BIND) relay.binder
+                else chain.proceed()
+            }
+        }
+        deferredHandles += installation.handles
+        logger.scoped("VivoIsland").info(installation.report.summary())
     }
 
     private fun installBusinessHooks(module: XposedModule, rootLogger: ModuleLogger, loader: ClassLoader) {

@@ -93,7 +93,10 @@ class MainActivity : ComponentActivity() {
     private fun updateAssistantHandoff(intent: Intent?) {
         if (intent?.action == ACTION_VIEW_EXECUTION) {
             assistantConversationSource = intent.getStringExtra(EXTRA_EXECUTION_SOURCE)
-                ?.takeIf { it == VivoHandoff.SOURCE } ?: AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE
+                ?.takeIf { it in setOf(
+                    VivoHandoff.SOURCE, AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE,
+                    AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE, "automation",
+                ) } ?: AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE
             assistantConversationKey = intent.getStringExtra(
                 EtaAssistantOverlayService.EXTRA_CONVERSATION_KEY,
             )?.takeIf(String::isNotBlank)

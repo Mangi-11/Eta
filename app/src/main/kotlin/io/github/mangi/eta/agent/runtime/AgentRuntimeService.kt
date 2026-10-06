@@ -73,6 +73,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     private val mainHandler = Handler(Looper.getMainLooper())
     private val resultIo = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "agent-result-io") }
     private val serviceMessenger = Messenger(IncomingHandler())
+    private lateinit var islandBridge: AgentRuntimeIslandBridge
 
     @Volatile
     private var activeSession: AgentRuntimeSession? = null
@@ -107,6 +108,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     override fun onCreate() {
         super.onCreate()
+        islandBridge = AgentRuntimeIslandBridge(this, AndroidAgentLogger, ::cancelRun)
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
@@ -153,6 +155,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         pendingStartRequest = null
         activeSession?.cancel("Agent Runtime 服务已停止")
         activeSession = null
+        islandBridge.close()
         resultIo.shutdownNow()
         mainHandler.removeCallbacksAndMessages(null)
         resultCardView?.let { view -> runCatching { windowManager?.removeView(view) } }
@@ -327,8 +330,14 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         val session = AgentRuntimeSession(
             runId = request.runId,
             operation = request.operation,
-            eventSink = { event -> sendEventTo(replyTo, event) },
-            resultSink = { result -> sendResultTo(replyTo, result) },
+            eventSink = { event ->
+                islandBridge.update(request.runId, event)
+                sendEventTo(replyTo, event)
+            },
+            resultSink = { result ->
+                islandBridge.finish(result)
+                sendResultTo(replyTo, result)
+            },
         )
         // Root 入口保留原有绑定服务生命周期；新增 FGS 不能成为厂商后台入口的新前置权限。
         val allowBoundFallback = RootAccess.isGranted || automated
@@ -343,6 +352,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             return
         }
         activeSession = session
+        islandBridge.start(request)
         lastCompletedRunContext = null
         runCatching {
             startService(Intent(this, AgentRuntimeService::class.java).setAction(ACTION_KEEP_ALIVE))

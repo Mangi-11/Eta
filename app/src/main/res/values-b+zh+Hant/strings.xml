@@ -352,6 +352,7 @@
   <string name="injected_vivo_island_tool">正在執行：%1$s</string>
   <string name="injected_vivo_island_tool_generic">使用工具</string>
   <string name="injected_vivo_island_answer_ready">可在小 V 或 Eta 中查看回答</string>
+  <string name="injected_vivo_island_eta_answer_ready">可在 Eta 中查看回答</string>
   <string name="ui_display_name_ed16be">展示名稱</string>
   <string name="ui_tool_a72ef1">工具</string>
   <string name="ui_tool_ability_9f0f80">工具能力</string>

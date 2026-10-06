@@ -199,6 +199,9 @@ fun AgentAppRoot(
             conversationPaneOpen = false
             // 接管落到主聊天舞台：与主界面同一页面、同一侧边对话列表，不再开独立对话页。
             navigator.popToHome()
+        } else if (assistantConversationSource == "automation") {
+            navigator.popToHome()
+            navigator.push(AppRoute.Tasks)
         }
         onAssistantConversationOpened(opened)
     }

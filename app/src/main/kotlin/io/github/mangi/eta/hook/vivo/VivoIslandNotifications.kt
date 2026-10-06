@@ -48,7 +48,10 @@ internal class VivoIslandNotifications(
                 intent.getStringExtra(EXTRA_RUN_ID) != current.runId || current.hidden
             ) return
             when (intent.action) {
-                ACTION_STOP -> if (!current.terminal) onStop(current.runId)
+                ACTION_STOP -> if (!current.terminal) {
+                    if (current.externalStop != null) runCatching { current.externalStop.send() }
+                    else onStop(current.runId)
+                }
                 ACTION_DISMISS -> hide(current)
             }
         }
@@ -64,32 +67,32 @@ internal class VivoIslandNotifications(
         )
     }
 
-    fun start(runId: String, conversationKey: String) = onMain {
+    fun start(
+        runId: String,
+        conversationKey: String,
+        externalOpen: PendingIntent? = null,
+        externalStop: PendingIntent? = null,
+    ) = onMain {
         session?.let(::hide)
         main.removeCallbacks(expire)
-        session = Session(runId, conversationKey, detail = text(
-            R.string.injected_vivo_island_starting, "Preparing your task",
-        )).also(::publish)
+        session = Session(
+            runId, conversationKey, detail = text(R.string.injected_vivo_island_starting, "Preparing your task"),
+            externalOpen = externalOpen, externalStop = externalStop,
+        ).also(::publish)
     }
 
     fun update(runId: String, event: AgentEvent) {
-        val detail = when (event) {
-            is AgentEvent.RunStarted, is AgentEvent.RoundStarted,
-            is AgentEvent.ProviderRequestStarted, is AgentEvent.ProviderResponseStarted,
-            is AgentEvent.ToolFinished, is AgentEvent.HostedToolFinished ->
-                text(R.string.injected_vivo_island_thinking, "Thinking")
-            is AgentEvent.ToolStarted -> toolDetail(event.name)
-            is AgentEvent.HostedToolStarted -> toolDetail(event.name)
-            is AgentEvent.ModelRetryScheduled -> text(R.string.injected_vivo_island_retrying, "Retrying the model request")
-            is AgentEvent.ContextCompaction -> if (event.phase == AgentEvent.ContextCompaction.PHASE_STARTED) {
-                text(R.string.injected_vivo_island_compacting, "Organizing conversation context")
-            } else text(R.string.injected_vivo_island_thinking, "Thinking")
-            is AgentEvent.AssistantBlockStart -> when (event.kind) {
-                AgentEvent.AssistantBlockKind.TEXT -> text(R.string.injected_vivo_island_answering, "Writing the answer")
-                AgentEvent.AssistantBlockKind.THINKING -> text(R.string.injected_vivo_island_thinking, "Thinking")
-                AgentEvent.AssistantBlockKind.TOOL_CALL -> return
-            }
-            else -> return
+        VivoIslandWire.Progress.from(event)?.let { update(runId, it) }
+    }
+
+    fun update(runId: String, progress: VivoIslandWire.Progress) {
+        val detail = when (progress.phase) {
+            VivoIslandWire.Phase.PREPARING -> text(R.string.injected_vivo_island_starting, "Preparing your task")
+            VivoIslandWire.Phase.THINKING -> text(R.string.injected_vivo_island_thinking, "Thinking")
+            VivoIslandWire.Phase.ANSWERING -> text(R.string.injected_vivo_island_answering, "Writing the answer")
+            VivoIslandWire.Phase.TOOL -> toolDetail(progress.tool)
+            VivoIslandWire.Phase.RETRYING -> text(R.string.injected_vivo_island_retrying, "Retrying the model request")
+            VivoIslandWire.Phase.COMPACTING -> text(R.string.injected_vivo_island_compacting, "Organizing conversation context")
         }
         onMain {
             val current = session?.takeIf { it.runId == runId && !it.hidden && !it.terminal } ?: return@onMain
@@ -107,7 +110,9 @@ internal class VivoIslandNotifications(
         main.removeCallbacks(flush)
         current.state = state
         current.detail = when (state) {
-            State.COMPLETED -> text(R.string.injected_vivo_island_answer_ready, "View the answer in Xiao V or Eta")
+            State.COMPLETED -> if (current.externalOpen != null) {
+                text(R.string.injected_vivo_island_eta_answer_ready, "View the answer in Eta")
+            } else text(R.string.injected_vivo_island_answer_ready, "View the answer in Xiao V or Eta")
             State.FAILED -> text(R.string.injected_failed, "Eta could not complete the task. Try again later")
             State.CANCELLED -> text(R.string.overlay_stopped, "Stopped")
             State.RUNNING -> error("terminal state required")
@@ -156,7 +161,7 @@ internal class VivoIslandNotifications(
             State.FAILED -> text(R.string.injected_vivo_island_failed, "Eta task failed")
             State.CANCELLED -> text(R.string.injected_vivo_island_cancelled, "Eta task stopped")
         }
-        val open = PendingIntent.getActivity(
+        val open = current.externalOpen ?: PendingIntent.getActivity(
             context, 0, Intent(MainActivity.ACTION_VIEW_EXECUTION)
                 .setClassName(ModuleConfig.ETA_PACKAGE, "io.github.mangi.eta.ui.MainActivity")
                 .setData(Uri.Builder().scheme("eta-vivo-island").authority("view").appendPath(current.token).build())
@@ -314,6 +319,8 @@ internal class VivoIslandNotifications(
         var state: State = State.RUNNING,
         var published: Boolean = false,
         var hidden: Boolean = false,
+        val externalOpen: PendingIntent? = null,
+        val externalStop: PendingIntent? = null,
     ) {
         val terminal get() = state != State.RUNNING
         val retentionMs get() = if (state == State.CANCELLED) 5_000L else 30_000L

@@ -397,6 +397,26 @@ class AgentConversationStoreTest {
     }
 
     @Test
+    fun etaIslandOpensTheExistingUiConversationWithoutCreatingAnArchive() = runBlocking {
+        AgentConversationStore.save(
+            context, "other", mapOf(
+                "target" to AgentChatHomeUiState(messages = listOf(UserMessageUi("user", "hello")), input = "", isStreaming = false, thinkingEnabled = false),
+                "other" to AgentChatHomeUiState(messages = listOf(UserMessageUi("other-user", "other")), input = "", isStreaming = false, thinkingEnabled = false),
+            ), mapOf("target" to "hello", "other" to "other"), mapOf("target" to 1L, "other" to 2L),
+        )
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        try {
+            val state = AgentAppState(context, scope)
+            assertTrue(state.openAssistantConversation("target",
+                io.github.mangi.eta.agent.runtime.AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE))
+            assertEquals("target", state.conversationPaneState.selectedConversationId)
+            assertEquals(2, state.conversationPaneState.conversations.size)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun characterGreetingIsLocalAndOrdinaryNewConversationReturnsToEta() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         try {
