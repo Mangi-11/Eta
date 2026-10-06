@@ -1440,6 +1440,12 @@
     <string name="sidebar_skills">技能</string>
     <string name="sidebar_characters">角色</string>
     <string name="sidebar_permissions">權限</string>
+    <string name="sidebar_more_expanded">已展開</string>
+    <string name="sidebar_more_collapsed">已收起</string>
+    <string name="sidebar_mode_root">Root</string>
+    <string name="sidebar_mode_accessibility">無障礙</string>
+    <string name="sidebar_mode_basic">基礎</string>
+    <string name="sidebar_mode_description">執行模式：%1$s</string>
     <string name="automation_triggers_title">觸發器</string>
     <string name="automation_triggers_count">%1$d / %2$d 可用 · 點擊查看條件</string>
     <string name="automation_triggers_time">時間計畫</string>

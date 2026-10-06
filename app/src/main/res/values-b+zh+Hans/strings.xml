@@ -1466,6 +1466,12 @@
     <string name="sidebar_skills">技能</string>
     <string name="sidebar_characters">角色</string>
     <string name="sidebar_permissions">权限</string>
+    <string name="sidebar_more_expanded">已展开</string>
+    <string name="sidebar_more_collapsed">已收起</string>
+    <string name="sidebar_mode_root">Root</string>
+    <string name="sidebar_mode_accessibility">无障碍</string>
+    <string name="sidebar_mode_basic">基础</string>
+    <string name="sidebar_mode_description">运行模式：%1$s</string>
     <string name="automation_triggers_title">触发器</string>
     <string name="automation_triggers_count">%1$d / %2$d 可用 · 点击查看条件</string>
     <string name="automation_triggers_time">时间计划</string>

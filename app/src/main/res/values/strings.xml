@@ -1488,6 +1488,12 @@
     <string name="sidebar_skills">Skills</string>
     <string name="sidebar_characters">Characters</string>
     <string name="sidebar_permissions">Permissions</string>
+    <string name="sidebar_more_expanded">Expanded</string>
+    <string name="sidebar_more_collapsed">Collapsed</string>
+    <string name="sidebar_mode_root">Root</string>
+    <string name="sidebar_mode_accessibility">Accessibility</string>
+    <string name="sidebar_mode_basic">Basic</string>
+    <string name="sidebar_mode_description">Operating mode: %1$s</string>
     <string name="automation_triggers_title">Available triggers</string>
     <string name="automation_triggers_count">%1$d of %2$d available · tap for details</string>
     <string name="automation_triggers_time">Time</string>
