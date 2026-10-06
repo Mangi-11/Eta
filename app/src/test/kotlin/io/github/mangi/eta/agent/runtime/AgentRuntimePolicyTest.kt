@@ -68,9 +68,24 @@ class AgentRuntimePolicyTest {
             }
             val permissions = AgentRuntimePolicy.permissions(preferences)
             for (requested in listOf(false, true)) {
-                val config = modelConfig(false, false, false).copy(autoCompactionEnabled = requested)
+                val config = modelConfig(false, false, false).copy(contextWindow = 128_000, autoCompactionEnabled = requested)
                 assertEquals(localEnabled && requested, AgentRuntimePolicy.constrain(config, permissions).autoCompactionEnabled)
             }
+        }
+    }
+
+    @Test
+    fun automaticCompactionRequiresPositiveContextWindowEvenWhenAuthorized() {
+        val permissions = AgentRuntimePolicy.Permissions(
+            terminalTools = false, browserTools = false, thinking = false, autoCompaction = true,
+        )
+        for (window in listOf(null, 0, -1, 128_000)) {
+            val config = modelConfig(false, false, false).copy(
+                contextWindow = window, autoCompactionEnabled = true,
+            )
+            val constrained = AgentRuntimePolicy.constrain(config, permissions)
+            assertEquals(window, constrained.contextWindow)
+            assertEquals(window == 128_000, constrained.autoCompactionEnabled)
         }
     }
 

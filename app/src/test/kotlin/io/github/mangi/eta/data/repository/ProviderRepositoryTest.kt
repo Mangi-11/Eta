@@ -60,13 +60,13 @@ class ProviderRepositoryTest {
     }
 
     @Test
-    fun onlyUserConfiguredWindowReachesRuntimeAndChat() = runBlocking {
+    fun metadataWindowIsUsedUntilUserOverridesItInRuntimeAndChat() = runBlocking {
         ProviderRepository.ensureBuiltInsMerged()
         val id = BuiltinProviders.DEEPSEEK_ID
         val model = Model(id = "manual-flash", modelId = "deepseek-flash", displayName = "我的模型")
         val cases = listOf(
             model to null,
-            model.copy(contextWindow = 128_000) to null,
+            model.copy(contextWindow = 128_000) to 128_000,
             model.copy(contextWindow = 128_000, contextWindowOverride = 64_000) to 64_000,
         )
         for ((stored, expected) in cases) {
@@ -91,6 +91,33 @@ class ProviderRepositoryTest {
             }
         } finally {
             preferences.edit().remove(Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED).commit()
+        }
+    }
+
+    @Test
+    fun unknownWindowDisablesAutomaticCompactionWithoutChangingLocalPreference() {
+        Prefs.initLocal(context)
+        val preferences = requireNotNull(Prefs.localAgentPreferences())
+        val provider = OpenAiCompatibleProviderSetting(
+            id = "custom", name = "自建中转", baseUrl = "https://example.invalid/v1", apiKey = "fixture",
+        )
+        val model = Model(id = "unknown", modelId = "unknown", displayName = "未知窗口模型")
+        try {
+            assertTrue(preferences.edit().putBoolean(Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED, true).commit())
+            val config = RuntimeConfigRepository.buildRuntimeConfig(provider, model)
+            assertNull(config.contextWindow)
+            assertEquals(false, config.autoCompactionEnabled)
+            preferences.edit().putString(Prefs.Keys.AGENT_RUNTIME_CONFIG_JSON,
+                RuntimeConfigRepository.runtimeConfigJson(config)).commit()
+            val loaded = io.github.mangi.eta.agent.model.AgentModelClient.loadConfig()
+            assertNull(loaded.contextWindow)
+            assertEquals(false, loaded.autoCompactionEnabled)
+            assertTrue(Prefs.isEnabled(Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED))
+            assertTrue(RuntimeConfigRepository.buildRuntimeConfig(provider,
+                model.copy(contextWindow = 128_000)).autoCompactionEnabled)
+        } finally {
+            preferences.edit().remove(Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED)
+                .remove(Prefs.Keys.AGENT_RUNTIME_CONFIG_JSON).commit()
         }
     }
 

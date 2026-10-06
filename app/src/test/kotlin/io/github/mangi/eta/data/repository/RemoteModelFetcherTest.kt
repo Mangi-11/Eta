@@ -185,6 +185,7 @@ class RemoteModelFetcherTest {
         val model = models.single()
         assertEquals("kimi-k2.6", model.modelId)
         assertEquals(256000, model.contextWindow)
+        assertEquals(256000, model.effectiveContextWindow)
         assertTrue(model.supportsVision)
         assertTrue(model.supportsReasoning)
         assertEquals(listOf("text", "image", "video"), model.inputModalities)
@@ -307,6 +308,7 @@ class RemoteModelFetcherTest {
         ).single()
 
         assertEquals(1_000_000, model.contextWindow)
+        assertEquals(1_000_000, model.effectiveContextWindow)
         assertTrue(model.supportsVision)
         assertTrue(model.supportsReasoning)
         assertEquals(true, model.structuredOutput)
@@ -334,6 +336,7 @@ class RemoteModelFetcherTest {
         ).single()
 
         assertTrue(models.all { it.contextWindow == null })
+        assertTrue(models.all { it.effectiveContextWindow == null })
         assertEquals(null, anthropic.contextWindow)
     }
 
