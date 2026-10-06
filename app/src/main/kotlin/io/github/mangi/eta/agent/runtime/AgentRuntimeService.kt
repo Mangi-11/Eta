@@ -416,7 +416,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             kotlinx.coroutines.runBlocking { io.github.mangi.eta.data.datastore.SettingsDataStore.settings() }.virtualScreenEnabled) {
             session.virtualUiRouted.set(true)
         }
-        val virtualUi = session.virtualUiRouted.get()
+        val virtualUi = session.virtualUiRouted.get() && !session.mainScreenFallbackApproved.get()
         val revealsForegroundOperation = !virtualUi && AgentOverlayVisibilityPolicy.shouldRevealFor(event)
         val requiresEntrySurfaceDismissal = !virtualUi &&
             AgentOverlayVisibilityPolicy.shouldDismissEntrySurfaceFor(event)

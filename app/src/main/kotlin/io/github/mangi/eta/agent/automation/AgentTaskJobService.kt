@@ -12,18 +12,15 @@ import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRuntimeClient
 import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
 import io.github.mangi.eta.agent.runtime.AgentExternalArchivePayload
-import io.github.mangi.eta.agent.runtime.VivoAtomicNotification
 import io.github.mangi.eta.agent.display.VirtualScreenSession
 import io.github.mangi.eta.agent.display.VirtualScreenViewerActivity
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.data.db.EtaDatabase
 import io.github.mangi.eta.data.db.AgentTaskRunEntity
-import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.MainActivity
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -96,11 +93,9 @@ internal class AgentTaskJobService : JobService() {
                             NotificationManager.IMPORTANCE_LOW
                         )
                     )
-                    val scene = SettingsDataStore.settings().vivoAtomicScene
-                    val sequence = AtomicInteger()
                     fun showProgress(progress: String) {
                         val notification =
-                            notification(task.name, progress, scene, sequence.getAndIncrement())
+                            notification(task.name, progress)
                         if (android.os.Build.VERSION.SDK_INT >= 34) {
                             setNotification(
                                 params,
@@ -191,8 +186,6 @@ internal class AgentTaskJobService : JobService() {
     private fun notification(
         title: String,
         progress: String,
-        scene: String,
-        sequence: Int
     ): Notification {
         val target =
             if (VirtualScreenSession.isActive()) VirtualScreenViewerActivity::class.java else MainActivity::class.java
@@ -205,7 +198,6 @@ internal class AgentTaskJobService : JobService() {
         return Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title).setContentText(progress).setContentIntent(open).setOngoing(true)
             .setOnlyAlertOnce(true)
-            .addExtras(VivoAtomicNotification.extras(this, title, progress, open, scene, sequence))
             .build()
     }
 

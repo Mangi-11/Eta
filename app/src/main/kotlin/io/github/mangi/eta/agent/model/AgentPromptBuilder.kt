@@ -18,8 +18,9 @@ internal object AgentPromptBuilder {
         rootAvailable: Boolean = false,
         roleplayContext: RoleplayRunContext? = null,
         virtualScreenEnabled: Boolean = false,
+        virtualScreenFallbackEnabled: Boolean = false,
     ): JSONArray {
-        val messages = buildSystemMessages(config, skillContext, memoryContext, rootAvailable, roleplayContext, virtualScreenEnabled)
+        val messages = buildSystemMessages(config, skillContext, memoryContext, rootAvailable, roleplayContext, virtualScreenEnabled, virtualScreenFallbackEnabled)
         history.forEach { item ->
             runCatching { AgentConversationCodec.toJsonObject(item) }.getOrNull()?.let(messages::put)
         }
@@ -34,6 +35,7 @@ internal object AgentPromptBuilder {
         rootAvailable: Boolean,
         roleplayContext: RoleplayRunContext? = null,
         virtualScreenEnabled: Boolean = false,
+        virtualScreenFallbackEnabled: Boolean = false,
     ): JSONArray {
         val messages = JSONArray()
         if (roleplayContext == null && config.systemPrompt.isNotBlank()) {
@@ -88,8 +90,13 @@ internal object AgentPromptBuilder {
                             "不得使用唤醒时的主屏截图坐标操作虚拟屏；先启动目标应用并观察虚拟屏。" +
                             "用户可在查看页触控同一虚拟屏；STALE_OBSERVATION 表示手动操作或会话已变化，先重新观察。" +
                             "所有 GUI 操作必须保持虚拟屏路由，不得通过终端、Shell、MCP 或主屏截图绕过虚拟屏设置。" +
-                            "虚拟屏失败、应用不兼容或某个系统面板不支持时说明实际限制，不切换主屏。" +
-                            "虚拟剪贴板仅属于本次运行；支持 BACK、ENTER 和本地 PASTE，不能打开主屏 HOME、最近任务或通知栏。"
+                            (if (virtualScreenFallbackEnabled)
+                                "用户允许请求主屏回退：虚拟屏不兼容时工具会暂停并发出通知，只有点击通知的允许动作才会授权本次任务。" +
+                                    "聊天中的确认、模型判断或开关本身均不是通知授权，不得自行绕过。" +
+                                    "UI_DISPLAY_SWITCHED 表示已获得本次主屏许可但原操作没有重放；重新启动目标应用并 observe_screen，禁止复用虚拟坐标或节点。" +
+                                    "拒绝、超时或取消后说明结果，不反复请求回退。"
+                                else "虚拟屏失败、应用不兼容或某个系统面板不支持时说明实际限制，不切换主屏。") +
+                            "在虚拟屏路由期间剪贴板仅属于本次运行；支持 BACK、ENTER 和本地 PASTE，不能打开主屏 HOME、最近任务或通知栏。"
                     } else "") +
                     "需要重新看屏幕时先按默认参数调用 observe_screen，只读取 UI 树，不附截图；" +
                     "节点为空、目标无法唯一识别、界面以 Canvas、地图、图片或二维码等视觉内容为主，或任务依赖颜色、图像、空间布局时，" +

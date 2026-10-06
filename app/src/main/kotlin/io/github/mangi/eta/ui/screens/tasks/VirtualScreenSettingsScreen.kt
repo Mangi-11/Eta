@@ -1,45 +1,39 @@
 package io.github.mangi.eta.ui.screens.tasks
 
 import android.content.Intent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.display.MainScreenFallbackApproval
+import io.github.mangi.eta.agent.display.VirtualScreenSession
 import io.github.mangi.eta.agent.display.VirtualScreenViewerActivity
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.model.Settings
+import io.github.mangi.eta.ui.app.rememberExecutionNotificationRequest
+import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
+import io.github.mangi.eta.ui.components.EtaPreferenceDivider
 import io.github.mangi.eta.ui.components.EtaPreferenceGroup
 import io.github.mangi.eta.ui.components.EtaSwitchPreference
 import io.github.mangi.eta.ui.components.EtaTextButton
-import io.github.mangi.eta.ui.components.MiuixScaffold
-import kotlinx.coroutines.launch
+import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun VirtualScreenSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val settings by SettingsDataStore.settingsFlow().collectAsState(initial = Settings())
     val scope = rememberCoroutineScope()
-    var scene by remember { mutableStateOf("") }
-    LaunchedEffect(settings.vivoAtomicScene) { scene = settings.vivoAtomicScene }
-    MiuixScaffold(
-        title = stringResource(R.string.virtual_screen_title),
-        onBack = onBack
-    ) { padding, _, _ ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+    val requestNotifications = rememberExecutionNotificationRequest()
+    MiuixScaffoldPage(title = stringResource(R.string.virtual_screen_title), onBack = onBack) {
+        item {
             EtaPreferenceGroup {
                 EtaSwitchPreference(
                     title = stringResource(R.string.virtual_screen_enable),
@@ -50,11 +44,30 @@ internal fun VirtualScreenSettingsScreen(onBack: () -> Unit) {
                             SettingsDataStore.updateSettings {
                                 it.copy(
                                     virtualScreenEnabled = value,
-                                    virtualScreenOffEnabled = if (value) it.virtualScreenOffEnabled else false
+                                    virtualScreenOffEnabled = value && it.virtualScreenOffEnabled,
+                                    virtualScreenFallbackEnabled = value && it.virtualScreenFallbackEnabled
                                 )
-                            }; if (!value) io.github.mangi.eta.agent.display.VirtualScreenSession.revokePermission()
+                            }
+                            if (!value) {
+                                VirtualScreenSession.revokePermission()
+                                MainScreenFallbackApproval.cancelAll()
+                            }
                         }
                     })
+                EtaPreferenceDivider(hasLeading = false)
+                EtaSwitchPreference(
+                    title = stringResource(R.string.virtual_screen_fallback_enable),
+                    summary = stringResource(R.string.virtual_screen_fallback_summary),
+                    checked = settings.virtualScreenFallbackEnabled,
+                    enabled = settings.virtualScreenEnabled,
+                    onCheckedChange = { value ->
+                        if (value) requestNotifications()
+                        scope.launch(Dispatchers.IO) {
+                            SettingsDataStore.updateSettings { it.copy(virtualScreenFallbackEnabled = value) }
+                            if (!value) MainScreenFallbackApproval.cancelAll()
+                        }
+                    })
+                EtaPreferenceDivider(hasLeading = false)
                 EtaSwitchPreference(
                     title = stringResource(R.string.virtual_screen_off_enable),
                     summary = stringResource(R.string.virtual_screen_off_summary),
@@ -62,16 +75,17 @@ internal fun VirtualScreenSettingsScreen(onBack: () -> Unit) {
                     enabled = settings.virtualScreenEnabled,
                     onCheckedChange = { value ->
                         scope.launch(Dispatchers.IO) {
-                            SettingsDataStore.updateSettings {
-                                it.copy(
-                                    virtualScreenOffEnabled = value
-                                )
-                            }; if (!value) io.github.mangi.eta.agent.display.VirtualScreenSession.revokePermission()
+                            SettingsDataStore.updateSettings { it.copy(virtualScreenOffEnabled = value) }
+                            if (!value) VirtualScreenSession.revokePermission()
                         }
                     })
             }
+        }
+        item {
             EtaTextButton(
                 text = stringResource(R.string.virtual_screen_view),
+                modifier = Modifier.fillMaxWidth()
+                    .padding(horizontal = EtaPreferenceDefaults.SidePadding),
                 onClick = {
                     context.startActivity(
                         Intent(
@@ -80,29 +94,6 @@ internal fun VirtualScreenSettingsScreen(onBack: () -> Unit) {
                         )
                     )
                 })
-            if (android.os.Build.MANUFACTURER.equals("vivo", ignoreCase = true)) {
-                io.github.mangi.eta.ui.components.EtaPreference(
-                    title = stringResource(R.string.vivo_atomic_scene_title),
-                    summary = stringResource(R.string.vivo_atomic_scene_summary)
-                )
-                top.yukonga.miuix.kmp.basic.TextField(
-                    value = scene,
-                    onValueChange = { scene = it.take(64) },
-                    label = stringResource(R.string.vivo_atomic_scene_title)
-                )
-                EtaTextButton(
-                    text = stringResource(R.string.vivo_atomic_scene_save),
-                    enabled = scene.isBlank() || Regex("[A-Z][A-Z0-9_]{0,63}").matches(scene),
-                    onClick = {
-                        scope.launch {
-                            SettingsDataStore.updateSettings {
-                                it.copy(
-                                    vivoAtomicScene = scene
-                                )
-                            }
-                        }
-                    })
-            }
         }
     }
 }

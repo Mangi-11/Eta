@@ -11,6 +11,6 @@ data class Settings(
     val autoSkillsEnabled: Boolean = true,
     val virtualScreenEnabled: Boolean = false,
     val virtualScreenOffEnabled: Boolean = false,
-    val vivoAtomicScene: String = "",
+    val virtualScreenFallbackEnabled: Boolean = false,
     val appearance: AppearanceSettings = AppearanceSettings(),
 )

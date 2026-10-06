@@ -54,7 +54,7 @@ internal object SettingsDataStore {
     private val AUTO_SKILLS_ENABLED = booleanPreferencesKey("auto_skills_enabled")
     private val VIRTUAL_SCREEN_ENABLED = booleanPreferencesKey("virtual_screen_enabled")
     private val VIRTUAL_SCREEN_OFF_ENABLED = booleanPreferencesKey("virtual_screen_off_enabled")
-    private val VIVO_ATOMIC_SCENE = stringPreferencesKey("vivo_atomic_scene")
+    private val VIRTUAL_SCREEN_FALLBACK_ENABLED = booleanPreferencesKey("virtual_screen_fallback_enabled")
     private val LINUX_DISTRIBUTION = stringPreferencesKey("linux_distribution")
     private val APPEARANCE_THEME_MODE = stringPreferencesKey("appearance_theme_mode")
     private val APPEARANCE_MONET_ENABLED = booleanPreferencesKey("appearance_monet_enabled")
@@ -120,7 +120,8 @@ internal object SettingsDataStore {
             prefs[AUTO_SKILLS_ENABLED] = updated.autoSkillsEnabled
             prefs[VIRTUAL_SCREEN_ENABLED] = updated.virtualScreenEnabled
             prefs[VIRTUAL_SCREEN_OFF_ENABLED] = updated.virtualScreenOffEnabled
-            prefs[VIVO_ATOMIC_SCENE] = updated.vivoAtomicScene
+            prefs[VIRTUAL_SCREEN_FALLBACK_ENABLED] = updated.virtualScreenFallbackEnabled
+            prefs.remove(stringPreferencesKey("vivo_atomic_scene"))
             prefs.putAppearance(updated.appearance.normalized())
         }
     }
@@ -251,7 +252,7 @@ internal object SettingsDataStore {
         autoSkillsEnabled = this[AUTO_SKILLS_ENABLED] ?: true,
         virtualScreenEnabled = this[VIRTUAL_SCREEN_ENABLED] ?: false,
         virtualScreenOffEnabled = this[VIRTUAL_SCREEN_OFF_ENABLED] ?: false,
-        vivoAtomicScene = this[VIVO_ATOMIC_SCENE] ?: "",
+        virtualScreenFallbackEnabled = this[VIRTUAL_SCREEN_FALLBACK_ENABLED] ?: false,
         appearance = AppearanceSettings(
             themeMode = AppearanceThemeMode.fromPersistedValue(this[APPEARANCE_THEME_MODE]),
             monetEnabled = this[APPEARANCE_MONET_ENABLED] ?: false,

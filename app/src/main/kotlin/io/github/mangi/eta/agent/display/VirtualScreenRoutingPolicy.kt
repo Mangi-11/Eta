@@ -5,14 +5,25 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** Once a run uses virtual coordinates, revoking permission must not redirect it to the main screen. */
 internal class VirtualScreenRoutingPolicy {
     private val routed = AtomicBoolean(false)
+    private val primaryApproved = AtomicBoolean(false)
+    val usesPrimary: Boolean get() = primaryApproved.get()
 
     fun shouldRoute(name: String, enabled: Boolean): Boolean {
-        if (name !in uiTools) return false
+        if (name !in uiTools || usesPrimary) return false
         if (enabled) routed.set(true)
         return routed.get()
     }
 
+    fun approvePrimary() { primaryApproved.set(true) }
+
     companion object {
+        val fallbackErrors = setOf(
+            "ROOT_REQUIRED", "DEVICE_UNSUPPORTED", "ROOT_DISPLAY_UNAVAILABLE", "VIRTUAL_SCREEN_FAILED",
+            "DISPLAY_GONE", "NO_VIRTUAL_SCREEN", "ROOT_DISPLAY_DISCONNECTED", "DISPLAY_FRAME_PENDING",
+            "APP_ALREADY_RUNNING", "DISPLAY_APP_UNSUPPORTED", "DISPLAY_LAUNCH_REJECTED", "DISPLAY_LAUNCH_MISMATCH",
+            "VIRTUAL_ACTION_UNSUPPORTED", "ACCESSIBILITY_UNAVAILABLE",
+        )
+        val allowedBeforePrimaryObservation = setOf("launch_app", "open_uri", "observe_screen", "wait", "wait_for_text", "wait_for_package")
         val uiTools = setOf(
             "launch_app",
             "open_uri",

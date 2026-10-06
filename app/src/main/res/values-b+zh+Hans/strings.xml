@@ -1373,9 +1373,6 @@
     <string name="virtual_screen_app_back">返回应用</string>
     <string name="virtual_screen_touch_on">触控已开启</string>
     <string name="virtual_screen_touch_off">仅查看</string>
-    <string name="vivo_atomic_scene_title">vivo 已获批通知场景</string>
-    <string name="vivo_atomic_scene_summary">填写 vivo 开发者平台为本应用批准的场景 ID；留空使用普通通知。需要平台审核通过，仅填写字段不能取得原子岛资格。</string>
-    <string name="vivo_atomic_scene_save">保存场景</string>
     <string name="automation_daily">每天 %1$s（%2$s）</string>
     <string name="automation_interval">每隔 %1$d 分钟</string>
     <string name="automation_event">事件：%1$s</string>
@@ -1386,4 +1383,14 @@
     <string name="automation_cancelled">已取消</string>
     <string name="automation_interrupted">已中断，未重放</string>
     <string name="automation_config_required">需要配置模型</string>
+    <string name="virtual_screen_fallback_enable">允许请求回退主屏</string>
+    <string name="virtual_screen_fallback_summary">虚拟屏无法执行时暂停任务，并在通知中请求允许。只有点击「允许本次任务」后才会改用主屏，并重新观察。默认关闭。</string>
+    <string name="virtual_screen_fallback_channel">主屏回退授权</string>
+    <string name="virtual_screen_fallback_notification_title">需要允许回退主屏</string>
+    <string name="virtual_screen_fallback_notification_body">%1$s：%2$s。是否允许本次任务改用主屏？任务已暂停，点击允许后会重新观察主屏再执行。</string>
+    <string name="virtual_screen_fallback_allow">允许本次任务</string>
+    <string name="virtual_screen_fallback_deny">继续使用虚拟屏</string>
+    <string name="virtual_screen_fallback_reason_app">此应用不能在虚拟屏运行</string>
+    <string name="virtual_screen_fallback_reason_device">设备暂时无法提供虚拟屏</string>
+    <string name="virtual_screen_fallback_reason_action">此操作无法在虚拟屏继续</string>
 </resources>
