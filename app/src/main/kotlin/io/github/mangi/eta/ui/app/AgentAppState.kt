@@ -742,12 +742,15 @@ internal class AgentAppState(
         }
     }
 
-    suspend fun openAssistantConversation(conversationKey: String): Boolean {
+    suspend fun openAssistantConversation(
+        conversationKey: String,
+        source: String = AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE,
+    ): Boolean {
         if (conversationKey.isBlank()) return false
         importArchivedExternalRuns()
         return withContext(Dispatchers.Main.immediate) {
             val conversationId = archiveConversationId(
-                source = AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE,
+                source = source,
                 conversationKey = conversationKey,
             )
             if (conversationsById[conversationId] == null) {

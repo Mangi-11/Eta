@@ -36,6 +36,7 @@ internal object VivoHooks {
     private val history = VivoConversationHistory()
     private val ownership = VivoTurnOwnership()
     private val cancellingNative = ThreadLocal<Boolean>()
+    @Volatile private var islandNotifications: VivoIslandNotifications? = null
     private val main = Handler(Looper.getMainLooper())
     private val executor = ThreadPoolExecutor(
         1, 1, 30L, TimeUnit.SECONDS, ArrayBlockingQueue(2),
@@ -63,6 +64,15 @@ internal object VivoHooks {
                     }.getOrDefault(-1L)
                 } ?: -1L
                 if (VivoTakeoverPolicy.isSupportedVersion(version)) {
+                    if (context != null) {
+                        islandNotifications = runCatching {
+                            VivoIslandNotifications(context, logger, onStop = { runId ->
+                                cancelActive(notify = true, expectedRunId = runId)
+                            })
+                        }.onFailure {
+                            logger.warn("小 V 原子岛初始化不可用: type=${it.safeLogType()}")
+                        }.getOrNull()
+                    }
                     installBusinessHooks(module, rootLogger, classLoader)
                 } else {
                     logger.warn("小 V 版本未适配，保持原生行为: versionCode=$version")
@@ -180,6 +190,7 @@ internal object VivoHooks {
         active.getAndSet(run)?.cancel()
         main.post {
             if (!run.cancelled.get() && active.get() === run) {
+                islandNotifications?.start(run.id, request.turn.sessionId.ifBlank { request.turn.traceId })
                 runCatching { bridge.start(request) }.onFailure {
                     logger.warn("小 V 等待状态回写失败: type=${it.safeLogType()}")
                 }
@@ -200,6 +211,7 @@ internal object VivoHooks {
             ) {
                 deliver(logger, run, text(context, R.string.injected_vivo_configure_model,
                     "Open Eta and configure a model, API key and context window first."))
+                islandNotifications?.finish(run.id, VivoIslandNotifications.State.FAILED)
                 return
             }
             val client = AgentRuntimeClient(context, logger)
@@ -215,7 +227,9 @@ internal object VivoHooks {
                         run.request.turn.sessionId, run.prompt,
                     ),
                 ),
-                onEvent = {},
+                onEvent = { event ->
+                    if (!run.cancelled.get() && active.get() === run) islandNotifications?.update(run.id, event)
+                },
             )
             val content = if (result.ok) result.content.trim().ifBlank {
                 text(context, R.string.injected_completed, "Eta completed this task")
@@ -223,6 +237,8 @@ internal object VivoHooks {
                 text(context, R.string.injected_failed, "Eta could not complete the task. Try again later")
             }
             if (deliver(logger, run, content)) {
+                islandNotifications?.finish(run.id,
+                    if (result.ok) VivoIslandNotifications.State.COMPLETED else VivoIslandNotifications.State.FAILED)
                 if (result.ok) history.remember(run.request.turn.sessionId, run.prompt, content)
                 client.ackResult(result.runId.ifBlank { run.id })
                 logger.info("小 V 结果已回写: ok=${result.ok}")
@@ -233,8 +249,12 @@ internal object VivoHooks {
             logger.warn("小 V Runtime 执行失败: type=${exception.safeLogType()}")
             deliver(logger, run,
                 text(context, R.string.injected_failed, "Eta could not complete the task. Try again later"))
+            islandNotifications?.finish(run.id, VivoIslandNotifications.State.FAILED)
         } finally {
-            active.compareAndSet(run, null)
+            if (active.compareAndSet(run, null)) {
+                // Also terminate the island if delivery or the worker was interrupted unexpectedly.
+                islandNotifications?.finish(run.id, VivoIslandNotifications.State.FAILED)
+            }
         }
     }
 
@@ -264,8 +284,10 @@ internal object VivoHooks {
 
     private fun text(context: Context, id: Int, fallback: String) = EtaInjectedStrings.get(context, id, fallback)
 
-    private fun cancelActive(notify: Boolean = false) {
-        val run = active.getAndSet(null) ?: return
+    private fun cancelActive(notify: Boolean = false, expectedRunId: String? = null) {
+        val run = active.get() ?: return
+        if (expectedRunId != null && run.id != expectedRunId) return
+        if (!active.compareAndSet(run, null)) return
         run.cancel()
         if (notify) main.post {
             runCatching {
@@ -287,6 +309,7 @@ internal object VivoHooks {
 
         fun cancel() {
             if (!cancelled.compareAndSet(false, true)) return
+            islandNotifications?.finish(id, VivoIslandNotifications.State.CANCELLED)
             activated.countDown()
             task.cancel(true)
             executor.remove(task)
