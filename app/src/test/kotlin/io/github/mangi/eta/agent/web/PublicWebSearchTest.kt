@@ -7,6 +7,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PublicWebSearchTest {
+    @Test fun rssResultsAreBoundedDeduplicatedAndRejectUnsafeLinks() {
+        val rss = "<rss><channel>" +
+            "<item><title>First</title><link>https://example.com/</link><description>&lt;b&gt;Snippet&lt;/b&gt;</description></item>" +
+            "<item><title>Duplicate</title><link>https://example.com/</link></item>" +
+            "<item><title>Bad</title><link>javascript:alert(1)</link></item>" +
+            "<item><title>Second</title><link>https://example.org/</link></item></channel></rss>"
+        val page = PublicWebSearch.parseRss(rss, "https://www.bing.com/search?format=rss", 1)
+        assertEquals(1, page.results.size)
+        assertEquals("Snippet", page.results.single().snippet)
+        assertEquals(PublicWebSearch.BING_PROVIDER, page.provider)
+        assertTrue(page.limitReasons.contains("result_limit"))
+        assertEquals(1, page.skippedResults)
+    }
+
+    @Test(expected = WebSearchException::class)
+    fun rssChallengeCannotLookLikeSuccessfulEmptySearch() {
+        PublicWebSearch.parseRss("<html>captcha</html>", "https://www.bing.com/search?format=rss")
+    }
+
     private val searchUrl = "https://html.duckduckgo.com/html/?q=example"
 
     @Test

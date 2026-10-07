@@ -13,7 +13,7 @@ internal data class DecodedWebResponse(val text: String, val contentType: String
 
 /** 响应头、BOM 与 HTML 编码声明决定解码；下载截断处不把半个字符当正文返回。 */
 internal object WebResponseDecoder {
-    fun decode(response: WebHttpResponse): DecodedWebResponse {
+    fun decode(response: WebHttpResponse, additionalMimeTypes: Set<String> = emptySet()): DecodedWebResponse {
         val bytes = response.bytes
         if (bytes.size > WebHttpTransport.MAX_RESPONSE_BYTES) throw WebRequestException("WEB_DECODE_LIMIT", "网页响应超过解码容量限制")
         val bom = when {
@@ -33,7 +33,7 @@ internal object WebResponseDecoder {
         }
         val mime = declared?.let { "${it.type}/${it.subtype}" }?.lowercase(Locale.ROOT)
             ?: if (HTML_PREFIX.containsMatchIn(prefix)) "text/html" else "text/plain"
-        if (!mime.startsWith("text/") && mime !in setOf("application/json", "application/xhtml+xml") &&
+        if (!mime.startsWith("text/") && mime !in additionalMimeTypes && mime !in setOf("application/json", "application/xhtml+xml") &&
             !(mime.startsWith("application/") && mime.endsWith("+json"))
         ) throw WebRequestException("UNSUPPORTED_CONTENT_TYPE", "此网址不是可读取的文本网页，请使用对应的文件或媒体工具")
         val headerCharset = declared?.parameter("charset")

@@ -107,7 +107,39 @@ class AgentWebToolsTest {
         AgentWebTools(WebHttpTransport(client)).use { tools ->
             val result = call(tools, "web_search", JSONObject().put("query", "example"))
             assertFalse(result.getBoolean("ok"))
-            assertEquals("SEARCH_CHALLENGE", result.getString("code"))
+            assertEquals("SEARCH_PROVIDERS_FAILED", result.getString("code"))
+            assertEquals(2, result.getJSONArray("attempts").length())
+            assertEquals("SEARCH_CHALLENGE", result.getJSONArray("attempts").getJSONObject(0).getString("code"))
+        }
+    }
+
+    @Test fun challengedPrimaryUsesStructuredFallbackWithoutPretendingTheChallengeWasEmpty() {
+        val hosts = mutableListOf<String>()
+        val client = OkHttpClient.Builder().addInterceptor(Interceptor { chain ->
+            val host = chain.request().url.host
+            hosts += host
+            val challenged = host.endsWith("duckduckgo.com")
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                .code(if (challenged) 202 else 200).message("OK")
+                .header("Content-Type", if (challenged) "text/html" else "application/rss+xml; charset=utf-8")
+                .body((if (challenged) "<form id='challenge-form'></form>" else
+                    "<rss><channel><item><title>Android</title><link>https://developer.android.com/</link><description>官方文档</description></item></channel></rss>").toResponseBody())
+                .build()
+        }).build()
+        AgentWebTools(WebHttpTransport(client)).use { tools ->
+            val result = call(tools, "web_search", JSONObject().put("query", "Android"))
+            assertTrue(result.toString(), result.getBoolean("ok"))
+            assertEquals(PublicWebSearch.BING_PROVIDER, result.getString("provider"))
+            assertEquals("SEARCH_CHALLENGE", result.getJSONArray("attempts").getJSONObject(0).getString("code"))
+            assertEquals(listOf("html.duckduckgo.com", "www.bing.com"), hosts)
+            assertEquals("https://developer.android.com/", result.getJSONArray("results").getJSONObject(0).getString("url"))
+        }
+    }
+
+    @Test fun invalidQueriesDoNotContactAnyProvider() {
+        val client = OkHttpClient.Builder().addInterceptor { error("invalid query cannot send network traffic") }.build()
+        AgentWebTools(WebHttpTransport(client)).use { tools ->
+            assertEquals("INVALID_ARGUMENT", call(tools, "web_search", JSONObject().put("query", " ")).getString("code"))
         }
     }
 
