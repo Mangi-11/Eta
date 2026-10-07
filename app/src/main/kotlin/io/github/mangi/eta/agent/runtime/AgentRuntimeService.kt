@@ -226,6 +226,19 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     if (runId.isNotBlank()) cancelRun(runId)
                 }
 
+                AgentRuntimeWire.MSG_SUPPLEMENT -> {
+                    val data = msg.data
+                    val replyTo = msg.replyTo
+                    if (data == null || replyTo == null) return
+                    val supplement = runCatching { AgentRuntimeWire.supplementFromBundle(data) }.getOrNull()
+                    if (supplement == null) {
+                        sendSupplementResponse(replyTo, "", accepted = false)
+                        return
+                    }
+                    val accepted = handleSupplementMessage(supplement.runId, supplement.text)
+                    sendSupplementResponse(replyTo, supplement.runId, accepted)
+                }
+
                 AgentRuntimeWire.MSG_ACK_RESULT -> {
                     val runId = AgentRuntimeWire.runIdFromBundle(msg.data ?: return)
                     dispatchResultIo { AgentRuntimeResultStore.remove(this@AgentRuntimeService, runId) }
@@ -751,6 +764,44 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         if (!session.isTerminal) {
             session.controller.cancel()
             state.value = state.value.copy(status = AgentOverlayStatus.Stopping)
+        }
+    }
+
+    /**
+     * 处理跨进程补充指令（Issue #129）。
+     *
+     * 只做 running 期排队：runId 必须等于当前 activeSession，否则视为过期请求直接拒绝，
+     * 由 App 侧降级为开新 run。成功时复用 [recordSupplementEvent] 记入 handoff 补充，
+     * 并经由 session 订阅者广播 [AgentEvent.UserSupplementReceived]（App 的 run/attach
+     * 事件流会收到，无需额外推送）。不触碰浮层 Overlay 的 phase/status，避免主聊天
+     * 的 supplement 误改悬浮球状态；sealed/terminal 一律返回 false，不误报已接收
+     *（sealed 与非 OP_CHAT 由 session.steer 返回 null 隐式覆盖，此处不再单列分支）。
+     * Loop 非正常退出（未走 pollSteeringOrSeal 即跳出）的极窄窗口内，已接受的排隊
+     * 可能無對應下一 turn 消費；此時事件流對賬（有無 UserSupplementReceived + 後續
+     * transcript）为准，App 侧以降级开新 run 为兜底，不依赖 accepted=true 即保证消费。
+     */
+    private fun handleSupplementMessage(runId: String, text: String): Boolean {
+        val supplementText = text.trim()
+        if (runId.isBlank() || supplementText.isBlank()) return false
+        // 新 run 正在圖片物化/待啟動時，旧 run 即將被替換（startRun 會 cancel 舊 run 並清空排隊），
+        // 此時一律拒絕排隊，由 App 側降級為新 run，避免回執 accepted=true 但隨後被替換丟棄。
+        if (pendingStartRequest != null) return false
+        val session = activeSession ?: return false
+        if (runId != session.runId || session.isTerminal) return false
+        val event = session.steer(supplementText) {
+            recordSupplementEvent(supplementText)
+        } ?: return false
+        AndroidAgentLogger.info(
+            "Agent runtime supplement received (IPC): index=${event.index}, chars=${event.text.length}"
+        )
+        return true
+    }
+
+    private fun sendSupplementResponse(replyTo: Messenger, runId: String, accepted: Boolean) {
+        runCatching {
+            val msg = Message.obtain(null, AgentRuntimeWire.MSG_SUPPLEMENT_RESPONSE)
+            msg.data = AgentRuntimeWire.supplementResponseBundle(runId, accepted)
+            replyTo.send(msg)
         }
     }
 

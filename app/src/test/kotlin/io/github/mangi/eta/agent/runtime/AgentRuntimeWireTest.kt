@@ -224,6 +224,57 @@ class AgentRuntimeWireTest {
     }
 
     @Test
+    fun supplementBundleRoundTripsRunIdAndText() {
+        val bundle = AgentRuntimeWire.supplementBundle("run-1", "追一句：改用繁體")
+        val parsed = AgentRuntimeWire.supplementFromBundle(bundle)
+        assertEquals("run-1", parsed.runId)
+        assertEquals("追一句：改用繁體", parsed.text)
+
+        val accepted = AgentRuntimeWire.supplementResponseBundle("run-1", accepted = true)
+        assertEquals("run-1", AgentRuntimeWire.runIdFromBundle(accepted))
+        assertTrue(AgentRuntimeWire.supplementAccepted(accepted))
+        val rejected = AgentRuntimeWire.supplementResponseBundle("run-1", accepted = false)
+        assertFalse(AgentRuntimeWire.supplementAccepted(rejected))
+    }
+
+    @Test
+    fun supplementBundleRejectsBlankRunIdBlankTextAndOversize() {
+        assertThrows(IllegalArgumentException::class.java) {
+            AgentRuntimeWire.supplementBundle("", "有效文本")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            AgentRuntimeWire.supplementBundle("run-1", "   ")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            AgentRuntimeWire.supplementBundle("run-1", "x".repeat(AgentRuntimeWire.MAX_SUPPLEMENT_CHARS + 1))
+        }
+        // 上限边界仍可通过
+        val boundary = AgentRuntimeWire.supplementBundle("run-1", "x".repeat(AgentRuntimeWire.MAX_SUPPLEMENT_CHARS))
+        assertEquals(AgentRuntimeWire.MAX_SUPPLEMENT_CHARS, AgentRuntimeWire.supplementFromBundle(boundary).text.length)
+    }
+
+    @Test
+    fun supplementFromBundleRejectsMalformedBundles() {
+        assertThrows(IllegalArgumentException::class.java) {
+            AgentRuntimeWire.supplementFromBundle(android.os.Bundle())
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            AgentRuntimeWire.supplementFromBundle(android.os.Bundle().apply {
+                putString("run_id", "run-1")
+            })
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            AgentRuntimeWire.supplementFromBundle(android.os.Bundle().apply {
+                putString("run_id", "run-1")
+                putString("supplement_text", "x".repeat(AgentRuntimeWire.MAX_SUPPLEMENT_CHARS + 1))
+            })
+        }
+        assertFalse(AgentRuntimeWire.supplementAccepted(android.os.Bundle()))
+        val rejected = AgentRuntimeWire.supplementResponseBundle("run-1", accepted = false)
+        assertEquals("run-1", AgentRuntimeWire.runIdFromBundle(rejected))
+    }
+
+    @Test
     fun oversizedLegacyInlineImageRequestIsRejectedBeforeMessengerSend() {
         val request = AgentRuntimeWire.RunRequest(
             runId = "run-large-image",

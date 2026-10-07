@@ -1129,6 +1129,11 @@
   <string name="chat_input_hint">Ask Eta to do something</string>
   <string name="chat_stop">Stop</string>
   <string name="chat_send">Send</string>
+  <string name="chat_supplement_queued">Queued — will be sent in the next round</string>
+  <string name="chat_supplement_failed_resend">Round just ended — draft restored, please resend</string>
+  <string name="chat_supplement_attachments_wait">Images/files can only be sent after this round finishes</string>
+  <string name="chat_supplement_too_long">Supplement too long — please shorten and resend</string>
+  <string name="chat_supplement_busy_wait">Please wait for this round to finish</string>
   <string name="chat_reasoning_effort">Reasoning effort: %1$s</string>
   <string name="status_unsupported">Unsupported</string>
   <string name="attachment_image">Image</string>

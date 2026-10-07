@@ -168,6 +168,24 @@ internal fun AgentChatInputBar(
         wasEditingMessage = isEditingMessage
     }
 
+    LaunchedEffect(input, isEditingMessage) {
+        // Issue #129：外部回寫的草稿（如補充失敗恢復）同步到本地輸入框。
+        // 普通輸入只保留在本地，homeState.input 僅在發送清空/失敗恢復/編輯態時變化；
+        // 因此非編輯態下外部 input 變為非空即代表一次恢復，本地已有新輸入時拼接在後。
+        // 已知取捨（均不丟字，均為用戶自己的文本合併，用戶可手動調整）：
+        // - 取消編輯時 previousInput 非空的極端路徑也會觸發一次合併；
+        // - 切換到帶有未消化恢復草稿的會話時走合併而非替換；
+        // - 建議詞失敗恢復與本地草稿的時序可能顛倒（建議在前、草稿在後）。
+        if (!isEditingMessage && input.isNotBlank()) {
+            val local = textFieldState.text.toString()
+            if (local != input) {
+                textFieldState.setTextAndPlaceCursorAtEnd(
+                    if (local.isBlank()) input else "$input\n$local",
+                )
+            }
+        }
+    }
+
     LaunchedEffect(isStreaming, isCompacting) {
         if (isStreaming && !isCompacting) {
             // 发送按钮、建议词和外部恢复都可能启动流式任务，统一清掉本地草稿。
@@ -346,18 +364,25 @@ internal fun AgentChatInputBar(
                             onModelSelected = onModelSelected,
                         )
 
+                        // Issue #129：streaming 中有純文本草稿且無附件時顯示送出（走補充排隊），
+                        // 其他 streaming 狀態一律顯示停止。附件/圖片不能走補充通道
+                        // （State 會拒收且本地已清空會導致丟字），因此送出決策必須排除附件。
+                        val canSupplement = textFieldState.text.isNotBlank() &&
+                            pendingImages.isEmpty() &&
+                            pendingFileReferences.isEmpty()
+                        val showStop = isStreaming && !canSupplement
+                        fun submitCurrent() {
+                            if (!canSend) return
+                            dictation.cancel()
+                            val submittedText = textFieldState.text.toString()
+                            textFieldState.clearText()
+                            onSubmit(submittedText)
+                        }
                         IconButton(
-                            onClick = if (isStreaming) {
+                            onClick = if (showStop) {
                                 onStop
                             } else {
-                                {
-                                    if (canSend) {
-                                        dictation.cancel()
-                                        val submittedText = textFieldState.text.toString()
-                                        textFieldState.clearText()
-                                        onSubmit(submittedText)
-                                    }
-                                }
+                                ::submitCurrent
                             },
                             enabled = isStreaming || canSend,
                             minWidth = ChatInputActionSize,
@@ -366,7 +391,7 @@ internal fun AgentChatInputBar(
                             // 保留统一的点击区域，仅让可见圆形与相邻操作图标保持同一尺寸。
                             val sendButtonColor by animateColorAsState(
                                 targetValue = when {
-                                    isStreaming -> MiuixTheme.colorScheme.onSurface
+                                    showStop -> MiuixTheme.colorScheme.onSurface
                                     canSend -> MiuixTheme.colorScheme.primary
                                     else -> MiuixTheme.colorScheme.surfaceContainerHigh
                                 },
@@ -381,7 +406,7 @@ internal fun AgentChatInputBar(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 AnimatedContent(
-                                    targetState = isStreaming,
+                                    targetState = showStop,
                                     transitionSpec = {
                                         (fadeIn(tween(130)) + scaleIn(tween(160), initialScale = 0.72f))
                                             .togetherWith(
@@ -390,23 +415,23 @@ internal fun AgentChatInputBar(
                                             )
                                     },
                                     label = "send_stop_icon",
-                                ) { streaming ->
+                                ) { stopping ->
                                     Icon(
-                                        imageVector = if (streaming) {
+                                        imageVector = if (stopping) {
                                             Icons.Rounded.Stop
                                         } else {
                                             Icons.Rounded.ArrowUpward
                                         },
                                         contentDescription = when {
-                                            streaming -> stringResource(R.string.chat_stop)
+                                            stopping -> stringResource(R.string.chat_stop)
                                             isEditingMessage && preserveFollowingMessages -> "保存消息"
                                             else -> stringResource(R.string.chat_send)
                                         },
                                         modifier = Modifier.size(
-                                            if (streaming) StopIconSize else SendIconSize
+                                            if (stopping) StopIconSize else SendIconSize
                                         ),
                                         tint = when {
-                                            streaming -> MiuixTheme.colorScheme.surface
+                                            stopping -> MiuixTheme.colorScheme.surface
                                             canSend -> MiuixTheme.colorScheme.onPrimary
                                             else -> MiuixTheme.colorScheme.onSurfaceVariantActions
                                         },
