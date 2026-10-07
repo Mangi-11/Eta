@@ -27,6 +27,36 @@ class MainScreenFallbackNotificationTest {
     private val manager get() = context.getSystemService(NotificationManager::class.java)
 
     @Test
+    fun appConflictProvidesThreeChoicesAndThePromptSurvivesMissingNotifications() {
+        val worker = Executors.newSingleThreadExecutor()
+        try {
+            shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+            val result = worker.submit<MainScreenFallbackDecision> {
+                MainScreenFallbackApproval.request(context, "conflict", "launch_app", "APP_ALREADY_RUNNING", { false }, { true })
+            }
+            val notification = waitForNotification()
+            assertEquals(3, notification.actions.size)
+            assertTrue(notification.actions[0].isAuthenticationRequired)
+            assertTrue(notification.actions[1].isAuthenticationRequired)
+            notification.actions[0].actionIntent.send()
+            ShadowLooper.idleMainLooper()
+            assertEquals(MainScreenFallbackDecision.RESTART_VIRTUAL, result.get(3, TimeUnit.SECONDS))
+            shadowOf(context).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+            val next = worker.submit<MainScreenFallbackDecision> {
+                MainScreenFallbackApproval.request(context, "no-notification", "launch_app", "APP_ALREADY_RUNNING", { false }, { true })
+            }
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+            while (MainScreenFallbackApproval.state.value.isEmpty() && System.nanoTime() < deadline) Thread.sleep(10)
+            val prompt = MainScreenFallbackApproval.state.value.single()
+            MainScreenFallbackApproval.resolve(prompt.token, MainScreenFallbackDecision.TASK_CANCELLED)
+            assertEquals(MainScreenFallbackDecision.TASK_CANCELLED, next.get(3, TimeUnit.SECONDS))
+        } finally {
+            MainScreenFallbackApproval.cancelAll()
+            worker.shutdownNow()
+        }
+    }
+
+    @Test
     fun notificationRequiresAnExplicitAuthenticatedAllowAction() = withWorker { submit ->
         val decision = submit("current-run")
         val notification = waitForNotification()

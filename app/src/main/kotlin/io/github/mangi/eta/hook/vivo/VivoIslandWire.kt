@@ -20,9 +20,9 @@ internal object VivoIslandWire {
 
     enum class Phase { PREPARING, THINKING, ANSWERING, TOOL, RETRYING, COMPACTING }
 
-    data class Progress(val phase: Phase, val tool: String = "") {
+    data class Progress(val phase: Phase, val tool: String = "", val virtualScreen: Boolean = false) {
         companion object {
-            fun from(event: AgentEvent): Progress? = when (event) {
+            fun from(event: AgentEvent, virtualScreen: Boolean = false): Progress? = when (event) {
                 is AgentEvent.RunStarted, is AgentEvent.RoundStarted,
                 is AgentEvent.ProviderRequestStarted, is AgentEvent.ProviderResponseStarted,
                 is AgentEvent.ToolFinished, is AgentEvent.HostedToolFinished -> Progress(Phase.THINKING)
@@ -38,7 +38,7 @@ internal object VivoIslandWire {
                     AgentEvent.AssistantBlockKind.TOOL_CALL -> null
                 }
                 else -> null
-            }
+            }?.copy(virtualScreen = virtualScreen)
 
             private fun tool(name: String) = Progress(Phase.TOOL, name.takeIf {
                 toolDisplayNameResource(it) != null
@@ -66,6 +66,7 @@ internal object VivoIslandWire {
             putString("state", state.name)
             putString("phase", progress.phase.name)
             putString("tool", progress.tool)
+            putBoolean("virtual_screen", progress.virtualScreen)
             putParcelable("open", open)
             putParcelable("stop", stop)
             putBoolean("clear", clear)
@@ -89,7 +90,8 @@ internal object VivoIslandWire {
             owner = identifier("owner", 64), sequence = bundle.getLong("sequence").also { require(it > 0) },
             token = identifier("token", 64), runId = identifier("run", 128),
             state = VivoIslandNotifications.State.valueOf(identifier("state", 24)),
-            progress = Progress(phase, tool), open = open, stop = stop, clear = bundle.getBoolean("clear"),
+            progress = Progress(phase, tool, bundle.getBoolean("virtual_screen")),
+            open = open, stop = stop, clear = bundle.getBoolean("clear"),
         )
     }.getOrNull()
 }

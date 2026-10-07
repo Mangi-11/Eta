@@ -264,7 +264,7 @@ internal object VivoHooks {
                 islandNotifications?.finish(run.id, VivoIslandNotifications.State.FAILED)
                 return
             }
-            val client = AgentRuntimeClient(context, logger)
+            val client = AgentRuntimeClient(context, logger, onExecutionTarget = run.virtualScreen::set)
             val result = client.run(
                 AgentRuntimeWire.RunRequest(
                     runId = run.id,
@@ -308,7 +308,7 @@ internal object VivoHooks {
 
     private fun updateRun(logger: ModuleLogger, run: Run, event: io.github.mangi.eta.agent.runtime.AgentEvent) {
         if (run.cancelled.get() || active.get() !== run) return
-        islandNotifications?.update(run.id, event)
+        islandNotifications?.update(run.id, event, run.virtualScreen.get())
         if (streamingSupported && run.reply.accept(event) && run.flushScheduled.compareAndSet(false, true)) {
             main.postDelayed({
                 run.flushScheduled.set(false)
@@ -373,6 +373,7 @@ internal object VivoHooks {
         val id = UUID.randomUUID().toString()
         val activated = CountDownLatch(1)
         val cancelled = AtomicBoolean()
+        val virtualScreen = AtomicBoolean()
         val reply = VivoReplyStream()
         val flushScheduled = AtomicBoolean()
         lateinit var task: FutureTask<Unit>

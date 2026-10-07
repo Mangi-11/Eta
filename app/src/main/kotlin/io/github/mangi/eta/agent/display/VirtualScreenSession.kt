@@ -92,7 +92,10 @@ internal object VirtualScreenSession {
         }
         if (current.owner == owner) {
             val acquired = current.runLease.acquire(runId)
-            if (acquired) viewerState.update { if (it.display?.sessionId == current.id) it.beginRun(runId) else it }
+            if (acquired && viewerState.value.activeRunId != runId) {
+                viewerState.update { if (it.display?.sessionId == current.id) it.beginRun(runId) else it }
+                updateIdleTimeout()
+            }
             return@synchronized acquired
         }
         if (!current.runLease.retireIdle()) return@synchronized false
@@ -100,11 +103,19 @@ internal object VirtualScreenSession {
         true
     }
 
-    fun releaseRun(owner: String, runId: String, retain: Boolean, cancelled: Boolean = false) {
-        val current = session.get()?.takeIf { it.owner == owner } ?: return
-        if (!current.runLease.release(runId, retain)) return
+    fun releaseRun(owner: String, runId: String, retain: Boolean, cancelled: Boolean = false) = synchronized(lock) {
+        val current = session.get()?.takeIf { it.owner == owner } ?: return@synchronized
+        if (!current.runLease.release(runId, retain)) return@synchronized
         viewerState.update { if (it.display?.sessionId == current.id) it.finishRun(runId, retain, cancelled) else it }
-        if (!retain) current.close()
+        if (!retain) current.close() else updateIdleTimeout()
+    }
+
+    fun updateIdleTimeout() = synchronized(lock) {
+        val current = session.get() ?: return@synchronized
+        val minutes = runBlocking { SettingsDataStore.settings() }.virtualScreenIdleTimeoutMinutes
+        execute(current.context, current.owner, JSONObject().put("action", "lifecycle")
+            .put("idleTimeoutMinutes", minutes).put("activeRun", viewerState.value.activeRunId != null))
+        Unit
     }
 
     fun recordOperation(owner: String, runId: String?, name: String, success: Boolean, manual: Boolean = false) {
@@ -121,6 +132,7 @@ internal object VirtualScreenSession {
         args: JSONObject,
         isCancelled: () -> Boolean = { false },
         runId: String? = null,
+        appRestartApproved: Boolean = false,
     ): AgentModelClient.ToolResult = synchronized(lock) {
         try {
             check(!isCancelled()) { "DISPLAY_CANCELLED" }
@@ -129,6 +141,9 @@ internal object VirtualScreenSession {
             require(settings.virtualScreenEnabled) { "VIRTUAL_SCREEN_DISABLED" }
             require(RootAccess.isGranted) { "ROOT_REQUIRED" }
             val action = args.getString("action")
+            if (action == "launch" && args.optBoolean("restartApp")) {
+                require(appRestartApproved || settings.virtualScreenAutoRestartApps) { "APP_RESTART_PERMISSION_REQUIRED" }
+            }
             if (action == "create") {
                 require(owner.isNotBlank()) { "DISPLAY_OWNER_REQUIRED" }
                 require(session.get() == null) { "DISPLAY_ALREADY_ACTIVE" }
@@ -175,6 +190,8 @@ internal object VirtualScreenSession {
                         JSONObject().put("action", "create").put("width", width)
                             .put("height", height).put("density", density)
                             .put("sessionId", current.id)
+                            .put("idleTimeoutMinutes", settings.virtualScreenIdleTimeoutMinutes)
+                            .put("activeRun", runId != null)
                             .put("allowScreenOff", allowOff).toString()
                     ); input.newLine(); input.flush()
                     readResponse(output)
@@ -200,11 +217,6 @@ internal object VirtualScreenSession {
                     VirtualScreenNotification.cancel(context, current.id)
                     error("DISPLAY_CANCELLED")
                 }
-                deadlines.schedule(
-                    { if (session.compareAndSet(current, null)) current.close() },
-                    15,
-                    TimeUnit.MINUTES
-                )
                 return@synchronized AgentModelClient.ToolResult(response.toString())
             }
             val current = session.get() ?: error("NO_VIRTUAL_SCREEN")
@@ -218,6 +230,13 @@ internal object VirtualScreenSession {
                 readResponse(current.output)
             } finally {
                 timeout.cancel(false)
+            }
+            if (result.optBoolean("ok") && action in setOf("probe", "launch", "switch_task")) {
+                viewerState.update { state -> state.copy(display = state.display?.let { info ->
+                    if (info.sessionId != current.id) info else info.copy(
+                        focusedPackage = if (action == "probe") result.optString("packageName") else "",
+                    )
+                }) }
             }
             if (action !in setOf("observe", "probe")) {
                 viewerState.update { it.copy(lastAction = action) }
@@ -269,7 +288,7 @@ internal object VirtualScreenSession {
 
     fun inputForViewer(context: Context, sessionId: String, args: JSONObject): AgentModelClient.ToolResult = synchronized(lock) {
         val current = session.get()
-        if (current == null || current.id != sessionId || args.optString("action") !in setOf("tap", "swipe", "long_press", "back", "key", "switch_task")) {
+        if (current == null || current.id != sessionId || args.optString("action") !in setOf("tap", "swipe", "long_press", "back", "key", "switch_task", "text")) {
             return@synchronized failure("STALE_VIRTUAL_SCREEN")
         }
         viewerState.update { state -> state.copy(display = state.display?.let {
@@ -296,7 +315,7 @@ internal object VirtualScreenSession {
         val probe = execute(context, owner, JSONObject().put("action", "probe"), isCancelled)
         if (!JSONObject(probe.content).optBoolean("ok")) return@synchronized probe
         val info = viewerState.value.display ?: return@synchronized failure("NO_VIRTUAL_SCREEN")
-        block(info)
+        block(info.copy(focusedPackage = JSONObject(probe.content).optString("packageName")))
     }
 
     fun showNodeGesture(info: VirtualDisplayInfo, action: String, x: Int, y: Int, durationMs: Int = 500, endX: Int = x, endY: Int = y) {

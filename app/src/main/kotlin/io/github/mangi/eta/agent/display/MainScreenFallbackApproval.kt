@@ -19,13 +19,17 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
-internal enum class MainScreenFallbackDecision { PENDING, ALLOWED, DENIED, CANCELLED, DISABLED, TIMEOUT, UNAVAILABLE }
+internal enum class MainScreenFallbackDecision { PENDING, ALLOWED, RESTART_VIRTUAL, TASK_CANCELLED, DENIED, CANCELLED, DISABLED, TIMEOUT, UNAVAILABLE }
 
 /** An expired or cancelled notification cannot authorize a later run. */
 internal class MainScreenFallbackRequest(
     val owner: String,
     timeoutMs: Long = 180_000,
+    val appConflict: Boolean = false,
 ) {
     val token: String = UUID.randomUUID().toString()
     private val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
@@ -70,6 +74,7 @@ internal object MainScreenFallbackApproval {
     private const val NOTIFICATION_ID = 1111
     internal const val ACTION_ALLOW = "io.github.mangi.eta.action.ALLOW_MAIN_SCREEN_FALLBACK"
     internal const val ACTION_DENY = "io.github.mangi.eta.action.DENY_MAIN_SCREEN_FALLBACK"
+    internal const val ACTION_RESTART = "io.github.mangi.eta.action.RESTART_VIRTUAL_APP"
     private const val TOKEN = "fallback_request"
 
     private data class Pending(
@@ -78,6 +83,9 @@ internal object MainScreenFallbackApproval {
     )
 
     private val pending = ConcurrentHashMap<String, Pending>()
+    internal data class Prompt(val token: String, val appConflict: Boolean, val reason: String)
+    private val prompts = MutableStateFlow<List<Prompt>>(emptyList())
+    val state = prompts.asStateFlow()
 
     fun request(
         context: Context,
@@ -90,9 +98,10 @@ internal object MainScreenFallbackApproval {
         if (owner.isBlank() || Looper.myLooper() == Looper.getMainLooper()) return MainScreenFallbackDecision.UNAVAILABLE
         val app = context.applicationContext
         val manager = app.getSystemService(NotificationManager::class.java)
-        if (app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ||
-            !manager.areNotificationsEnabled()
-        ) return MainScreenFallbackDecision.UNAVAILABLE
+        val appConflict = reason == "APP_ALREADY_RUNNING"
+        var canNotify = app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
+            manager.areNotificationsEnabled()
+        if (!canNotify && !appConflict) return MainScreenFallbackDecision.UNAVAILABLE
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL,
@@ -101,14 +110,16 @@ internal object MainScreenFallbackApproval {
             )
         )
         if (manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) {
-            return MainScreenFallbackDecision.UNAVAILABLE
+            canNotify = false
+            if (!appConflict) return MainScreenFallbackDecision.UNAVAILABLE
         }
-        val ticket = MainScreenFallbackRequest(owner)
+        val ticket = MainScreenFallbackRequest(owner, appConflict = appConflict)
         pending[ticket.token] = Pending(ticket, manager)
         try {
             val reasonText = app.getString(
                 when (reason) {
-                    "APP_ALREADY_RUNNING", "DISPLAY_APP_UNSUPPORTED", "DISPLAY_LAUNCH_REJECTED", "DISPLAY_LAUNCH_MISMATCH" -> R.string.virtual_screen_fallback_reason_app
+                    "APP_ALREADY_RUNNING" -> R.string.virtual_screen_conflict_body
+                    "DISPLAY_APP_UNSUPPORTED", "DISPLAY_LAUNCH_REJECTED", "DISPLAY_LAUNCH_MISMATCH" -> R.string.virtual_screen_fallback_reason_app
                     "ROOT_REQUIRED", "ROOT_DISPLAY_UNAVAILABLE", "DEVICE_UNSUPPORTED" -> R.string.virtual_screen_fallback_reason_device
                     else -> R.string.virtual_screen_fallback_reason_action
                 }
@@ -118,34 +129,39 @@ internal object MainScreenFallbackApproval {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             val label = toolDisplayNameResource(tool)?.let { app.getString(it) } ?: app.getString(R.string.virtual_screen_viewer_title)
-            val text =
-                app.getString(R.string.virtual_screen_fallback_notification_body, label, reasonText)
-            val notification = Notification.Builder(app, CHANNEL)
+            val text = if (appConflict) reasonText else app.getString(R.string.virtual_screen_fallback_notification_body, label, reasonText)
+            if (appConflict) prompts.update { it + Prompt(ticket.token, true, reasonText) }
+            val builder = Notification.Builder(app, CHANNEL)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(app.getString(R.string.virtual_screen_fallback_notification_title))
+                .setContentTitle(app.getString(if (appConflict) R.string.virtual_screen_conflict_title else R.string.virtual_screen_fallback_notification_title))
                 .setContentText(text).setStyle(Notification.BigTextStyle().bigText(text))
                 .setContentIntent(open).setVisibility(Notification.VISIBILITY_PRIVATE)
                 .setCategory(Notification.CATEGORY_ERROR).setTimeoutAfter(180_000)
                 .setDeleteIntent(action(app, ticket.token, ACTION_DENY))
+            if (appConflict) builder.addAction(Notification.Action.Builder(null,
+                app.getString(R.string.virtual_screen_conflict_restart), action(app, ticket.token, ACTION_RESTART))
+                .setAuthenticationRequired(true).build())
+            val notification = builder
                 .addAction(
                     Notification.Action.Builder(
-                        null, app.getString(R.string.virtual_screen_fallback_allow),
+                        null, app.getString(if (appConflict) R.string.virtual_screen_conflict_primary else R.string.virtual_screen_fallback_allow),
                         action(app, ticket.token, ACTION_ALLOW)
                     ).setAuthenticationRequired(true).build()
                 )
                 .addAction(
                     Notification.Action.Builder(
-                        null, app.getString(R.string.virtual_screen_fallback_deny),
+                        null, app.getString(if (appConflict) R.string.virtual_screen_conflict_cancel else R.string.virtual_screen_fallback_deny),
                         action(app, ticket.token, ACTION_DENY)
                     ).build()
                 )
                 .build()
-            manager.notify(ticket.token, NOTIFICATION_ID, notification)
+            if (canNotify) manager.notify(ticket.token, NOTIFICATION_ID, notification)
             return ticket.await(isCancelled, stillAllowed)
         } catch (_: RuntimeException) {
             return MainScreenFallbackDecision.UNAVAILABLE
         } finally {
             pending.remove(ticket.token)
+            prompts.update { list -> list.filterNot { it.token == ticket.token } }
             ticket.resolve(MainScreenFallbackDecision.CANCELLED)
             manager.cancel(ticket.token, NOTIFICATION_ID)
         }
@@ -161,14 +177,23 @@ internal object MainScreenFallbackApproval {
         )
 
     fun receive(intent: Intent) {
-        val decision = when (intent.action) {
-            ACTION_ALLOW -> MainScreenFallbackDecision.ALLOWED
-            ACTION_DENY -> MainScreenFallbackDecision.DENIED
-            else -> return
-        }
         val token = intent.getStringExtra(TOKEN) ?: return
         val item = pending[token] ?: return
-        if (item.request.resolve(decision)) item.manager.cancel(token, NOTIFICATION_ID)
+        val decision = when (intent.action) {
+            ACTION_ALLOW -> MainScreenFallbackDecision.ALLOWED
+            ACTION_DENY -> if (item.request.appConflict) MainScreenFallbackDecision.TASK_CANCELLED else MainScreenFallbackDecision.DENIED
+            ACTION_RESTART -> if (item.request.appConflict) MainScreenFallbackDecision.RESTART_VIRTUAL else return
+            else -> return
+        }
+        resolve(token, decision)
+    }
+
+    fun resolve(token: String, decision: MainScreenFallbackDecision) {
+        val item = pending[token] ?: return
+        if (item.request.resolve(decision)) {
+            item.manager.cancel(token, NOTIFICATION_ID)
+            prompts.update { list -> list.filterNot { it.token == token } }
+        }
     }
 
     fun cancelOwner(owner: String) =

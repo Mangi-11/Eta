@@ -20,6 +20,14 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class VirtualScreenRoutingTest {
     @Test
+    fun unavailableVirtualTreeRemovesNodeToolsButKeepsRootTextAndCoordinates() {
+        val capabilities = AgentToolCapabilities(rootAvailable = true, accessibilityAvailable = false,
+            virtualScreenEnabled = true, virtualUiTreeAvailable = false)
+        for (name in VirtualScreenRoutingPolicy.nodeTools) assertEquals("VIRTUAL_UI_TREE_UNAVAILABLE", capabilities.unavailableCode(name))
+        for (name in VirtualScreenRoutingPolicy.coordinateTools) assertEquals(name, null, capabilities.unavailableCode(name))
+        assertEquals("ACCESSIBILITY_UNAVAILABLE", capabilities.copy(virtualScreenEnabled = false).unavailableCode("input_text"))
+    }
+    @Test
     fun allUiToolsUseVirtualExecutionWithoutPrimaryEntryDismissal() {
         val executed = mutableListOf<String>()
         val guards = mutableListOf<String>()
@@ -117,7 +125,7 @@ class VirtualScreenRoutingTest {
         )
         assertEquals(null, capabilities.unavailableCode("tap"))
         assertEquals(null, capabilities.unavailableCode("observe_screen"))
-        assertEquals("ACCESSIBILITY_UNAVAILABLE", capabilities.unavailableCode("replace_text"))
+        assertEquals(null, capabilities.unavailableCode("replace_text"))
         assertEquals(
             "VIRTUAL_ACTION_UNSUPPORTED",
             capabilities.unavailableCode("open_system_panel")

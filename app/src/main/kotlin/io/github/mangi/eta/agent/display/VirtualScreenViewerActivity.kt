@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,6 +30,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,6 +42,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -74,6 +83,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal class VirtualScreenViewerActivity : ComponentActivity() {
@@ -83,6 +93,9 @@ internal class VirtualScreenViewerActivity : ComponentActivity() {
     private var interactionEnabled by mutableStateOf(true)
     private var showHistory by mutableStateOf(false)
     private var lastFrameId = 0L
+    private var textInputVisible by mutableStateOf(false)
+    private var textDraft by mutableStateOf("")
+    private var textPending by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -157,17 +170,50 @@ internal class VirtualScreenViewerActivity : ComponentActivity() {
         }
     }
 
+    private fun sendText(sessionId: String) {
+        val text = textDraft
+        if (text.isEmpty() || textPending) return
+        textPending = true
+        inputError = false
+        lifecycleScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    VirtualScreenSession.inputForViewer(this@VirtualScreenViewerActivity, sessionId,
+                        JSONObject().put("action", "text").put("text", text))
+                }
+                inputError = !JSONObject(result.content).optBoolean("ok")
+                if (!inputError && VirtualScreenSession.state.value.display?.sessionId == sessionId) textDraft = ""
+            } finally { textPending = false }
+        }
+    }
+
     @Composable
     private fun ViewerScreen() {
         val state by VirtualScreenSession.state.collectAsState()
         val display = state.display
+        val focus = remember { FocusRequester() }
+        val focusManager = LocalFocusManager.current
+        val keyboard = LocalSoftwareKeyboardController.current
+        LaunchedEffect(display?.sessionId) { textDraft = ""; textInputVisible = false }
+        LaunchedEffect(textInputVisible) {
+            if (textInputVisible) focus.requestFocus() else keyboard?.hide()
+        }
         EtaPreferenceTheme {
             Scaffold(modifier = Modifier.fillMaxSize(), topBar = {
                 SmallTopAppBar(
-                    title = stringResource(R.string.virtual_screen_viewer_title),
-                    navigationIcon = { MiuixBackButton(onClick = ::finish) },
+                    title = "",
+                    navigationIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            MiuixBackButton(onClick = ::finish)
+                            TaskIndicator(state, onClick = { showHistory = true })
+                        }
+                    },
                     actions = {
-                        TaskIndicator(state, onClick = { showHistory = true })
+                        IconButton(enabled = display != null, onClick = { textInputVisible = !textInputVisible }) {
+                            Icon(Icons.Outlined.Keyboard, stringResource(R.string.virtual_screen_text_toggle),
+                                tint = if (textInputVisible) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.size(22.dp))
+                        }
                         IconButton(onClick = { interactionEnabled = !interactionEnabled }) {
                             Icon(
                                 imageVector = if (interactionEnabled) Icons.Outlined.TouchApp else Icons.Outlined.Block,
@@ -182,7 +228,7 @@ internal class VirtualScreenViewerActivity : ComponentActivity() {
                 WidePageContent { sidePadding ->
                     Column(
                         Modifier.fillMaxSize().horizontalCutoutPadding().padding(padding)
-                            .padding(horizontal = sidePadding + 16.dp).navigationBarsPadding(),
+                            .padding(horizontal = sidePadding + 16.dp).navigationBarsPadding().imePadding(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
@@ -214,16 +260,34 @@ internal class VirtualScreenViewerActivity : ComponentActivity() {
                         }
                         if (inputError) Text(stringResource(R.string.virtual_screen_input_failed),
                             color = MiuixTheme.colorScheme.error, style = MiuixTheme.textStyles.footnote1)
-                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        if (textInputVisible) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextField(value = textDraft, onValueChange = { if (it.length <= 20000) textDraft = it },
+                                label = stringResource(R.string.virtual_screen_text_placeholder), enabled = !textPending,
+                                modifier = Modifier.weight(1f).focusRequester(focus), maxLines = 3)
+                            IconButton(enabled = display != null && textDraft.isNotEmpty() && !textPending,
+                                onClick = {
+                                    keyboard?.hide()
+                                    focusManager.clearFocus()
+                                    display?.let { sendText(it.sessionId) }
+                                }) {
+                                Icon(Icons.AutoMirrored.Outlined.Send, stringResource(R.string.virtual_screen_text_insert),
+                                    tint = if (display != null && textDraft.isNotEmpty() && !textPending)
+                                        MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.size(22.dp))
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                             listOf("BACK" to R.string.action_back, "HOME" to R.string.virtual_screen_home, "MENU" to R.string.virtual_screen_menu).forEach { (key, label) ->
                                 IconButton(enabled = display != null && interactionEnabled, onClick = {
                                     display?.let { sendInput(it.sessionId, JSONObject().put("action", "key").put("button", key)) }
-                                }, modifier = Modifier.size(48.dp)) { NavigationKey(key, stringResource(label)) }
+                                }, modifier = Modifier.size(40.dp)) { NavigationKey(key, stringResource(label)) }
                             }
                         }
                     }
                 }
             }
+            VirtualScreenAppConflictDialog()
             EtaWindowDialog(show = showHistory, title = stringResource(R.string.virtual_screen_history), onDismissRequest = { showHistory = false }) {
                 if (state.operations.isEmpty()) Text(stringResource(R.string.virtual_screen_history_empty), style = MiuixTheme.textStyles.body2)
                 else LazyColumn(Modifier.fillMaxWidth().heightIn(max = 400.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -280,6 +344,7 @@ private fun operationLabel(name: String): String = when (name) {
     "menu", "switch_task" -> stringResource(R.string.virtual_screen_menu)
     "back" -> stringResource(R.string.action_back)
     "enter" -> toolDisplayName("press_key")
+    "text" -> toolDisplayName("input_text")
     "create" -> stringResource(R.string.virtual_screen_started)
     else -> toolDisplayName(name)
 }
@@ -287,7 +352,7 @@ private fun operationLabel(name: String): String = when (name) {
 @Composable
 private fun NavigationKey(key: String, description: String) {
     val color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-    Canvas(Modifier.size(20.dp).then(Modifier.semantics { contentDescription = description })) {
+    Canvas(Modifier.size(16.dp).then(Modifier.semantics { contentDescription = description })) {
         val stroke = Stroke(1.8.dp.toPx())
         when (key) {
             "BACK" -> drawPath(Path().apply { moveTo(size.width * 0.75f, 0f); lineTo(size.width * 0.1f, size.height / 2)

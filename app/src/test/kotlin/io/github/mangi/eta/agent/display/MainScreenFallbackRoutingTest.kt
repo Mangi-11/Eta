@@ -21,6 +21,42 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class MainScreenFallbackRoutingTest {
     @Test
+    fun appConflictCanRestartOrUsePrimaryWithoutTheGenericFallbackSwitch() {
+        tools(settings = { Settings(virtualScreenEnabled = true) }, error = "APP_ALREADY_RUNNING",
+            approval = { _, _ -> MainScreenFallbackDecision.ALLOWED }).use { tools ->
+            assertEquals("UI_DISPLAY_SWITCHED", call(tools, "launch_app").optString("code"))
+            assertTrue(call(tools, "observe_screen").getBoolean("ok"))
+            assertFalse(tools.capabilitiesForRun(capabilities()).virtualScreenEnabled)
+        }
+        var restarts = 0
+        tools(settings = { Settings(virtualScreenEnabled = true) }, error = "APP_ALREADY_RUNNING",
+            approval = { _, _ -> MainScreenFallbackDecision.RESTART_VIRTUAL }, restart = { restarts++ }).use { tools ->
+            assertTrue(call(tools, "launch_app").getBoolean("ok"))
+            assertEquals(1, restarts)
+            assertTrue(tools.capabilitiesForRun(capabilities()).virtualScreenEnabled)
+        }
+    }
+
+    @Test
+    fun automaticRestartRequiresItsSettingAndCancellationStopsTheTask() {
+        var restarts = 0
+        tools(settings = { Settings(virtualScreenEnabled = true, virtualScreenAutoRestartApps = true) },
+            error = "APP_ALREADY_RUNNING", approval = { _, _ -> error("automatic restart must not prompt") },
+            restart = { restarts++ }).use { tools ->
+            assertTrue(call(tools, "launch_app").getBoolean("ok"))
+            assertEquals(1, restarts)
+        }
+        var cancelled = 0
+        tools(settings = { Settings(virtualScreenEnabled = true) }, error = "APP_ALREADY_RUNNING",
+            approval = { _, _ -> MainScreenFallbackDecision.TASK_CANCELLED }, cancelled = { cancelled++ },
+            restart = { error("cancel cannot stop an app") }).use { tools ->
+            assertEquals("DISPLAY_CANCELLED", call(tools, "launch_app").getString("code"))
+            assertEquals(1, cancelled)
+            assertEquals("DISPLAY_CANCELLED", call(tools, "observe_screen").getString("code"))
+        }
+    }
+
+    @Test
     fun enabledSwitchAloneCannotOperateThePrimaryScreen() {
         var requests = 0
         var observed = 0
@@ -127,6 +163,8 @@ class MainScreenFallbackRoutingTest {
         observe: () -> Unit = {},
         before: (String) -> ToolExecutionDecision = { ToolExecutionDecision.Allow },
         granted: () -> Unit = {},
+        restart: () -> Unit = {},
+        cancelled: () -> Unit = {},
     ) = AgentLocalTools(
         RuntimeEnvironment.getApplication(),
         NoOpLogger,
@@ -134,13 +172,19 @@ class MainScreenFallbackRoutingTest {
         rootAvailable = { true },
         deviceDirectToolsEnabled = { true },
         virtualScreenSettings = settings,
-        virtualUiExecutor = { _, _ ->
-            AgentModelClient.ToolResult(
-                JSONObject().put("ok", false).put("code", error).toString()
+        virtualUiExecutor = { _, args ->
+            if (args.optBoolean("restartApp")) {
+                assertEquals("launch", args.getString("action"))
+                assertEquals("example.test/.Main", args.getString("component"))
+                restart()
+                AgentModelClient.ToolResult("{\"ok\":true}")
+            } else AgentModelClient.ToolResult(
+                JSONObject().put("ok", false).put("code", error).put("component", "example.test/.Main").toString()
             )
         },
         fallbackApproval = approval,
         onMainScreenFallback = granted,
+        onVirtualTaskCancelled = cancelled,
         beforeToolExecution = before,
         screenObservationProvider = {
             observe(); RootShellDeviceController.Observation(

@@ -353,6 +353,7 @@
   <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">厂商助手兼容入口</string>
   <string name="injected_vivo_configure_model">请先打开 Eta，配置模型、API Key 和上下文窗口大小。</string>
   <string name="injected_vivo_island_running">Eta 正在执行</string>
+  <string name="injected_vivo_island_virtual_running">Eta 正在虚拟屏执行</string>
   <string name="injected_vivo_island_completed">Eta 任务已完成</string>
   <string name="injected_vivo_island_failed">Eta 任务执行失败</string>
   <string name="injected_vivo_island_cancelled">Eta 任务已停止</string>
@@ -362,6 +363,8 @@
   <string name="injected_vivo_island_retrying">正在重试模型请求</string>
   <string name="injected_vivo_island_compacting">正在整理对话上下文</string>
   <string name="injected_vivo_island_tool">正在执行：%1$s</string>
+  <string name="injected_vivo_island_virtual_tool">虚拟屏：%1$s</string>
+  <string name="tool_virtual_screen">管理虚拟屏</string>
   <string name="injected_vivo_island_tool_generic">使用工具</string>
   <string name="injected_vivo_island_answer_ready">可在小 V 或 Eta 中查看回答</string>
   <string name="injected_vivo_island_eta_answer_ready">可在 Eta 中查看回答</string>
@@ -1142,6 +1145,10 @@
   <string name="permission_status_missing">缺失</string>
   <string name="permission_status_warning">异常</string>
   <string name="permission_status_disabled">未启用</string>
+  <string name="permission_bluetooth_title">蓝牙连接权限</string>
+  <string name="permission_bluetooth_summary">接收蓝牙设备连接和断开事件，用于自动任务触发器。</string>
+  <string name="permission_bluetooth_denied">尚未授予蓝牙连接权限。可前往 Eta 的系统应用权限设置，允许“附近的设备”后使用蓝牙触发器。</string>
+  <string name="permission_bluetooth_settings_unavailable">无法打开设置，请在系统设置中找到 Eta 的应用权限，允许“附近的设备”。</string>
   <string name="chat_edit_replace_later">发送后将替换此消息及之后内容</string>
   <string name="chat_edit_replace_message">发送后将替换此消息</string>
   <string name="chat_eta_working">Eta 正在执行…</string>
@@ -1406,7 +1413,7 @@
     <string name="automation_running">正在执行</string>
     <string name="virtual_screen_title">虚拟屏（实验性）</string>
     <string name="virtual_screen_enable">启用虚拟屏</string>
-    <string name="virtual_screen_enable_summary">需要 Root 和 Android 14+。启用后，AI 启动应用、观察和全部 UI 操作自动进入独立虚拟屏，可在查看页直接触控。每次运行最多 15 分钟，不迁移其他屏幕上已打开的应用。</string>
+    <string name="virtual_screen_enable_summary">需要 Root 和 Android 14+。AI 启动应用和界面操作自动进入独立虚拟屏。应用已在其他屏幕运行时会询问如何继续。</string>
     <string name="virtual_screen_off_enable">允许熄屏执行</string>
     <string name="virtual_screen_off_summary">明确允许虚拟任务在主屏熄屏或锁定时继续，可能访问应用内容并增加耗电；不会解锁主屏。默认关闭。</string>
     <string name="virtual_screen_view">查看虚拟屏</string>
@@ -1492,4 +1499,18 @@
     <string name="automation_trigger_scope_memory">Eta 本地记忆更新时触发。</string>
     <string name="automation_trigger_scope_boot">设备启动后触发，不重放被中断的任务。</string>
     <string name="automation_trigger_scope_monitor">触发器监控服务运行期间接收；系统结束服务期间错过的事件不会补发。</string>
+    <string name="virtual_screen_restart_enable">自动停止冲突应用并在虚拟屏运行</string>
+    <string name="virtual_screen_restart_summary">停止手机上正在运行的目标应用，再在虚拟屏打开。未保存的内容可能丢失；关闭时遇到冲突会询问。</string>
+    <string name="virtual_screen_conflict_title">应用已在其他屏幕运行</string>
+    <string name="virtual_screen_conflict_body">停止手机上的应用并在虚拟屏继续、在手机上继续，或取消本次任务？停止应用可能丢失未保存的内容。</string>
+    <string name="virtual_screen_conflict_restart">停止并在虚拟屏继续</string>
+    <string name="virtual_screen_conflict_primary">在手机上继续</string>
+    <string name="virtual_screen_conflict_cancel">取消任务</string>
+    <string name="virtual_screen_idle_timeout">虚拟屏空闲自动清理</string>
+    <string name="virtual_screen_idle_minutes">%1$d 分钟</string>
+    <string name="virtual_screen_idle_never">永不关闭</string>
+    <string name="virtual_screen_idle_warning">永不关闭可能会导致内存泄露。</string>
+    <string name="virtual_screen_text_toggle">文本输入</string>
+    <string name="virtual_screen_text_placeholder">输入文本</string>
+    <string name="virtual_screen_text_insert">插入文本</string>
 </resources>

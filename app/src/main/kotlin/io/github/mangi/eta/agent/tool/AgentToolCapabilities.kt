@@ -33,9 +33,11 @@ internal data class AgentToolCapabilities(
     val virtualDisplayAvailable: Boolean = true,
     val virtualScreenEnabled: Boolean = false,
     val virtualScreenFallbackEnabled: Boolean = false,
+    val virtualUiTreeAvailable: Boolean = true,
 ) {
     fun unavailableCode(name: String): String? {
         if (virtualScreenEnabled && name in VirtualScreenRoutingPolicy.uiTools) {
+            if (!virtualUiTreeAvailable && name in VirtualScreenRoutingPolicy.nodeTools) return "VIRTUAL_UI_TREE_UNAVAILABLE"
             if (!virtualScreenFallbackEnabled) {
                 if (!rootAvailable) return "ROOT_REQUIRED"
                 if (!virtualDisplayAvailable) return "DEVICE_UNSUPPORTED"

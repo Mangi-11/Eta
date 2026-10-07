@@ -195,7 +195,10 @@ class AgentAccessibilityService : AccessibilityService() {
 
     /** Secondary-display requests never use rootInActiveWindow, which can refer to the viewer. */
     private fun rootForDisplay(displayId: Int): AccessibilityNodeInfo? {
-        if (displayId == android.view.Display.DEFAULT_DISPLAY) return rootInActiveWindow
+        if (displayId == android.view.Display.DEFAULT_DISPLAY) {
+            val active = rootInActiveWindow
+            if (active != null && (active.window == null || active.window.displayId == displayId)) return active
+        }
         return windowsOnAllDisplays.get(displayId).orEmpty()
             .filter { it.displayId == displayId && it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
             .sortedWith(compareByDescending<AccessibilityWindowInfo> { it.isFocused }.thenByDescending { it.layer })
@@ -213,13 +216,14 @@ class AgentAccessibilityService : AccessibilityService() {
 
     internal fun packageWindowVisibility(packageName: String): PackageWindowVisibility =
         runOnMainSync {
-            val activeRoot = rootInActiveWindow
+            val activeRoot = rootForDisplay(android.view.Display.DEFAULT_DISPLAY)
             if (activeRoot?.packageName?.toString() == packageName) {
                 return@runOnMainSync PackageWindowVisibility.VISIBLE
             }
             var inspectedRoot = activeRoot != null
             var hasUnknownRelevantWindow = false
             for (window in windows.orEmpty()) {
+                if (window.displayId != android.view.Display.DEFAULT_DISPLAY) continue
                 val root = window.root
                 if (root == null) {
                     if (
@@ -531,7 +535,7 @@ class AgentAccessibilityService : AccessibilityService() {
 
     internal fun scrollCurrent(direction: ScrollDirection): ScrollActionResult {
         val target = runOnMainSync {
-            rootInActiveWindow?.let { root -> findBestScrollableNode(root, direction) }
+            rootForDisplay(android.view.Display.DEFAULT_DISPLAY)?.let { root -> findBestScrollableNode(root, direction) }
         } ?: return ScrollActionResult.failure(
             direction = direction,
             code = "NO_ACTIVE_WINDOW",

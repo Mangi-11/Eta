@@ -223,6 +223,7 @@ internal class AgentRuntimeRunExecutor(
                 pendingSkillConflict = pendingSkillConflict,
                 skillAuthoringService = SkillAuthoringService(skillIndexService, skillPackageInstaller),
                 onMainScreenFallback = { session.mainScreenFallbackApproved.set(true) },
+                onVirtualTaskCancelled = { session.cancel("用户取消虚拟屏任务") },
             )
             val routingExecutor = RoutingToolExecutor(
                 local = executor,

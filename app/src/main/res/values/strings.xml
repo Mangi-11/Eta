@@ -365,6 +365,7 @@
   <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">Vendor assistant integrations</string>
   <string name="injected_vivo_configure_model">Open Eta and configure a model, API key and context window first.</string>
   <string name="injected_vivo_island_running">Eta is working</string>
+  <string name="injected_vivo_island_virtual_running">Eta is working on the virtual screen</string>
   <string name="injected_vivo_island_completed">Eta task completed</string>
   <string name="injected_vivo_island_failed">Eta task failed</string>
   <string name="injected_vivo_island_cancelled">Eta task stopped</string>
@@ -374,6 +375,8 @@
   <string name="injected_vivo_island_retrying">Retrying the model request</string>
   <string name="injected_vivo_island_compacting">Organizing conversation context</string>
   <string name="injected_vivo_island_tool">Working: %1$s</string>
+  <string name="injected_vivo_island_virtual_tool">Virtual screen: %1$s</string>
+  <string name="tool_virtual_screen">Manage virtual screen</string>
   <string name="injected_vivo_island_tool_generic">Using a tool</string>
   <string name="injected_vivo_island_answer_ready">View the answer in Xiao V or Eta</string>
   <string name="injected_vivo_island_eta_answer_ready">View the answer in Eta</string>
@@ -1161,6 +1164,10 @@
   <string name="permission_status_missing">Missing</string>
   <string name="permission_status_warning">Issue</string>
   <string name="permission_status_disabled">Not enabled</string>
+  <string name="permission_bluetooth_title">Bluetooth connection</string>
+  <string name="permission_bluetooth_summary">Receive Bluetooth device connection and disconnection events for task triggers.</string>
+  <string name="permission_bluetooth_denied">Bluetooth connection permission was not granted. You can allow Nearby devices in Eta’s system app permission settings to enable Bluetooth triggers.</string>
+  <string name="permission_bluetooth_settings_unavailable">Could not open settings. Open Eta’s app permissions in system settings to allow Nearby devices.</string>
   <string name="chat_edit_replace_later">Sending will replace this message and everything after it</string>
   <string name="chat_edit_replace_message">Sending will replace this message</string>
   <string name="chat_eta_working">Eta is working…</string>
@@ -1428,7 +1435,7 @@
     <string name="automation_running">Running</string>
     <string name="virtual_screen_title">Virtual screen (experimental)</string>
     <string name="virtual_screen_enable">Enable virtual screen</string>
-    <string name="virtual_screen_enable_summary">Requires Root and Android 14+. All AI app launches, observations and UI actions use a separate display automatically. Touch its viewer to interact. Sessions last up to 15 minutes; apps already open on another display are rejected.</string>
+    <string name="virtual_screen_enable_summary">Requires Root and Android 14+. AI app launches and UI actions use a separate display. Apps open on another screen require your choice before continuing.</string>
     <string name="virtual_screen_off_enable">Allow execution with screen off</string>
     <string name="virtual_screen_off_summary">Explicitly allow virtual tasks to continue while the physical screen is off or locked. This can expose apps and use more battery. Does not unlock the physical screen. Off by default.</string>
     <string name="virtual_screen_view">View virtual screen</string>
@@ -1514,4 +1521,18 @@
     <string name="automation_trigger_scope_memory">Triggered when Eta local memory is updated.</string>
     <string name="automation_trigger_scope_boot">Triggered after device startup; interrupted tasks are not replayed.</string>
     <string name="automation_trigger_scope_monitor">Received while the trigger monitor is running. Missed events are not replayed if Android stops the service.</string>
+    <string name="virtual_screen_restart_enable">Automatically restart conflicting apps</string>
+    <string name="virtual_screen_restart_summary">Stop the target app on the phone and reopen it on the virtual screen. Unsaved changes may be lost. When off, ask for each conflict.</string>
+    <string name="virtual_screen_conflict_title">App is open on another screen</string>
+    <string name="virtual_screen_conflict_body">Stop the app on the phone and continue on the virtual screen, continue on the phone, or cancel this task? Stopping the app may lose unsaved changes.</string>
+    <string name="virtual_screen_conflict_restart">Stop and use virtual screen</string>
+    <string name="virtual_screen_conflict_primary">Continue on phone</string>
+    <string name="virtual_screen_conflict_cancel">Cancel task</string>
+    <string name="virtual_screen_idle_timeout">Close idle screen after</string>
+    <string name="virtual_screen_idle_minutes">%1$d minutes</string>
+    <string name="virtual_screen_idle_never">Never close</string>
+    <string name="virtual_screen_idle_warning">Never closing the screen may cause memory leaks.</string>
+    <string name="virtual_screen_text_toggle">Text input</string>
+    <string name="virtual_screen_text_placeholder">Text</string>
+    <string name="virtual_screen_text_insert">Insert text</string>
 </resources>

@@ -37,11 +37,6 @@ internal object RootDisplayCommandMain {
         var wakeLock: PowerManager.WakeLock? = null
         try {
             require(Process.myUid() == 0) { "ROOT_REQUIRED" }
-            // 即使 Eta 被 ROM 冻结，Root 子进程也不能无限保留 display；Binder 死亡会释放其资源。
-            Thread {
-                Thread.sleep(15 * 60_000L)
-                Process.killProcess(Process.myPid())
-            }.apply { name = "eta-root-display-lifetime"; isDaemon = true; start() }
             if (Looper.myLooper() == null) Looper.prepareMainLooper()
             val activityThread = Class.forName("android.app.ActivityThread")
             val thread = activityThread.getDeclaredMethod("systemMain").invoke(null)
@@ -54,6 +49,14 @@ internal object RootDisplayCommandMain {
             val height = integer(setup, "height", 480, VirtualScreenProfile.MAX_HEIGHT)
             val dpi = integer(setup, "density", 120, VirtualScreenProfile.MAX_DENSITY)
             val allowOff = setup.optBoolean("allowScreenOff", false)
+            val idleTimer = VirtualScreenIdleTimer(setup.optInt("idleTimeoutMinutes", 20),
+                SystemClock::elapsedRealtime, setup.optBoolean("activeRun"))
+            Thread {
+                while (true) {
+                    Thread.sleep(1000)
+                    if (idleTimer.expired()) Process.killProcess(Process.myPid())
+                }
+            }.apply { name = "eta-root-display-idle"; isDaemon = true; start() }
             val displayManager = context.getSystemService(DisplayManager::class.java)
             val keyguard = context.getSystemService(KeyguardManager::class.java)
             val power = context.getSystemService(PowerManager::class.java)
@@ -101,13 +104,16 @@ internal object RootDisplayCommandMain {
                 ?: error("DISPLAY_CREATE_FAILED")
             val id = display.display.displayId
             require(id > 0) { "INVALID_DISPLAY" }
+            val localIme = configureLocalIme(id)
+            val textInput = VirtualScreenRootTextInput(id)
             if (allowOff) wakeLock =
                 power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Eta:virtual-task")
-                    .apply { acquire(15 * 60_000L) }
+                    .apply { acquire() }
             reply(
                 JSONObject().put("ok", true).put("displayId", id).put("width", width)
                     .put("height", height).put("density", dpi).put("refreshRate", display.display.refreshRate)
                     .put("independentFocus", true)
+                    .put("localIme", localIme)
             )
             while (true) {
                 val line = input.readLine() ?: break
@@ -125,6 +131,10 @@ internal object RootDisplayCommandMain {
                     require(displayManager.getDisplay(id) != null) { "DISPLAY_GONE" }
                     require(allowOff || (power.isInteractive && !keyguard.isDeviceLocked)) { "SCREEN_OFF_PERMISSION_REQUIRED" }
                     val result = when (request.getString("action")) {
+                        "lifecycle" -> {
+                            idleTimer.update(request.optInt("idleTimeoutMinutes", 20), request.optBoolean("activeRun"))
+                            JSONObject().put("ok", true).put("displayId", id)
+                        }
                         "probe" -> JSONObject().put("ok", true).put("displayId", id)
                             .put("refreshRate", display.display.refreshRate)
                             .put("packageName", runningTasks().firstOrNull { taskDisplayId(it) == id }?.topActivity?.packageName.orEmpty())
@@ -172,11 +182,19 @@ internal object RootDisplayCommandMain {
                                 "isResizeableMode",
                                 Int::class.javaPrimitiveType
                             ).invoke(null, resizeMode) as Boolean
-                            require(info.enabled && info.exported && resizable && info.launchMode <= ActivityInfo.LAUNCH_SINGLE_TOP) { "DISPLAY_APP_UNSUPPORTED" }
+                            require(info.enabled && info.exported && resizable && info.launchMode <= ActivityInfo.LAUNCH_SINGLE_TASK) { "DISPLAY_APP_UNSUPPORTED" }
                             // Allow re-entry to our own display, but never migrate a user's task.
-                            require(runningTasks().none {
+                            val runningElsewhere = runningTasks().any {
                                 (it.baseActivity?.packageName == packageName || it.topActivity?.packageName == packageName) && taskDisplayId(it) != id
-                            }) { "APP_ALREADY_RUNNING" }
+                            }
+                            if (runningElsewhere) {
+                                require(request.optBoolean("restartApp")) { "APP_ALREADY_RUNNING" }
+                                require(packageName != "io.github.mangi.eta" && info.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM == 0) { "APP_RESTART_UNSUPPORTED" }
+                                command(listOf("/system/bin/am", "force-stop", packageName))
+                                require(runningTasks().none {
+                                    it.baseActivity?.packageName == packageName || it.topActivity?.packageName == packageName
+                                }) { "APP_STOP_FAILED" }
+                            }
                             val uri = request.optString("uri")
                             require(uri.length <= 8192 && !uri.contains('\u0000')) { "INVALID_URI" }
                             val output = command(
@@ -209,6 +227,8 @@ internal object RootDisplayCommandMain {
                                 integer(request, "y", 0, height - 1).toString()
                             ); JSONObject().put("ok", true).put("displayId", id)
                         }
+
+                        "text" -> textInput.insert(request.getString("text"), request.optBoolean("replace"))
 
                         "swipe" -> {
                             input(
@@ -260,13 +280,20 @@ internal object RootDisplayCommandMain {
 
                         else -> failure("UNKNOWN_DISPLAY_ACTION")
                     }
+                    if (request.optString("action") !in setOf("observe", "probe", "tasks", "lifecycle")) idleTimer.touch()
                     reply(result)
                 } catch (error: Exception) {
                     reply(
                         failure(
                             if (error is IllegalArgumentException || error is IllegalStateException) error.message
                                 ?: "DISPLAY_ACTION_FAILED" else "DISPLAY_ACTION_FAILED"
-                        )
+                        ).apply {
+                            put("error_type", error.javaClass.simpleName)
+                            if (request.optString("action") == "launch") {
+                                put("component", request.optString("component"))
+                                put("uri", request.optString("uri"))
+                            }
+                        }
                     )
                 }
             }
@@ -288,6 +315,15 @@ internal object RootDisplayCommandMain {
     }
 
     private fun flag(name: String) = DisplayManager::class.java.getField(name).getInt(null)
+
+    @SuppressLint("BlockedPrivateApi")
+    private fun configureLocalIme(displayId: Int): Boolean = runCatching {
+        val service = Class.forName("android.view.WindowManagerGlobal").getMethod("getWindowManagerService").invoke(null)
+        val type = Class.forName("android.view.IWindowManager")
+        type.getMethod("setDisplayImePolicy", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+            .invoke(service, displayId, 0)
+        type.getMethod("getDisplayImePolicy", Int::class.javaPrimitiveType).invoke(service, displayId) == 0
+    }.getOrDefault(false)
 
     private fun taskDisplayId(task: ActivityManager.RunningTaskInfo): Int =
         android.app.TaskInfo::class.java.getField("displayId").getInt(task)
@@ -325,7 +361,8 @@ internal object RootDisplayCommandMain {
     }
 
     private fun input(id: Int, vararg args: String) {
-        command(listOf("/system/bin/input", "-d", id.toString()) + args)
+        val source = if (args.firstOrNull() in setOf("tap", "swipe")) "touchscreen" else "keyboard"
+        command(listOf("/system/bin/input", source, "-d", id.toString()) + args)
     }
 
     private fun command(args: List<String>, limit: Int = 16_000): String {

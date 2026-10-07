@@ -16,6 +16,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.display.VirtualScreenRoutingPolicy
 import io.github.mangi.eta.agent.overlay.toolDisplayNameResource
 import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.agent.voice.EtaAssistantOverlayService
@@ -81,8 +82,8 @@ internal class VivoIslandNotifications(
         ).also(::publish)
     }
 
-    fun update(runId: String, event: AgentEvent) {
-        VivoIslandWire.Progress.from(event)?.let { update(runId, it) }
+    fun update(runId: String, event: AgentEvent, virtualScreen: Boolean = false) {
+        VivoIslandWire.Progress.from(event, virtualScreen)?.let { update(runId, it) }
     }
 
     fun update(runId: String, progress: VivoIslandWire.Progress) {
@@ -90,14 +91,19 @@ internal class VivoIslandNotifications(
             VivoIslandWire.Phase.PREPARING -> text(R.string.injected_vivo_island_starting, "Preparing your task")
             VivoIslandWire.Phase.THINKING -> text(R.string.injected_vivo_island_thinking, "Thinking")
             VivoIslandWire.Phase.ANSWERING -> text(R.string.injected_vivo_island_answering, "Writing the answer")
-            VivoIslandWire.Phase.TOOL -> toolDetail(progress.tool)
+            VivoIslandWire.Phase.TOOL -> toolDetail(
+                progress.tool,
+                progress.virtualScreen &&
+                    (progress.tool in VirtualScreenRoutingPolicy.uiTools || progress.tool == "virtual_screen"),
+            )
             VivoIslandWire.Phase.RETRYING -> text(R.string.injected_vivo_island_retrying, "Retrying the model request")
             VivoIslandWire.Phase.COMPACTING -> text(R.string.injected_vivo_island_compacting, "Organizing conversation context")
         }
         onMain {
             val current = session?.takeIf { it.runId == runId && !it.hidden && !it.terminal } ?: return@onMain
-            if (current.detail == detail) return@onMain
+            if (current.detail == detail && current.virtualScreen == progress.virtualScreen) return@onMain
             current.detail = detail
+            current.virtualScreen = progress.virtualScreen
             main.removeCallbacks(flush)
             val delay = (UPDATE_INTERVAL_MS - (SystemClock.uptimeMillis() - lastPublishedAt)).coerceAtLeast(0L)
             main.postDelayed(flush, delay)
@@ -156,7 +162,9 @@ internal class VivoIslandNotifications(
 
     private fun notification(current: Session): Notification {
         val title = when (current.state) {
-            State.RUNNING -> text(R.string.injected_vivo_island_running, "Eta is working")
+            State.RUNNING -> if (current.virtualScreen) {
+                text(R.string.injected_vivo_island_virtual_running, "Eta is working on the virtual screen")
+            } else text(R.string.injected_vivo_island_running, "Eta is working")
             State.COMPLETED -> text(R.string.injected_vivo_island_completed, "Eta task completed")
             State.FAILED -> text(R.string.injected_vivo_island_failed, "Eta task failed")
             State.CANCELLED -> text(R.string.injected_vivo_island_cancelled, "Eta task stopped")
@@ -291,11 +299,15 @@ internal class VivoIslandNotifications(
         current.published = false
     }
 
-    private fun toolDetail(name: String): String {
+    private fun toolDetail(name: String, virtualScreen: Boolean): String {
         val resource = toolDisplayNameResource(name)
         val label = resource?.let { text(it, "Using a tool") }
             ?: text(R.string.injected_vivo_island_tool_generic, "Using a tool")
-        return text(R.string.injected_vivo_island_tool, "Working: %s", label)
+        return if (name == "virtual_screen") {
+            label
+        } else if (virtualScreen) {
+            text(R.string.injected_vivo_island_virtual_tool, "Virtual screen: %s", label)
+        } else text(R.string.injected_vivo_island_tool, "Working: %s", label)
     }
 
     private fun icon(name: String): Icon {
@@ -317,6 +329,7 @@ internal class VivoIslandNotifications(
         var detail: String,
         val token: String = UUID.randomUUID().toString(),
         var state: State = State.RUNNING,
+        var virtualScreen: Boolean = false,
         var published: Boolean = false,
         var hidden: Boolean = false,
         val externalOpen: PendingIntent? = null,

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.AccountTree
+import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Key
@@ -82,6 +83,7 @@ private fun PermissionItemRow(
         "background" -> Icons.Rounded.History
         "app_list" -> Icons.Rounded.Dashboard
         LOCAL_NETWORK_PERMISSION_ITEM_ID -> Icons.Rounded.AccountTree
+        "bluetooth" -> Icons.Rounded.Bluetooth
         "location" -> Icons.Rounded.LocationOn
         "notification_history" -> Icons.Rounded.NotificationsActive
         "usage_access" -> Icons.Rounded.QueryStats

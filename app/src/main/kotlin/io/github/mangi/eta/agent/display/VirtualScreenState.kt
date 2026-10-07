@@ -8,6 +8,7 @@ internal data class VirtualDisplayInfo(
     val height: Int,
     val manualInputGeneration: Long = 0,
     val density: Int = 0,
+    val focusedPackage: String = "",
 )
 
 internal data class VirtualScreenGesture(

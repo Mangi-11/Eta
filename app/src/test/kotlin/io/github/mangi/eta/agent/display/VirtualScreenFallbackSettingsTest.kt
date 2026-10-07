@@ -16,6 +16,23 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class VirtualScreenFallbackSettingsTest {
     @Test
+    fun restartAndIdleSettingsPersistWithConservativeDefaults() = runBlocking {
+        assertFalse(Settings().virtualScreenAutoRestartApps)
+        assertEquals(20, Settings().virtualScreenIdleTimeoutMinutes)
+        SettingsDataStore.init(RuntimeEnvironment.getApplication())
+        val original = SettingsDataStore.settings()
+        try {
+            for (minutes in listOf(10, 20, 60, 0)) {
+                SettingsDataStore.updateSettings { it.copy(virtualScreenAutoRestartApps = true, virtualScreenIdleTimeoutMinutes = minutes) }
+                assertTrue(SettingsDataStore.settings().virtualScreenAutoRestartApps)
+                assertEquals(minutes, SettingsDataStore.settings().virtualScreenIdleTimeoutMinutes)
+            }
+            SettingsDataStore.updateSettings { it.copy(virtualScreenIdleTimeoutMinutes = -1) }
+            assertEquals(20, SettingsDataStore.settings().virtualScreenIdleTimeoutMinutes)
+        } finally { SettingsDataStore.updateSettings { original } }
+    }
+
+    @Test
     fun fallbackIsOffByDefaultAndPersistsWithoutChangingOtherPreferences() = runBlocking {
         assertFalse(Settings().virtualScreenFallbackEnabled)
         SettingsDataStore.init(RuntimeEnvironment.getApplication())

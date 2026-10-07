@@ -1,5 +1,6 @@
 package io.github.mangi.eta.agent.display
 
+import android.app.KeyguardManager
 import android.content.Context
 import android.graphics.Rect
 import android.os.SystemClock
@@ -25,6 +26,9 @@ internal class VirtualScreenUiTools(
     private var observedSession: String? = null
     private var observedManualGeneration = -1L
     private var clipboard = ""
+    private val uiTreeAvailability = VirtualScreenUiTreeAvailability(SystemClock::elapsedRealtime)
+    val uiTreeUnavailable: Boolean get() =
+        uiTreeAvailability.unavailableFor(VirtualScreenSession.state.value.display)
 
     fun execute(name: String, args: JSONObject): AgentModelClient.ToolResult = try {
         if (name in VirtualScreenRoutingPolicy.unavailableTools) {
@@ -72,7 +76,10 @@ internal class VirtualScreenUiTools(
             )
             if (!JSONObject(created.content).optBoolean("ok")) return created
         }
-        return VirtualScreenSession.withDisplay(context, owner, isCancelled, block)
+        return VirtualScreenSession.withDisplay(context, owner, isCancelled) { info ->
+            uiTreeAvailability.updateScope(info)
+            block(info)
+        }
     }
 
     private fun dispatch(
@@ -119,17 +126,37 @@ internal class VirtualScreenUiTools(
         observedSession = null
         val options = AgentScreenObservationContract.resolve(args)
         val service = AgentAccessibilityService.current()
-        val nodes = if (options.includeUiTree) service?.captureNodeSnapshot(
-            options.maxNodes,
-            info.displayId
-        ) else null
+        fun captureTree() = service?.captureNodeSnapshot(options.maxNodes, info.displayId)?.takeIf {
+            it.displayId == info.displayId && it.packageName == info.focusedPackage
+        }
+        var candidate = if (options.includeUiTree) {
+            captureTree()
+        } else null
+        var nodes = candidate?.takeIf { it.nodes.isNotEmpty() }
+        // Every requested observation probes again, including a previously empty window. Startup
+        // retries count as one observation; only spaced empty observations hide node tools.
+        var retry = 0
+        while (options.includeUiTree && nodes == null && candidate != null &&
+            !uiTreeAvailability.unavailableFor(info) && retry++ < 2) {
+            waitCancellable(250)
+            candidate = captureTree()
+            nodes = candidate?.takeIf { it.nodes.isNotEmpty() }
+        }
+        if (options.includeUiTree) uiTreeAvailability.record(info, candidate?.windowId, nodes != null)
+        val treeUnavailable = uiTreeAvailability.unavailableFor(info)
         val screen = JSONObject().put("width", info.width).put("height", info.height)
             .put("display_id", info.displayId)
         val json = JSONObject().put("ok", true).put("tool", "observe_screen")
             .put("display_id", info.displayId)
             .put("screen", screen).put(
                 "focus",
-                JSONObject().put("package", service?.currentPackageName(info.displayId).orEmpty())
+                JSONObject().put("package", info.focusedPackage).put("display_id", info.displayId)
+            )
+            .put(
+                "execution_scope",
+                JSONObject().put("type", "virtual_display").put("display_id", info.displayId)
+                    .put("main_screen_locked", context.getSystemService(KeyguardManager::class.java)?.isDeviceLocked == true)
+                    .put("note", "观察和输入仅针对这个虚拟屏。主屏的锁屏、指纹窗口（如 UDfinger）和全局 mCurrentFocus 不代表此虚拟屏被遮挡；依据本次观察和此虚拟屏工具的实际结果判断。")
             )
             .put("observation_id", nodes?.id ?: JSONObject.NULL)
             .put("observation_source", if (nodes != null) "accessibility" else JSONObject.NULL)
@@ -138,15 +165,25 @@ internal class VirtualScreenUiTools(
             .put("node_limit", options.maxNodes.coerceIn(1, 120))
             .put("ui_nodes", JSONArray(nodes?.nodes.orEmpty().map(::nodeJson)))
             .put(
-                "accessibility", JSONObject().put("available", service != null)
-                    .put("note", "仅查询虚拟屏窗口；没有节点时请观察截图并使用坐标工具。")
+                "accessibility", JSONObject().put("available", nodes != null)
+                    .put("ui_tree_disabled", treeUnavailable)
+                    .put("ui_tree_pending", options.includeUiTree && nodes == null && !treeUnavailable)
+                    .put("note", if (!options.includeUiTree)
+                        "本次未请求 UI 树。"
+                        else if (treeUnavailable)
+                            "当前应用窗口多次返回空 UI 树，暂时停用节点工具；后续观察仍会探测，节点恢复或切换应用窗口后解除限制。使用截图与坐标工具；焦点文本可使用 Root 输入。"
+                        else if (nodes == null)
+                            "当前窗口尚无有效 UI 树，可能仍在加载；后续观察会重新探测。"
+                        else "仅查询此虚拟屏窗口，不读取主屏窗口。")
             )
             .put(
                 "coordinate_contract",
                 JSONObject().put("default_coordinate_space", "screen").put("screen", screen)
                     .put("note", "screen 与截图均为虚拟屏原始像素；所有 GUI 工具均针对该 display。")
             )
-        val capture = if (options.includeScreenshot) VirtualScreenSession.execute(
+        val captureScreenshot = options.includeScreenshot ||
+            (nodes == null && options.includeUiTree && !args.has("include_screenshot"))
+        val capture = if (captureScreenshot) VirtualScreenSession.execute(
             context,
             owner,
             JSONObject().put("action", "observe"),
@@ -160,6 +197,7 @@ internal class VirtualScreenUiTools(
         )
         if (capture != null && !JSONObject(capture.content).optBoolean("ok")) {
             json.put("screenshot_error", JSONObject(capture.content).optString("code"))
+            if (nodes == null) return capture
         }
         snapshot = nodes
         observedSession = info.sessionId
@@ -242,10 +280,12 @@ internal class VirtualScreenUiTools(
         args: JSONObject,
         info: VirtualDisplayInfo
     ): AgentAccessibilityService.NodeSnapshot {
+        if (uiTreeAvailability.unavailableFor(info)) error("VIRTUAL_UI_TREE_UNAVAILABLE")
         val current = snapshot ?: error("NO_OBSERVATION")
         require(
             observedSession == info.sessionId && observedManualGeneration == info.manualInputGeneration &&
-                    current.displayId == info.displayId && current.id == args.optString("observation_id")
+                    current.displayId == info.displayId && current.packageName == info.focusedPackage &&
+                    current.id == args.optString("observation_id")
         ) { "STALE_OBSERVATION" }
         return current
     }
@@ -301,7 +341,6 @@ internal class VirtualScreenUiTools(
                 "input_text" -> 1000; "paste_text" -> 20000; else -> 4000
             }
         ) { "TEXT_TOO_LONG" }
-        val service = AgentAccessibilityService.current() ?: error("ACCESSIBILITY_UNAVAILABLE")
         val replace = name in setOf(
             "replace_text",
             "clear_text"
@@ -311,10 +350,14 @@ internal class VirtualScreenUiTools(
             "index"
         ) else null
         val nodes = if (index != null) requiredSnapshot(args, info) else null
-        // Direct SET_TEXT supports Unicode without changing the user's global clipboard or IME.
-        val result = if (replace) service.setTextNode(nodes, index, text, info.displayId)
-        else service.inputTextFocused(text, info.displayId)
-        return actionResult(result, info)
+        // Some ROMs expose virtual nodes but time out SET_TEXT; focused input uses display-specific keys.
+        if (index == null) {
+            return VirtualScreenSession.execute(context, owner, JSONObject().put("action", "text")
+                .put("text", text).put("replace", replace), isCancelled)
+        }
+        val service = AgentAccessibilityService.current()
+            ?: return failure("ACCESSIBILITY_UNAVAILABLE", "节点输入不可用，请重新观察截图并定位输入框")
+        return actionResult(service.setTextNode(nodes, index, text, info.displayId), info)
     }
 
     private fun waitFor(name: String, args: JSONObject): AgentModelClient.ToolResult {
@@ -337,10 +380,13 @@ internal class VirtualScreenUiTools(
                     if (!json.optBoolean("ok")) return@withDisplay probe
                     json.optString("packageName") == needle
                 } else {
-                    requireNotNull(service) { "ACCESSIBILITY_UNAVAILABLE" }.queryNodes(
-                        120,
-                        info.displayId
-                    ).any { node ->
+                    val candidate = requireNotNull(service) { "ACCESSIBILITY_UNAVAILABLE" }
+                        .captureNodeSnapshot(120, info.displayId)?.takeIf {
+                            it.displayId == info.displayId && it.packageName == info.focusedPackage
+                        }
+                    uiTreeAvailability.record(info, candidate?.windowId, candidate?.nodes?.isNotEmpty() == true)
+                    require(!uiTreeAvailability.unavailableFor(info)) { "VIRTUAL_UI_TREE_UNAVAILABLE" }
+                    candidate?.nodes.orEmpty().any { node ->
                         (listOf(node.text) + if (args.optBoolean(
                                 "include_desc",
                                 true

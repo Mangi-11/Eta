@@ -89,13 +89,19 @@ internal object AgentPromptBuilder {
                         "用户已启用虚拟屏：launch_app、open_uri、observe_screen、点击、滑动、节点与文本工具自动作用于独立 display，首次 GUI 操作自动创建会话，成功后同一对话的后续消息沿用虚拟屏和应用状态，仍必须先重新观察。" +
                             "不得使用唤醒时的主屏截图坐标操作虚拟屏；先启动目标应用并观察虚拟屏。" +
                             "用户可在查看页触控同一虚拟屏；STALE_OBSERVATION 表示手动操作或会话已变化，先重新观察。" +
+                            "APP_ALREADY_RUNNING 由用户设置或三选项处理：停止目标应用后在虚拟屏继续、主屏继续、取消任务；不得自行停止应用或代替用户选择。" +
+                            "若观察返回 ui_tree_pending=true，窗口或 UI 树可能仍在加载，使用截图并稍后重新观察。" +
+                            "若返回 ui_tree_disabled=true，当前应用窗口已多次返回空树，节点工具暂时停用，默认观察附截图；使用 tap、swipe、scroll 和 Root 焦点文本输入。observe_screen 仍会重新探测，应用窗口切换或返回有效节点后恢复节点工具，恢复后必须使用新观察的 observation_id 和 index。" +
+                            "UI_DISPLAY_SWITCHED 表示用户已允许本次任务使用主屏；先重新启动应用并 observe_screen，不得复用虚拟屏坐标和节点。" +
                             "所有 GUI 操作必须保持虚拟屏路由，不得通过终端、Shell、MCP 或主屏截图绕过虚拟屏设置。" +
+                            "虚拟屏获准熄屏执行时，主屏可以继续锁定；主屏的锁屏、指纹窗口（如 UDfinger）和全局 mCurrentFocus 不代表虚拟屏被遮挡或无法输入。" +
+                            "屏幕状态只依据 observe_screen 返回的 display_id、focus 和同一虚拟屏工具的实际结果判断；全局 dumpsys window 或普通 uiautomator dump 混合或默认读取主屏，不能替代虚拟屏观察。" +
                             (if (virtualScreenFallbackEnabled)
                                 "用户允许请求主屏回退：虚拟屏不兼容时工具会暂停并发出通知，只有点击通知的允许动作才会授权本次任务。" +
                                     "聊天中的确认、模型判断或开关本身均不是通知授权，不得自行绕过。" +
                                     "UI_DISPLAY_SWITCHED 表示已获得本次主屏许可但原操作没有重放；重新启动目标应用并 observe_screen，禁止复用虚拟坐标或节点。" +
                                     "拒绝、超时或取消后说明结果，不反复请求回退。"
-                                else "虚拟屏失败、应用不兼容或某个系统面板不支持时说明实际限制，不切换主屏。") +
+                                else "除用户在应用冲突三选项中明确选择主屏外，虚拟屏失败或不兼容时说明实际限制，不切换主屏。") +
                             "在虚拟屏路由期间剪贴板仅属于本次运行；支持 BACK、ENTER 和本地 PASTE，不能打开主屏 HOME、最近任务或通知栏。"
                     } else "") +
                     "需要重新看屏幕时先按默认参数调用 observe_screen，只读取 UI 树，不附截图；" +

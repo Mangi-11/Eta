@@ -4,6 +4,8 @@ import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
+import io.github.mangi.eta.agent.accessibility.PackageWindowVisibility
+import io.github.mangi.eta.agent.device.ScrollDirection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -54,6 +56,35 @@ class VirtualScreenAccessibilityTest {
             service.setTextNode(null, null, "virtual replacement", 9).code
         )
         assertEquals("user draft", primary.text)
+    }
+
+    @Test
+    fun activeVirtualWindowCannotBecomePrimaryObservationOrScrollTarget() = withService { service ->
+        val secondary = node("virtual.app", "secondary").apply { isScrollable = true }
+        val secondaryWindow = AccessibilityWindowInfo.obtain()
+        shadowOf(secondaryWindow).apply {
+            setType(AccessibilityWindowInfo.TYPE_APPLICATION)
+            setDisplayId(3)
+            setFocused(true)
+            setRoot(secondary)
+        }
+        shadowOf(secondary).setAccessibilityWindowInfo(secondaryWindow)
+        shadowOf(service).setRootInActiveWindow(secondary)
+        shadowOf(service).setWindowsOnDisplay(3, listOf(secondaryWindow))
+        val primary = node("primary.app", "primary")
+        val primaryWindow = AccessibilityWindowInfo.obtain()
+        shadowOf(primaryWindow).apply {
+            setType(AccessibilityWindowInfo.TYPE_APPLICATION)
+            setDisplayId(0)
+            setRoot(primary)
+        }
+        shadowOf(service).setWindowsOnDisplay(0, listOf(primaryWindow))
+
+        assertEquals("primary.app", service.currentPackageName())
+        assertEquals("primary", service.captureNodeSnapshot(60)!!.nodes.single().text)
+        assertEquals(PackageWindowVisibility.GONE, service.packageWindowVisibility("virtual.app"))
+        service.scrollCurrent(ScrollDirection.DOWN)
+        assertEquals(emptyList<Int>(), shadowOf(secondary).performedActions)
     }
 
     private fun node(packageName: String, text: String) = AccessibilityNodeInfo.obtain().apply {

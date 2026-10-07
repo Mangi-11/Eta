@@ -61,7 +61,9 @@ internal class VirtualScreenRoutingPolicy(initiallyRouted: Boolean = false) {
             "swipe",
             "scroll",
             "press_key",
-            "wait_for_package"
+            "wait_for_package",
+            "input_text", "replace_text", "clear_text", "paste_text", "set_clipboard", "get_clipboard",
         )
+        val nodeTools = setOf("tap_element", "long_press_element", "scroll_element", "wait_for_text")
     }
 }

@@ -128,8 +128,8 @@ internal class AgentRuntimeIslandBridge(
         sendCurrent()
     }
 
-    fun update(runId: String, event: AgentEvent) {
-        val progress = VivoIslandWire.Progress.from(event) ?: return
+    fun update(runId: String, event: AgentEvent, virtualScreen: Boolean = false) {
+        val progress = VivoIslandWire.Progress.from(event, virtualScreen) ?: return
         onMain {
             val active = current?.takeIf {
                 !closed && it.runId == runId && it.state == VivoIslandNotifications.State.RUNNING
