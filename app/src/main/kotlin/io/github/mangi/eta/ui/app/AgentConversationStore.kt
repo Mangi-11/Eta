@@ -103,6 +103,7 @@ internal object AgentConversationStore {
                                     lastModelUsageJson = state.lastModelUsage?.let { json.encodeToString(it) }.orEmpty(),
                                     createdAt = stored[id]?.createdAt ?: state.updatedAt.takeIf { it != 0L } ?: System.currentTimeMillis(),
                                     updatedAt = state.updatedAt.takeIf { it != 0L } ?: System.currentTimeMillis(),
+                                    modelId = state.modelId,
                                 )
                                 phase = "write_metadata"
                                 dao.insertConversations(listOf(row))
@@ -210,6 +211,7 @@ internal object AgentConversationStore {
                 isStreaming = false,
                 thinkingEnabled = conversation.reasoningEffortValue.enablesReasoning,
                 reasoningEffort = conversation.reasoningEffortValue,
+                modelId = conversation.modelId,
             ).let { original ->
                 ExternalConversationHistory.repair(conversation.id, original).also { repaired ->
                     if (repaired.history != original.history || repaired.journal != original.journal) unaligned += conversation.id

@@ -25,6 +25,9 @@ internal class AgentAppViewModel(application: Application) : AndroidViewModel(ap
         context = application,
         scope = viewModelScope,
     )
+    val skills = AgentSkillsStore(application, viewModelScope)
+    val memory = AgentMemoryStore(application, viewModelScope)
+    val permissionHealth = PermissionHealthStore(application, viewModelScope)
     private val terminalHost = TerminalSessionHost.get(application)
     val terminalStore = terminalHost.terminal
     val consoleStore = terminalHost.console

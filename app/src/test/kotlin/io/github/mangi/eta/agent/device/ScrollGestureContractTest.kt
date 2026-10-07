@@ -16,6 +16,20 @@ class ScrollGestureContractTest {
     private val bounds = Rect(100, 200, 500, 1_000)
 
     @Test
+    fun smallAmountMovesAboutAQuarterOfThePageGestureInTheSameDirection() {
+        val page = requireNotNull(ScrollDirection.DOWN.gestureWithin(bounds, ScrollAmount.PAGE))
+        val small = requireNotNull(ScrollDirection.DOWN.gestureWithin(bounds, ScrollAmount.SMALL))
+        val pageTravel = page.start.y - page.end.y
+        val smallTravel = small.start.y - small.end.y
+        assertTrue(smallTravel > 0)
+        assertTrue(smallTravel * 2 < pageTravel)
+        assertInside(small, bounds)
+        assertEquals(ScrollAmount.PAGE, ScrollAmount.parse(""))
+        assertEquals(ScrollAmount.SMALL, ScrollAmount.parse("Small"))
+        assertNull(ScrollAmount.parse("huge"))
+    }
+
+    @Test
     fun downShowsLowerContentWithUpwardFingerGesture() {
         val gesture = requireNotNull(ScrollDirection.DOWN.gestureWithin(bounds))
 

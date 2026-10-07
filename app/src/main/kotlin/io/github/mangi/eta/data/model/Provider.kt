@@ -159,6 +159,18 @@ internal fun ProviderSetting.withApiKey(apiKey: String): ProviderSetting =
         is CustomProviderSetting -> copy(apiKey = apiKey)
     }
 
+internal data class ProviderModel(val provider: ProviderSetting, val model: Model)
+
+/** 服务商与模型都启用时才视为可用；会话绑定、选择器与发送共用这一判定。 */
+internal fun List<ProviderSetting>.enabledModel(modelId: String?): ProviderModel? {
+    modelId ?: return null
+    for (provider in this) {
+        if (!provider.isEnabled) continue
+        provider.models.firstOrNull { it.id == modelId && it.isEnabled }?.let { return ProviderModel(provider, it) }
+    }
+    return null
+}
+
 internal fun ProviderSetting.selectedOrFirstModel(modelId: String?): Model? =
     models.firstOrNull { it.id == modelId && it.isEnabled }
         ?: models.filter { it.isEnabled }.minByOrNull { it.sortOrder }

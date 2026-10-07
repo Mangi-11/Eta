@@ -22,6 +22,7 @@ internal class AgentTraceFormatter {
             "glob_files" -> "按路径查找文件"
             "grep_files" -> "搜索文件内容"
             "inspect_app" -> "检查应用"
+            "type_text" -> summarizeTypeText(toolCall.argumentsJson)
             "input_text" -> summarizeTextLength("输入文本", toolCall.argumentsJson, "text")
             "replace_text" -> summarizeTextLength("替换文本", toolCall.argumentsJson, "text")
             "paste_text", "set_clipboard" ->
@@ -146,6 +147,23 @@ internal class AgentTraceFormatter {
             val chars = JSONObject(argumentsJson).optString(key).length
             "$label · $chars 字符"
         }.getOrDefault(label)
+
+    /** 只展示动作与长度，不回显正文：输入内容可能是密码或私人消息。 */
+    private fun summarizeTypeText(argumentsJson: String): String =
+        runCatching {
+            val args = JSONObject(argumentsJson)
+            val chars = args.optString("text").length
+            val label = when {
+                chars == 0 -> "清空文本"
+                args.optString("mode") == "append" -> "追加文本"
+                else -> "输入文本"
+            }
+            buildString {
+                append(label)
+                if (chars > 0) append(" · $chars 字符")
+                if (args.optBoolean("submit")) append(" · 提交")
+            }
+        }.getOrDefault("输入文本")
 
     /** 搜索关键词是用户自己发起的查询，直接展示；仍做单行化与长度截断。 */
     private fun summarizeQueryArguments(label: String, argumentsJson: String): String =

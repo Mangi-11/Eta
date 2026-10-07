@@ -3,6 +3,7 @@ package io.github.mangi.eta.ui.model
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ProviderSourceTypes
+import io.github.mangi.eta.data.model.enabledModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -124,7 +125,7 @@ class AgentModelPickerProjectorTest {
             formatContextUsage(AgentContextUsageUi(contextTokens = null, contextWindow = 100_000)),
         )
         assertEquals(
-            "Set this model's context window in Settings first",
+            "Context window unknown, so automatic compaction is off",
             formatContextUsage(AgentContextUsageUi(contextTokens = 12_000, contextWindow = null)),
         )
     }
@@ -138,6 +139,20 @@ class AgentModelPickerProjectorTest {
                 locale = java.util.Locale.GERMANY,
             ),
         )
+    }
+
+    @Test
+    fun enabledModel_requiresBothProviderAndModelEnabled() {
+        val providers = listOf(
+            provider(id = "off", enabled = false, models = listOf(model(id = "in-disabled-provider"))),
+            provider(id = "on", models = listOf(model(id = "available"), model(id = "disabled", enabled = false))),
+        )
+
+        assertEquals("on", providers.enabledModel("available")?.provider?.id)
+        assertNull(providers.enabledModel("disabled"))
+        assertNull(providers.enabledModel("in-disabled-provider"))
+        assertNull(providers.enabledModel("deleted"))
+        assertNull(providers.enabledModel(null))
     }
 
     private fun provider(

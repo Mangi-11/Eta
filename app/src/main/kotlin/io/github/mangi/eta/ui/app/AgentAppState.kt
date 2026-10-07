@@ -2,13 +2,10 @@ package io.github.mangi.eta.ui.app
 
 import io.github.mangi.eta.agent.model.AgentContextSnapshot
 
-import android.content.ComponentName
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.PowerManager
-import android.provider.Settings
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.compose.runtime.getValue
@@ -17,12 +14,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.device.AgentFileReferenceGateway
-import io.github.mangi.eta.agent.device.DeviceLocationProvider
 import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.media.AgentImageCodec
-import io.github.mangi.eta.agent.memory.AgentMemoryContextBuilder
 import io.github.mangi.eta.agent.model.AgentFileReference
 import io.github.mangi.eta.agent.model.AgentFileReferenceKind
 import io.github.mangi.eta.agent.model.AgentFileReferencePolicy
@@ -41,49 +35,34 @@ import io.github.mangi.eta.agent.runtime.AgentRunArchiveStore
 import io.github.mangi.eta.agent.runtime.AgentRunCheckpointStore
 import io.github.mangi.eta.agent.runtime.AgentRuntimeClient
 import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
-import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.agent.runtime.AgentUiHandoffPayload
-import io.github.mangi.eta.agent.skill.SkillRuntime
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
+import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ReasoningEffort
-import io.github.mangi.eta.data.repository.AgentMemoryRepository
-import io.github.mangi.eta.data.datastore.SettingsDataStore
+import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.repository.EtaBackupRepository
 import io.github.mangi.eta.data.repository.EtaBackupSummary
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.model.AgentChatHomeUiState
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
-import io.github.mangi.eta.ui.model.AgentMemoryUiState
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
-import io.github.mangi.eta.ui.model.AgentSkillsUiState
-import io.github.mangi.eta.ui.model.AgentToolsUiState
 import io.github.mangi.eta.ui.model.ConversationModeUi
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import io.github.mangi.eta.ui.model.MessageEditUiState
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import io.github.mangi.eta.ui.model.PendingImageUi
-import io.github.mangi.eta.ui.model.PermissionHealthItemUi
-import io.github.mangi.eta.ui.model.PermissionHealthUiState
-import io.github.mangi.eta.ui.model.PermissionStatusUi
-import io.github.mangi.eta.ui.model.SkillItemUi
-import io.github.mangi.eta.ui.model.SkillNoticeUi
-import io.github.mangi.eta.ui.model.SkillReplacementUi
 import io.github.mangi.eta.ui.model.SystemNoticeCode
 import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
-import io.github.mangi.eta.ui.model.TokenUsageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
-import io.github.mangi.eta.ui.model.ToolGroupUi
-import io.github.mangi.eta.ui.model.ToolItemUi
 import io.github.mangi.eta.ui.model.UserMessageUi
-import io.github.mangi.eta.ui.model.canDeleteUserSkill
 import io.github.mangi.eta.ui.model.contentMatches
 import java.io.InputStream
 import java.io.OutputStream
@@ -109,11 +88,9 @@ import kotlinx.coroutines.withContext
 internal class AgentAppState(
     context: Context,
     private val scope: CoroutineScope,
-    skillZipImportGateway: SkillZipImportGateway? = null,
     initialConversations: AgentConversationStore.Snapshot = AgentConversationStore.load(context),
 ) {
     private val appContext = context.applicationContext
-    private val skillZipImportGateway = skillZipImportGateway ?: CoreSkillZipImportGateway(appContext)
     private val runConversationIds = mutableMapOf<String, String>()
     private val runMessageProjector = AgentRunMessageProjector()
     private val runEventCoalescer = AgentRunEventCoalescer()
@@ -128,10 +105,10 @@ internal class AgentAppState(
     private val defaultThinkingEnabled = agentBooleanForUi(Prefs.Keys.AGENT_THINKING_ENABLED)
     @Volatile
     private var conversationPersistence = AgentConversationPersistence(initialConversations)
-    private var skillNoticeSequence = 0L
-    private var pendingSkillZipUri: Uri? = null
-    private var pendingSkillZipSha256: String? = null
     private var currentReasoningCapabilities: ModelReasoningCapabilities? = null
+    private var providers: List<ProviderSetting> = emptyList()
+    private var defaultModelId: String? = null
+    private var defaultProviderId: String? = null
     private var fileAttachmentOwnerVersion = 0L
 
     private var selectedConversationId: String? = initialConversations.selectedConversationId
@@ -156,24 +133,9 @@ internal class AgentAppState(
     )
         private set
 
-    var toolsState by mutableStateOf(buildToolsState(appContext))
-        private set
-
-    var skillsState by mutableStateOf(AgentSkillsUiState(isLoading = true))
-        private set
-
-    var permissionHealthState by mutableStateOf(PermissionHealthUiState(emptyList()))
-        private set
-
-    var memoryState by mutableStateOf(AgentMemoryUiState())
-        private set
-
     init {
         refreshConversationSummaries()
         observeRuntimeSelection()
-        scope.launch {
-            RootAccess.state.collectLatest { refreshPermissionHealth() }
-        }
         runtimeRecoveryInProgress.set(true)
         scope.launch(Dispatchers.IO) {
             try {
@@ -196,30 +158,37 @@ internal class AgentAppState(
             }
                 .distinctUntilChanged()
                 .collectLatest { (providerId, modelId, providers) ->
-                    val pickerState = AgentModelPickerProjector.project(
-                        providers = providers,
-                        selectedProviderId = providerId,
-                        selectedModelId = modelId,
-                    )
-                    val capabilities = RuntimeConfigRepository.currentRuntimeConfig()
-                        ?.reasoningCapabilities
                     withContext(Dispatchers.Main) {
-                        modelPickerState = pickerState.copy(
-                            isChanging = modelPickerState.isChanging,
-                        )
-                        applyReasoningCapabilities(capabilities)
+                        this@AgentAppState.providers = providers
+                        defaultProviderId = providerId
+                        defaultModelId = modelId
+                        refreshConversationModel()
                     }
                 }
         }
     }
 
-    private fun applyReasoningCapabilities(capabilities: ModelReasoningCapabilities?) {
-        currentReasoningCapabilities = capabilities
-        val next = homeState.withCurrentReasoningCapabilities()
-        val changed = next.reasoningEffort != homeState.reasoningEffort ||
-            next.availableReasoningEfforts != homeState.availableReasoningEfforts
-        updateCurrentConversation(next)
-        if (changed && selectedConversationId != null) persistConversations()
+    /**
+     * 选择器、思考强度与上下文窗口统一投影自当前会话的有效模型：
+     * 会话绑定的模型仍可用时用它，否则用默认模型。回落只影响显示与发送，不改写会话绑定，
+     * 模型重新启用后会话自动回到原模型；真正发送后才把实际模型写入绑定。
+     */
+    private fun refreshConversationModel() {
+        val bound = providers.enabledModel(homeState.modelId)
+        val pickerState = if (bound != null) {
+            AgentModelPickerProjector.project(providers, bound.provider.id, bound.model.id)
+        } else {
+            AgentModelPickerProjector.project(providers, defaultProviderId, defaultModelId)
+        }
+        modelPickerState = pickerState.copy(isChanging = modelPickerState.isChanging)
+        val effective = bound ?: providers.enabledModel(pickerState.selectedModel?.id)
+        currentReasoningCapabilities = effective?.let { (provider, model) ->
+            RuntimeConfigRepository.reasoningCapabilities(provider, model)
+        }
+        val resolved = homeState.withCurrentReasoningCapabilities()
+        val conversationId = selectedConversationId
+        if (conversationId == null) homeState = resolved
+        else updateConversation(conversationId, resolved, updateTimestamp = false)
     }
 
     private fun AgentChatHomeUiState.withCurrentReasoningCapabilities(): AgentChatHomeUiState {
@@ -231,6 +200,9 @@ internal class AgentAppState(
         )
     }
 
+    private val AgentChatHomeUiState.effectiveModelId: String?
+        get() = providers.enabledModel(modelId)?.model?.id ?: modelPickerState.selectedModel?.id
+
     fun refreshRuntimeResults() {
         if (!runtimeRecoveryInProgress.compareAndSet(false, true)) return
         scope.launch(Dispatchers.IO) {
@@ -241,170 +213,6 @@ internal class AgentAppState(
                 runtimeRecoveryInProgress.set(false)
             }
         }
-    }
-
-    fun refreshMemory() {
-        memoryState = memoryState.copy(isLoading = true, notice = null)
-        scope.launch(Dispatchers.IO) {
-            runCatching {
-                val snapshot = AgentMemoryRepository.snapshot()
-                val settings = SettingsDataStore.settings()
-                val contextWindow = RuntimeConfigRepository.currentRuntimeConfig()?.contextWindow
-                Triple(snapshot, settings, AgentMemoryContextBuilder.coreBudgetChars(contextWindow))
-            }.fold(
-                onSuccess = { (snapshot, settings, coreBudget) ->
-                    withContext(Dispatchers.Main) {
-                        memoryState = AgentMemoryUiState(
-                            enabled = settings.memoryEnabled,
-                            autoMemoryEnabled = settings.autoMemoryEnabled,
-                            autoSkillsEnabled = settings.autoSkillsEnabled,
-                            isLoading = false,
-                            draft = snapshot.content,
-                            savedContent = snapshot.content,
-                            draftBytes = snapshot.byteSize,
-                            coreBudgetChars = coreBudget,
-                        )
-                    }
-                },
-                onFailure = { throwable ->
-                    AndroidAgentLogger.warnThrottled("agent_memory_ui_load_failed") {
-                        "Agent memory UI load failed: type=${throwable.safeLogType()}"
-                    }
-                    withContext(Dispatchers.Main) {
-                        memoryState = memoryState.copy(
-                            isLoading = false,
-                            notice = appContext.getString(R.string.state_ui_failed_to_read_memory_please_try_again_later_caeaa6),
-                        )
-                    }
-                },
-            )
-        }
-    }
-
-    fun updateMemoryDraft(content: String) {
-        memoryState = memoryState.copy(
-            draft = content,
-            draftBytes = content.toByteArray(Charsets.UTF_8).size,
-            notice = null,
-        )
-    }
-
-    fun setAutomaticReview(memory: Boolean? = null, skills: Boolean? = null) {
-        scope.launch(Dispatchers.IO) {
-            runCatching {
-                SettingsDataStore.updateSettings { current -> current.copy(
-                    autoMemoryEnabled = memory ?: current.autoMemoryEnabled,
-                    autoSkillsEnabled = skills ?: current.autoSkillsEnabled,
-                ) }
-                SettingsDataStore.settings()
-            }.onSuccess { settings ->
-                withContext(Dispatchers.Main) {
-                    memoryState = memoryState.copy(autoMemoryEnabled = settings.autoMemoryEnabled,
-                        autoSkillsEnabled = settings.autoSkillsEnabled, notice = null)
-                }
-            }.onFailure {
-                withContext(Dispatchers.Main) {
-                    memoryState = memoryState.copy(notice = appContext.getString(R.string.state_ui_memory_switch_failed_to_save_83b5d6))
-                }
-            }
-        }
-    }
-
-    fun setMemoryEnabled(enabled: Boolean) {
-        scope.launch(Dispatchers.IO) {
-            runCatching { AgentMemoryRepository.setEnabled(enabled) }
-                .fold(
-                    onSuccess = {
-                        withContext(Dispatchers.Main) {
-                            memoryState = memoryState.copy(enabled = enabled, notice = null)
-                        }
-                    },
-                    onFailure = { throwable ->
-                        AndroidAgentLogger.warnThrottled("agent_memory_toggle_failed") {
-                            "Agent memory setting update failed: type=${throwable.safeLogType()}"
-                        }
-                        withContext(Dispatchers.Main) {
-                            memoryState = memoryState.copy(notice = appContext.getString(R.string.state_ui_memory_switch_failed_to_save_83b5d6))
-                        }
-                    },
-                )
-        }
-    }
-
-    fun saveMemory() {
-        if (!memoryState.canSave) return
-        val target = memoryState.draft
-        memoryState = memoryState.copy(isSaving = true, notice = null)
-        scope.launch(Dispatchers.IO) {
-            runCatching { AgentMemoryRepository.replaceAll(target) }
-                .fold(
-                    onSuccess = { snapshot ->
-                        io.github.mangi.eta.agent.automation.AgentTaskScheduler.publish(
-                            appContext, "memory_updated", snapshot.revision,
-                        )
-                        withContext(Dispatchers.Main) {
-                            memoryState = memoryState.copy(
-                                isSaving = false,
-                                savedContent = snapshot.content,
-                                draft = if (memoryState.draft == target) {
-                                    snapshot.content
-                                } else {
-                                    memoryState.draft
-                                },
-                                draftBytes = memoryState.draft.toByteArray(Charsets.UTF_8).size,
-                                notice = appContext.getString(R.string.state_ui_memory_saved_a2c61c),
-                            )
-                        }
-                    },
-                    onFailure = { throwable ->
-                        AndroidAgentLogger.warnThrottled("agent_memory_ui_save_failed") {
-                            "Agent memory UI save failed: type=${throwable.safeLogType()}"
-                        }
-                        withContext(Dispatchers.Main) {
-                            memoryState = memoryState.copy(
-                                isSaving = false,
-                                notice = throwable.message ?: appContext.getString(R.string.state_ui_memory_save_failed_1f501e),
-                            )
-                        }
-                    },
-                )
-        }
-    }
-
-    fun clearMemory() {
-        if (memoryState.isSaving) return
-        memoryState = memoryState.copy(isSaving = true, notice = null)
-        scope.launch(Dispatchers.IO) {
-            runCatching { AgentMemoryRepository.replaceAll("") }
-                .fold(
-                    onSuccess = {
-                        withContext(Dispatchers.Main) {
-                            memoryState = memoryState.copy(
-                                isSaving = false,
-                                draft = "",
-                                savedContent = "",
-                                draftBytes = 0,
-                                notice = appContext.getString(R.string.state_ui_memory_cleared_b415bb),
-                            )
-                        }
-                    },
-                    onFailure = { throwable ->
-                        AndroidAgentLogger.warnThrottled("agent_memory_ui_clear_failed") {
-                            "Agent memory UI clear failed: type=${throwable.safeLogType()}"
-                        }
-                        withContext(Dispatchers.Main) {
-                            memoryState = memoryState.copy(
-                                isSaving = false,
-                                notice = throwable.message ?: appContext.getString(R.string.state_ui_memory_clearing_failed_7f0aba),
-                            )
-                        }
-                    },
-                )
-        }
-    }
-
-    fun dismissMemoryNotice() {
-        memoryState = memoryState.copy(notice = null)
     }
 
     suspend fun exportBackup(output: OutputStream): EtaBackupSummary =
@@ -469,8 +277,8 @@ internal class AgentAppState(
             fileAttachmentOwnerVersion += 1
             homeState = selectedConversationId
                 ?.let(conversationsById::get)
-                ?.withCurrentReasoningCapabilities()
-                ?: emptyChatState(defaultThinkingEnabled).withCurrentReasoningCapabilities()
+                ?: emptyChatState(defaultThinkingEnabled)
+            refreshConversationModel()
             conversationPaneState = conversationPaneState.copy(
                 selectedConversationId = selectedConversationId,
                 searchQuery = "",
@@ -832,6 +640,7 @@ internal class AgentAppState(
         if (selectedConversationId != null) persistConversations()
     }
 
+    /** 聊天内切换同时改当前会话绑定与默认模型；默认模型供新会话和系统助手入口使用。 */
     fun selectModel(modelId: String) {
         if (
             homeState.isStreaming ||
@@ -840,6 +649,9 @@ internal class AgentAppState(
         ) {
             return
         }
+        updateCurrentConversation(homeState.copy(modelId = modelId))
+        refreshConversationModel()
+        if (selectedConversationId != null) persistConversations()
         modelPickerState = modelPickerState.copy(isChanging = true)
         scope.launch(Dispatchers.IO) {
             try {
@@ -869,15 +681,17 @@ internal class AgentAppState(
         val state = conversationsById[conversationId] ?: return
         fileAttachmentOwnerVersion += 1
         selectedConversationId = conversationId
-        val normalized = currentReasoningCapabilities?.normalize(state.reasoningEffort)
-            ?: ReasoningEffort.OFF
-        val resolvedState = state.copy(
-            thinkingEnabled = normalized.enablesReasoning,
-            reasoningEffort = normalized,
-            availableReasoningEfforts = currentReasoningCapabilities?.selectableEfforts.orEmpty(),
-        )
-        conversationsById = conversationsById + (conversationId to resolvedState)
-        homeState = resolvedState
+        homeState = state
+        refreshConversationModel()
+        if (state.modelId != null && providers.enabledModel(state.modelId) == null) {
+            modelPickerState.selectedModel?.let { fallback ->
+                Toast.makeText(
+                    appContext,
+                    appContext.getString(R.string.conversation_model_unavailable, fallback.displayName),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
         conversationPaneState = conversationPaneState.copy(selectedConversationId = conversationId)
         persistConversations()
     }
@@ -886,7 +700,8 @@ internal class AgentAppState(
         if (homeState.messageEdit != null) cancelMessageEdit()
         fileAttachmentOwnerVersion += 1
         selectedConversationId = null
-        homeState = emptyChatState(defaultThinkingEnabled).withCurrentReasoningCapabilities()
+        homeState = emptyChatState(defaultThinkingEnabled)
+        refreshConversationModel()
         conversationPaneState = conversationPaneState.copy(
             selectedConversationId = null,
             searchQuery = "",
@@ -940,12 +755,12 @@ internal class AgentAppState(
             val nextId = conversationsById.keys.firstOrNull()
             if (nextId != null) {
                 selectedConversationId = nextId
-                homeState = conversationsById.getValue(nextId).withCurrentReasoningCapabilities()
-                conversationsById = conversationsById + (nextId to homeState)
+                homeState = conversationsById.getValue(nextId)
             } else {
                 selectedConversationId = null
-                homeState = emptyChatState(defaultThinkingEnabled).withCurrentReasoningCapabilities()
+                homeState = emptyChatState(defaultThinkingEnabled)
             }
+            refreshConversationModel()
         }
         conversationPaneState = conversationPaneState.copy(selectedConversationId = selectedConversationId)
         refreshConversationSummaries()
@@ -1207,7 +1022,8 @@ internal class AgentAppState(
             conversationUpdatedAt = conversationUpdatedAt - conversationId
             fileAttachmentOwnerVersion += 1
             selectedConversationId = null
-            homeState = emptyChatState(defaultThinkingEnabled).withCurrentReasoningCapabilities()
+            homeState = emptyChatState(defaultThinkingEnabled)
+            refreshConversationModel()
             conversationPaneState = conversationPaneState.copy(selectedConversationId = null)
             refreshConversationSummaries()
             persistConversations()
@@ -1287,16 +1103,15 @@ internal class AgentAppState(
         operation: String = AgentRuntimeWire.OP_CHAT,
         rewriteTargetMessageId: String? = null,
     ) {
-        if (modelPickerState.selectedModel?.contextWindow == null && modelPickerState.selectedModel != null) {
-            Toast.makeText(appContext, appContext.getString(R.string.context_no_model_limit), Toast.LENGTH_LONG).show()
-            return
-        }
         runConversationIds[runId] = conversationId
         currentRunId = runId
+        // 发送即绑定：会话记住本轮实际使用的模型，回落到默认模型时也随之更新。
+        val runModelId = state.effectiveModelId
 
         updateConversation(
             conversationId,
             state.copy(
+                modelId = runModelId,
                 isStreaming = true,
                 history = if (operation == AgentRuntimeWire.OP_REWRITE_REPLY) state.history else history + listOfNotNull(userHistoryMessage),
                 journal = state.journal.ifEmpty { state.history } + listOfNotNull(userHistoryMessage),
@@ -1360,7 +1175,7 @@ internal class AgentAppState(
             } else {
                 ReasoningEffort.OFF
             }
-            val config = RuntimeConfigRepository.currentRuntimeConfig()?.copy(
+            val config = RuntimeConfigRepository.runtimeConfigFor(runModelId)?.copy(
                 terminalTools = agentBooleanForUi(Prefs.Keys.AGENT_TERMINAL_TOOLS),
                 browserTools = agentBooleanForUi(Prefs.Keys.AGENT_BROWSER_TOOLS),
                 deviceDirectTools = agentBooleanForUi(Prefs.Keys.AGENT_DEVICE_DIRECT_TOOLS),
@@ -1649,215 +1464,6 @@ internal class AgentAppState(
         }
     }
 
-    private var permissionRefreshJob: Job? = null
-
-    fun refreshPermissionHealth() {
-        permissionRefreshJob?.cancel()
-        permissionRefreshJob = scope.launch(Dispatchers.IO) {
-            val refreshed = buildPermissionHealthState(appContext)
-            withContext(Dispatchers.Main) { permissionHealthState = refreshed }
-        }
-    }
-
-    fun refreshSkills() {
-        scope.launch(Dispatchers.IO) {
-            val entries = runCatching {
-                SkillRuntime.createIndexService(appContext)
-                    .listSkillsForManagement(forceRefresh = true)
-            }.getOrElse {
-                withContext(Dispatchers.Main) {
-                    skillsState = skillsState.copy(
-                        isLoading = false,
-                        notice = skillsState.notice ?: newSkillNotice(
-                            title = appContext.getString(R.string.state_unable_to_read_skills_599082),
-                            message = appContext.getString(R.string.state_the_skill_list_is_temporarily_unavailable_please_try_29b0be),
-                            isError = true,
-                        ),
-                    )
-                }
-                return@launch
-            }
-            val items = entries.map { entry ->
-                val capabilities = buildList {
-                    if (entry.hasScripts) add("scripts")
-                    if (entry.hasReferences) add("references")
-                    if (entry.hasAssets) add("assets")
-                    if (entry.hasEvals) add("evals")
-                }
-                SkillItemUi(
-                    id = entry.id,
-                    name = entry.name,
-                    description = entry.description,
-                    source = entry.source,
-                    enabled = entry.enabled,
-                    installed = entry.installed,
-                    capabilities = capabilities,
-                )
-            }
-            withContext(Dispatchers.Main) {
-                skillsState = skillsState.copy(skills = items, isLoading = false)
-            }
-        }
-    }
-
-    fun toggleSkill(skillId: String, enabled: Boolean) {
-        if (skillsState.isImporting || skillsState.busySkillId != null) return
-        skillsState = skillsState.copy(busySkillId = skillId)
-        scope.launch(Dispatchers.IO) {
-            val succeeded = runCatching {
-                SkillRuntime.createIndexService(appContext).setSkillEnabled(skillId, enabled)
-            }.isSuccess
-            withContext(Dispatchers.Main) {
-                skillsState = skillsState.copy(
-                    busySkillId = null,
-                    notice = if (succeeded) {
-                        skillsState.notice
-                    } else {
-                        newSkillNotice(
-                            title = appContext.getString(R.string.state_unable_to_update_skills_04e56c),
-                            message = appContext.getString(R.string.state_the_skill_switch_has_not_changed_please_try_again_la_fa262f),
-                            isError = true,
-                        )
-                    },
-                )
-            }
-            refreshSkills()
-        }
-    }
-
-    fun deleteSkill(skillId: String) {
-        if (skillsState.isImporting || skillsState.busySkillId != null) return
-        val skill = skillsState.skills.firstOrNull { it.id == skillId }
-            ?.takeIf { it.canDeleteUserSkill }
-            ?: return
-        val skillName = skill.name.safeSkillDisplayName()
-        skillsState = skillsState.copy(busySkillId = skillId, notice = null)
-        scope.launch(Dispatchers.IO) {
-            val succeeded = runCatching {
-                SkillRuntime.createIndexService(appContext).deleteSkill(skillId)
-            }.getOrDefault(false)
-            withContext(Dispatchers.Main) {
-                skillsState = skillsState.copy(
-                    busySkillId = null,
-                    notice = if (succeeded) {
-                        newSkillNotice(
-                            title = appContext.getString(R.string.state_skill_has_been_deleted_34c29b),
-                            message = appContext.getString(R.string.skill_deleted_message, skillName),
-                            isError = false,
-                        )
-                    } else {
-                        newSkillNotice(
-                            title = appContext.getString(R.string.state_unable_to_delete_skill_1583c9),
-                            message = appContext.getString(R.string.state_deletion_is_not_complete_eta_will_try_to_recover_whe_c4297e),
-                            isError = true,
-                        )
-                    },
-                )
-            }
-            refreshSkills()
-        }
-    }
-
-    fun importSkillZip(uriValue: String) {
-        if (skillsState.isImporting || skillsState.busySkillId != null) return
-        val uri = runCatching { Uri.parse(uriValue) }.getOrNull()
-            ?.takeIf { it.scheme == ContentResolver.SCHEME_CONTENT }
-        if (uri == null) {
-            skillsState = skillsState.copy(
-                notice = newSkillNotice(
-                    title = appContext.getString(R.string.state_unable_to_read_skill_pack_a53563),
-                    message = appContext.getString(R.string.state_please_select_the_zip_file_provided_by_the_system_fi_fea145),
-                    isError = true,
-                ),
-            )
-            return
-        }
-        pendingSkillZipUri = uri
-        pendingSkillZipSha256 = null
-        launchSkillZipImport(
-            uri = uri,
-            replaceUserSkill = false,
-            expectedReplacementId = null,
-            expectedArchiveSha256 = null,
-        )
-    }
-
-    fun confirmSkillZipReplacement() {
-        if (skillsState.isImporting || skillsState.busySkillId != null) return
-        val uri = pendingSkillZipUri
-        if (uri == null) {
-            pendingSkillZipSha256 = null
-            skillsState = skillsState.copy(
-                replacement = null,
-                notice = newSkillNotice(
-                    title = appContext.getString(R.string.state_unable_to_continue_installation_136d7c),
-                    message = appContext.getString(R.string.state_skill_pack_is_no_longer_available_please_select_the__7cdfb4),
-                    isError = true,
-                ),
-            )
-            return
-        }
-        val replacementId = skillsState.replacement?.id
-        val archiveSha256 = pendingSkillZipSha256
-        if (replacementId == null || archiveSha256 == null) {
-            pendingSkillZipUri = null
-            pendingSkillZipSha256 = null
-            skillsState = skillsState.copy(
-                replacement = null,
-                notice = newSkillNotice(
-                    title = appContext.getString(R.string.state_unable_to_continue_installation_136d7c),
-                    message = appContext.getString(R.string.state_replacement_confirmation_has_expired_please_select_t_fce9f2),
-                    isError = true,
-                ),
-            )
-            return
-        }
-        launchSkillZipImport(
-            uri = uri,
-            replaceUserSkill = true,
-            expectedReplacementId = replacementId,
-            expectedArchiveSha256 = archiveSha256,
-        )
-    }
-
-    fun cancelSkillZipReplacement() {
-        if (skillsState.isImporting) return
-        pendingSkillZipUri = null
-        pendingSkillZipSha256 = null
-        skillsState = skillsState.copy(replacement = null)
-    }
-
-    private fun launchSkillZipImport(
-        uri: Uri,
-        replaceUserSkill: Boolean,
-        expectedReplacementId: String?,
-        expectedArchiveSha256: String?,
-    ) {
-        skillsState = skillsState.copy(
-            isImporting = true,
-            replacement = null,
-            notice = null,
-        )
-        scope.launch(Dispatchers.IO) {
-            val outcome = runCatching {
-                skillZipImportGateway.installLocalZip(
-                    openStream = {
-                        appContext.contentResolver.openInputStream(uri)
-                            ?: error(appContext.getString(R.string.state_ui_unable_to_open_selection_9f0004))
-                    },
-                    replaceUserSkill = replaceUserSkill,
-                    expectedReplacementId = expectedReplacementId,
-                    expectedArchiveSha256 = expectedArchiveSha256,
-                )
-            }.getOrElse {
-                SkillZipImportOutcome.Failure(SkillZipImportOutcome.FailureCode.READ_FAILED)
-            }
-            withContext(Dispatchers.Main) {
-                applySkillZipImportOutcome(outcome)
-            }
-        }
-    }
-
     private fun isReplyRewrite(runId: String): Boolean =
         conversationsById[conversationIdForRun(runId)]?.roleplayMessages?.pendingRewrites?.containsKey(runId) == true
 
@@ -1910,157 +1516,6 @@ internal class AgentAppState(
         }
     }
 
-    private fun applySkillZipImportOutcome(outcome: SkillZipImportOutcome) {
-        when (outcome) {
-            is SkillZipImportOutcome.Success -> {
-                val installed = outcome.skills.singleOrNull()
-                pendingSkillZipUri = null
-                pendingSkillZipSha256 = null
-                skillsState = skillsState.copy(
-                    isImporting = false,
-                    replacement = null,
-                    notice = if (installed == null) {
-                        skillZipFailureNotice(SkillZipImportOutcome.FailureCode.MULTIPLE_SKILLS)
-                    } else {
-                        newSkillNotice(
-                            title = appContext.getString(R.string.state_skill_installed_b07e54),
-                            message = appContext.getString(
-                                R.string.skill_enabled_message,
-                                installed.name.safeSkillDisplayName(),
-                            ),
-                            isError = false,
-                        )
-                    },
-                )
-                if (installed != null) refreshSkills()
-            }
-
-            is SkillZipImportOutcome.Conflict -> {
-                val conflict = outcome.skills.singleOrNull()
-                val archiveSha256 = outcome.archiveSha256
-                if (
-                    conflict != null &&
-                    conflict.source == "user" &&
-                    conflict.replaceAllowed &&
-                    archiveSha256 != null
-                ) {
-                    val existingName = skillsState.skills
-                        .firstOrNull { it.id == conflict.id && it.installed }
-                        ?.name
-                        .orEmpty()
-                        .ifBlank { conflict.name }
-                    pendingSkillZipSha256 = archiveSha256
-                    skillsState = skillsState.copy(
-                        isImporting = false,
-                        replacement = SkillReplacementUi(
-                            id = conflict.id,
-                            name = existingName.safeSkillDisplayName(),
-                        ),
-                        notice = null,
-                    )
-                } else {
-                    pendingSkillZipUri = null
-                    pendingSkillZipSha256 = null
-                    skillsState = skillsState.copy(
-                        isImporting = false,
-                        replacement = null,
-                        notice = skillZipFailureNotice(
-                            if (conflict?.source == "builtin") {
-                                SkillZipImportOutcome.FailureCode.BUILTIN_CONFLICT
-                            } else if (conflict != null && conflict.replaceAllowed) {
-                                SkillZipImportOutcome.FailureCode.PACKAGE_CHANGED
-                            } else if (conflict != null && !conflict.replaceAllowed) {
-                                SkillZipImportOutcome.FailureCode.TARGET_NOT_REPLACEABLE
-                            } else {
-                                SkillZipImportOutcome.FailureCode.MULTIPLE_SKILLS
-                            },
-                        ),
-                    )
-                }
-            }
-
-            is SkillZipImportOutcome.Failure -> {
-                pendingSkillZipUri = null
-                pendingSkillZipSha256 = null
-                skillsState = skillsState.copy(
-                    isImporting = false,
-                    replacement = null,
-                    notice = skillZipFailureNotice(outcome.code),
-                )
-                if (outcome.code == SkillZipImportOutcome.FailureCode.RECOVERY_REQUIRED) {
-                    refreshSkills()
-                }
-            }
-        }
-    }
-
-    private fun skillZipFailureNotice(code: SkillZipImportOutcome.FailureCode): SkillNoticeUi {
-        val message = when (code) {
-            SkillZipImportOutcome.FailureCode.INVALID_ARCHIVE -> appContext.getString(R.string.state_ui_the_selected_file_is_not_a_valid_zip_package_bff052)
-            SkillZipImportOutcome.FailureCode.ARCHIVE_LIMIT_EXCEEDED -> appContext.getString(R.string.state_ui_the_skill_pack_exceeds_the_safe_size_or_file_num_42e151)
-            SkillZipImportOutcome.FailureCode.UNSAFE_ARCHIVE -> appContext.getString(R.string.state_ui_the_skill_pack_contains_an_unsafe_file_path_and__d8cfc0)
-            SkillZipImportOutcome.FailureCode.NO_SKILL -> appContext.getString(R.string.state_ui_skill_md_not_found_in_zip_a57975)
-            SkillZipImportOutcome.FailureCode.MULTIPLE_SKILLS -> appContext.getString(R.string.state_ui_the_local_zip_must_contain_only_one_skill_b89daf)
-            SkillZipImportOutcome.FailureCode.INVALID_SKILL -> appContext.getString(R.string.state_ui_skill_md_is_missing_required_information_or_is_i_debe6e)
-            SkillZipImportOutcome.FailureCode.PACKAGE_CHANGED -> appContext.getString(R.string.state_ui_the_zip_content_has_changed_please_reselect_and__ab8b12)
-            SkillZipImportOutcome.FailureCode.BUILTIN_CONFLICT -> appContext.getString(R.string.state_ui_built_in_skills_with_the_same_name_are_protected_446ad3)
-            SkillZipImportOutcome.FailureCode.TARGET_NOT_REPLACEABLE ->
-                appContext.getString(R.string.state_ui_the_target_with_the_same_name_is_not_a_user_skil_00474b)
-            SkillZipImportOutcome.FailureCode.READ_FAILED -> appContext.getString(R.string.state_ui_the_selected_file_cannot_be_read_please_select_a_7265b9)
-            SkillZipImportOutcome.FailureCode.STORAGE_FAILED -> appContext.getString(R.string.state_ui_unable_to_save_skills_original_skills_have_been__9d4748)
-            SkillZipImportOutcome.FailureCode.RECOVERY_REQUIRED ->
-                appContext.getString(R.string.state_ui_the_installation_failed_and_automatic_recovery_d_0d9e01)
-        }
-        return newSkillNotice(
-            title = appContext.getString(R.string.state_unable_to_install_skill_0ec70b),
-            message = message,
-            isError = true,
-        )
-    }
-
-    fun reinstallBuiltin(skillId: String) {
-        if (skillsState.isImporting || skillsState.busySkillId != null) return
-        skillsState = skillsState.copy(busySkillId = skillId)
-        scope.launch(Dispatchers.IO) {
-            val succeeded = runCatching {
-                SkillRuntime.createIndexService(appContext).installBuiltinSkill(skillId)
-            }.isSuccess
-            withContext(Dispatchers.Main) {
-                skillsState = skillsState.copy(
-                    busySkillId = null,
-                    notice = if (succeeded) {
-                        skillsState.notice
-                    } else {
-                        newSkillNotice(
-                            title = appContext.getString(R.string.state_unable_to_restore_skills_6b3d23),
-                            message = appContext.getString(R.string.state_the_built_in_skills_have_not_changed_please_try_agai_34e5e3),
-                            isError = true,
-                        )
-                    },
-                )
-            }
-            if (succeeded) refreshSkills()
-        }
-    }
-
-    fun dismissSkillNotice() {
-        skillsState = skillsState.copy(notice = null)
-    }
-
-    private fun newSkillNotice(
-        title: String,
-        message: String,
-        isError: Boolean,
-    ): SkillNoticeUi = SkillNoticeUi(
-        id = ++skillNoticeSequence,
-        title = title,
-        message = message,
-        isError = isError,
-    )
-
-    private fun String.safeSkillDisplayName(): String =
-        lineSequence().firstOrNull().orEmpty().trim().ifBlank { appContext.getString(R.string.state_ui_unnamed_skill_a58008) }.take(80)
-
     private fun applyRunEvent(
         runId: String,
         event: AgentEvent,
@@ -2073,162 +1528,31 @@ internal class AgentAppState(
             return
         }
         when (event) {
-            is AgentEvent.AssistantBlockStart -> {
-                updateRunTrace(runId) { messages ->
-                    runMessageProjector.startAssistantBlock(runId, event, messages)
-                }
-            }
-
-            is AgentEvent.AssistantBlockDelta -> {
-                updateMessages(runId, updateTimestamp = false) { messages ->
-                    when (event.kind) {
-                        AgentEvent.AssistantBlockKind.TEXT ->
-                            runMessageProjector.appendTextDelta(
-                                runId,
-                                event.round,
-                                event.index,
-                                event.delta,
-                                messages,
-                            )
-
-                        AgentEvent.AssistantBlockKind.THINKING ->
-                            runMessageProjector.appendReasoningDelta(
-                                runId,
-                                event.round,
-                                event.index,
-                                event.delta,
-                                messages,
-                            )
-
-                        AgentEvent.AssistantBlockKind.TOOL_CALL -> messages
-                    }
-                }
-            }
-
-            is AgentEvent.AssistantBlockEnd -> {
-                updateRunTrace(runId) { messages ->
-                    when (event.kind) {
-                        AgentEvent.AssistantBlockKind.TEXT ->
-                            runMessageProjector.finalizeTextBlock(
-                                runId,
-                                event.round,
-                                event.index,
-                                event.replacementContent,
-                                messages,
-                            )
-
-                        AgentEvent.AssistantBlockKind.THINKING ->
-                            runMessageProjector.finalizeThinkingBlock(
-                                runId,
-                                event.round,
-                                event.index,
-                                event.replacementContent,
-                                messages,
-                            )
-
-                        AgentEvent.AssistantBlockKind.TOOL_CALL -> messages
-                    }
-                }
-            }
-
-            is AgentEvent.UsageReceived -> {
-                updateAssistantUsage(runId, event.round, event.usage.toUi())
-            }
-
-            is AgentEvent.UserSupplementReceived -> {
+            is AgentEvent.UserSupplementReceived ->
                 insertSupplementMessage(runId, event.index, event.text, persist = persistSupplement)
+            is AgentEvent.RunStarted -> if (runId in stopRequestedRunIds) scope.launch(Dispatchers.IO) {
+                AgentRuntimeClient(appContext, AndroidAgentLogger).cancelRun(runId)
             }
-
-            is AgentEvent.ToolStarted -> {
-                updateRunTrace(runId) { messages ->
-                    val finalizedThinking =
-                        runMessageProjector.finalizeThinkingRound(runId, event.round, messages)
-                    val finalizedText = runMessageProjector.finalizeTextRound(runId, event.round, finalizedThinking)
-                    runMessageProjector.startTool(runId, event, finalizedText)
-                }
+            // 流式增量只刷新消息，不推进会话时间戳，也不重算侧栏摘要；其余可见变化两者都更新。
+            is AgentEvent.AssistantBlockDelta -> updateMessages(runId, updateTimestamp = false) { messages ->
+                runMessageProjector.applyEvent(runId, event, messages)
             }
-
-            is AgentEvent.ToolFinished -> {
-                updateRunTrace(runId) { messages ->
-                    runMessageProjector.finishTool(runId, event, messages)
-                }
+            is AgentEvent.UsageReceived -> {
+                val usage = event.usage.toUi()
+                if (!usage.isEmpty) conversationIdForRun(runId)?.let { id -> conversationsById[id]?.let {
+                    updateConversation(id, it.copy(lastModelUsage = usage))
+                } }
+                updateRunTrace(runId) { messages -> runMessageProjector.applyEvent(runId, event, messages) }
             }
-
-            is AgentEvent.HostedToolStarted -> {
-                updateRunTrace(runId) { messages ->
-                    val finalizedThinking =
-                        runMessageProjector.finalizeThinkingRound(runId, event.round, messages)
-                    val finalizedText = runMessageProjector.finalizeTextRound(runId, event.round, finalizedThinking)
-                    runMessageProjector.startHostedTool(runId, event, finalizedText)
-                }
-            }
-
-            is AgentEvent.HostedToolFinished -> {
-                updateRunTrace(runId) { messages ->
-                    runMessageProjector.finishHostedTool(runId, event, messages)
-                }
-            }
-
             is AgentEvent.ContextCompaction -> {
                 if (event.phase == AgentEvent.ContextCompaction.PHASE_COMPLETED) conversationIdForRun(runId)?.let { id ->
                     conversationsById[id]?.let { current -> updateConversation(id, current.copy(
                         lastModelUsage = current.lastModelUsage?.copy(contextTokens = null),
                     )) }
                 }
-                updateMessages(runId) { messages ->
-                    val id = "assistant-$runId-compaction-${event.operationId}"
-                    messages.filterNot { it.id == id } + SystemNoticeMessageUi(
-                        id = id, code = SystemNoticeCode.ContextCompaction, detail = event.displayMessage,
-                        contextTokens = event.tokensAfter,
-                        running = event.phase == AgentEvent.ContextCompaction.PHASE_STARTED,
-                    )
-                }
+                updateRunTrace(runId) { messages -> runMessageProjector.applyEvent(runId, event, messages) }
             }
-
-            is AgentEvent.ModelRetryScheduled -> {
-                updateRunTrace(runId) { messages ->
-                    runMessageProjector.scheduleModelRetry(runId, event, messages)
-                }
-            }
-
-            is AgentEvent.RunFailed -> {
-                updateRunTrace(runId) { messages ->
-                    val finalizedThinking = runMessageProjector.finalizeThinking(runId, messages)
-                    val finalizedText = runMessageProjector.finalizeText(runId, finalizedThinking)
-                    runMessageProjector.failRunningTools(event.reason, finalizedText)
-                }
-            }
-
-            is AgentEvent.AssistantReceived -> {
-                if (event.reasoningContent.isNotBlank()) {
-                    updateRunTrace(runId) { messages ->
-                        runMessageProjector.ensureCompletedThinking(
-                            runId = runId,
-                            round = event.round,
-                            content = event.reasoningContent,
-                            messages = messages,
-                        )
-                    }
-                }
-            }
-
-            is AgentEvent.RunFinished -> {
-                updateRunTrace(runId) { messages ->
-                    val finalizedThinking = runMessageProjector.finalizeThinking(runId, messages)
-                    runMessageProjector.finalizeText(runId, finalizedThinking)
-                }
-            }
-
-            is AgentEvent.RunStarted -> {
-                if (runId in stopRequestedRunIds) scope.launch(Dispatchers.IO) {
-                    AgentRuntimeClient(appContext, AndroidAgentLogger).cancelRun(runId)
-                }
-            }
-            is AgentEvent.ProviderRequestStarted,
-            is AgentEvent.ProviderResponseStarted,
-            is AgentEvent.ToolImagesAttached,
-            is AgentEvent.RoundStarted,
-            -> Unit
+            else -> updateRunTrace(runId) { messages -> runMessageProjector.applyEvent(runId, event, messages) }
         }
     }
 
@@ -2276,18 +1600,21 @@ internal class AgentAppState(
                         detail = if (result.ok) "上下文压缩完成" else result.error ?: "上下文压缩失败",
                     )
                 }
-            result.ok && result.content.isNotBlank() -> completeLatestAssistantMessage(
-                runId,
-                fallbackContent = result.content,
-            )
-            result.ok -> replaceLatestAssistantWithNotice(runId, SystemNoticeCode.EmptyResult)
-            result.error == LEGACY_STOPPED_ERROR || result.error == SYNTHETIC_STATUS_STOPPED ->
-                replaceLatestAssistantWithNotice(runId, SystemNoticeCode.Stopped)
-            else -> replaceLatestAssistantWithNotice(
-                runId,
-                SystemNoticeCode.RuntimeFailed,
-                result.error,
-            )
+            else -> {
+                val notice = when {
+                    result.ok && result.content.isNotBlank() -> null
+                    result.ok -> SystemNoticeCode.EmptyResult
+                    result.error == LEGACY_STOPPED_ERROR || result.error == SYNTHETIC_STATUS_STOPPED ->
+                        SystemNoticeCode.Stopped
+                    else -> SystemNoticeCode.RuntimeFailed
+                }
+                updateMessages(runId) { messages ->
+                    AgentRunMessageProjector.applyResult(
+                        runId, messages, result.content, notice,
+                        detail = result.error.takeIf { notice == SystemNoticeCode.RuntimeFailed },
+                    )
+                }
+            }
         }
         setConversationStreaming(runId, false)
         conversationIdForRun(runId)?.let { id -> conversationsById[id]?.let {
@@ -2311,29 +1638,7 @@ internal class AgentAppState(
         runId: String,
         transform: (List<AgentChatMessageUi>) -> List<AgentChatMessageUi>,
     ) {
-        updateMessages(runId, transform = transform)
-        refreshConversationSummaries()
-    }
-
-    private fun updateAssistantUsage(runId: String, round: Int, usage: TokenUsageUi) {
-        if (usage.isEmpty) return
-        conversationIdForRun(runId)?.let { id -> conversationsById[id]?.let {
-            updateConversation(id, it.copy(lastModelUsage = usage))
-        } }
-        // 只补充 token 用量。不能触碰 isStreaming：Usage 事件紧跟在文本块结束之后，
-        // 若把 isStreaming 改回 true，流式渲染会在流式/静态两种视图间反复切换，整段重渲染。
-        updateMessages(runId) { messages ->
-            val targetIndex = messages.indexOfLast { message ->
-                message is AgentMessageUi && isAssistantMessageForRound(message.id, runId, round)
-            }
-            messages.mapIndexed { index, message ->
-                if (index == targetIndex && message is AgentMessageUi) {
-                    message.copy(usage = usage)
-                } else {
-                    message
-                }
-            }
-        }
+        if (updateMessages(runId, transform = transform)) refreshConversationSummaries()
     }
 
     private fun insertSupplementMessage(
@@ -2359,96 +1664,22 @@ internal class AgentAppState(
         if (persist) persistConversations()
     }
 
-    private fun completeLatestAssistantMessage(
-        runId: String,
-        fallbackContent: String,
-    ) {
-        updateMessages(runId) { messages ->
-            val targetIndex = AgentRunMessageProjector.resultTargetIndex(runId, messages)
-            if (targetIndex < 0) {
-                messages + AgentMessageUi(
-                    id = AgentRunMessageProjector.resultFallbackId(runId, messages),
-                    content = fallbackContent,
-                    isStreaming = false,
-                    renderMarkdown = true,
-                )
-            } else {
-                val targetRound = (messages[targetIndex] as AgentMessageUi).id
-                    .assistantRound(runId)
-                val sameRoundBlocks = targetRound?.let { round ->
-                    messages.count { message ->
-                        message is AgentMessageUi && message.id.assistantRound(runId) == round
-                    }
-                } ?: 0
-                messages.mapIndexed { index, message ->
-                    if (index == targetIndex && message is AgentMessageUi) {
-                        message.copy(
-                            content = if (sameRoundBlocks <= 1) {
-                                fallbackContent
-                            } else {
-                                message.content.ifBlank { fallbackContent }
-                            },
-                            isStreaming = false,
-                            renderMarkdown = true,
-                        )
-                    } else {
-                        message
-                    }
-                }
-            }
-        }
-    }
-
-    private fun replaceLatestAssistantWithNotice(
-        runId: String,
-        code: SystemNoticeCode,
-        detail: String? = null,
-    ) {
-        updateMessages(runId) { messages ->
-            val targetIndex = AgentRunMessageProjector.resultTargetIndex(runId, messages)
-            if (targetIndex < 0) {
-                messages + SystemNoticeMessageUi(AgentRunMessageProjector.resultFallbackId(runId, messages), code, detail)
-            } else {
-                messages.mapIndexed { index, message ->
-                    if (index == targetIndex && message is AgentMessageUi) {
-                        SystemNoticeMessageUi(message.id, code, detail)
-                    } else {
-                        message
-                    }
-                }
-            }
-        }
-    }
-
-    private fun assistantMessagePrefix(runId: String): String =
-        "assistant-$runId-"
-
-    private fun assistantFallbackMessageId(runId: String): String =
-        "${assistantMessagePrefix(runId)}1"
-
-    private fun isAssistantMessageForRound(messageId: String, runId: String, round: Int): Boolean {
-        val legacyId = "${assistantMessagePrefix(runId)}$round"
-        return messageId == legacyId || messageId.startsWith("$legacyId-")
-    }
-
-    private fun String.assistantRound(runId: String): Int? =
-        removePrefix(assistantMessagePrefix(runId))
-            .takeIf { it != this }
-            ?.substringBefore('-')
-            ?.toIntOrNull()
-
     private fun updateMessages(
         runId: String,
         updateTimestamp: Boolean = true,
         transform: (List<AgentChatMessageUi>) -> List<AgentChatMessageUi>,
-    ) {
-        val conversationId = conversationIdForRun(runId) ?: return
-        val state = conversationsById[conversationId] ?: return
+    ): Boolean {
+        val conversationId = conversationIdForRun(runId) ?: return false
+        val state = conversationsById[conversationId] ?: return false
+        val messages = transform(state.messages)
+        // 投影对无可见变化的事件返回原列表；此时不推进会话时间戳，避免请求开始、轮次开始等事件改变排序。
+        if (messages === state.messages) return false
         updateConversation(
             conversationId = conversationId,
-            state = state.copy(messages = transform(state.messages)),
+            state = state.copy(messages = messages),
             updateTimestamp = updateTimestamp,
         )
+        return true
     }
 
     private fun applyConversationHistoryResult(
@@ -2470,6 +1701,21 @@ internal class AgentAppState(
         } else {
             updateConversation(conversationId, state)
         }
+    }
+
+    private fun moveCurrentDraftToNewConversation() {
+        val draft = homeState
+        selectedConversationId = null
+        homeState = emptyChatState(defaultThinkingEnabled).copy(
+            input = draft.input,
+            thinkingEnabled = draft.reasoningEffort.enablesReasoning,
+            reasoningEffort = draft.reasoningEffort,
+            availableReasoningEfforts = currentReasoningCapabilities?.selectableEfforts.orEmpty(),
+            pendingImages = draft.pendingImages,
+            pendingFileReferences = draft.pendingFileReferences,
+            modelId = draft.modelId,
+        )
+        conversationPaneState = conversationPaneState.copy(selectedConversationId = null)
     }
 
     private fun updateConversation(
@@ -2644,301 +1890,6 @@ private data class ContentMatchCacheEntry(
 private fun archiveConversationId(source: String, conversationKey: String): String =
     AgentExternalArchivePayload.conversationId(source, conversationKey)
 
-internal fun buildToolsState(context: Context): AgentToolsUiState =
-    AgentToolsUiState(
-        groups = listOf(
-            ToolGroupUi(
-                id = "screen",
-                title = context.getString(R.string.state_screens_and_controls_3f095b),
-                tools = listOf(
-                    ToolItemUi("observe_screen", context.getString(R.string.tool_ui_watch_the_screen_e70f2a), context.getString(R.string.tool_ui_read_the_current_node_and_attach_the_original_im_df1fec)),
-                    ToolItemUi("tap_element", context.getString(R.string.tool_ui_click_element_7a3d91), context.getString(R.string.tool_ui_click_on_the_most_recently_observed_node_b4cf5a)),
-                    ToolItemUi("tap_area", context.getString(R.string.tool_ui_click_area_cbaa08), context.getString(R.string.tool_ui_click_by_coordinate_area_2ad961)),
-                    ToolItemUi("long_press", context.getString(R.string.tool_ui_long_press_f7a417), context.getString(R.string.tool_ui_long_press_on_coordinates_or_elements_796384)),
-                    ToolItemUi("swipe", context.getString(R.string.tool_ui_slide_3723aa), context.getString(R.string.tool_ui_perform_up_down_left_and_right_swipe_gestures_3ef0de)),
-                    ToolItemUi("scroll", context.getString(R.string.tool_ui_scroll_220e68), context.getString(R.string.tool_ui_scroll_the_page_or_specify_a_node_83ab24)),
-                ),
-            ),
-            ToolGroupUi(
-                id = "text",
-                title = context.getString(R.string.state_text_and_clipboard_3a7340),
-                tools = listOf(
-                    ToolItemUi("input_text", context.getString(R.string.tool_ui_enter_text_ae47ab), context.getString(R.string.tool_ui_append_or_paste_text_to_the_current_focus_1efdcc)),
-                    ToolItemUi("replace_text", context.getString(R.string.tool_ui_replacement_text_1a5c8d), context.getString(R.string.tool_ui_replace_text_in_focus_or_node_30d332)),
-                    ToolItemUi("clear_text", context.getString(R.string.tool_ui_clear_text_d4cb57), context.getString(R.string.tool_ui_clear_focus_or_node_text_3e754a)),
-                    ToolItemUi("paste_text", context.getString(R.string.tool_ui_paste_text_791b85), context.getString(R.string.tool_ui_reliably_enter_long_text_with_the_clipboard_b6041e)),
-                    ToolItemUi("wait_for_text", context.getString(R.string.tool_ui_wait_for_text_9e9a54), context.getString(R.string.tool_ui_wait_for_the_specified_text_to_appear_on_the_scr_43f9b0)),
-                ),
-            ),
-            ToolGroupUi(
-                id = "web",
-                title = context.getString(R.string.state_web_browsing_e56105),
-                tools = listOf(
-                    ToolItemUi("web_search", context.getString(R.string.tool_web_search), context.getString(R.string.tool_web_search_description)),
-                    ToolItemUi("fetch_url", context.getString(R.string.tool_fetch_url), context.getString(R.string.tool_fetch_url_description)),
-                    ToolItemUi("browser_use", context.getString(R.string.tool_ui_agent_browser_a66bd5), context.getString(R.string.tool_ui_open_web_pages_off_screen_and_keep_a_takeover_br_72972e)),
-                    ToolItemUi("browser_read", context.getString(R.string.tool_ui_read_web_pages_4f0bb9), context.getString(R.string.tool_ui_extract_rendered_text_lists_and_links_8bdcdd)),
-                    ToolItemUi("browser_interact", context.getString(R.string.tool_ui_web_page_interaction_331b3f), context.getString(R.string.tool_ui_find_click_and_enter_page_elements_8f102d)),
-                    ToolItemUi("browser_screenshot", context.getString(R.string.tool_ui_page_screenshot_c823a2), context.getString(R.string.tool_ui_give_the_current_web_page_viewport_to_the_visual_f62274)),
-                ),
-            ),
-            ToolGroupUi(
-                id = "app",
-                title = context.getString(R.string.state_applications_and_systems_9624e6),
-                tools = listOf(
-                    ToolItemUi("search_apps", context.getString(R.string.tool_ui_search_apps_897fdf), context.getString(R.string.tool_ui_query_installed_applications_by_name_or_package__32b004)),
-                    ToolItemUi("get_current_context", context.getString(R.string.tool_ui_time_and_location_693893), context.getString(R.string.tool_ui_read_system_time_and_recent_location_b9f4ae)),
-                    ToolItemUi("launch_app", context.getString(R.string.tool_ui_open_app_7c65e7), context.getString(R.string.tool_ui_start_the_specified_package_name_or_application__beabff)),
-                    ToolItemUi("open_uri", context.getString(R.string.tool_ui_open_with_app_32c24e), context.getString(R.string.tool_ui_explicitly_hand_over_links_or_deep_links_to_exte_35ff26)),
-                    ToolItemUi("press_key", context.getString(R.string.tool_ui_button_02eafa), context.getString(R.string.tool_ui_system_buttons_such_as_return_homepage_recent_ta_1b4cf0)),
-                    ToolItemUi("open_system_panel", context.getString(R.string.tool_ui_system_panel_b0f7a3), context.getString(R.string.tool_ui_open_the_notification_bar_quick_settings_and_oth_5e51cf)),
-                ),
-            ),
-            ToolGroupUi(
-                id = "device_direct",
-                title = context.getString(R.string.state_direct_access_to_equipment_eda92c),
-                tools = io.github.mangi.eta.agent.model.AgentPhoneToolCatalog.entries.filterNot { it.personal }.map {
-                    ToolItemUi(it.name, it.title, it.description)
-                } + listOf(
-                    ToolItemUi("list_alarms", context.getString(R.string.tool_ui_alarm_clock_schedule_acae32), context.getString(R.string.tool_ui_read_the_alarm_clock_that_has_been_created_in_th_2320d6)),
-                    ToolItemUi("list_active_timers", context.getString(R.string.tool_ui_activity_timer_36f107), context.getString(R.string.tool_ui_read_running_or_paused_timers_3437c8)),
-                    ToolItemUi("get_setting", context.getString(R.string.tool_ui_read_system_settings_d455ce), context.getString(R.string.tool_ui_read_the_specified_settings_key_496975)),
-                    ToolItemUi("set_setting", context.getString(R.string.tool_ui_modify_system_settings_ae1f4c), context.getString(R.string.tool_ui_modify_android_settings_keys_91a37e)),
-                    ToolItemUi("set_device_state", context.getString(R.string.tool_ui_network_switch_834347), context.getString(R.string.tool_ui_directly_control_wi_fi_or_bluetooth_4fa0b9)),
-                    ToolItemUi("app_state_control", context.getString(R.string.tool_ui_application_status_930ff0), context.getString(R.string.tool_ui_stop_freeze_or_unfreeze_apps_a27438)),
-                    ToolItemUi("get_logcat", context.getString(R.string.tool_ui_system_log_096733), context.getString(R.string.tool_ui_bounded_reading_and_filtering_of_recent_logs_0a268a)),
-                    ToolItemUi("set_alarm", context.getString(R.string.tool_ui_set_alarm_25ca3c), context.getString(R.string.tool_ui_create_a_system_alarm_directly_and_open_the_cloc_9aa214)),
-                    ToolItemUi("set_timer", context.getString(R.string.tool_ui_set_timer_aee60c), context.getString(R.string.tool_ui_directly_create_system_timers_up_to_24_hours_87c476)),
-                    ToolItemUi("inspect_app", context.getString(R.string.tool_inspect_app), context.getString(R.string.tool_inspect_app_description)),
-                    ToolItemUi("device_status", context.getString(R.string.tool_ui_device_status_567a4c), context.getString(R.string.tool_ui_read_power_memory_storage_and_system_version_c501d5)),
-                    ToolItemUi("network_info", context.getString(R.string.tool_ui_network_status_6bd556), context.getString(R.string.tool_ui_read_networking_method_and_current_wi_fi_status_68016a)),
-                    ToolItemUi("media_control", context.getString(R.string.tool_ui_media_control_585edc), context.getString(R.string.tool_ui_play_pause_and_switch_songs_without_operating_th_311cb8)),
-                    ToolItemUi("set_volume", context.getString(R.string.tool_ui_set_volume_85a691), context.getString(R.string.tool_ui_set_by_media_alarm_clock_ringtone_and_other_chan_3fcc3e)),
-                    ToolItemUi("top_memory_apps", context.getString(R.string.tool_ui_memory_ranking_408ca1), context.getString(R.string.tool_ui_view_the_currently_most_occupied_processes_8646c4)),
-                    ToolItemUi("top_storage_apps", context.getString(R.string.tool_ui_storage_ranking_86a16c), context.getString(R.string.tool_ui_check_application_data_and_cache_usage_837e9f)),
-                ),
-            ),
-            ToolGroupUi(
-                id = "personal_data",
-                title = context.getString(R.string.state_direct_access_to_personal_data_387d7b),
-                tools = io.github.mangi.eta.agent.context.PersonalSearchTools.searches.map {
-                    ToolItemUi(it.name, it.title, it.description)
-                } + io.github.mangi.eta.agent.model.AgentPhoneToolCatalog.entries.filter { it.personal }.map {
-                    ToolItemUi(it.name, it.title, it.description)
-                } + listOf(
-                    ToolItemUi("read_personal_item", "读取检索详情", "读取历史检索结果的完整条目。"),
-                    ToolItemUi("summarize_bills", "账单汇总", "按时间与关键词精确汇总账单索引。"),
-                    ToolItemUi("read_sms_code", context.getString(R.string.tool_ui_read_verification_code_7d1121), context.getString(R.string.tool_ui_only_extract_verification_codes_from_recent_sms__0fb8c1)),
-                    ToolItemUi("recent_notifications", context.getString(R.string.tool_ui_read_notification_7fdc09), context.getString(R.string.tool_ui_read_the_current_notification_title_and_text_0faee7)),
-                    ToolItemUi("search_notification_history", context.getString(R.string.tool_ui_notification_history_95d015), context.getString(R.string.tool_ui_retrieve_the_last_7_days_of_notifications_saved__643e43)),
-                    ToolItemUi("recent_app_activity", context.getString(R.string.tool_ui_recently_applied_08f74c), context.getString(R.string.tool_ui_view_recently_opened_apps_and_times_bf9d50)),
-                    ToolItemUi("app_usage_summary", context.getString(R.string.tool_ui_app_usage_statistics_ee20d3), context.getString(R.string.tool_ui_summarize_recent_app_usage_by_foreground_duratio_b346c8)),
-                    ToolItemUi("get_current_location", context.getString(R.string.tool_ui_current_location_b458ea), context.getString(R.string.tool_ui_read_the_closest_location_the_system_already_has_255a6c)),
-                    ToolItemUi("get_device_environment", context.getString(R.string.tool_ui_equipment_environment_1026ec), context.getString(R.string.tool_ui_read_lock_screen_do_not_disturb_audio_output_and_9260b8)),
-                    ToolItemUi("search_clipboard_history", context.getString(R.string.tool_ui_clipboard_history_b377bb), context.getString(R.string.tool_ui_retrieve_clipboard_contents_saved_by_system_inpu_1dc9db)),
-                    ToolItemUi("get_health_summary", context.getString(R.string.tool_ui_health_summary_951c0b), context.getString(R.string.tool_ui_summarize_steps_sleep_exercise_and_body_metrics_6ff66f)),
-                    ToolItemUi("wifi_credentials", context.getString(R.string.tool_ui_wi_fi_password_80e9a4), context.getString(R.string.tool_ui_read_the_network_credentials_saved_by_the_phone_96d43a)),
-                    ToolItemUi("search_media", context.getString(R.string.tool_ui_album_pictures_23bcc2), context.getString(R.string.tool_ui_retrieve_pictures_by_file_name_or_album_path_c08236)),
-                    ToolItemUi("search_audio", context.getString(R.string.tool_ui_audio_file_1ccf2e), context.getString(R.string.tool_ui_search_audio_by_title_filename_or_author_82e20d)),
-                    ToolItemUi("search_recordings", context.getString(R.string.tool_ui_system_recording_15eb19), context.getString(R.string.tool_ui_retrieve_recording_files_from_system_media_libra_314c4d)),
-                    ToolItemUi("search_files", context.getString(R.string.tool_ui_share_files_a3b376), context.getString(R.string.tool_ui_retrieve_documents_and_files_from_shared_storage_7d6193)),
-                    ToolItemUi("search_calendar_events", context.getString(R.string.tool_ui_calendar_events_970349), context.getString(R.string.tool_ui_search_events_by_title_location_or_description_1afd77)),
-                    ToolItemUi("search_contacts", context.getString(R.string.tool_ui_address_book_9070cb), context.getString(R.string.tool_ui_retrieve_contact_name_and_open_address_6dacc5)),
-                    ToolItemUi("search_call_history", context.getString(R.string.tool_ui_call_history_88e57b), context.getString(R.string.tool_ui_retrieve_calls_by_number_or_contact_name_2ce431)),
-                    ToolItemUi("search_messages", context.getString(R.string.tool_ui_short_message_17e1a4), context.getString(R.string.tool_ui_search_text_messages_by_sender_or_text_keywords_e14363)),
-                    ToolItemUi("search_downloads", context.getString(R.string.tool_ui_download_history_8494d7), context.getString(R.string.tool_ui_retrieve_system_download_tasks_and_files_3301b9)),
-                    ToolItemUi("search_notes", context.getString(R.string.tool_ui_coloros_notes_6c324c), context.getString(R.string.tool_ui_retrieve_notes_to_dos_and_text_content_e806d7)),
-                    ToolItemUi("search_coloros_recordings", context.getString(R.string.tool_ui_coloros_recording_a4e425), context.getString(R.string.tool_ui_retrieve_normal_recordings_and_call_recordings_55c192)),
-                    ToolItemUi("search_recording_summaries", context.getString(R.string.tool_ui_recording_summary_2fe550), context.getString(R.string.tool_ui_retrieve_transcribed_summaries_and_notes_associa_9cb00f)),
-                    ToolItemUi("search_system_memories", context.getString(R.string.tool_ui_coloros_system_memory_eff961), context.getString(R.string.tool_ui_retrieve_collected_information_and_its_structure_9c1c71)),
-                    ToolItemUi("search_saved_places", context.getString(R.string.tool_ui_save_location_c29782), context.getString(R.string.tool_ui_retrieve_location_information_from_system_memory_52ea48)),
-                    ToolItemUi("search_personal_orders", context.getString(R.string.tool_ui_personal_order_25e4c9), context.getString(R.string.tool_ui_retrieve_takeout_shopping_express_delivery_ticke_f8d002)),
-                    ToolItemUi("search_qq_chat_images", context.getString(R.string.tool_ui_qq_chat_pictures_e21bf9), context.getString(R.string.tool_ui_retrieve_recent_pictures_in_qq_chat_picture_cach_b8f009)),
-                    ToolItemUi("search_wechat_chat_images", context.getString(R.string.tool_ui_wechat_chat_pictures_72b268), context.getString(R.string.tool_ui_retrieve_recent_pictures_in_wechat_chat_picture__ab66f7)),
-                ),
-            ),
-            ToolGroupUi(
-                id = "file_vision",
-                title = context.getString(R.string.state_document_vision_6a65a7),
-                tools = listOf(
-                    ToolItemUi("read_image", context.getString(R.string.tool_ui_read_pictures_ae993b), context.getString(R.string.tool_ui_read_pictures_of_known_paths_and_hand_them_over__7f9569)),
-                ),
-            ),
-            ToolGroupUi(
-                id = "memory",
-                title = context.getString(R.string.state_memory_b55ff5),
-                tools = listOf(
-                    ToolItemUi("memory_get", context.getString(R.string.tool_ui_read_memory_979135), context.getString(R.string.tool_ui_paged_to_read_or_retrieve_long_term_memory_in_me_88afc4)),
-                    ToolItemUi("memory_write", context.getString(R.string.tool_ui_organize_memory_2b08eb), context.getString(R.string.tool_ui_partially_update_append_or_clear_long_term_memor_c1bab6)),
-                    ToolItemUi("character_memory_get", "读取剧情记忆", "仅角色会话可用，读取当前角色的长期剧情和关系。"),
-                    ToolItemUi("character_memory_write", "整理剧情记忆", "仅角色会话可用，更新当前角色的剧情记忆，不写入现实 MEMORY.md。"),
-                ),
-            ),
-            ToolGroupUi(
-                id = "terminal",
-                title = context.getString(R.string.state_terminal_and_files_ae7c54),
-                tools = listOf(
-                    ToolItemUi("terminal", context.getString(R.string.tool_ui_session_terminal_09c6e6), context.getString(R.string.tool_ui_user_root_shell_conversational_execution_and_asy_13c2ab)),
-                    ToolItemUi("edit_file", context.getString(R.string.tool_edit_file), context.getString(R.string.tool_edit_file_description)),
-                    ToolItemUi("stat_file", context.getString(R.string.tool_stat_file), context.getString(R.string.tool_stat_file_description)),
-                    ToolItemUi("glob_files", context.getString(R.string.tool_glob_files), context.getString(R.string.tool_glob_files_description)),
-                    ToolItemUi("grep_files", context.getString(R.string.tool_grep_files), context.getString(R.string.tool_grep_files_description)),
-                    ToolItemUi("read_file", context.getString(R.string.tool_ui_read_file_dc995c), context.getString(R.string.tool_ui_read_the_contents_of_mobile_phone_files_bf3066)),
-                    ToolItemUi("write_file", context.getString(R.string.tool_ui_write_file_e620fd), context.getString(R.string.tool_ui_write_or_overwrite_mobile_files_29fae4)),
-                    ToolItemUi("list_directory", context.getString(R.string.tool_ui_list_directory_96e765), context.getString(R.string.tool_ui_list_directory_contents_feff30)),
-                ),
-            ),
-        )
-    )
-
-private fun buildPermissionHealthState(context: Context): PermissionHealthUiState {
-    val backgroundRunningEnabled = isIgnoringBatteryOptimizations(context)
-    val overlayEnabled = Settings.canDrawOverlays(context)
-    val appListEnabled = hasAppListAccess(context)
-    val accessibilityEnabled = isAgentAccessibilityEnabled(context) || AgentAccessibilityService.isAvailable()
-    val rootEnabled = RootAccess.isGranted
-    val notificationsEnabled = context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
-    val locationAccess = DeviceLocationProvider.accessState(context)
-    val notificationHistoryEnabled = io.github.mangi.eta.agent.device.AgentNotificationHistoryService.isEnabled(context)
-    val usageAccessEnabled = io.github.mangi.eta.agent.tool.AgentPersonalContextTools.hasUsageAccess(context)
-
-    return PermissionHealthUiState(
-        items = listOfNotNull(
-            PermissionHealthItemUi(
-                id = "background",
-                title = context.getString(R.string.state_background_running_permission_dde21b),
-                summary = "",
-                status = if (backgroundRunningEnabled) PermissionStatusUi.Available else PermissionStatusUi.Missing,
-                primaryActionLabel = if (backgroundRunningEnabled) null else context.getString(R.string.state_ui_to_open_13ec17),
-            ),
-            PermissionHealthItemUi(
-                id = "overlay",
-                title = context.getString(R.string.state_floating_window_permissions_076b77),
-                summary = "",
-                status = if (overlayEnabled) PermissionStatusUi.Available else PermissionStatusUi.Missing,
-                primaryActionLabel = if (overlayEnabled) null else context.getString(R.string.state_ui_to_authorize_762ec4),
-            ),
-            PermissionHealthItemUi(
-                id = "app_list",
-                title = context.getString(R.string.state_application_list_reading_135f16),
-                summary = "",
-                status = if (appListEnabled) PermissionStatusUi.Available else PermissionStatusUi.Missing,
-                primaryActionLabel = if (appListEnabled) null else context.getString(R.string.state_ui_to_open_13ec17),
-            ),
-            localNetworkPermissionHealthItem(context),
-            bluetoothPermissionHealthItem(context),
-            PermissionHealthItemUi(
-                id = "calendar", title = "日历访问", summary = "读取日程并创建、修改事件与提醒；未授权时只在已有 Root 授权下使用增强通道。",
-                status = if (io.github.mangi.eta.agent.device.CalendarPermissions.granted(context, true)) PermissionStatusUi.Available else PermissionStatusUi.Missing,
-                primaryActionLabel = if (io.github.mangi.eta.agent.device.CalendarPermissions.granted(context, true)) null else "授权",
-            ),
-            PermissionHealthItemUi(
-                id = "notification_policy", title = "勿扰访问", summary = "允许普通权限下切换静音、振动和响铃模式。",
-                status = if (context.getSystemService(android.app.NotificationManager::class.java)?.isNotificationPolicyAccessGranted == true) PermissionStatusUi.Available else PermissionStatusUi.Missing,
-                primaryActionLabel = "设置",
-            ),
-            PermissionHealthItemUi(
-                id = "location",
-                title = context.getString(R.string.state_location_permissions_b53f9c),
-                summary = when (locationAccess) {
-                    DeviceLocationProvider.AccessState.DENIED -> context.getString(R.string.state_ui_used_to_understand_the_location_of_mobile_phones_af52e9)
-                    DeviceLocationProvider.AccessState.FOREGROUND_ONLY -> context.getString(R.string.capability_location_foreground)
-                    DeviceLocationProvider.AccessState.DISABLED -> context.getString(R.string.state_ui_system_location_service_is_turned_off_3902e7)
-                    DeviceLocationProvider.AccessState.AVAILABLE -> context.getString(R.string.state_ui_only_read_when_the_agent_calls_the_tool_8cf77b)
-                },
-                status = when (locationAccess) {
-                    DeviceLocationProvider.AccessState.DENIED -> PermissionStatusUi.Missing
-                    DeviceLocationProvider.AccessState.FOREGROUND_ONLY -> PermissionStatusUi.Warning
-                    DeviceLocationProvider.AccessState.DISABLED -> PermissionStatusUi.Disabled
-                    DeviceLocationProvider.AccessState.AVAILABLE -> PermissionStatusUi.Available
-                },
-                primaryActionLabel = when (locationAccess) {
-                    DeviceLocationProvider.AccessState.DENIED -> context.getString(R.string.state_ui_to_authorize_762ec4)
-                    DeviceLocationProvider.AccessState.FOREGROUND_ONLY -> context.getString(R.string.state_ui_go_to_settings_1f2998)
-                    DeviceLocationProvider.AccessState.DISABLED -> context.getString(R.string.state_ui_to_open_13ec17)
-                    DeviceLocationProvider.AccessState.AVAILABLE -> null
-                },
-            ),
-            PermissionHealthItemUi(
-                id = "notification_history",
-                title = context.getString(R.string.state_notice_of_use_rights_1ae29a),
-                summary = if (notificationHistoryEnabled) {
-                    context.getString(R.string.state_ui_natively_bounded_storage_of_last_7_days_of_notif_ca7f01)
-                } else {
-                    context.getString(R.string.state_ui_start_logging_searchable_notification_history_af_b36af6)
-                },
-                status = if (notificationHistoryEnabled) PermissionStatusUi.Available else PermissionStatusUi.Missing,
-                primaryActionLabel = if (notificationHistoryEnabled) null else context.getString(R.string.state_ui_to_authorize_762ec4),
-            ),
-            PermissionHealthItemUi(
-                id = "usage_access",
-                title = context.getString(R.string.state_usage_access_20f1f8),
-                summary = context.getString(R.string.state_used_to_read_recently_opened_applications_and_foregr_73e796),
-                status = if (usageAccessEnabled) PermissionStatusUi.Available else PermissionStatusUi.Missing,
-                primaryActionLabel = if (usageAccessEnabled) null else context.getString(R.string.state_ui_to_authorize_762ec4),
-            ),
-            PermissionHealthItemUi(
-                id = "accessibility",
-                title = context.getString(R.string.state_accessibility_permissions_f80103),
-                summary = "",
-                status = if (accessibilityEnabled) PermissionStatusUi.Available else PermissionStatusUi.Missing,
-                primaryActionLabel = if (accessibilityEnabled) null else context.getString(R.string.state_ui_to_open_13ec17),
-            ),
-            PermissionHealthItemUi(
-                id = "notifications",
-                title = context.getString(R.string.capability_notifications_title),
-                summary = context.getString(R.string.capability_notifications_summary),
-                status = if (notificationsEnabled) PermissionStatusUi.Available else PermissionStatusUi.Disabled,
-                primaryActionLabel = context.getString(R.string.state_ui_go_to_settings_1f2998),
-            ),
-            PermissionHealthItemUi(
-                id = "root",
-                title = context.getString(R.string.capability_enhancements),
-                summary = context.getString(R.string.capability_optional_root),
-                status = if (rootEnabled) PermissionStatusUi.Available else PermissionStatusUi.Disabled,
-                primaryActionLabel = if (rootEnabled) null else context.getString(R.string.state_ui_to_open_13ec17),
-            ),
-        )
-    )
-}
-
 private fun agentBooleanForUi(key: String): Boolean {
     return Prefs.isEnabled(key)
-}
-
-private fun AgentTokenUsage.toUi(): TokenUsageUi =
-    TokenUsageUi(
-        contextTokens = contextTokens,
-        inputTokens = inputTokens,
-        outputTokens = outputTokens,
-        reasoningTokens = reasoningTokens,
-        cachedTokens = cachedTokens,
-        requestDurationMs = requestDurationMs,
-    )
-
-private fun isAgentAccessibilityEnabled(context: Context): Boolean {
-    val expected = ComponentName(
-        context,
-        AgentAccessibilityService::class.java,
-    ).flattenToString()
-    val enabledServices = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-    ).orEmpty()
-    return enabledServices.split(':').any { it.equals(expected, ignoreCase = true) }
-}
-
-private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
-    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-    return powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: false
-}
-
-private fun hasAppListAccess(context: Context): Boolean {
-    return try {
-        val pm = context.packageManager
-        val packages = pm.getInstalledPackages(0)
-        packages.size > 10
-    } catch (e: Exception) {
-        false
-    }
 }

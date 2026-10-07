@@ -132,6 +132,7 @@ internal class AgentLoop(
                     },
                     discardAttemptReasoning = { accumulatedReasoning.setLength(reasoningLengthBeforeRound) },
                 ).also { response ->
+                    rejectContentFilter(response.response)
                     if (purpose == ProviderRequestPurpose.CHAT) validateChatResponse(response.response)
                 }
             } finally {
@@ -222,6 +223,28 @@ internal class AgentLoop(
         }
     }
 
+    /**
+     * 拒答或过滤会在流中途截断回复，半截正文、思考块和工具调用都不能进入上下文：
+     * 带着被截断的签名块继续请求会被上游判定为改动了 thinking 块，同一会话随后每轮都会 400。
+     * 因此不写入 history、不执行工具，直接结束本次运行，由用户改写请求或换模型。
+     */
+    private fun rejectContentFilter(response: ProviderResponse) {
+        if (response.stopReason != AssistantStopReason.CONTENT_FILTER) return
+        val explanation = response.assistantMessage.optJSONObject("stop_details")
+            ?.let { details -> details.optString("explanation").takeUnless { details.isNull("explanation") } }
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+        throw AgentModelFailure(
+            "MODEL_CONTENT_FILTER",
+            false,
+            buildString {
+                append("模型服务商拦截了本次回复，未完成的内容已丢弃。")
+                explanation?.let { append("服务商说明：").append(it) }
+                append("请修改或删除触发拦截的请求后重试，或换用其他模型。")
+            },
+        )
+    }
+
     private fun validateChatResponse(response: ProviderResponse) {
         val message = response.assistantMessage
         if (AgentConversationCodec.parseToolCalls(message).isNotEmpty()) return
@@ -230,8 +253,6 @@ internal class AgentLoop(
         throw when (response.stopReason) {
             AssistantStopReason.OUTPUT_LIMIT ->
                 AgentModelFailure("MODEL_OUTPUT_LIMIT", false, "模型输出额度已耗尽但未生成正文，请检查输出上限或降低思考强度。")
-            AssistantStopReason.CONTENT_FILTER ->
-                AgentModelFailure("MODEL_CONTENT_FILTER", false, "模型回复被服务商过滤，未返回正文。")
             else -> AgentModelFailure("MODEL_EMPTY_RESPONSE", false, "模型未返回正文或工具调用，请检查服务商状态。")
         }
     }

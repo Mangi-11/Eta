@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private var assistantConversationKey by mutableStateOf<String?>(null)
     private var assistantConversationSource by mutableStateOf(AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE)
+    private var requestedConversationId by mutableStateOf<String?>(null)
     private var appliedPredictiveBackEnabled = true
     private var speechSettingsRequested by mutableStateOf(false)
 
@@ -69,6 +70,8 @@ class MainActivity : ComponentActivity() {
                     AgentAppRoot(
                         assistantConversationKey = assistantConversationKey,
                         assistantConversationSource = assistantConversationSource,
+                        requestedConversationId = requestedConversationId,
+                        onRequestedConversationOpened = { requestedConversationId = null; intent?.action = null },
                         openSpeechSettings = speechSettingsRequested,
                         onSpeechSettingsOpened = { speechSettingsRequested = false; intent?.action = null },
                         onAssistantConversationOpened = { opened ->
@@ -111,6 +114,10 @@ class MainActivity : ComponentActivity() {
             speechSettingsRequested = true
             return
         }
+        if (intent?.action == ACTION_OPEN_CONVERSATION_ID) {
+            requestedConversationId = intent.getStringExtra(EXTRA_CONVERSATION_ID)?.takeIf(String::isNotBlank)
+            return
+        }
         if (intent?.action != EtaAssistantOverlayService.ACTION_OPEN_CONVERSATION) return
         assistantConversationSource = AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE
         assistantConversationKey = intent.getStringExtra(
@@ -126,11 +133,6 @@ class MainActivity : ComponentActivity() {
             AppearanceThemeMode.SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
         }
         getSystemService(UiModeManager::class.java).setApplicationNightMode(mode)
-    }
-
-    companion object {
-        const val ACTION_VIEW_EXECUTION = "io.github.mangi.eta.action.VIEW_EXECUTION"
-        const val EXTRA_EXECUTION_SOURCE = "io.github.mangi.eta.extra.EXECUTION_SOURCE"
     }
 
     private fun updateSystemBars(isDark: Boolean) {
@@ -160,5 +162,13 @@ class MainActivity : ComponentActivity() {
         overridePendingTransition(0, 0)
         recreate()
         overridePendingTransition(0, 0)
+    }
+
+    companion object {
+        const val ACTION_VIEW_EXECUTION = "io.github.mangi.eta.action.VIEW_EXECUTION"
+        const val EXTRA_EXECUTION_SOURCE = "io.github.mangi.eta.extra.EXECUTION_SOURCE"
+        /** 运行浮层的结果卡片回到本体：App 发起的 run 带会话 ID，直接打开该会话；缺省时只回到首页。 */
+        const val ACTION_OPEN_CONVERSATION_ID = "io.github.mangi.eta.action.OPEN_CONVERSATION_ID"
+        const val EXTRA_CONVERSATION_ID = "io.github.mangi.eta.extra.CONVERSATION_ID"
     }
 }

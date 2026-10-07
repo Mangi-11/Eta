@@ -129,8 +129,12 @@ class DeviceValidationRunner : Instrumentation() {
             deviceDirectToolsEnabled = { true }, browserToolsEnabled = { true },
             fallbackApproval = { _, _ -> approval }, virtualScreenOwner = "device-validation")
 
-    private fun call(tools: AgentLocalTools, name: String, args: JSONObject = JSONObject()): JSONObject =
-        JSONObject(tools.execute(AgentModelClient.ToolCall("validation", name, args.toString())).content)
+    private fun call(tools: AgentLocalTools, name: String, args: JSONObject = JSONObject()): JSONObject {
+        if (name in setOf("tap", "tap_area", "long_press", "swipe") && !args.has("coordinate_space")) {
+            args.put("coordinate_space", "screen")
+        }
+        return JSONObject(tools.execute(AgentModelClient.ToolCall("validation", name, args.toString())).content)
+    }
 
     private fun ok(name: String, result: JSONObject): JSONObject {
         verify(name + " (" + result.optString("code") + ":" + result.optString("error_type") + ":" + result.optString("error_stage") +

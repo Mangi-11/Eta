@@ -45,7 +45,8 @@ internal data class EtaBackupDocument(
 ) {
     companion object {
         const val FORMAT = "eta-backup"
-        const val SCHEMA_VERSION = 2
+        // 3：会话记录携带最近使用的模型；旧版本备份缺省该字段，导入后跟随默认模型。
+        const val SCHEMA_VERSION = 3
     }
 }
 

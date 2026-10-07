@@ -15,16 +15,22 @@ class AgentContextRecoveryTest {
     )
 
     @Test
-    fun missingOrInvalidWindowFailsBeforeAnyProviderRequest() {
+    fun unknownWindowStillRunsButNeverAutoCompacts() {
         for (window in listOf(null, 0, -1)) {
-            val failure = assertThrows(AgentModelFailure::class.java) {
-                AgentModelClient.complete(config.copy(contextWindow = window), "继续",
-                    AgentModelClient.ToolExecutor { error("不应执行工具") },
-                    provider = provider { _, _ -> error("未设置窗口不能请求模型") })
-            }
-            assertEquals("CONTEXT_WINDOW_REQUIRED", failure.code)
-            assertTrue(failure.message!!.contains("设置"))
-            assertTrue(failure.message!!.contains("fixture"))
+            var summaries = 0
+            val result = AgentModelClient.complete(config.copy(contextWindow = window), "继续",
+                AgentModelClient.ToolExecutor { error("不应执行工具") },
+                history = history(), provider = provider { request, emit ->
+                    if (request.purpose == ProviderRequestPurpose.COMPACTION) {
+                        summaries++
+                        response("摘要")
+                    } else {
+                        emit(ProviderEvent.Usage(AgentTokenUsage(inputTokens = 10_000_000)))
+                        response("完成")
+                    }
+                })
+            assertEquals("完成", result.content)
+            assertEquals(0, summaries)
         }
     }
 

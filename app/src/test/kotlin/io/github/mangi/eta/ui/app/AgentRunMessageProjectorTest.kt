@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.app
 
 import io.github.mangi.eta.agent.runtime.AgentEvent
+import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.SystemNoticeCode
@@ -11,10 +12,56 @@ import io.github.mangi.eta.ui.model.ToolActivityStatusUi
 import io.github.mangi.eta.ui.model.UserMessageUi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AgentRunMessageProjectorTest {
+    @Test
+    fun eventsWithoutVisibleChangeReturnSameListSoCallerSkipsTimestamp() {
+        val projector = AgentRunMessageProjector { 1_000L }
+        val messages = projector.appendTextDelta("run", 1, 0, "回答", emptyList())
+        listOf(
+            AgentEvent.RoundStarted(1, 2),
+            AgentEvent.ProviderRequestStarted(1),
+            AgentEvent.AssistantReceived(1, 2, "", emptyList()),
+            AgentEvent.UsageReceived(1, AgentTokenUsage(null, null, null, null, null)),
+            AgentEvent.UsageReceived(9, AgentTokenUsage(null, 10, 2, null, null)),
+            AgentEvent.UserSupplementReceived(0, "补充"),
+        ).forEach { event -> assertSame(event.toString(), messages, projector.applyEvent("run", event, messages)) }
+    }
+
+    @Test
+    fun usageAttachesToRoundWithoutRestartingStreaming() {
+        val projector = AgentRunMessageProjector { 1_000L }
+        val streaming = projector.appendTextDelta("run", 1, 0, "回答", emptyList())
+        val finished = projector.finalizeTextBlock("run", 1, 0, null, streaming)
+        val withUsage = projector.applyEvent("run", AgentEvent.UsageReceived(1, AgentTokenUsage(100, 80, 20, null, null)), finished)
+        val message = withUsage.filterIsInstance<AgentMessageUi>().single()
+        assertEquals(100, message.usage?.contextTokens)
+        assertFalse(message.isStreaming)
+    }
+
+    @Test
+    fun applyResultFillsSingleBlockKeepsMultiBlockAndReplacesWithNotice() {
+        val projector = AgentRunMessageProjector { 1_000L }
+        val single = projector.appendTextDelta("run", 1, 0, "流式半截", emptyList())
+        assertEquals("完整回答", AgentRunMessageProjector.applyResult("run", single, "完整回答", null)
+            .filterIsInstance<AgentMessageUi>().single().content)
+
+        val multi = projector.appendTextDelta("run", 1, 1, "第二段", projector.finalizeTextBlock("run", 1, 0, null, single))
+        assertEquals(listOf("流式半截", "第二段"), AgentRunMessageProjector.applyResult("run", multi, "合并全文", null)
+            .filterIsInstance<AgentMessageUi>().map { it.content })
+
+        val failed = AgentRunMessageProjector.applyResult("run", single, "", SystemNoticeCode.RuntimeFailed, "错误")
+        val notice = failed.single() as SystemNoticeMessageUi
+        assertEquals(single.single().id, notice.id)
+        assertEquals("错误", notice.detail)
+
+        val empty = AgentRunMessageProjector.applyResult("other", emptyList(), "回答", null)
+        assertEquals("assistant-other-1", empty.single().id)
+    }
+
     @Test
     fun retryKeepsFailedAttemptSeparateAndReplayClearsItsNotice() {
         val projector = AgentRunMessageProjector { 1_000L }

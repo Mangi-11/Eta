@@ -559,7 +559,7 @@ class AgentModelClientLoopTest {
 
     @Test
     fun contradictoryStopReasonNeverExecutesToolCalls() {
-        listOf("stop", "content_filter", "refusal").forEach { finishReason ->
+        listOf("stop").forEach { finishReason ->
             val provider = ScriptedProvider(
                 assistant(
                     finishReason = finishReason,
@@ -586,6 +586,45 @@ class AgentModelClientLoopTest {
                     .getString("content")
                     .contains("UNEXPECTED_TOOL_CALL")
             )
+        }
+    }
+
+    @Test
+    fun refusalEndsRunWithoutReplayingPartialAssistantOrExecutingTools() {
+        listOf("content_filter", "refusal").forEach { finishReason ->
+            val provider = ScriptedProvider(
+                assistant(
+                    content = "半截回复",
+                    reasoning = "半截思考",
+                    finishReason = finishReason,
+                    toolCalls = listOf(toolCall("call-1", "tap", "{\"x\":1,\"y\":2}")),
+                ).put(
+                    "stop_details",
+                    JSONObject().put("type", "refusal").put("category", "cyber").put("explanation", "服务商说明文本"),
+                ),
+                assistant(content = "不应再请求", finishReason = "stop"),
+            )
+            var executed = false
+
+            val failure = assertThrows(AgentModelExecutionException::class.java) {
+                AgentModelClient.complete(
+                    config = modelConfig(),
+                    prompt = "开始",
+                    toolExecutor = AgentModelClient.ToolExecutor {
+                        executed = true
+                        AgentModelClient.ToolResult("unexpected")
+                    },
+                    provider = provider,
+                )
+            }
+
+            assertFalse(executed)
+            assertEquals(1, provider.requests.size)
+            val cause = failure.cause as AgentModelFailure
+            assertEquals("MODEL_CONTENT_FILTER", cause.code)
+            assertFalse(cause.retryable)
+            assertTrue(cause.message.orEmpty().contains("服务商说明文本"))
+            assertTrue(failure.transcript.none { it.role == "assistant" })
         }
     }
 

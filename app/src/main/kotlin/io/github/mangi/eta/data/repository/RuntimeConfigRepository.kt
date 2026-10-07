@@ -7,10 +7,12 @@ import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.Model
+import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.model.runtimeProviderType
 import io.github.mangi.eta.data.model.selectedOrFirstModel
 import io.github.mangi.eta.data.provider.BuiltinProviders
@@ -73,6 +75,15 @@ internal object RuntimeConfigRepository {
         return buildRuntimeConfig(provider, model)
     }
 
+    /** 会话绑定的模型仍可用时使用它，否则回落到默认模型。 */
+    suspend fun runtimeConfigFor(modelId: String?): AgentModelClient.ModelConfig? {
+        ProviderRepository.ensureBuiltInsMerged()
+        ProviderRepository.allProviders().enabledModel(modelId)?.let { (provider, model) ->
+            return buildRuntimeConfig(provider, model)
+        }
+        return currentRuntimeConfig()
+    }
+
     suspend fun syncToRemotePreferences(service: XposedService?): Boolean {
         val prefs = Prefs.remotePreferencesForUi(service) ?: return false
         val config = currentRuntimeConfig() ?: return clearRuntimeConfig(prefs)
@@ -94,22 +105,8 @@ internal object RuntimeConfigRepository {
             ?.takeIf { it.isNotBlank() }
             ?: BuiltinProviders.DEFAULT_SYSTEM_PROMPT
         val sourceType = ProviderSourceRegistry.resolve(provider)
-        val endpointMode = when (provider) {
-            is OpenAiCompatibleProviderSetting -> provider.endpointMode
-            is CustomProviderSetting -> provider.endpointMode
-            is AnthropicProviderSetting -> ""
-        }
-        val inferOpenAiCatalog = sourceType == io.github.mangi.eta.data.model.ProviderSourceTypes.CUSTOM &&
-            endpointMode == OpenAiEndpointMode.RESPONSES
-        val reasoningCapabilities = ReasoningCapabilityResolver.resolve(
-            sourceType = if (inferOpenAiCatalog) {
-                io.github.mangi.eta.data.model.ProviderSourceTypes.OPENAI
-            } else {
-                sourceType
-            },
-            model = model,
-            inferExactCatalogModel = inferOpenAiCatalog,
-        )
+        val endpointMode = provider.endpointMode()
+        val reasoningCapabilities = reasoningCapabilities(provider, model)
         return AgentModelClient.ModelConfig(
             providerId = provider.id,
             providerName = provider.name,
@@ -133,6 +130,27 @@ internal object RuntimeConfigRepository {
             customHeaders = provider.customHeaders + model.customHeaders,
             customBody = provider.customBody + model.customBody,
         )
+    }
+
+    fun reasoningCapabilities(provider: ProviderSetting, model: Model): ModelReasoningCapabilities? {
+        val sourceType = ProviderSourceRegistry.resolve(provider)
+        val inferOpenAiCatalog = sourceType == io.github.mangi.eta.data.model.ProviderSourceTypes.CUSTOM &&
+            provider.endpointMode() == OpenAiEndpointMode.RESPONSES
+        return ReasoningCapabilityResolver.resolve(
+            sourceType = if (inferOpenAiCatalog) {
+                io.github.mangi.eta.data.model.ProviderSourceTypes.OPENAI
+            } else {
+                sourceType
+            },
+            model = model,
+            inferExactCatalogModel = inferOpenAiCatalog,
+        )
+    }
+
+    private fun ProviderSetting.endpointMode(): String = when (this) {
+        is OpenAiCompatibleProviderSetting -> endpointMode
+        is CustomProviderSetting -> endpointMode
+        is AnthropicProviderSetting -> ""
     }
 
     private fun writeRuntimeConfig(

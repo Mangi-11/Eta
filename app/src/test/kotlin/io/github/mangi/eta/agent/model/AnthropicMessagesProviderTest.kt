@@ -114,11 +114,108 @@ class AnthropicMessagesProviderTest {
         assertEquals("", blocks.getJSONObject(4).getString("thinking"))
         assertEquals("signature-two", blocks.getJSONObject(4).getString("signature"))
         assertEquals("toolu_two", blocks.getJSONObject(5).getString("id"))
-        assertEquals("toolu_one", requestMessages.getJSONObject(2).getJSONArray("content")
-            .getJSONObject(0).getString("tool_use_id"))
-        assertEquals("toolu_two", requestMessages.getJSONObject(3).getJSONArray("content")
-            .getJSONObject(0).getString("tool_use_id"))
+        assertEquals(3, requestMessages.length())
+        val toolResults = requestMessages.getJSONObject(2).getJSONArray("content")
+        assertEquals("toolu_one", toolResults.getJSONObject(0).getString("tool_use_id"))
+        assertEquals("toolu_two", toolResults.getJSONObject(1).getString("tool_use_id"))
         assertFalse(requestBody.get().contains("_eta_anthropic_content_blocks"))
+    }
+
+    @Test
+    fun inputSchemaDropsTopLevelCombinatorsButKeepsNestedOnesAndLocalSchema() {
+        val tools = JSONArray().also { array ->
+            AgentWebToolCatalog.appendTo(array)
+            array.put(AgentToolSchema.function(
+                name = "nested",
+                description = "嵌套组合子",
+                parameters = JSONObject().put("type", "object").put("properties", JSONObject()
+                    .put("value", JSONObject().put("anyOf", JSONArray()
+                        .put(JSONObject().put("type", "string"))
+                        .put(JSONObject().put("type", "integer"))))),
+            ))
+        }
+        val original = tools.toString()
+        val requestBody = AtomicReference<String>()
+        withAnthropicServer(event("message_stop", JSONObject()), onRequest = requestBody::set) { baseUrl ->
+            AnthropicMessagesProvider.complete(providerRequest(baseUrl).copy(tools = tools), AgentRunController())
+        }
+
+        val sent = JSONObject(requestBody.get()).getJSONArray("tools")
+        (0 until sent.length()).map { sent.getJSONObject(it).getJSONObject("input_schema") }.forEach { schema ->
+            listOf("oneOf", "anyOf", "allOf").forEach { assertFalse(schema.has(it)) }
+            assertEquals("object", schema.getString("type"))
+        }
+        val fetchUrl = (0 until sent.length()).map(sent::getJSONObject).single { it.getString("name") == "fetch_url" }
+        assertTrue(fetchUrl.getJSONObject("input_schema").getJSONObject("properties").has("document_id"))
+        val nested = (0 until sent.length()).map(sent::getJSONObject).single { it.getString("name") == "nested" }
+        assertTrue(nested.getJSONObject("input_schema").getJSONObject("properties")
+            .getJSONObject("value").has("anyOf"))
+        assertEquals(original, tools.toString())
+    }
+
+    @Test
+    fun parallelToolResultsAndObservationShareOneUserTurnWithResultsFirst() {
+        val assistant = JSONObject()
+            .put("role", "assistant")
+            .put("content", "")
+            .put("tool_calls", JSONArray()
+                .put(JSONObject().put("id", "toolu_a").put("type", "function")
+                    .put("function", JSONObject().put("name", "device_info").put("arguments", "{}")))
+                .put(JSONObject().put("id", "toolu_b").put("type", "function")
+                    .put("function", JSONObject().put("name", "get_current_context").put("arguments", "{}"))))
+        val messages = JSONArray()
+            .put(AgentConversationCodec.userTextMessage("开始"))
+            .put(assistant)
+            .put(JSONObject().put("role", "tool").put("tool_call_id", "toolu_a").put("content", "A"))
+            .put(JSONObject().put("role", "tool").put("tool_call_id", "toolu_b").put("content", "B"))
+            .put(AgentConversationCodec.userTextMessage("用户补充"))
+        val requestBody = AtomicReference<String>()
+        withAnthropicServer(event("message_stop", JSONObject()), onRequest = requestBody::set) { baseUrl ->
+            AnthropicMessagesProvider.complete(providerRequest(baseUrl).copy(messages = messages), AgentRunController())
+        }
+
+        val sent = JSONObject(requestBody.get()).getJSONArray("messages")
+        assertEquals(listOf("user", "assistant", "user"), (0 until sent.length()).map { sent.getJSONObject(it).getString("role") })
+        val turn = sent.getJSONObject(2).getJSONArray("content")
+        assertEquals(listOf("tool_result", "tool_result", "text"), (0 until turn.length()).map { turn.getJSONObject(it).getString("type") })
+        assertEquals("toolu_b", turn.getJSONObject(1).getString("tool_use_id"))
+        assertEquals("用户补充", turn.getJSONObject(2).getString("text"))
+    }
+
+    @Test
+    fun usageReportsContextOccupancyAndKeepsInputWhenDeltaOnlyCarriesOutput() {
+        val body = event("message_start", JSONObject().put("message", JSONObject().put("usage", JSONObject()
+            .put("input_tokens", 100).put("cache_read_input_tokens", 900).put("cache_creation_input_tokens", 50)
+            .put("output_tokens", 1)))) +
+            blockStart(0, JSONObject().put("type", "text").put("text", "好")) + blockStop(0) +
+            event("message_delta", JSONObject().put("delta", JSONObject().put("stop_reason", "end_turn"))
+                .put("usage", JSONObject().put("output_tokens", 42))) +
+            event("message_stop", JSONObject())
+        withAnthropicServer(body) { baseUrl ->
+            val events = mutableListOf<ProviderEvent>()
+            AnthropicMessagesProvider.complete(providerRequest(baseUrl), AgentRunController(), events::add)
+            val last = events.filterIsInstance<ProviderEvent.Usage>().last()
+            assertEquals(1_050, last.usage.contextTokens)
+            assertEquals(1_050, last.contextInputTokens)
+            assertEquals(100, last.usage.inputTokens)
+            assertEquals(900, last.usage.cachedTokens)
+            assertEquals(42, last.usage.outputTokens)
+        }
+    }
+
+    @Test
+    fun refusalStopDetailsReachAssistantMessage() {
+        val body = blockStart(0, JSONObject().put("type", "text").put("text", "部分")) + blockStop(0) +
+            event("message_delta", JSONObject().put("delta", JSONObject()
+                .put("stop_reason", "refusal")
+                .put("stop_details", JSONObject().put("type", "refusal").put("category", JSONObject.NULL)
+                    .put("explanation", "说明")))) +
+            event("message_stop", JSONObject())
+        withAnthropicServer(body) { baseUrl ->
+            val response = AnthropicMessagesProvider.complete(providerRequest(baseUrl), AgentRunController())
+            assertEquals(AssistantStopReason.CONTENT_FILTER, response.stopReason)
+            assertEquals("说明", response.assistantMessage.getJSONObject("stop_details").getString("explanation"))
+        }
     }
 
     @Test

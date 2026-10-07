@@ -17,6 +17,8 @@
 
 ## 与主屏的关系
 
+普通 GUI 工具沿用上游合同：`type_text` 默认整体替换，可指定当前观察的输入框节点，支持焦点追加和 `submit=true`；坐标操作必须声明 `coordinate_space`，截图定位可用 0-999 的 `normalized` 坐标，转换尺寸仅来自虚拟 display。`scroll` 和 `scroll_element` 支持 `amount=small`。成功的 GUI 动作会尝试附带本屏的新节点观察 `after`；取树失败时不提供旧快照，仍通过截图重新观察。节点观察包含勾选、选中与输入框提示状态。
+
 固定 `app_process` Root 子进程持有 `ImageReader` Surface，采用 own-content、own-focus、禁止抢夺顶层焦点及移除时销毁内容等 display 标志；不镜像主屏、不捕获安全 Surface。输入命令始终携带 `input -d <displayId>`。
 
 为减少任务迁移，启动会检查其他 display 上是否已有该应用任务。同一虚拟屏可重新进入；其他屏幕已有任务时按下方冲突策略处理。`singleTask` 只有在目标应用没有其他任务时才允许启动，`singleInstance` 和不支持缩放的 Activity 仍拒绝，并在启动后校验任务所在 display。尚未验证的 ROM 不能视为已经支持。独立显示不等于独立应用数据，登录状态、应用服务、通知及进程仍可共享。

@@ -1,7 +1,7 @@
 package io.github.mangi.eta.agent.phone
 
-import android.content.Context
 import android.annotation.SuppressLint
+import android.content.Context
 import android.os.Process
 import android.media.AudioManager
 import android.net.TetheringInterface
@@ -31,8 +31,10 @@ internal class NativeSystemOperations(
             else -> PhoneOperation.failure("UNKNOWN_TOOL", "未知系统操作")
         }
 
-    @Suppress("DEPRECATION")
+    // 移动数据只经 PhoneCommandMain 在 uid 0 的 system Context 中执行，App 进程不直接调用；
+    // 权限被拒时由 PhoneOperations 统一映射为 PHONE_ACCESS_DENIED。
     @SuppressLint("MissingPermission")
+    @Suppress("DEPRECATION")
     private fun mobileData(tool: String, args: JSONObject): JSONObject {
         if (Process.myUid() != 0) PhoneOperation.error("ROOT_REQUIRED", "移动数据操作需要 Root 身份")
         PhoneOperation.allowed(

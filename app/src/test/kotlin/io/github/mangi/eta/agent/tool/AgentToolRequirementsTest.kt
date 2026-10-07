@@ -14,8 +14,9 @@ class AgentToolRequirementsTest {
     @Test
     fun everyRegisteredToolHasExactlyOneRequirement() {
         val tools = catalog(root = true).also { CharacterMemoryTools.appendSchemas(it) }
-        assertEquals(AgentToolRequirements.toolNames - setOf("run_command"), tools.names())
-        assertFalse("旧命令名仅保留执行兼容，不再向模型暴露", "run_command" in tools.names())
+        val executionOnly = setOf("run_command", "input_text", "replace_text", "clear_text", "paste_text")
+        assertEquals(AgentToolRequirements.toolNames - executionOnly, tools.names())
+        executionOnly.forEach { name -> assertFalse("$name 仅保留执行兼容，不再向模型暴露", name in tools.names()) }
         assertEquals(tools.length(), tools.names().size)
         assertFalse(tools.toString().contains("rootRequirement"))
     }

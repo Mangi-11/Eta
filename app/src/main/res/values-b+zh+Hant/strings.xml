@@ -186,32 +186,16 @@
   </plurals>
   <string name="time_yesterday">昨日</string>
   <string name="time_recent">最近</string>
-  <string name="overlay_received">收到指令，準備模型</string>
-  <string name="overlay_preparing">準備中…</string>
-  <plurals name="overlay_preparing_tools">
-    <item quantity="other">準備工具：%d 個</item>
-  </plurals>
-  <string name="overlay_reasoning_round">第 %1$d 輪思考</string>
-  <string name="overlay_requesting_model">請求模型中</string>
-  <string name="overlay_model_responded">模型已回應</string>
-  <string name="overlay_generating_tool_arguments">產生工具參數中</string>
   <string name="overlay_reasoning">思考中</string>
-  <string name="overlay_preparing_answer">整理回答中</string>
-  <string name="overlay_planning_tools">預計執行：%1$s</string>
   <string name="overlay_supplement_received">收到補充，繼續執行</string>
-  <string name="overlay_running_tool">執行：%1$s</string>
-  <string name="overlay_tool_completed">已完成：%1$s</string>
   <string name="overlay_hosted_tool_running">%1$s中</string>
-  <string name="overlay_hosted_tool_completed">%1$s 已完成</string>
-  <string name="overlay_hosted_tool_failed">%1$s 失敗</string>
-  <plurals name="overlay_images_read">
-    <item quantity="other">已讀取 %d 張圖片</item>
-  </plurals>
   <string name="overlay_result_ready">結果已就緒</string>
   <string name="overlay_run_failed">請求失敗</string>
   <string name="overlay_generating_answer">產生回答中</string>
   <string name="overlay_substatus_finished">已完成</string>
   <string name="overlay_substatus_failed">執行失敗</string>
+  <string name="overlay_result_done">完成</string>
+  <string name="overlay_result_open_eta">回到 Eta</string>
   <string name="overlay_pause">暫停</string>
   <string name="overlay_resume">繼續</string>
   <string name="tool_observe_screen">查看畫面</string>
@@ -270,6 +254,7 @@
   <string name="voice_model_download_failed">語音套件下載失敗</string>
   <string name="voice_request_failed">請求失敗，請重試。</string>
   <string name="overlay_supplement">補充</string>
+  <string name="overlay_capsule_toggle">%1$s，點擊展開控制</string>
   <string name="overlay_supplement_hint">補充指令，Eta 會繼續目前任務</string>
   <string name="overlay_send">傳送</string>
   <string name="overlay_stopping">停止中</string>
@@ -607,7 +592,7 @@
   <string name="page_exceeded_the_1_mib_limit_please_delete_120a63">已超過 1 MiB 上限，請刪減</string>
   <string name="page_the_installation_of_common_tools_has_not_been_comple_d7f7c2">常用工具安裝尚未完成，可以從當前進度繼續</string>
   <string name="page_the_current_root_environment_cannot_create_an_isolat_4ca00a">目前 Root 環境無法建立隔離 mount namespace 或 chroot</string>
-  <string name="page_current_model_a0af8f">目前模型</string>
+  <string name="page_current_model_a0af8f">預設模型</string>
   <string name="page_busy_0212cc">忙碌</string>
   <string name="page_retrieving_a880c9">拉取中...</string>
   <string name="page_support_thinking_5b9e4c">支援思考</string>
@@ -633,7 +618,7 @@
   <string name="page_continue_installation_62da0c">繼續安裝</string>
   <string name="page_edit_model_29e31e">編輯模型</string>
   <string name="page_custom_model_25be0f">自訂模型</string>
-  <string name="page_set_as_current_model_183d7d">設為當前模型</string>
+  <string name="page_set_as_current_model_183d7d">設為預設模型</string>
   <string name="page_please_complete_the_linux_basic_tool_installation_fi_2ab81b">請先完成 Linux 基礎工具安裝</string>
   <string name="page_the_remote_end_did_not_return_a_usable_conversation__781487">遠端未傳回可用對話模型，已保留現有模型</string>
   <string name="page_select_zip_skills_package_982a44">選擇 ZIP Skill 包</string>
@@ -750,7 +735,6 @@
   <string name="tool_ui_list_directory_96e765">列目錄</string>
   <string name="tool_ui_clipboard_history_b377bb">剪貼簿歷史</string>
   <string name="tool_ui_only_extract_verification_codes_from_recent_sms__0fb8c1">只提取最近簡訊中的驗證碼</string>
-  <string name="tool_ui_append_or_paste_text_to_the_current_focus_1efdcc">向當前焦點追加或貼上文本</string>
   <string name="tool_ui_start_the_specified_package_name_or_application__beabff">啟動指定包名或應用程式名</string>
   <string name="tool_ui_media_control_585edc">媒體控制</string>
   <string name="tool_ui_storage_ranking_86a16c">儲存排行</string>
@@ -783,8 +767,6 @@
   <string name="tool_ui_organize_memory_2b08eb">整理記憶</string>
   <string name="tool_ui_calendar_events_970349">日曆事件</string>
   <string name="tool_ui_time_and_location_693893">時間與位置</string>
-  <string name="tool_ui_replacement_text_1a5c8d">替換文字</string>
-  <string name="tool_ui_replace_text_in_focus_or_node_30d332">替換焦點或節點中的文本</string>
   <string name="tool_ui_recently_applied_08f74c">最近應用</string>
   <string name="tool_ui_bounded_reading_and_filtering_of_recent_logs_0a268a">有界讀取並過濾最近日誌</string>
   <string name="tool_ui_find_click_and_enter_page_elements_8f102d">尋找、點擊並輸入頁面元素</string>
@@ -806,14 +788,11 @@
   <string name="tool_ui_retrieve_contact_name_and_open_address_6dacc5">檢索聯絡人姓名與開啟地址</string>
   <string name="tool_ui_summarize_steps_sleep_exercise_and_body_metrics_6ff66f">總結步數、睡眠、運動和身體指標</string>
   <string name="tool_ui_activity_timer_36f107">活動計時器</string>
-  <string name="tool_ui_clear_text_d4cb57">清空文字</string>
-  <string name="tool_ui_clear_focus_or_node_text_3e754a">清空焦點或節點文本</string>
   <string name="tool_ui_slide_3723aa">滑動</string>
   <string name="tool_ui_scroll_220e68">捲動</string>
   <string name="tool_ui_scroll_the_page_or_specify_a_node_83ab24">捲動頁面或指定節點</string>
   <string name="tool_ui_click_element_7a3d91">點擊元素</string>
   <string name="tool_ui_click_area_cbaa08">點擊區域</string>
-  <string name="tool_ui_reliably_enter_long_text_with_the_clipboard_b6041e">用剪貼簿可靠輸入長文本</string>
   <string name="tool_ui_open_with_app_32c24e">用應用程式打開</string>
   <string name="tool_ui_directly_create_system_timers_up_to_24_hours_87c476">直接建立最長 24 小時的系統計時器</string>
   <string name="tool_ui_create_a_system_alarm_directly_and_open_the_cloc_9aa214">直接建立系統鬧鐘，失敗時開啟時鐘確認</string>
@@ -824,7 +803,6 @@
   <string name="tool_ui_open_web_pages_off_screen_and_keep_a_takeover_br_72972e">在背景開啟網頁，並保留可接管的瀏覽工作階段</string>
   <string name="tool_ui_wait_for_the_specified_text_to_appear_on_the_scr_43f9b0">等待指定文字出現在螢幕上</string>
   <string name="tool_ui_wait_for_text_9e9a54">等待文字</string>
-  <string name="tool_ui_paste_text_791b85">貼上文字</string>
   <string name="tool_ui_system_recording_15eb19">系統錄音</string>
   <string name="tool_ui_system_log_096733">系統日誌</string>
   <string name="tool_ui_system_panel_b0f7a3">系統面板</string>
@@ -857,6 +835,7 @@
   <string name="tool_ui_read_lock_screen_do_not_disturb_audio_output_and_9260b8">讀取鎖定螢幕、勿擾、音訊輸出和外接螢幕狀態</string>
   <string name="tool_ui_read_verification_code_7d1121">讀取驗證碼</string>
   <string name="tool_ui_enter_text_ae47ab">輸入文字</string>
+  <string name="tool_ui_type_text_summary">取代、追加或清空輸入框文字，可直接送出，寫入後讀回校驗</string>
   <string name="tool_ui_system_buttons_such_as_return_homepage_recent_ta_1b4cf0">返回、首頁、最近任務等系統按鍵</string>
   <string name="tool_ui_notification_history_95d015">通知歷史</string>
   <string name="tool_ui_address_book_9070cb">通訊錄</string>
@@ -1083,7 +1062,7 @@
     <item quantity="other">%d 個模型</item>
   </plurals>
   <string name="provider_selected">已選取</string>
-  <string name="provider_set_current">設為目前使用</string>
+  <string name="provider_set_current">設為預設</string>
   <string name="skills_checking_package">正在檢查 Skill 包</string>
   <string name="skills_import_zip">從 ZIP 匯入</string>
   <string name="skills_installing_package">正在驗證並安裝，請稍候</string>
@@ -1108,11 +1087,12 @@
   <string name="browser_opening">正在開啟網頁</string>
   <string name="browser_opening_host">正在開啟 %1$s</string>
   <string name="model_not_selected">未選擇</string>
+  <string name="conversation_model_unavailable">此對話原用的模型無法使用，已改用 %1$s</string>
   <string name="model_switch_current">切換模型，目前為 %1$s</string>
   <string name="model_collapse_provider">收合 %1$s</string>
   <string name="model_expand_provider">展開 %1$s</string>
   <string name="context_no_previous_usage">暫無上輪用量</string>
-  <string name="context_no_model_limit">請先到設定 → 模型提供商填寫目前模型的上下文視窗大小。</string>
+  <string name="context_no_model_limit">未知上下文視窗，自動壓縮已關閉。仍可手動壓縮，也可在設定 → 模型提供商中填寫視窗。</string>
   <string name="context_usage_after_response">完成首次回覆後顯示實測用量</string>
   <string name="context_usage_previous_response">%1$s\n上輪實測</string>
   <string name="context_compaction">上下文壓縮</string>

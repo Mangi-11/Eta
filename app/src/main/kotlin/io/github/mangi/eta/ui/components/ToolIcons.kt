@@ -66,7 +66,7 @@ internal fun iconForTool(toolId: String): ImageVector = when (toolId) {
     "scroll", "scroll_element" -> Icons.Rounded.SwapVert
     "clipboard", "paste_text" -> Icons.Rounded.ContentPasteGo
     "get_clipboard", "set_clipboard" -> Icons.Rounded.ContentPaste
-    "input_text" -> Icons.Rounded.Keyboard
+    "type_text", "input_text" -> Icons.Rounded.Keyboard
     "replace_text" -> Icons.Rounded.FindReplace
     "clear_text" -> Icons.AutoMirrored.Rounded.Backspace
     "wait", "wait_text", "wait_for_text", "wait_for_package" -> Icons.Rounded.Schedule

@@ -214,6 +214,29 @@ class AgentConversationStoreTest {
     }
 
     @Test
+    fun conversationModelBindingRoundTripsAndChangeAloneIsPersisted() = runBlocking {
+        val user = UserMessageUi(id = "user-1", content = "你好")
+        val base = AgentChatHomeUiState(
+            messages = listOf(user), input = "", isStreaming = false, thinkingEnabled = false,
+            reasoningEffort = ReasoningEffort.OFF,
+        )
+        val persistence = AgentConversationPersistence()
+        fun snapshot(state: AgentChatHomeUiState) = AgentConversationStore.Snapshot(
+            selectedConversationId = "conv-a",
+            conversationsById = mapOf("conv-a" to state, "conv-b" to base),
+            titles = mapOf("conv-a" to "A", "conv-b" to "B"),
+            updatedAt = mapOf("conv-a" to 1L, "conv-b" to 1L),
+        )
+        persistence.save(context, snapshot(base.copy(modelId = "model-x")))
+        assertEquals("model-x", AgentConversationStore.load(context).conversationsById.getValue("conv-a").modelId)
+
+        persistence.save(context, snapshot(base.copy(modelId = "model-y")))
+        val restored = AgentConversationStore.load(context).conversationsById
+        assertEquals("model-y", restored.getValue("conv-a").modelId)
+        assertEquals(null, restored.getValue("conv-b").modelId)
+    }
+
+    @Test
     fun unknownStoredEffortFallsBackToDefault() {
         runBlocking {
             EtaDatabase.get(context).conversationDao().replaceAll(

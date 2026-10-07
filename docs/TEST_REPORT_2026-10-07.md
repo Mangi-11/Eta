@@ -2,7 +2,7 @@
 
 ## 基线与环境
 
-- 按用户要求丢弃原本未提交的本地修改，从 GitHub `a9ab54992f2dfee09c3893e852a29a8bdfacf230` 重新开发。本轮修复尚未提交。
+- 本报告记录从 GitHub `a9ab54992f2dfee09c3893e852a29a8bdfacf230` 开始的功能修复与真机验证，修改已提交至功能分支 `d840f06`。后续与上游 3.3.0 整合的检查见 [上游整合记录](UPSTREAM_INTEGRATION_2026-10-07.md)，下面的真机数据和截图仍对应整合前版本。
 - 最近功能审计范围为 `11ee51d^..a9ab549`，覆盖 27 个提交、314 个变更文件，新增 26609 行、删除 2209 行，包括代码、测试、资源和文档。
 - 构建环境：Temurin JDK 25.0.3，Android SDK `android-37.0`、Build Tools 37.0.0。
 - 真机：vivo V2419A / PD2419，Android 16 / API 36，ROM `PD2419B_A_16.1.12.38.W10`，KernelSU Root，已安装 LSPosed；微信 8.0.78。

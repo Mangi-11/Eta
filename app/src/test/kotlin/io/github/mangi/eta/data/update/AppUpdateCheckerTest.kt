@@ -32,4 +32,17 @@ class AppUpdateCheckerTest {
         assertTrue(AppUpdateChecker.isNewer("v3.1.0", "3.0.6"))
         assertFalse(AppUpdateChecker.isNewer("v3.0.6", "3.0.6"))
     }
+
+    @Test
+    fun debugSuffixIsIgnored() {
+        assertFalse(AppUpdateChecker.isNewer("3.0.6", "3.0.6-debug"))
+        assertTrue(AppUpdateChecker.isNewer("3.0.10", "3.0.9-debug"))
+    }
+
+    @Test
+    fun buildMetadataIsIgnored() {
+        assertFalse(AppUpdateChecker.isNewer("3.0.6", "3.0.6+a1b2c3d"))
+        assertFalse(AppUpdateChecker.isNewer("3.0.6", "3.0.6-debug+a1b2c3d"))
+        assertTrue(AppUpdateChecker.isNewer("3.0.7", "3.0.6+a1b2c3d"))
+    }
 }

@@ -13,6 +13,8 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.overlay.AgentOverlayStatus
+import io.github.mangi.eta.agent.overlay.localizedText
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.ui.MainActivity
@@ -26,8 +28,6 @@ internal class AgentExecutionService : Service() {
     private val owner = ownerSequence.incrementAndGet()
     private var foregroundActive = false
     @Volatile private var startRejected = false
-    private var progress: String = ""
-    private var progressOwner: String = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -94,6 +94,7 @@ internal class AgentExecutionService : Service() {
     }
 
     private fun notification(): Notification {
+        val status = runStatus
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, if (io.github.mangi.eta.agent.display.VirtualScreenSession.isActive()) io.github.mangi.eta.agent.display.VirtualScreenViewerActivity::class.java else MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
@@ -103,15 +104,34 @@ internal class AgentExecutionService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val taskCount = leases.count()
-        return Notification.Builder(this, CHANNEL)
+        val builder = Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.execution_title))
-            .setContentText(progress.ifBlank { resources.getQuantityString(R.plurals.execution_summary, taskCount, taskCount) })
+            .setContentText(
+                status?.localizedText(resources)
+                    ?: resources.getQuantityString(R.plurals.execution_summary, taskCount, taskCount)
+            )
             .setContentIntent(open)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .addAction(Notification.Action.Builder(null, getString(R.string.execution_stop), stop).build())
-            .build()
+        // 只有 Agent run 在跑时才申请提升为 Live Update；终端会话、Linux 启动等长驻任务不属于"正在进行、需要持续关注"的活动。
+        if (status != null && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+            builder
+                .setStyle(Notification.ProgressStyle().setProgressIndeterminate(true))
+                .setShortCriticalText(status.shortText())
+                .setRequestPromotedOngoing(true)
+        }
+        return builder.build()
+    }
+
+    /** 状态栏胶囊约 7 个字符可完整显示；更长时只取动作，工具名留在展开态。 */
+    private fun AgentOverlayStatus.shortText(): String = when (this) {
+        is AgentOverlayStatus.RunningTool, is AgentOverlayStatus.HostedToolRunning -> getString(R.string.execution_chip_running)
+        AgentOverlayStatus.Paused -> getString(R.string.overlay_paused)
+        AgentOverlayStatus.Stopping -> getString(R.string.overlay_stopping)
+        AgentOverlayStatus.GeneratingAnswer -> getString(R.string.execution_chip_answering)
+        else -> getString(R.string.overlay_reasoning)
     }
 
     companion object {
@@ -122,6 +142,22 @@ internal class AgentExecutionService : Service() {
         private val ownerSequence = AtomicLong()
         private val mainHandler = Handler(Looper.getMainLooper())
         @Volatile private var instance: AgentExecutionService? = null
+        private var runStatus: AgentOverlayStatus? = null
+        private var publishedStatusText: String? = null
+
+        /**
+         * Agent run 的当前状态，供通知与状态栏胶囊展示；null 表示没有 Agent run 在跑。
+         * 只在显示文字变化时刷新通知，避免流式事件把通知更新频率推到系统限流。
+         */
+        fun updateRunStatus(context: Context, status: AgentOverlayStatus?) {
+            mainHandler.post {
+                runStatus = status
+                val text = status?.localizedText(context.resources)
+                if (text == publishedStatusText) return@post
+                publishedStatusText = text
+                instance?.takeIf { it.foregroundActive }?.refreshNotification()
+            }
+        }
 
         /** 必须从有效的用户入口取得引用，再创建会话或子进程；失败时调用方不启动任务。 */
         fun acquire(
@@ -144,22 +180,7 @@ internal class AgentExecutionService : Service() {
 
         fun release(id: String) {
             leases.release(id)
-            mainHandler.post { instance?.let { service -> if (service.progressOwner == id) { service.progress = ""; service.progressOwner = "" }; service.refreshNotification() } }
-        }
-
-        fun updateProgress(id: String, event: AgentEvent) {
-            val tool = when (event) {
-                is AgentEvent.ToolStarted -> event.name
-                is AgentEvent.ToolFinished -> ""
-                else -> return
-            }
-            mainHandler.post { instance?.let { service ->
-                if (tool.isNotBlank() || service.progressOwner == id) {
-                    service.progressOwner = id
-                    service.progress = tool.take(80)
-                    service.refreshNotification()
-                }
-            } }
+            mainHandler.post { instance?.refreshNotification() }
         }
     }
 }

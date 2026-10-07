@@ -244,7 +244,6 @@ internal object AgentModelClient {
         require(baseUrl.isNotBlank()) { "请先配置 API 地址" }
         require(apiKey.isNotBlank()) { "请先配置 API Key" }
         require(model.isNotBlank()) { "请先配置模型名" }
-        requireContextWindow()
         require(
             reasoningCapabilities?.mandatory != true ||
                 effectiveReasoningEffort != ReasoningEffort.OFF
@@ -307,11 +306,9 @@ internal object AgentModelClient {
         val effectiveReasoningEffort: ReasoningEffort
             get() = reasoningEffort ?: ReasoningEffort.fromLegacy(thinkingEnabled)
 
-        fun requireContextWindow(): Int = contextWindow?.takeIf { it > 0 }
-            ?: throw AgentModelFailure(
-                "CONTEXT_WINDOW_REQUIRED", false,
-                "请先到设置 → 模型提供商，填写当前模型「${modelDisplayName.ifBlank { model }}」的上下文窗口大小（tokens）。",
-            )
+        /** 未知窗口不阻断对话：只关闭依赖窗口的自动压缩，手动压缩与服务商溢出错误照常可用。 */
+        val knownContextWindow: Int?
+            get() = contextWindow?.takeIf { it > 0 }
     }
 
     @Serializable

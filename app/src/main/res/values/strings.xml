@@ -210,37 +210,20 @@
   <string name="conversation_preview_reasoning">Eta is reasoning</string>
   <string name="conversation_preview_tool_call">Tool call: %1$s</string>
   <string name="conversation_preview_empty">Ask anything. Eta can operate your device when needed</string>
-  <string name="overlay_received">Request received. Preparing the model</string>
-  <string name="overlay_preparing">Preparing…</string>
-  <plurals name="overlay_preparing_tools">
-    <item quantity="one">Preparing %d tool</item>
-    <item quantity="other">Preparing %d tools</item>
-  </plurals>
-  <string name="overlay_reasoning_round">Reasoning · round %1$d</string>
-  <string name="overlay_requesting_model">Requesting model</string>
-  <string name="overlay_model_responded">Model responded</string>
-  <string name="overlay_generating_tool_arguments">Generating tool arguments</string>
   <string name="overlay_reasoning">Reasoning</string>
-  <string name="overlay_preparing_answer">Preparing answer</string>
-  <string name="overlay_planning_tools">Planning: %1$s</string>
   <string name="overlay_supplement_received">Additional input received. Continuing</string>
-  <string name="overlay_running_tool">Running: %1$s</string>
-  <string name="overlay_tool_completed">Completed: %1$s</string>
   <string name="overlay_hosted_tool_running">Running %1$s</string>
-  <string name="overlay_hosted_tool_completed">%1$s completed</string>
-  <string name="overlay_hosted_tool_failed">%1$s failed</string>
-  <plurals name="overlay_images_read">
-    <item quantity="one">Read %d image</item>
-    <item quantity="other">Read %d images</item>
-  </plurals>
   <string name="overlay_result_ready">Result ready</string>
   <string name="overlay_run_failed">Request failed</string>
   <string name="overlay_generating_answer">Generating answer</string>
   <string name="overlay_substatus_finished">Completed</string>
   <string name="overlay_substatus_failed">Failed</string>
+  <string name="overlay_result_done">Done</string>
+  <string name="overlay_result_open_eta">Open Eta</string>
   <string name="overlay_pause">Pause</string>
   <string name="overlay_resume">Resume</string>
   <string name="overlay_supplement">Add input</string>
+  <string name="overlay_capsule_toggle">%1$s. Tap to show controls</string>
   <string name="overlay_supplement_hint">Add instructions; Eta continues the current task</string>
   <string name="overlay_send">Send</string>
   <string name="overlay_stopping">Stopping</string>
@@ -638,7 +621,7 @@
   <string name="page_exceeded_the_1_mib_limit_please_delete_120a63">Exceeded the 1 MiB limit, please delete</string>
   <string name="page_the_installation_of_common_tools_has_not_been_comple_d7f7c2">The installation of common tools has not been completed, you can continue from the current progress</string>
   <string name="page_the_current_root_environment_cannot_create_an_isolat_4ca00a">The current Root environment cannot create an isolated mount namespace or chroot</string>
-  <string name="page_current_model_a0af8f">current model</string>
+  <string name="page_current_model_a0af8f">default model</string>
   <string name="page_busy_0212cc">Busy</string>
   <string name="page_retrieving_a880c9">Retrieving...</string>
   <string name="page_support_thinking_5b9e4c">Supports Reasoning</string>
@@ -664,7 +647,7 @@
   <string name="page_continue_installation_62da0c">Continue installation</string>
   <string name="page_edit_model_29e31e">Edit model</string>
   <string name="page_custom_model_25be0f">custom model</string>
-  <string name="page_set_as_current_model_183d7d">Set as current model</string>
+  <string name="page_set_as_current_model_183d7d">Set as default model</string>
   <string name="page_please_complete_the_linux_basic_tool_installation_fi_2ab81b">Please complete the Linux basic tool installation first</string>
   <string name="page_the_remote_end_did_not_return_a_usable_conversation__781487">The remote end did not return a usable conversation model, the existing model has been retained</string>
   <string name="page_select_zip_skills_package_982a44">Select ZIP skills package</string>
@@ -775,7 +758,6 @@
   <string name="tool_ui_list_directory_96e765">list directory</string>
   <string name="tool_ui_clipboard_history_b377bb">Clipboard history</string>
   <string name="tool_ui_only_extract_verification_codes_from_recent_sms__0fb8c1">Only extract verification codes from recent SMS messages</string>
-  <string name="tool_ui_append_or_paste_text_to_the_current_focus_1efdcc">Append or paste text to the current focus</string>
   <string name="tool_ui_start_the_specified_package_name_or_application__beabff">Start the specified package name or application name</string>
   <string name="tool_ui_media_control_585edc">media control</string>
   <string name="tool_ui_storage_ranking_86a16c">Storage ranking</string>
@@ -808,8 +790,6 @@
   <string name="tool_ui_organize_memory_2b08eb">organize memory</string>
   <string name="tool_ui_calendar_events_970349">Calendar events</string>
   <string name="tool_ui_time_and_location_693893">time and location</string>
-  <string name="tool_ui_replacement_text_1a5c8d">replacement text</string>
-  <string name="tool_ui_replace_text_in_focus_or_node_30d332">Replace text in focus or node</string>
   <string name="tool_ui_recently_applied_08f74c">Recently applied</string>
   <string name="tool_ui_bounded_reading_and_filtering_of_recent_logs_0a268a">Bounded reading and filtering of recent logs</string>
   <string name="tool_ui_find_click_and_enter_page_elements_8f102d">Find, click and enter page elements</string>
@@ -831,14 +811,11 @@
   <string name="tool_ui_retrieve_contact_name_and_open_address_6dacc5">Retrieve contact name and open address</string>
   <string name="tool_ui_summarize_steps_sleep_exercise_and_body_metrics_6ff66f">Summarize steps, sleep, exercise and body metrics</string>
   <string name="tool_ui_activity_timer_36f107">Activity timer</string>
-  <string name="tool_ui_clear_text_d4cb57">Clear text</string>
-  <string name="tool_ui_clear_focus_or_node_text_3e754a">Clear focus or node text</string>
   <string name="tool_ui_slide_3723aa">slide</string>
   <string name="tool_ui_scroll_220e68">scroll</string>
   <string name="tool_ui_scroll_the_page_or_specify_a_node_83ab24">Scroll the page or specify a node</string>
   <string name="tool_ui_click_element_7a3d91">click element</string>
   <string name="tool_ui_click_area_cbaa08">click area</string>
-  <string name="tool_ui_reliably_enter_long_text_with_the_clipboard_b6041e">Reliably enter long text with the clipboard</string>
   <string name="tool_ui_open_with_app_32c24e">Open with app</string>
   <string name="tool_ui_directly_create_system_timers_up_to_24_hours_87c476">Directly create system timers up to 24 hours</string>
   <string name="tool_ui_create_a_system_alarm_directly_and_open_the_cloc_9aa214">Create a system alarm directly, and open the clock to confirm if it fails.</string>
@@ -849,7 +826,6 @@
   <string name="tool_ui_open_web_pages_off_screen_and_keep_a_takeover_br_72972e">Open web pages off-screen and keep a takeover browsing session</string>
   <string name="tool_ui_wait_for_the_specified_text_to_appear_on_the_scr_43f9b0">Wait for the specified text to appear on the screen</string>
   <string name="tool_ui_wait_for_text_9e9a54">Wait for text</string>
-  <string name="tool_ui_paste_text_791b85">Paste text</string>
   <string name="tool_ui_system_recording_15eb19">System recording</string>
   <string name="tool_ui_system_log_096733">System log</string>
   <string name="tool_ui_system_panel_b0f7a3">System panel</string>
@@ -882,6 +858,7 @@
   <string name="tool_ui_read_lock_screen_do_not_disturb_audio_output_and_9260b8">Read lock screen, do not disturb, audio output and external screen status</string>
   <string name="tool_ui_read_verification_code_7d1121">Read verification code</string>
   <string name="tool_ui_enter_text_ae47ab">Enter text</string>
+  <string name="tool_ui_type_text_summary">Replace, append or clear text and optionally submit; the result is read back</string>
   <string name="tool_ui_system_buttons_such_as_return_homepage_recent_ta_1b4cf0">System buttons such as return, homepage, recent tasks, etc.</string>
   <string name="tool_ui_notification_history_95d015">Notification history</string>
   <string name="tool_ui_address_book_9070cb">Address book</string>
@@ -1116,7 +1093,7 @@
     <item quantity="other">%d models</item>
   </plurals>
   <string name="provider_selected">Selected</string>
-  <string name="provider_set_current">Set as current</string>
+  <string name="provider_set_current">Set as default</string>
   <string name="skills_checking_package">Checking skill package</string>
   <string name="skills_import_zip">Import from ZIP</string>
   <string name="skills_installing_package">Verifying and installing. Please wait</string>
@@ -1141,11 +1118,12 @@
   <string name="browser_opening">Opening webpage</string>
   <string name="browser_opening_host">Opening %1$s</string>
   <string name="model_not_selected">Not selected</string>
+  <string name="conversation_model_unavailable">Model unavailable for this conversation. Using %1$s.</string>
   <string name="model_switch_current">Switch model. Current: %1$s</string>
   <string name="model_collapse_provider">Collapse %1$s</string>
   <string name="model_expand_provider">Expand %1$s</string>
   <string name="context_no_previous_usage">No usage data yet</string>
-  <string name="context_no_model_limit">Set this model\'s context window in Settings → Model Providers first.</string>
+  <string name="context_no_model_limit">Context window unknown, so automatic compaction is off. You can still compact manually, or set the window in Settings → Model Providers.</string>
   <string name="context_usage_after_response">Measured after the first response</string>
   <string name="context_usage_previous_response">%1$s\nMeasured last turn</string>
   <string name="context_usage_description">Context usage: %1$s</string>

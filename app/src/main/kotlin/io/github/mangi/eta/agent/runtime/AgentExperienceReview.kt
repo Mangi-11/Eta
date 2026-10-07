@@ -143,7 +143,7 @@ internal object AgentExperienceReview {
                                 request.prompt,
                                 response,
                                 events,
-                                (config.requireContextWindow() / 3).coerceIn(1000, 16_000)
+                                (config.knownContextWindow?.div(3) ?: 4000).coerceIn(1000, 16_000)
                             ),
                             runController = controller,
                             skillContext = if (skills) SkillContext(installed) else SkillContext.EMPTY,
@@ -183,7 +183,6 @@ internal object AgentExperienceReview {
                             },
                             onEvent = { event ->
                                 checkCurrent()
-                                AgentExecutionService.updateProgress(lease, event)
                                 if (event is AgentEvent.RoundStarted && event.round > 4) {
                                     controller.cancel()
                                     controller.throwIfCancelled()
