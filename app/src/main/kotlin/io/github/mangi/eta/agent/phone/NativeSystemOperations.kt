@@ -1,6 +1,8 @@
 package io.github.mangi.eta.agent.phone
 
 import android.content.Context
+import android.annotation.SuppressLint
+import android.os.Process
 import android.media.AudioManager
 import android.net.TetheringInterface
 import android.net.TetheringManager
@@ -30,7 +32,9 @@ internal class NativeSystemOperations(
         }
 
     @Suppress("DEPRECATION")
+    @SuppressLint("MissingPermission")
     private fun mobileData(tool: String, args: JSONObject): JSONObject {
+        if (Process.myUid() != 0) PhoneOperation.error("ROOT_REQUIRED", "移动数据操作需要 Root 身份")
         PhoneOperation.allowed(
             args,
             if (tool == "set_mobile_data") setOf("enabled") else emptySet(),
