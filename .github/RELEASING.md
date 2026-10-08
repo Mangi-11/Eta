@@ -36,6 +36,16 @@ gh secret set ETA_RELEASE_KEY_PASSWORD
 
 工作流不会创建、修改或发布 GitHub Release。
 
+Debug APK 会先独立构建并上传；签名配置缺失或 Release 构建失败时，
+已生成的 Debug Artifact 仍可下载，工作流会继续明确报告 Release 失败。
+
+`Eta-vivo` 仓库使用独立的持久发布证书，四项 Secrets 已配置。
+本机备份位于 `~/.local/share/eta-vivo/signing/`，其中
+`eta-vivo-release.jks` 为证书，`credentials.json` 为签名参数。
+目录权限为 `0700`，文件权限为 `0600`；备份不在 Git 内。
+迁移或重建仓库时继续使用同一证书，并重新设置上述 Secrets。
+不要把证书、密码或备份提交到 Git，也不要每次构建重新生成证书。
+
 正式发布前先更新 `versionCode` 和 `versionName`，然后创建与
 `versionName` 对应的标签。例如发布 `2.2.2`：
 
