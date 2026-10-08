@@ -23,15 +23,48 @@ internal class AgentToolCallValidator(tools: JSONArray) {
     fun validate(call: AgentModelClient.ToolCall): String? {
         val toolSchema = schemasByName[call.name]
             ?: return "工具未在本次运行的能力目录中声明"
-        val arguments = runCatching { JSONObject(call.argumentsJson.ifBlank { "{}" }) }
-            .getOrElse { return "参数不是有效的 JSON object" }
-        return validateValue(
-            value = arguments,
-            schema = toolSchema.parameters,
-            root = toolSchema.root,
-            path = "arguments",
-            depth = 0,
-        )
+        val arguments = parseArguments(call.argumentsJson)
+            ?: return "参数不是有效的 JSON object"
+        // 兼容少数模型把参数包进 arguments/args/parameters 一层壳（或字符串化）的输出：
+        // 外层校验失败时，再用解壳后的对象校验一次，避免误报"缺少必填字段"。
+        val candidates = listOfNotNull(arguments, unwrapArgumentWrapper(arguments))
+        var firstError: String? = null
+        for (candidate in candidates) {
+            val error = validateValue(
+                value = candidate,
+                schema = toolSchema.parameters,
+                root = toolSchema.root,
+                path = "arguments",
+                depth = 0,
+            )
+            if (error == null) return null
+            if (firstError == null) firstError = error
+        }
+        val received = arguments.keys().asSequence().joinToString(", ").ifBlank { "（空对象）" }
+        return "$firstError（实际收到字段: $received；tool_call id: ${call.id}）"
+    }
+
+    /** 容错解析：整体可能是对象，也可能是被字符串化的一层对象。 */
+    private fun parseArguments(raw: String): JSONObject? {
+        val text = raw.trim().ifBlank { "{}" }
+        runCatching { JSONObject(text) }.getOrNull()?.let { return it }
+        val inner = runCatching { org.json.JSONTokener(text).nextValue() }.getOrNull()
+        return when (inner) {
+            is JSONObject -> inner
+            is String -> runCatching { JSONObject(inner) }.getOrNull()
+            else -> null
+        }
+    }
+
+    /** 仅当外层只有一个 arguments/args/parameters 键且值可解出对象时，返回解壳候选。 */
+    private fun unwrapArgumentWrapper(arguments: JSONObject): JSONObject? {
+        if (arguments.length() != 1) return null
+        val key = listOf("arguments", "args", "parameters").firstOrNull { arguments.has(it) } ?: return null
+        return when (val inner = arguments.opt(key)) {
+            is JSONObject -> inner
+            is String -> runCatching { JSONObject(inner) }.getOrNull()
+            else -> null
+        }
     }
 
     private fun validateValue(

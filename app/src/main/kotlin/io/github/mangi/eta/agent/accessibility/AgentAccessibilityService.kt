@@ -96,6 +96,7 @@ class AgentAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         instance = this
+        injectServer = AgentA11yCommandServer(this).also { it.start() }
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -110,6 +111,8 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     private fun clearCurrentInstance() {
+        injectServer?.stop()
+        injectServer = null
         if (instance === this) instance = null
         scrollEventObservationGate.clear()
         signalWindowChanged()
@@ -139,6 +142,8 @@ class AgentAccessibilityService : AccessibilityService() {
      * 一次观察与其节点句柄组成不可变快照。调用方必须把同一实例传回节点动作，
      * 避免其他运行或 wait_for_text 的临时观察改写 index 含义。
      */
+    private var injectServer: AgentA11yCommandServer? = null
+
     fun captureNodeSnapshot(maxNodes: Int): NodeSnapshot? = runOnMainSync {
         val startedAt = SystemClock.elapsedRealtime()
         val root = rootInActiveWindow ?: return@runOnMainSync null
