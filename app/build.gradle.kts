@@ -39,8 +39,8 @@ android {
         minSdk = 33
         targetSdk = 37
         // versionCode 规则：yyyyMMdd + 两位当日序号（01 起），发版时随 versionName 一起手动递增。
-        versionCode = 2026100701
-        versionName = "3.3.0"
+        versionCode = 2026101001
+        versionName = "3.3.1-beta.1"
         testInstrumentationRunner = "io.github.mangi.eta.validation.DeviceValidationRunner"
     }
 

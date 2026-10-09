@@ -194,10 +194,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           APK_PATH: ${{ runner.temp }}/release/Eta-${{ github.ref_name }}.apk
-        run: >-
-          gh release create "$GITHUB_REF_NAME" "$APK_PATH"
-          --repo "$GITHUB_REPOSITORY"
-          --draft
-          --verify-tag
-          --title "$GITHUB_REF_NAME"
-          --generate-notes
+        run: |
+          release_args=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            release_args=(--prerelease --latest=false)
+          fi
+          gh release create "$GITHUB_REF_NAME" "$APK_PATH" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes \
+            "${release_args[@]}"

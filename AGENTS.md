@@ -14,7 +14,7 @@ Eta is a single-module Android assistant built with Kotlin and Jetpack Compose.
 
 Use JDK 25 and Android SDK 37 (`platforms;android-37.0`); configure `sdk.dir` in ignored `local.properties`. Run commands from the repository root:
 
-- `./gradlew :app:assembleDebug`: build `app/build/outputs/apk/debug/app-debug.apk`.
+- `./gradlew :app:assembleDebug`: build `app/build/outputs/apk/debug/Eta-v<version>-debug.apk`.
 - `./gradlew :app:installDebug`: install on a connected Android 13+ device or emulator; open Eta from its launcher icon.
 - `./gradlew :app:testDebugUnitTest`: run JVM tests.
 - `./gradlew :app:lintDebug`: run Android Lint, which fails on errors.

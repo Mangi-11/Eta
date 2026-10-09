@@ -52,6 +52,7 @@ Release 草稿。
 
 推送 `v*` 标签时，工作流还会创建一个只附带 Release APK 的 GitHub Release 草稿，
 说明预填自动生成的变更列表。草稿不会被应用内更新检查读到，发布始终由维护者手动完成。
+带预发布后缀的标签（例如 `v3.3.1-beta.1`）会标记为 Pre-release，且不会替换稳定版 Latest。
 
 Debug APK 会先独立构建并上传；签名配置缺失或 Release 构建失败时，
 已生成的 Debug Artifact 仍可下载，工作流会继续明确报告 Release 失败。
