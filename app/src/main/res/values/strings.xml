@@ -1563,4 +1563,6 @@
     <string name="virtual_screen_floating_summary">Show a live preview while Eta uses the virtual screen. Drag to move, bring to an edge to fold, or tap to open. Captures stop when folded or hidden.</string>
     <string name="virtual_screen_floating_open">Open virtual screen</string>
     <string name="virtual_screen_floating_dismiss">Hide preview for this task</string>
+    <string name="chat_interject_hint">Add a message to redirect the current task…</string>
+    <string name="chat_interject_unavailable">Receipt of this message was not confirmed. Your draft is kept; check the task before sending again.</string>
 </resources>

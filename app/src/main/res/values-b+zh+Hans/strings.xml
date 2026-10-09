@@ -1543,4 +1543,6 @@
     <string name="virtual_screen_floating_summary">Eta 操作虚拟屏时显示实时预览。可拖动、贴边折叠，点击进入虚拟屏；折叠或隐藏时停止预览抓帧。</string>
     <string name="virtual_screen_floating_open">打开虚拟屏</string>
     <string name="virtual_screen_floating_dismiss">本次任务隐藏预览</string>
+    <string name="chat_interject_hint">输入消息，实时插话调整当前任务…</string>
+    <string name="chat_interject_unavailable">尚未确认当前任务收到插话，已保留草稿；请确认任务状态后再发送。</string>
 </resources>

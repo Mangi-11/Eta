@@ -1517,4 +1517,6 @@
     <string name="virtual_screen_floating_summary">Eta 操作虛擬螢幕時顯示即時預覽。可拖動、貼邊摺疊，點擊進入虛擬螢幕；摺疊或隱藏時停止預覽擷取畫面。</string>
     <string name="virtual_screen_floating_open">開啟虛擬螢幕</string>
     <string name="virtual_screen_floating_dismiss">本次工作隱藏預覽</string>
+    <string name="chat_interject_hint">輸入訊息，即時插話調整目前工作…</string>
+    <string name="chat_interject_unavailable">尚未確認目前工作收到插話，已保留草稿；請確認工作狀態後再傳送。</string>
 </resources>

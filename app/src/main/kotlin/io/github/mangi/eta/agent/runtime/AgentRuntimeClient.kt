@@ -122,6 +122,28 @@ internal class AgentRuntimeClient(
         }
     }
 
+    fun steerRun(runId: String, text: String): Boolean {
+        val payload = runCatching { AgentRuntimeWire.steerBundle(runId, text) }.getOrNull() ?: return false
+        val response = CountDownLatch(1)
+        val accepted = java.util.concurrent.atomic.AtomicBoolean(false)
+        val receiver = Messenger(object : Handler(Looper.getMainLooper()) {
+            override fun handleMessage(msg: Message) {
+                if (msg.what == AgentRuntimeWire.MSG_STEER_RESPONSE &&
+                    AgentRuntimeWire.runIdFromBundle(msg.data) == runId) {
+                    accepted.set(msg.data.getBoolean("accepted"))
+                    response.countDown()
+                }
+            }
+        })
+        return withRuntimeMessenger(false) { service ->
+            service.send(Message.obtain(null, AgentRuntimeWire.MSG_STEER_RUN).apply {
+                data = payload
+                replyTo = receiver
+            })
+            response.await(RESPONSE_TIMEOUT_SECONDS, TimeUnit.SECONDS) && accepted.get()
+        }
+    }
+
     fun ackResult(runId: String): Boolean {
         if (runId.isBlank()) return false
         return withRuntimeMessenger(false) { serviceMessenger ->

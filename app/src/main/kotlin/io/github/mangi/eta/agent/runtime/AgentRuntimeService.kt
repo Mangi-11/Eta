@@ -233,6 +233,18 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     if (runId.isNotBlank()) cancelRun(runId)
                 }
 
+                AgentRuntimeWire.MSG_STEER_RUN -> {
+                    val runId = AgentRuntimeWire.runIdFromBundle(msg.data)
+                    val text = msg.data.getString("supplement_text").orEmpty()
+                    val valid = runCatching { AgentRuntimeWire.steerBundle(runId, text) }.isSuccess
+                    val accepted = valid && requestSupplement(text, expectedRunId = runId)
+                    runCatching {
+                        msg.replyTo?.send(Message.obtain(null, AgentRuntimeWire.MSG_STEER_RESPONSE).apply {
+                            data = AgentRuntimeWire.ackBundle(runId).apply { putBoolean("accepted", accepted) }
+                        })
+                    }
+                }
+
                 AgentRuntimeWire.MSG_ACK_RESULT -> {
                     val runId = AgentRuntimeWire.runIdFromBundle(msg.data ?: return)
                     dispatchResultIo { AgentRuntimeResultStore.remove(this@AgentRuntimeService, runId) }
@@ -813,9 +825,10 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         )
     }
 
-    private fun requestSupplement(text: String) {
+    private fun requestSupplement(text: String, expectedRunId: String? = null): Boolean {
         val supplementText = text.trim()
-        if (supplementText.isBlank()) return
+        if (supplementText.isBlank()) return false
+        if (expectedRunId != null && activeSession?.runId != expectedRunId) return false
         setCapsuleInputMode(focusable = false)
         activeSession?.let { session ->
             val event = session.steer(supplementText) {
@@ -826,22 +839,23 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     state.value = state.value.copy(
                         status = AgentOverlayStatus.Finishing,
                     )
-                    return
+                    return false
                 }
             } else {
                 AndroidAgentLogger.info(
                     "Agent runtime supplement received: index=${event.index}, chars=${event.text.length}"
                 )
                 state.value = state.value.applyEvent(event)
-                return
+                return true
             }
         }
 
-        val completed = lastCompletedRunContext ?: return
+        if (expectedRunId != null) return false
+        val completed = lastCompletedRunContext ?: return false
         if (completed.request.operation != AgentRuntimeWire.OP_CHAT ||
             completed.request.handoff?.source != AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE) {
             state.value = state.value.copy(status = AgentOverlayStatus.ContinuationUnavailable)
-            return
+            return false
         }
         val continuationRequest = AgentContinuationBuilder.build(
             request = completed.request,
@@ -849,6 +863,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             supplement = supplementText,
         )
         startRun(continuationRequest)
+        return true
     }
 
     private fun recordSupplementEvent(text: String): AgentEvent.UserSupplementReceived {
@@ -906,7 +921,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                 onResume = ::requestResume,
                 onStop = ::requestStop,
                 onSupplementModeChange = ::setCapsuleInputMode,
-                onSupplement = ::requestSupplement,
+                onSupplement = { requestSupplement(it) },
             )
         }
         val capsuleLp = capsuleLayoutParams()

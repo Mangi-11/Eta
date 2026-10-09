@@ -147,6 +147,8 @@ internal fun AgentChatInputBar(
     val canSend = textFieldState.text.isNotBlank() ||
         pendingImages.isNotEmpty() ||
         pendingFileReferences.isNotEmpty()
+    val canInterject = isStreaming && !isCompacting && textFieldState.text.isNotBlank() &&
+        pendingImages.isEmpty() && pendingFileReferences.isEmpty()
     val density = LocalDensity.current
     val statusBarTopPx = WindowInsets.statusBars.getTop(density)
     var inputContainerTopPx by remember { mutableIntStateOf(0) }
@@ -266,7 +268,11 @@ internal fun AgentChatInputBar(
                 ) {
                     if (textFieldState.text.isBlank()) {
                         Text(
-                            text = if (isStreaming) stringResource(R.string.chat_eta_working) else stringResource(R.string.chat_input_hint),
+                            text = when {
+                                isCompacting -> stringResource(R.string.chat_eta_working)
+                                isStreaming -> stringResource(R.string.chat_interject_hint)
+                                else -> stringResource(R.string.chat_input_hint)
+                            },
                             style = MiuixTheme.textStyles.body1,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         )
@@ -351,8 +357,12 @@ internal fun AgentChatInputBar(
                             onModelSelected = onModelSelected,
                         )
 
+                        if (canInterject) IconButton(onClick = onStop, minWidth = ChatInputActionSize, minHeight = ChatInputActionSize) {
+                            Icon(Icons.Rounded.Stop, stringResource(R.string.chat_stop), modifier = Modifier.size(StopIconSize))
+                        }
+
                         IconButton(
-                            onClick = if (isStreaming) {
+                            onClick = if (isStreaming && !canInterject) {
                                 onStop
                             } else {
                                 {
@@ -371,7 +381,7 @@ internal fun AgentChatInputBar(
                             // 保留统一的点击区域，仅让可见圆形与相邻操作图标保持同一尺寸。
                             val sendButtonColor by animateColorAsState(
                                 targetValue = when {
-                                    isStreaming -> MiuixTheme.colorScheme.onSurface
+                                    isStreaming && !canInterject -> MiuixTheme.colorScheme.onSurface
                                     canSend -> MiuixTheme.colorScheme.primary
                                     else -> MiuixTheme.colorScheme.surfaceContainerHigh
                                 },
@@ -386,7 +396,7 @@ internal fun AgentChatInputBar(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 AnimatedContent(
-                                    targetState = isStreaming,
+                                    targetState = isStreaming && !canInterject,
                                     transitionSpec = {
                                         (fadeIn(tween(130)) + scaleIn(tween(160), initialScale = 0.72f))
                                             .togetherWith(
@@ -404,6 +414,7 @@ internal fun AgentChatInputBar(
                                         },
                                         contentDescription = when {
                                             streaming -> stringResource(R.string.chat_stop)
+                                            canInterject -> stringResource(R.string.overlay_supplement)
                                             isEditingMessage && preserveFollowingMessages -> "保存消息"
                                             else -> stringResource(R.string.chat_send)
                                         },
