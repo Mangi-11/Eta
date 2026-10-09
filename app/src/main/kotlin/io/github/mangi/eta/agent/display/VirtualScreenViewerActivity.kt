@@ -87,6 +87,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal class VirtualScreenViewerActivity : ComponentActivity() {
+    private val viewerId = java.util.UUID.randomUUID().toString()
     private var surface: VirtualScreenSurfaceView? = null
     private var hasFrame by mutableStateOf(false)
     private var inputError by mutableStateOf(false)
@@ -121,7 +122,7 @@ internal class VirtualScreenViewerActivity : ComponentActivity() {
                             if (next != null) {
                                 val view = surface
                                 if (view != null) {
-                                    view.setFrame(next.bitmap, info)
+                                    view.setFrame(next.bitmap, next.display)
                                     lastFrameId = next.id
                                     hasFrame = true
                                 } else next.bitmap.recycle()
@@ -130,19 +131,19 @@ internal class VirtualScreenViewerActivity : ComponentActivity() {
                             next?.bitmap?.recycle(); surface?.clearFrame(); hasFrame = false; lastFrameId = 0
                         }
                     }
-                    delay(32)
+                    delay(VirtualScreenFrameCapturePolicy.FRAME_INTERVAL_MS)
                 }
             }
         }
     }
 
-    private data class Frame(val bitmap: Bitmap, val id: Long)
+    private data class Frame(val bitmap: Bitmap, val id: Long, val display: VirtualDisplayInfo)
 
     private suspend fun readFrame(): Frame? {
         val pending = AtomicReference<Bitmap?>()
         return try {
             val result = withContext(Dispatchers.IO) {
-                val frame = VirtualScreenSession.observeForViewer(this@VirtualScreenViewerActivity, lastFrameId)
+                val frame = VirtualScreenSession.observeForViewer(this@VirtualScreenViewerActivity, lastFrameId, viewerId)
                 val json = JSONObject(frame.content)
                 val bitmap = frame.images.firstOrNull()?.reference?.substringAfter("base64,")?.let { encoded ->
                     runCatching {
@@ -151,7 +152,17 @@ internal class VirtualScreenViewerActivity : ComponentActivity() {
                     }.getOrNull()
                 }
                 pending.set(bitmap)
-                bitmap?.let { Frame(it, json.optLong("frameId")) }
+                bitmap?.let { decoded ->
+                    val display = VirtualScreenSession.state.value.display
+                    if (display != null && display.displayId == json.optInt("displayId") &&
+                        display.width == decoded.width && display.height == decoded.height && display.rotation == json.optInt("rotation")) {
+                        Frame(decoded, json.optLong("frameId"), display)
+                    } else {
+                        decoded.recycle()
+                        pending.set(null)
+                        null
+                    }
+                }
             }
             pending.set(null)
             result
@@ -232,7 +243,9 @@ internal class VirtualScreenViewerActivity : ComponentActivity() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                            val aspect = display?.let { it.width.toFloat() / it.height } ?: (9f / 20f)
+                            val aspect = display?.let {
+                                VirtualScreenViewport.previewAspectRatio(maxWidth.value, maxHeight.value, it.width, it.height)
+                            } ?: (9f / 20f)
                             val width = minOf(maxWidth, maxHeight * aspect)
                             Box(Modifier.size(width, width / aspect).clip(RoundedCornerShape(24.dp))
                                 .background(Color(0xFF101318)).virtualScreenControlBorder(state.isAgentControlling)) {
@@ -309,7 +322,13 @@ internal class VirtualScreenViewerActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        VirtualScreenSession.setViewerVisible(viewerId, true)
+    }
+
     override fun onPause() {
+        VirtualScreenSession.setViewerVisible(viewerId, false)
         surface?.clearFrame(); hasFrame = false; lastFrameId = 0
         super.onPause()
     }
@@ -327,6 +346,7 @@ private fun TaskIndicator(state: VirtualScreenViewerState, onClick: () -> Unit) 
         VirtualScreenTaskPhase.COMPLETED -> R.string.virtual_screen_completed
         VirtualScreenTaskPhase.FAILED -> R.string.virtual_screen_failed
         VirtualScreenTaskPhase.STOPPED -> R.string.virtual_screen_stopped
+        VirtualScreenTaskPhase.PAUSED -> R.string.virtual_screen_paused
         VirtualScreenTaskPhase.IDLE -> R.string.virtual_screen_idle
     }
     Row(Modifier.clip(CircleShape).background(color.copy(alpha = 0.1f))

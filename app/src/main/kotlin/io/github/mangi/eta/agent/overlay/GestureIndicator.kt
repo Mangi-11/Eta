@@ -174,7 +174,7 @@ internal class GestureIndicatorHost(context: Context) : FrameLayout(context) {
         view.startIndicatorAnimation { if (active === view) clear() }
     }
 
-    private fun clear() {
+    fun clear() {
         active?.cancelIndicatorAnimation()
         active = null
         removeAllViews()

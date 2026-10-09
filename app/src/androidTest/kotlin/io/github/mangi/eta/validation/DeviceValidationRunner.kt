@@ -4,17 +4,22 @@ import android.app.Activity
 import android.app.ActivityOptions
 import android.app.NotificationManager
 import android.app.Instrumentation
+import android.app.KeyguardManager
 import android.app.UiAutomation
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Base64
 import android.view.WindowManager
+import android.view.Display
 import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
@@ -43,12 +48,14 @@ import java.io.File
 class DeviceValidationRunner : Instrumentation() {
     private val checks = mutableListOf<String>()
     private var mode = "core"
+    private var screenOffValidation = false
     private var restoreTimeout: Int? = null
     private lateinit var automation: UiAutomation
 
     override fun onCreate(arguments: Bundle?) {
         super.onCreate(arguments)
         mode = arguments?.getString("mode") ?: "core"
+        screenOffValidation = arguments?.getString("screen_off") == "true"
         restoreTimeout = arguments?.getString("idle_timeout")?.toIntOrNull()
         start()
     }
@@ -63,6 +70,7 @@ class DeviceValidationRunner : Instrumentation() {
                 virtualScreenEnabled = backup.getBoolean("enabled"),
                 virtualScreenFallbackEnabled = backup.getBoolean("fallback"),
                 virtualScreenAutoRestartApps = backup.getBoolean("auto_restart"),
+                virtualScreenOffEnabled = backup.optBoolean("screen_off", it.virtualScreenOffEnabled),
                 virtualScreenIdleTimeoutMinutes = backup.getInt("idle_timeout"),
             ) } }
             settingsBackup.delete()
@@ -81,6 +89,7 @@ class DeviceValidationRunner : Instrumentation() {
         settingsBackup.writeText(JSONObject().put("enabled", original.virtualScreenEnabled)
             .put("fallback", original.virtualScreenFallbackEnabled)
             .put("auto_restart", original.virtualScreenAutoRestartApps)
+            .put("screen_off", original.virtualScreenOffEnabled)
             .put("idle_timeout", original.virtualScreenIdleTimeoutMinutes).toString())
         val output = Bundle()
         var resultCode = Activity.RESULT_OK
@@ -92,12 +101,17 @@ class DeviceValidationRunner : Instrumentation() {
                 flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
             }
             automation.adoptShellPermissionIdentity("android.permission.QUERY_ALL_PACKAGES")
-            connectEnabledAccessibilityService()
+            if (mode !in setOf("recovery", "landscape", "frames", "frame_recovery")) connectEnabledAccessibilityService()
             runBlocking { SettingsDataStore.updateSettings { it.copy(virtualScreenEnabled = true,
                 virtualScreenFallbackEnabled = false, virtualScreenAutoRestartApps = false,
+                virtualScreenOffEnabled = mode in setOf("recovery", "landscape", "frames", "frame_recovery") || original.virtualScreenOffEnabled,
                 virtualScreenIdleTimeoutMinutes = 0) } }
             when (mode) {
                 "wechat" -> validateWechat()
+                "stall" -> validateStallProtection()
+                "recovery", "frame_recovery" -> validateUiRecovery()
+                "landscape" -> validateLandscape()
+                "frames" -> validateFrameCapture()
                 "tree" -> DeviceUiTreeValidation(this, automation) { record ->
                     checks += record
                     sendStatus(0, Bundle().apply { putString("stream", record + "\n") })
@@ -115,6 +129,11 @@ class DeviceValidationRunner : Instrumentation() {
                 error.stackTrace.take(8).joinToString("\n") + "\n" + checks.joinToString("\n"))
             output.putString("operations", VirtualScreenSession.state.value.operations.takeLast(5)
                 .joinToString { "${it.name}:ok=${it.success},manual=${it.manual}" })
+            if (mode in setOf("recovery", "landscape", "frames", "frame_recovery")) {
+                output.putString("display_states", targetContext.getSystemService(DisplayManager::class.java)
+                    .displays.joinToString { "${it.displayId}:${it.state}" })
+                output.putBoolean("keyguard_locked", targetContext.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
+            }
         } finally {
             VirtualScreenSession.revokePermission()
             runBlocking { SettingsDataStore.updateSettings { original } }
@@ -243,6 +262,396 @@ class DeviceValidationRunner : Instrumentation() {
             eventually("automatic restart places app on virtual display", { probe().optInt("display") == displayId })
             ok("automatic restart display closes", call(tools, "virtual_screen", JSONObject().put("action", "close")))
         }
+    }
+
+    private fun validateStallProtection() {
+        val component = "io.github.mangi.eta.test/${DisplayProbeActivity::class.java.name}"
+        shell("am start -n $component")
+        tools("stall-first").use { tools ->
+            ok("create stall display", call(tools, "virtual_screen", JSONObject().put("action", "create")))
+            ok("launch stall fixture", call(tools, "virtual_screen", JSONObject().put("action", "launch").put("component", component)))
+            eventually("stall fixture is virtual", { probe().optInt("display") == VirtualScreenSession.state.value.display?.displayId })
+            val observed = ok("stall observation", call(tools, "observe_screen", JSONObject().put("include_screenshot", true)))
+            verify("frame id is exposed", observed.getJSONObject("screenshot").optLong("frame_id") > 0)
+            verify("frame age is exposed", observed.getJSONObject("screenshot").optLong("frame_age_ms", -1) >= 0)
+            val health = VirtualScreenSession.execute(targetContext, "device-validation", JSONObject()
+                .put("action", "probe").put("includeInputHealth", true))
+            verify("virtual input connection is responsive", JSONObject(health.content).getJSONObject("input_health").optString("status") == "responsive")
+            repeat(5) { index ->
+                val position = probe()
+                val tap = ok("progressing tap ${index + 1}", call(tools, "tap", JSONObject()
+                    .put("x", position.getInt("buttonX")).put("y", position.getInt("buttonY"))))
+                verify("framework confirms input completion", tap.optBoolean("input_finished"))
+                eventually("counter progress ${index + 1}", { probe().optInt("taps") == index + 1 })
+            }
+            repeat(3) { index ->
+                val position = probe()
+                ok("missed tap retry ${index + 1}", call(tools, "tap", JSONObject()
+                    .put("x", position.getInt("titleX") + index * 3).put("y", position.getInt("titleY"))))
+                ok("read does not reset budget ${index + 1}", call(tools, "observe_screen"))
+            }
+            val position = probe()
+            val paused = tools.execute(AgentModelClient.ToolCall("pause", "tap", JSONObject()
+                .put("x", position.getInt("titleX")).put("y", position.getInt("titleY")).toString()))
+            verify("fourth missed tap pauses", paused.stop?.code == "UI_NO_PROGRESS")
+            verify("missed tap is not business progress", probe().optInt("taps") == 5)
+        }
+        verify("paused display remains owned", VirtualScreenSession.isOwnedBy("device-validation"))
+        verify("paused indicator is distinct", VirtualScreenSession.state.value.taskPhase ==
+            io.github.mangi.eta.agent.display.VirtualScreenTaskPhase.PAUSED)
+        verify("paused control border stops", !VirtualScreenSession.state.value.isAgentControlling)
+        val viewer = startActivitySync(Intent(targetContext, VirtualScreenViewerActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), ActivityOptions.makeBasic().setLaunchDisplayId(0).toBundle())
+        try {
+            runOnMainSync { viewer.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+            eventually("paused label is visible", { findPrimary { it.text?.toString() == targetContext.getString(R.string.virtual_screen_paused) } != null })
+            screenshot("viewer-paused.png")
+        } finally {
+            runOnMainSync { viewer.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE); viewer.finish() }
+        }
+        tools("stall-resumed").use { tools ->
+            ok("new run can inspect retained screen", call(tools, "observe_screen"))
+            val position = probe()
+            ok("new run can continue", call(tools, "tap", JSONObject().put("x", position.getInt("buttonX")).put("y", position.getInt("buttonY"))))
+            eventually("resumed counter increments", { probe().optInt("taps") == 6 })
+            tools.retainVirtualScreenOnSuccess()
+        }
+        val display = checkNotNull(VirtualScreenSession.state.value.display)
+        val launchOutput = shell("am start --display ${display.displayId} -f 0x18000000 -n $component --ez stall_validation true")
+        verify("freeze fixture launch accepted", !launchOutput.contains("Error:") && !launchOutput.contains("Warning: Activity not started"))
+        eventually("freeze fixture enabled", { probe().optInt("freezeY") > 0 })
+        tools("stall-unresponsive").use { tools ->
+            ok("observe freeze fixture", call(tools, "observe_screen"))
+            val position = probe()
+            val freeze = tools.execute(AgentModelClient.ToolCall("freeze", "tap", JSONObject()
+                .put("x", position.getInt("freezeX")).put("y", position.getInt("freezeY")).toString()))
+            val result = if (freeze.stop != null) freeze else {
+                ok("freeze input dispatch completes", JSONObject(freeze.content))
+                eventually("fixture main thread is blocked", { probe().optBoolean("blocked") })
+                tools.execute(AgentModelClient.ToolCall("blocked-input", "tap", JSONObject()
+                    .put("x", position.getInt("buttonX")).put("y", position.getInt("buttonY")).toString()))
+            }
+            verify("blocked UI pauses from system evidence or input timeout (${result.stop?.code ?: JSONObject(result.content).optString("code")})", result.stop?.code in
+                setOf("UI_APP_UNRESPONSIVE", "UI_INPUT_TIMEOUT"))
+        }
+        verify("blocked UI retains display", VirtualScreenSession.isOwnedBy("device-validation"))
+        shell("am force-stop io.github.mangi.eta.test")
+    }
+
+    private fun validateUiRecovery() {
+        val component = "io.github.mangi.eta.test/${DisplayProbeActivity::class.java.name}"
+        if (mode == "frame_recovery") shell("am force-stop io.github.mangi.eta.test")
+        else shell("am start -n $component")
+        tools("recovery-run").use { tools ->
+            ok("create recovery display", call(tools, "virtual_screen", JSONObject().put("action", "create").put("allowScreenOff", true)))
+            ok("launch recovery fixture", call(tools, "virtual_screen", JSONObject().put("action", "launch").put("component", component)))
+            val info = checkNotNull(VirtualScreenSession.state.value.display)
+            eventually("fixture is on recovery display", { probe().optInt("display") == info.displayId })
+            ok("observe recovery fixture", call(tools, "observe_screen"))
+            val position = probe()
+            ok("seed counter before restart", call(tools, "tap", JSONObject()
+                .put("x", position.getInt("buttonX")).put("y", position.getInt("buttonY"))))
+            eventually("counter has state before restart", { probe().optInt("taps") == 1 })
+            repeat(3) { index ->
+                ok("missed recovery tap ${index + 1}", call(tools, "tap", JSONObject()
+                    .put("x", position.getInt("titleX")).put("y", position.getInt("titleY"))))
+                ok("observe missed recovery tap ${index + 1}", call(tools, "observe_screen"))
+            }
+            val paused = tools.execute(AgentModelClient.ToolCall("pause", "tap", JSONObject()
+                .put("x", position.getInt("titleX")).put("y", position.getInt("titleY")).toString()))
+            verify("recovery fixture pauses after missed taps", paused.stop?.code == "UI_NO_PROGRESS")
+            if (screenOffValidation) lockPrimaryForRecovery("missed taps")
+            val previousFrameId = JSONObject(VirtualScreenSession.observeForViewer(targetContext).content).getLong("frameId")
+            val restarted = tools.recoverVirtualUi(checkNotNull(paused.stop))
+            ok("paused application restarts", JSONObject(restarted.content))
+            eventually("application was recreated on same display", { probe().optInt("taps", -1) == 0 && probe().optInt("display") == info.displayId })
+            verify("display session remains owned", VirtualScreenSession.state.value.display?.sessionId == info.sessionId)
+            verify("restart invalidates previous observation generation", VirtualScreenSession.state.value.display?.manualInputGeneration == info.manualInputGeneration + 1)
+            val observed = tools.execute(AgentModelClient.ToolCall("observe-after-restart", "observe_screen",
+                JSONObject().put("include_screenshot", true).toString()))
+            val observation = ok("observation resumes after restart", JSONObject(observed.content))
+            verify("recovery screenshot is newer than stalled frame", observation.getJSONObject("screenshot").getLong("frame_id") > previousFrameId)
+            verifyRecoveryScreenshot("missed tap recovery", observed)
+            val resumedPosition = probe()
+            ok("input works after recovery", call(tools, "tap", JSONObject()
+                .put("x", resumedPosition.getInt("buttonX")).put("y", resumedPosition.getInt("buttonY"))))
+            eventually("recovered counter increments", { probe().optInt("taps") == 1 })
+            if (screenOffValidation) verifyPrimaryRemainsLocked("missed tap recovery")
+            val again = tools.recoverVirtualUi(checkNotNull(paused.stop))
+            verify("stale pause cannot restart again", !JSONObject(again.content).optBoolean("ok"))
+            verify("stale recovery preserves counter", probe().optInt("taps") == 1)
+            tools.retainVirtualScreenOnSuccess()
+        }
+        verify("successful recovery finishes as completed", VirtualScreenSession.state.value.taskPhase ==
+            io.github.mangi.eta.agent.display.VirtualScreenTaskPhase.COMPLETED)
+        val info = checkNotNull(VirtualScreenSession.state.value.display)
+        val launch = shell("am start --display ${info.displayId} -f 0x18000000 -n $component --ez stall_validation true")
+        verify("blocking recovery fixture launched", !launch.contains("Error:") && !launch.contains("Warning: Activity not started"))
+        eventually("blocking recovery fixture is ready", { probe().optInt("freezeY") > 0 })
+        tools("blocked-recovery-run").use { tools ->
+            ok("observe blocking recovery fixture", call(tools, "observe_screen"))
+            val position = probe()
+            val freeze = tools.execute(AgentModelClient.ToolCall("freeze", "tap", JSONObject()
+                .put("x", position.getInt("freezeX")).put("y", position.getInt("freezeY")).toString()))
+            val paused = if (freeze.stop != null) freeze else {
+                eventually("recovery fixture main thread is blocked", { probe().optBoolean("blocked") })
+                if (screenOffValidation) lockPrimaryForRecovery("blocked application")
+                tools.execute(AgentModelClient.ToolCall("blocked-tap", "tap", JSONObject()
+                    .put("x", position.getInt("buttonX")).put("y", position.getInt("buttonY")).toString()))
+            }
+            verify("blocked application produces trusted pause", paused.stop?.code in setOf("UI_INPUT_TIMEOUT", "UI_APP_UNRESPONSIVE"))
+            val previousFrameId = JSONObject(VirtualScreenSession.observeForViewer(targetContext).content).getLong("frameId")
+            ok("blocked application restarts", JSONObject(tools.recoverVirtualUi(checkNotNull(paused.stop)).content))
+            eventually("blocked application is recreated", { !probe().optBoolean("blocked") && probe().optInt("display") == info.displayId })
+            val observed = tools.execute(AgentModelClient.ToolCall("blocked-observe-after-restart", "observe_screen",
+                JSONObject().put("include_screenshot", true).toString()))
+            val observation = ok("blocked recovery can observe", JSONObject(observed.content))
+            verify("blocked recovery screenshot is newer than stalled frame", observation.getJSONObject("screenshot").getLong("frame_id") > previousFrameId)
+            verifyRecoveryScreenshot("blocked recovery", observed)
+            val recovered = probe()
+            ok("blocked recovery can tap", call(tools, "tap", JSONObject()
+                .put("x", recovered.getInt("buttonX")).put("y", recovered.getInt("buttonY"))))
+            eventually("blocked recovery counter increments", { probe().optInt("taps") == 1 })
+            if (screenOffValidation) verifyPrimaryRemainsLocked("blocked application recovery")
+            tools.retainVirtualScreenOnSuccess()
+        }
+        shell("am force-stop io.github.mangi.eta.test")
+    }
+
+    private fun validateFrameCapture() {
+        val owner = "device-validation"
+        val component = "io.github.mangi.eta.test/${DisplayProbeActivity::class.java.name}"
+        val viewerId = "device-validation-preview"
+        if (screenOffValidation) verifyPrimaryRemainsLocked("before frame capture validation")
+        shell("am force-stop io.github.mangi.eta.test")
+        tools("frame-capture-run").use { tools ->
+            fun captureState(): JSONObject = ok("read capture diagnostics", JSONObject(
+                VirtualScreenSession.execute(targetContext, owner, JSONObject().put("action", "probe"), manual = true).content))
+                .getJSONObject("capture")
+            fun observe(): JSONObject {
+                val result = VirtualScreenSession.observeForViewer(targetContext)
+                val json = ok("take on-demand frame", JSONObject(result.content))
+                verify("on-demand frame has JPEG", result.images.singleOrNull()?.bytes?.let { it > 0 } == true)
+                return json
+            }
+            try {
+                ok("create frame validation display", call(tools, "virtual_screen", JSONObject()
+                    .put("action", "create").put("allowScreenOff", true)))
+                val initial = checkNotNull(VirtualScreenSession.state.value.display)
+                ok("launch static fixture without preview", JSONObject(VirtualScreenSession.execute(targetContext, owner,
+                    JSONObject().put("action", "launch").put("component", component), manual = true).content))
+                eventually("static fixture is on virtual display", { probe().optInt("display") == initial.displayId })
+                SystemClock.sleep(500)
+                val hidden = captureState()
+                verify("initial hidden display does not encode", hidden.getLong("encoded_frames") == 0L)
+                verify("capture rate is capped at ten fps", hidden.getInt("max_fps") == 10)
+                verify("viewer starts hidden", !hidden.getBoolean("viewer_visible"))
+                val first = observe()
+                val afterFirst = captureState().getLong("encoded_frames")
+                verify("background observation encodes exactly one frame", afterFirst == 1L)
+                SystemClock.sleep(400)
+                verify("background capture does not continue after observation", captureState().getLong("encoded_frames") == afterFirst)
+                val second = observe()
+                verify("static page can be observed again without a new surface frame", second.getLong("frameId") > first.getLong("frameId"))
+                verify("second static observation also encodes only once", captureState().getLong("encoded_frames") == afterFirst + 1L)
+
+                ok("launch changing fixture", JSONObject(VirtualScreenSession.execute(targetContext, owner,
+                    JSONObject().put("action", "launch").put("component", component).put("uri", "eta-validation://frames"),
+                    manual = true).content))
+                SystemClock.sleep(300)
+                val beforePreview = captureState().getLong("encoded_frames")
+                VirtualScreenSession.setViewerVisible(viewerId, true)
+                val started = SystemClock.elapsedRealtime()
+                val previewDeadline = started + 1_500L
+                var previewImages = 0
+                while (SystemClock.elapsedRealtime() < previewDeadline) {
+                    val result = VirtualScreenSession.observeForViewer(targetContext, viewerId = viewerId)
+                    verify("visible preview request succeeds", JSONObject(result.content).optBoolean("ok"))
+                    if (result.images.isNotEmpty()) previewImages++
+                    SystemClock.sleep(100)
+                }
+                val preview = captureState()
+                val duration = SystemClock.elapsedRealtime() - started
+                val captured = preview.getLong("encoded_frames") - beforePreview
+                verify("visible changing screen supplies frames", captured >= 3 && previewImages >= 3)
+                verify("preview cannot exceed ten fps", captured <= duration / 100L + 1L)
+                checks += "Preview: $captured encoded frames in $duration ms"
+
+                VirtualScreenSession.setViewerVisible(viewerId, false)
+                eventually("leaving preview stops continuous capture", { !captureState().getBoolean("viewer_visible") })
+                val stopped = captureState().getLong("encoded_frames")
+                SystemClock.sleep(500)
+                verify("hidden animation does not encode", captureState().getLong("encoded_frames") == stopped)
+                val denied = VirtualScreenSession.observeForViewer(targetContext, viewerId = viewerId)
+                verify("late viewer requests are rejected", JSONObject(denied.content).optString("code") == "VIEWER_HIDDEN")
+                observe()
+                val afterBackground = captureState().getLong("encoded_frames")
+                verify("hidden animation observation captures exactly once", afterBackground == stopped + 1L)
+                SystemClock.sleep(500)
+                verify("hidden animated observation leaves capture stopped", captureState().getLong("encoded_frames") == afterBackground)
+
+                // No Activity cleanup callback: root's heartbeat must expire on its own.
+                VirtualScreenSession.setViewerVisible(viewerId, true)
+                ok("refresh simulated viewer heartbeat", JSONObject(VirtualScreenSession.observeForViewer(
+                    targetContext, viewerId = viewerId).content))
+                SystemClock.sleep(1_700)
+                verify("missing viewer heartbeat expires", !captureState().getBoolean("viewer_visible"))
+                val expired = captureState().getLong("encoded_frames")
+                SystemClock.sleep(400)
+                verify("expired viewer does not encode", captureState().getLong("encoded_frames") == expired)
+
+                ok("close display while viewer remains resumed", call(tools, "virtual_screen", JSONObject().put("action", "close")))
+                ok("create replacement display while viewer remains resumed", call(tools, "virtual_screen", JSONObject()
+                    .put("action", "create").put("allowScreenOff", true)))
+                verify("replacement session is new", VirtualScreenSession.state.value.display?.sessionId != initial.sessionId)
+                ok("launch replacement static fixture", JSONObject(VirtualScreenSession.execute(targetContext, owner,
+                    JSONObject().put("action", "launch").put("component", component), manual = true).content))
+                val replaced = VirtualScreenSession.observeForViewer(targetContext, viewerId = viewerId)
+                ok("resumed viewer can see a newly created session", JSONObject(replaced.content))
+                verify("replacement supplies preview image", replaced.images.isNotEmpty())
+                if (screenOffValidation) verifyPrimaryRemainsLocked("after frame capture validation")
+            } finally {
+                VirtualScreenSession.setViewerVisible(viewerId, false)
+            }
+        }
+        shell("am force-stop io.github.mangi.eta.test")
+    }
+
+    private fun validateLandscape() {
+        if (screenOffValidation) lockPrimaryForRecovery("landscape rotation")
+        val primaryRotation = targetContext.getSystemService(DisplayManager::class.java).getDisplay(0).rotation
+        shell("am force-stop io.github.mangi.eta.test")
+        val component = "io.github.mangi.eta.test/io.github.mangi.eta.validation.LandscapeProbeActivity"
+        tools("landscape-run").use { tools ->
+            ok("create portrait output for landscape app", call(tools, "virtual_screen", JSONObject()
+                .put("action", "create").put("width", 720).put("height", 1600).put("density", 320).put("allowScreenOff", true)))
+            ok("launch fixed landscape fixture", call(tools, "virtual_screen", JSONObject().put("action", "launch").put("component", component)))
+            eventually("fixture requests landscape", { probe().optInt("orientation") == Configuration.ORIENTATION_LANDSCAPE })
+            eventually("virtual display follows landscape request", {
+                val geometry = JSONObject(VirtualScreenSession.execute(targetContext, "device-validation", JSONObject().put("action", "probe")).content)
+                geometry.optInt("width") > geometry.optInt("height")
+            })
+            val observation = tools.execute(AgentModelClient.ToolCall("landscape-observe", "observe_screen",
+                JSONObject().put("include_screenshot", true).toString()))
+            val json = ok("observe landscape fixture", JSONObject(observation.content))
+            verify("landscape logical dimensions are wide", json.getJSONObject("screen").getInt("width") > json.getJSONObject("screen").getInt("height"))
+            val initialDisplay = checkNotNull(VirtualScreenSession.state.value.display)
+            verify("landscape app fills logical width", probe().getInt("layoutWidth") == initialDisplay.width)
+            verify("landscape app fills logical height", probe().getInt("layoutHeight") > initialDisplay.height * 3 / 4)
+            verify("screenshot matches landscape coordinates", observation.images.single().width == initialDisplay.width &&
+                observation.images.single().height == initialDisplay.height)
+            val position = probe()
+            verifyLandscapeScreenshot(observation, position)
+            ok("AI landscape tap", call(tools, "tap", JSONObject().put("x", position.getInt("buttonX")).put("y", position.getInt("buttonY"))))
+            eventually("AI landscape tap increments counter", { probe().optInt("taps") == 1 })
+            ok("switch fixture to portrait", call(tools, "tap", JSONObject().put("x", position.getInt("rotateX")).put("y", position.getInt("rotateY"))))
+            eventually("fixture switches to portrait", { probe().optInt("orientation") == Configuration.ORIENTATION_PORTRAIT })
+            eventually("virtual display follows portrait request", {
+                val geometry = JSONObject(VirtualScreenSession.execute(targetContext, "device-validation", JSONObject().put("action", "probe")).content)
+                geometry.optInt("width") < geometry.optInt("height")
+            })
+            val portrait = checkNotNull(VirtualScreenSession.state.value.display)
+            verify("portrait dimensions update on same display", portrait.width < portrait.height && portrait.sessionId == initialDisplay.sessionId)
+            verify("rotation invalidates old observation", portrait.manualInputGeneration > initialDisplay.manualInputGeneration)
+            verify("old landscape coordinates are rejected", call(tools, "tap", JSONObject().put("x", position.getInt("buttonX"))
+                .put("y", position.getInt("buttonY"))).optString("code") == "STALE_OBSERVATION")
+            ok("observe portrait after rotation", call(tools, "observe_screen", JSONObject().put("include_screenshot", true)))
+            val portraitPosition = probe()
+            ok("portrait tap after rotation", call(tools, "tap", JSONObject().put("x", portraitPosition.getInt("buttonX"))
+                .put("y", portraitPosition.getInt("buttonY"))))
+            eventually("portrait input works", { probe().optInt("taps") == 2 })
+            ok("switch fixture back to landscape", call(tools, "tap", JSONObject().put("x", portraitPosition.getInt("rotateX"))
+                .put("y", portraitPosition.getInt("rotateY"))))
+            eventually("fixture switches back to landscape", { probe().optInt("orientation") == Configuration.ORIENTATION_LANDSCAPE })
+            eventually("virtual display switches back to landscape", {
+                val geometry = JSONObject(VirtualScreenSession.execute(targetContext, "device-validation", JSONObject().put("action", "probe")).content)
+                geometry.optInt("width") > geometry.optInt("height")
+            })
+            ok("observe landscape after rotation", call(tools, "observe_screen", JSONObject().put("include_screenshot", true)))
+            verify("main display rotation is unchanged", targetContext.getSystemService(DisplayManager::class.java).getDisplay(0).rotation == primaryRotation)
+            if (screenOffValidation) verifyPrimaryRemainsLocked("landscape rotation") else validateLandscapeViewer()
+            tools.retainVirtualScreenOnSuccess()
+        }
+        shell("am force-stop io.github.mangi.eta.test")
+    }
+
+    private fun validateLandscapeViewer() {
+        val viewer = startActivitySync(Intent(targetContext, VirtualScreenViewerActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), ActivityOptions.makeBasic().setLaunchDisplayId(0).toBundle())
+        try {
+            runOnMainSync { viewer.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+            SystemClock.sleep(1000)
+            val surface = java.util.concurrent.atomic.AtomicReference<io.github.mangi.eta.agent.display.VirtualScreenSurfaceView?>()
+            fun findSurface(view: android.view.View): io.github.mangi.eta.agent.display.VirtualScreenSurfaceView? {
+                if (view is io.github.mangi.eta.agent.display.VirtualScreenSurfaceView) return view
+                val group = view as? android.view.ViewGroup ?: return null
+                for (index in 0 until group.childCount) findSurface(group.getChildAt(index))?.let { return it }
+                return null
+            }
+            runOnMainSync { surface.set(findSurface(viewer.window.decorView)) }
+            verify("landscape viewer has preview", surface.get() != null)
+            val current = checkNotNull(VirtualScreenSession.state.value.display)
+            val position = probe()
+            val taps = position.getInt("taps")
+            val view = checkNotNull(surface.get())
+            runOnMainSync {
+                val viewport = checkNotNull(io.github.mangi.eta.agent.display.VirtualScreenViewport.fit(
+                    view.width, view.height, current.width, current.height))
+                verify("landscape viewer rotates clockwise into portrait bounds", viewport.rotatesClockwise && view.height > view.width)
+                verify("rotated preview fills viewer bounds", viewport.left < 2f && viewport.top < 2f)
+                val point = viewport.toView(position.getInt("buttonX"), position.getInt("buttonY"))
+                val x = point.x
+                val y = point.y
+                val now = SystemClock.uptimeMillis()
+                for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                    val event = MotionEvent.obtain(now, now + if (action == MotionEvent.ACTION_UP) 100 else 0,
+                        action, x, y, 0)
+                    try { view.onTouchEvent(event) } finally { event.recycle() }
+                }
+            }
+            eventually("manual landscape preview tap hits button", { probe().optInt("taps") == taps + 1 })
+            screenshot("viewer-landscape.png")
+        } finally { runOnMainSync { viewer.finish() } }
+    }
+
+    private fun verifyLandscapeScreenshot(result: AgentModelClient.ToolResult, position: JSONObject) {
+        val reference = result.images.single().reference
+        val bytes = Base64.decode(reference.substringAfter("base64,"), Base64.DEFAULT)
+        val bitmap = checkNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
+        try {
+            val color = bitmap.getPixel(position.getInt("buttonX") + position.getInt("buttonWidth") / 4, position.getInt("buttonY"))
+            verify("landscape pixels match logical button coordinates", Color.green(color) in 150..190 &&
+                Color.red(color) in 15..55 && Color.blue(color) in 65..105)
+        } finally { bitmap.recycle() }
+    }
+
+    private fun verifyRecoveryScreenshot(stage: String, result: AgentModelClient.ToolResult) {
+        val reference = checkNotNull(result.images.firstOrNull()?.reference)
+        val bytes = Base64.decode(reference.substringAfter("base64,"), Base64.DEFAULT)
+        val bitmap = checkNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
+        try {
+            val background = bitmap.getPixel(12, bitmap.height / 2)
+            val colors = (0 until 32 * 64).map { index ->
+                bitmap.getPixel((index % 32) * bitmap.width / 32, (index / 32) * bitmap.height / 64)
+            }.toSet()
+            verify("$stage screenshot contains fixture content", listOf(Color.red(background), Color.green(background),
+                Color.blue(background)).all { it in 235..255 } && colors.size > 16)
+        } finally { bitmap.recycle() }
+    }
+
+    private fun primaryIsOffAndLocked(): Boolean {
+        val display = targetContext.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        return display != null && display.state in setOf(Display.STATE_OFF, Display.STATE_DOZE, Display.STATE_DOZE_SUSPEND) &&
+            targetContext.getSystemService(KeyguardManager::class.java).isKeyguardLocked
+    }
+
+    private fun lockPrimaryForRecovery(stage: String) {
+        shell("cmd power sleep")
+        eventually("primary is off and locked before $stage recovery", { primaryIsOffAndLocked() })
+    }
+
+    private fun verifyPrimaryRemainsLocked(stage: String) {
+        verify("primary stays off and locked after $stage", primaryIsOffAndLocked())
     }
 
     private fun validateViewer() {

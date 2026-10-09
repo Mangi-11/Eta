@@ -519,7 +519,9 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     enterFinalState(
                         AgentOverlayState(
                             phase = AgentOverlayPhase.FAILED,
-                            status = if (result.error == "已停止") {
+                            status = if (result.errorCode == "UI_EXECUTION_PAUSED") {
+                                AgentOverlayStatus.Paused
+                            } else if (result.error == "已停止") {
                                 AgentOverlayStatus.Stopped
                             } else {
                                 AgentOverlayStatus.RunFailed

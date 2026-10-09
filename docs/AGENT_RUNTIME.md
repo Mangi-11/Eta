@@ -26,7 +26,7 @@ Eta 的 Agent Runtime 负责把一次用户输入组织为模型回合、工具�
 pending steering
 → provider response
 → assistant history
-→ tool batch（按模型顺序串行执行）
+→ tool batch（独立读取可并行，其余按模型顺序执行）
 → contiguous tool results
 → optional image observations
 → next turn / final result
@@ -40,7 +40,7 @@ pending steering
 - 只有明确的 `tool_calls` / `tool_use` 终止原因才允许执行工具；`stop`、内容过滤或未知终止原因中夹带的调用一律作为协议矛盾拒绝。
 - 工具参数在执行前按本轮实际下发的 JSON Schema 校验，支持本地 `$ref`、组合 Schema、条件 Schema 与常用对象、数组、字符串、数值约束；这只检查调用合同，不承担权限确认或额外安全策略。
 - transcript 只返回本次 run 新增的 assistant、tool 和运行中 steering 消息，不重复旧 history 或本轮初始用户消息。
-- GUI/终端工具保持串行。Android 前台状态和会话式 Shell 都不具备可安全并行的通用语义。
+- 独立读取允许最多 4 项并行，结果仍按模型顺序写入；GUI/终端、写入、共享状态和未知工具构成顺序屏障。显式 `batch` 的 `auto` 模式接受只读子集，`sequential` 模式可顺序执行当前目录里的任意工具，最多 8 项；顺序模式默认失败即停止，并持久保存脱敏执行状态以支持中断恢复；完整范围、权限与取消语义见 [批量工具调用](TOOL_BATCH.md)。Android 前台状态和会话式 Shell 不具备可安全并行的通用语义。
 - 单次 run 不设置固定回合数或总时限，由模型自然结束、用户取消或不可恢复错误终止。
 - cancel 是终止信号；pause 是检查点阻塞；steering 是下一回合输入。三者不能互相模拟。
 - cancel 的主线程路径只做原子终态与资源关闭：共享浏览器按 runId 校验归属；终端立即封闭新的进程接纳，并在后台按独立进程组终止同步命令、会话和 async job，再完成线程与流回收。Android 上 `setsid` 或 PID/PGID ownership 握手不可用时会 fail closed；非 Android 测试环境才允许父子树快照回退。终止前还会核验随机 ownership token，避免陈旧 PGID 复用后误杀无关进程。

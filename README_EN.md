@@ -20,6 +20,8 @@ Requires **Android 13 or later**. The app works across phone brands, and core fe
 
 [Download APK](https://github.com/Mangi-11/Eta/releases) · [Getting started](#getting-started) · [Why I built Eta](#why-i-built-eta)
 
+**October 9, 2026 update:** Added sequential batch execution and improved virtual-screen landscape support, recovery, and previews capped at 10 fps with capture on demand. [Update notes and validation (Chinese)](docs/UPDATE_2026-10-09.md).
+
 ## See it in action
 
 | GUI Agent | Breeno with your own model |

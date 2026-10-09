@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.display
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.ViewConfiguration
@@ -13,7 +14,7 @@ import org.json.JSONObject
 import kotlin.math.hypot
 
 internal class VirtualScreenSurfaceView(context: Context) : FrameLayout(context) {
-    private val image = ImageView(context).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
+    private val image = ImageView(context).apply { scaleType = ImageView.ScaleType.MATRIX }
     private val indicators = GestureIndicatorHost(context)
     private var bitmap: Bitmap? = null
     private var info: VirtualDisplayInfo? = null
@@ -30,8 +31,14 @@ internal class VirtualScreenSurfaceView(context: Context) : FrameLayout(context)
     }
 
     fun setFrame(next: Bitmap, display: VirtualDisplayInfo) {
+        if (info?.sessionId != display.sessionId || info?.hasSameGeometry(display) != true) {
+            cancelTouch()
+            indicators.clear()
+        }
         info = display
+        next.density = Bitmap.DENSITY_NONE
         image.setImageBitmap(next)
+        updateImageMatrix()
         bitmap?.takeIf { it !== next }?.recycle()
         bitmap = next
     }
@@ -42,6 +49,8 @@ internal class VirtualScreenSurfaceView(context: Context) : FrameLayout(context)
         bitmap?.recycle()
         bitmap = null
         cancelTouch()
+        indicators.clear()
+        lastGesture = 0L
     }
 
     fun showGesture(gesture: VirtualScreenGesture?) {
@@ -50,14 +59,11 @@ internal class VirtualScreenSurfaceView(context: Context) : FrameLayout(context)
         lastGesture = gesture.id
         if (SystemClock.elapsedRealtime() - gesture.startedAt > gesture.durationMs + 700) return
         val viewport = viewport() ?: return
-        val x = viewport.left + gesture.x * viewport.scale
-        val y = viewport.top + gesture.y * viewport.scale
+        val start = viewport.toView(gesture.x, gesture.y)
         if (gesture.action == "swipe") {
-            indicators.showSwipe(
-                x, y, viewport.left + gesture.endX * viewport.scale,
-                viewport.top + gesture.endY * viewport.scale, gesture.durationMs
-            )
-        } else indicators.showPress(x, y, gesture.action == "long_press", gesture.durationMs)
+            val end = viewport.toView(gesture.endX, gesture.endY)
+            indicators.showSwipe(start.x, start.y, end.x, end.y, gesture.durationMs)
+        } else indicators.showPress(start.x, start.y, gesture.action == "long_press", gesture.durationMs)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -97,6 +103,10 @@ internal class VirtualScreenSurfaceView(context: Context) : FrameLayout(context)
                         if (duration >= ViewConfiguration.getLongPressTimeout()) "long_press" else "tap"
                     )
                         .put("x", start.x).put("y", start.y).put("durationMs", duration)
+                    info?.let { display ->
+                        args.put("expectedWidth", display.width).put("expectedHeight", display.height)
+                            .put("expectedRotation", display.rotation)
+                    }
                     onInput(session, args)
                     performClick()
                 }
@@ -108,6 +118,25 @@ internal class VirtualScreenSurfaceView(context: Context) : FrameLayout(context)
 
     override fun performClick(): Boolean {
         super.performClick(); return true
+    }
+
+    override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight)
+        cancelTouch()
+        indicators.clear()
+        updateImageMatrix()
+    }
+
+    private fun updateImageMatrix() {
+        val viewport = viewport() ?: return
+        image.imageMatrix = Matrix().apply {
+            if (viewport.rotatesClockwise) {
+                postRotate(90f)
+                postTranslate(viewport.screenHeight.toFloat(), 0f)
+            }
+            postScale(viewport.scale, viewport.scale)
+            postTranslate(viewport.left, viewport.top)
+        }
     }
 
     private fun viewport(): VirtualScreenViewport? = info?.let {

@@ -18,7 +18,7 @@ internal object AgentToolCatalog {
         capabilities: AgentToolCapabilities = AgentToolCapabilities(rootAvailable = true),
         localWebSearch: Boolean = true,
     ): JSONArray =
-        capabilities.project(JSONArray().also { tools ->
+        AgentBatchToolCatalog.project(capabilities.project(JSONArray().also { tools ->
             AgentContextAppToolCatalog.appendTo(tools)
             AgentGestureToolCatalog.appendTo(tools)
             AgentTextSystemToolCatalog.appendTo(tools)
@@ -46,5 +46,5 @@ internal object AgentToolCatalog {
                 AgentTerminalToolCatalog.appendTo(tools)
                 AgentFileToolCatalog.appendTo(tools)
             }
-        })
+        }))
 }

@@ -17,6 +17,17 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class AgentRuntimeResultStoreTest {
     @Test
+    fun uiPauseClassificationSurvivesOutboxArchiveAndDatabaseReopen() {
+        val runId = "paused-storage-${System.nanoTime()}"
+        val handoff = AgentRuntimeWire.EntryHandoff(runId, AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE, "conversation-1")
+        val result = AgentRuntimeWire.RunResult(runId, false, "", "已尝试重启后暂停", errorCode = "UI_EXECUTION_PAUSED")
+        AgentRuntimeResultStore.add(context, AgentRuntimeWire.CompletedRun(handoff, result, 1L))
+        AgentRunArchiveStore.add(context, AgentRunArchiveStore.ArchivedRun(handoff, emptyList(), result, 1L))
+        EtaDatabase.closeForTests()
+        assertEquals(result, AgentRuntimeResultStore.readOwned(context, runId, handoff.payload)!!.result)
+        assertEquals(result, AgentRunArchiveStore.list(context).single().result)
+    }
+    @Test
     fun rewriteTargetSurvivesDatabaseReopenInResultHeaderArchiveAndCheckpoint() {
         val runId = "rewrite-storage-${System.nanoTime()}"
         val target = "assistant-original-1-0"

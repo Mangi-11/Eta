@@ -8,6 +8,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name="io.github.mangi.eta.validation.LandscapeProbeActivity"
+            android:exported="true" android:resizeableActivity="true" android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
         <provider android:name="io.github.mangi.eta.validation.DisplayProbeProvider"
             android:authorities="io.github.mangi.eta.test.display_probe" android:exported="true" />
     </application>

@@ -7,6 +7,29 @@ class VirtualScreenViewerStateTest {
     private val display = VirtualDisplayInfo("screen", "conversation", 4, 1216, 2640)
 
     @Test
+    fun geometryChangesInvalidateObservationsWhileKeepingDisplayOwnership() {
+        val landscape = display.withGeometry(2640, 1216, 1)
+        assertEquals(display.sessionId, landscape.sessionId)
+        assertEquals(display.displayId, landscape.displayId)
+        assertEquals(display.owner, landscape.owner)
+        assertEquals(1L, landscape.manualInputGeneration)
+        assertFalse(display.hasSameGeometry(landscape))
+        assertSame(landscape, landscape.withGeometry(2640, 1216, 1))
+        assertEquals(2L, landscape.withGeometry(2640, 1216, 3).manualInputGeneration)
+    }
+
+    @Test
+    fun pauseRetainsDisplayAndStopsControlWithoutClaimingSuccess() {
+        val state = VirtualScreenViewerState(display = display).beginRun("run")
+            .finishRun("run", success = true, cancelled = false, paused = true)
+        assertEquals(VirtualScreenTaskPhase.PAUSED, state.taskPhase)
+        assertEquals(display, state.display)
+        assertNull(state.activeRunId)
+        assertFalse(state.isAgentControlling)
+        assertEquals(VirtualScreenTaskPhase.RUNNING, state.beginRun("resume").taskPhase)
+    }
+
+    @Test
     fun completedTaskStopsControlBorderWhileDisplayIsRetained() {
         val running = VirtualScreenViewerState(display = display).beginRun("first")
         assertTrue(running.isAgentControlling)

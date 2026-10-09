@@ -30,6 +30,12 @@ internal class VirtualScreenUiTools(
     val uiTreeUnavailable: Boolean get() =
         uiTreeAvailability.unavailableFor(VirtualScreenSession.state.value.display)
 
+    fun invalidateObservation() {
+        snapshot = null
+        observedSession = null
+        observedManualGeneration = -1L
+    }
+
     fun execute(name: String, args: JSONObject): AgentModelClient.ToolResult = try {
         if (name in VirtualScreenRoutingPolicy.unavailableTools) {
             failure(
@@ -41,7 +47,8 @@ internal class VirtualScreenUiTools(
             "open_uri" -> openUri(args)
             "wait" -> {
                 waitCancellable(args.optInt("duration_ms", 1000).coerceIn(100, 30000))
-                success(name)
+                if (VirtualScreenSession.isOwnedBy(owner)) VirtualScreenSession.checkUiObservation(context, owner) ?: success(name)
+                else success(name)
             }
 
             "wait_for_text", "wait_for_package" -> waitFor(name, args)
@@ -145,7 +152,7 @@ internal class VirtualScreenUiTools(
         if (options.includeUiTree) uiTreeAvailability.record(info, candidate?.windowId, nodes != null)
         val treeUnavailable = uiTreeAvailability.unavailableFor(info)
         val screen = JSONObject().put("width", info.width).put("height", info.height)
-            .put("display_id", info.displayId)
+            .put("display_id", info.displayId).put("rotation", info.rotation)
         val json = JSONObject().put("ok", true).put("tool", "observe_screen")
             .put("display_id", info.displayId)
             .put("screen", screen).put(
@@ -190,14 +197,24 @@ internal class VirtualScreenUiTools(
             isCancelled
         ) else null
         val images = capture?.images.orEmpty()
+        capture?.stop?.let { return capture }
+        val captureJson = capture?.let { JSONObject(it.content) }
         json.put(
             "screenshot",
             JSONObject().put("attached", images.isNotEmpty()).put("width", info.width)
                 .put("height", info.height)
+                .put("frame_id", captureJson?.opt("frameId") ?: JSONObject.NULL)
+                .put("frame_age_ms", captureJson?.opt("frameAgeMs") ?: JSONObject.NULL)
+                .put("note", "静止页面可能没有新帧；帧龄不能单独证明应用无响应。")
         )
         if (capture != null && !JSONObject(capture.content).optBoolean("ok")) {
             json.put("screenshot_error", JSONObject(capture.content).optString("code"))
             if (nodes == null) return capture
+        }
+        if (capture == null) VirtualScreenSession.checkUiObservation(context, owner)?.let { return it }
+        val latest = VirtualScreenSession.state.value.display
+        if (latest?.sessionId != info.sessionId || latest.manualInputGeneration != info.manualInputGeneration) {
+            return failure("STALE_OBSERVATION", "虚拟屏方向、尺寸或手动操作已改变，请重新观察。")
         }
         snapshot = nodes
         observedSession = info.sessionId
@@ -232,7 +249,7 @@ internal class VirtualScreenUiTools(
             "action", when (name) {
                 "scroll" -> "swipe"; "tap_area" -> "tap"; else -> name
             }
-        )
+        ).put("expectedWidth", info.width).put("expectedHeight", info.height).put("expectedRotation", info.rotation)
         when (name) {
             "tap", "long_press" -> point("x", "y").let { (x, y) -> action.put("x", x).put("y", y) }
             "tap_area" -> {
@@ -304,19 +321,25 @@ internal class VirtualScreenUiTools(
             val direction =
                 requireNotNull(ScrollDirection.parse(args.optString("direction"))) { "INVALID_DIRECTION" }
             direction.gestureWithin(node.bounds)?.let { gesture ->
+                VirtualScreenSession.checkUiAction(context, owner, JSONObject().put("action", "swipe")
+                    .put("x1", gesture.start.x).put("y1", gesture.start.y)
+                    .put("x2", gesture.end.x).put("y2", gesture.end.y))?.let { return it }
                 VirtualScreenSession.showNodeGesture(
                     info, "swipe", gesture.start.x, gesture.start.y, 500,
                     gesture.end.x, gesture.end.y
                 )
             }
             val result = service.scrollNode(nodes, index, direction)
-            return AgentModelClient.ToolResult(
+            return VirtualScreenSession.finishUiAction(owner, AgentModelClient.ToolResult(
                 JSONObject().put("ok", result.ok).put("code", result.code)
                     .put("message", result.message).put("display_id", info.displayId)
                     .put("at_boundary", result.atBoundary)
                     .put("moved", result.moved).put("verified_by", result.verifiedBy).toString()
-            )
+            ))
         }
+        VirtualScreenSession.checkUiAction(context, owner, JSONObject()
+            .put("action", if (name == "long_press_element") "long_press" else "tap")
+            .put("x", node.bounds.centerX()).put("y", node.bounds.centerY()))?.let { return it }
         VirtualScreenSession.showNodeGesture(
             info, if (name == "long_press_element") "long_press" else "tap",
             node.bounds.centerX(), node.bounds.centerY(), duration
@@ -327,7 +350,7 @@ internal class VirtualScreenUiTools(
                 index,
                 duration.toLong()
             )
-        return actionResult(result, info)
+        return VirtualScreenSession.finishUiAction(owner, actionResult(result, info))
     }
 
     private fun textAction(
@@ -357,7 +380,9 @@ internal class VirtualScreenUiTools(
         }
         val service = AgentAccessibilityService.current()
             ?: return failure("ACCESSIBILITY_UNAVAILABLE", "节点输入不可用，请重新观察截图并定位输入框")
-        return actionResult(service.setTextNode(nodes, index, text, info.displayId), info)
+        VirtualScreenSession.checkUiAction(context, owner, JSONObject().put("action", "text")
+            .put("text", text).put("replace", replace))?.let { return it }
+        return VirtualScreenSession.finishUiAction(owner, actionResult(service.setTextNode(nodes, index, text, info.displayId), info))
     }
 
     private fun waitFor(name: String, args: JSONObject): AgentModelClient.ToolResult {
@@ -368,6 +393,7 @@ internal class VirtualScreenUiTools(
         val regex = if (args.optString("match") == "regex") Regex(needle) else null
         do {
             val result = withDisplay { info ->
+                VirtualScreenSession.checkUiObservation(context, owner)?.let { return@withDisplay it }
                 val service = AgentAccessibilityService.current()
                 val matched = if (name == "wait_for_package") {
                     val probe = VirtualScreenSession.execute(

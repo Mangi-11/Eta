@@ -268,6 +268,8 @@
   <string name="tool_wait_for_text">Wait for text</string>
   <string name="tool_wait_for_package">Wait for app</string>
   <string name="tool_open_system_panel">Open system panel</string>
+  <string name="tool_batch">Batch execution</string>
+  <string name="tool_batch_description">Run up to eight enabled tools in one request. Independent read queries can run in parallel; sequential mode runs any enabled tools in order and stops on failure by default. Each tool keeps its permission checks.</string>
   <string name="tool_search_apps">Search apps</string>
   <string name="tool_launch_app">Launch app</string>
   <string name="tool_open_uri">Open with app</string>
@@ -1483,6 +1485,7 @@
     <string name="virtual_screen_completed">Completed</string>
     <string name="virtual_screen_failed">Failed</string>
     <string name="virtual_screen_stopped">Stopped</string>
+    <string name="virtual_screen_paused">Paused, awaiting confirmation</string>
     <string name="virtual_screen_started">Create virtual screen</string>
     <string name="virtual_screen_history">Operation history</string>
     <string name="virtual_screen_history_empty">No operations yet.</string>

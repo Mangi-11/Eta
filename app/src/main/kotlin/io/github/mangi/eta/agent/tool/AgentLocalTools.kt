@@ -117,6 +117,7 @@ internal class AgentLocalTools(
 
     private val closed = AtomicBoolean(false)
     private val retainVirtualScreen = AtomicBoolean(false)
+    private val pausedVirtualScreen = AtomicBoolean(false)
     private val virtualRouting = VirtualScreenRoutingPolicy(VirtualScreenSession.isOwnedBy(virtualScreenOwner))
     private val primaryObserved = AtomicBoolean(false)
     private val fallbackLock = Any()
@@ -175,7 +176,8 @@ internal class AgentLocalTools(
         if (!closed.compareAndSet(false, true)) return
         MainScreenFallbackApproval.cancelOwner(browserRunId)
         val cancelled = isRunCancelled()
-        VirtualScreenSession.releaseRun(virtualScreenOwner, browserRunId, retainVirtualScreen.get() && !cancelled, cancelled)
+        VirtualScreenSession.releaseRun(virtualScreenOwner, browserRunId, retainVirtualScreen.get() && !cancelled,
+            cancelled, paused = pausedVirtualScreen.get() && !cancelled)
         publishedObservation.set(PublishedObservation())
         AgentBrowserSession.interruptAgentAction(browserRunId)
         webTools.close()
@@ -191,7 +193,39 @@ internal class AgentLocalTools(
 
     fun retainVirtualScreenOnSuccess() { retainVirtualScreen.set(true) }
 
-    private fun handleVirtualResult(name: String, result: AgentModelClient.ToolResult): AgentModelClient.ToolResult = synchronized(fallbackLock) {
+    fun retainVirtualScreenOnPause() {
+        pausedVirtualScreen.set(true)
+        retainVirtualScreen.set(true)
+    }
+
+    fun recoverVirtualUi(stop: AgentModelClient.ToolStop): AgentModelClient.ToolResult {
+        if (!stop.isVirtualUiPause || virtualRouting.usesPrimary || closed.get() || isRunCancelled() ||
+            !deviceDirectToolsEnabled() || !rootAvailable() || !virtualScreenSettings().virtualScreenEnabled) {
+            return textResult(errorResult("UI_RECOVERY_UNAVAILABLE", "任务或虚拟屏许可已失效，应用未重启"))
+        }
+        when (val decision = beforeToolExecution("virtual_screen")) {
+            ToolExecutionDecision.Allow -> Unit
+            is ToolExecutionDecision.Reject -> return textResult(errorResult(decision.code, decision.message))
+        }
+        val restarted = virtualUiExecutor?.invoke("virtual_screen", JSONObject().put("action", "restart"))
+            ?: VirtualScreenSession.restartPausedApp(context, virtualScreenOwner, browserRunId,
+                { closed.get() || isRunCancelled() })
+        val response = JSONObject(restarted.content)
+        VirtualScreenSession.recordOperation(virtualScreenOwner, browserRunId, "restart_app", response.optBoolean("ok"))
+        if (response.optBoolean("ok") && restarted.stop == null) {
+            virtualUiTools.invalidateObservation()
+            pausedVirtualScreen.set(false)
+            retainVirtualScreen.set(false)
+            response.put("message", "已尝试重启当前虚拟屏应用，接下来重新观察。保留已完成的任务步骤；先核对此前未确认的动作，不要直接重复发送、发布或支付。若仍无响应，本轮不再重启。")
+        }
+        return restarted.copy(content = response.toString(), sensitive = true)
+    }
+
+    private fun handleVirtualResult(name: String, original: AgentModelClient.ToolResult): AgentModelClient.ToolResult = synchronized(fallbackLock) {
+        val result = VirtualScreenSession.attachStop(virtualScreenOwner, original)
+        if (result.stop != null) {
+            return@synchronized result
+        }
         val response = JSONObject(result.content)
         val reason = response.optString("code")
         if (response.optBoolean("ok") || reason !in VirtualScreenRoutingPolicy.fallbackErrors) return@synchronized result
@@ -374,6 +408,10 @@ internal class AgentLocalTools(
                 )
             )
         }.let { result ->
+            if (result.stop != null) {
+                pausedVirtualScreen.set(true)
+                retainVirtualScreen.set(true)
+            }
             if (result.sensitive || !AgentSensitiveToolPolicy.isSensitive(toolCall.name)) {
                 result
             } else {

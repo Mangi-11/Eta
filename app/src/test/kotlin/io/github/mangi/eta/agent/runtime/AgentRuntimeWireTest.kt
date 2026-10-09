@@ -28,6 +28,16 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33, 36])
 class AgentRuntimeWireTest {
     @Test
+    fun uiPauseClassificationSurvivesCompleteAndLegacyBundle() {
+        val result = AgentRuntimeWire.RunResult("ui-pause", false, "", "已暂停", errorCode = "UI_EXECUTION_PAUSED")
+        val bundle = AgentRuntimeWire.toBundle(result)
+        assertEquals(result, AgentRuntimeWire.runResultFromBundle(bundle))
+        bundle.remove("complete_result_json")
+        assertEquals(result, AgentRuntimeWire.runResultFromBundle(bundle))
+        bundle.remove("error_code")
+        assertEquals("", AgentRuntimeWire.runResultFromBundle(bundle).errorCode)
+    }
+    @Test
     fun generationDurationSurvivesBundlesArchivesAndOldEventsWithoutTiming() {
         val event = AgentEvent.UsageReceived(2, AgentTokenUsage(contextTokens = 1200, outputTokens = 80, requestDurationMs = 2000))
         val bundle = AgentRuntimeWire.eventToBundle(event)

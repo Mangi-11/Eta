@@ -230,6 +230,7 @@ internal object AgentRuntimeWire {
         val contextSnapshotRef: String = "",
         val operation: String = OP_CHAT,
         val rewriteTargetMessageId: String? = null,
+        val errorCode: String = "",
     )
 
     data class EntryHandoff(
@@ -548,6 +549,7 @@ internal object AgentRuntimeWire {
             ),
         )
         putString(KEY_ERROR, error?.boundedText(MAX_DRAIN_CONTENT_CHARS))
+        putString("error_code", errorCode)
         putString(
             KEY_TRANSCRIPT_JSON,
             if (compactForDrain) {
@@ -568,6 +570,7 @@ internal object AgentRuntimeWire {
             ok = bundle.getBoolean(KEY_OK),
             content = bundle.getString(KEY_CONTENT).orEmpty(),
             error = bundle.getString(KEY_ERROR),
+            errorCode = bundle.getString("error_code").orEmpty(),
             reasoningContent = bundle.getString(KEY_REASONING_CONTENT).orEmpty(),
             transcript = AgentConversationCodec.decodeTranscript(bundle.getString(KEY_TRANSCRIPT_JSON)),
         )

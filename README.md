@@ -20,6 +20,8 @@ Eta 内置 Agent Runtime，通过 Agent Loop 编排模型调用、工具执行�
 
 [下载 APK](https://github.com/Mangi-11/Eta/releases) · [快速开始](#快速开始) · [为什么做 Eta](#为什么做-eta)
 
+**2026-10-09 更新**：新增 batch 顺序执行，改善虚拟屏横屏适配、无响应恢复与 10 帧按需预览。[更新内容与验证记录](docs/UPDATE_2026-10-09.md)。
+
 ## 界面预览
 
 | GUI Agent | 小布助手 BYOK |

@@ -58,6 +58,7 @@ import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.ui.graphics.vector.ImageVector
 
 internal fun iconForTool(toolId: String): ImageVector = when (toolId) {
+    "batch" -> Icons.Rounded.Layers
     "observe", "observe_screen" -> Icons.Rounded.DocumentScanner
     "click", "tap", "tap_element" -> Icons.Rounded.AdsClick
     "tap_area" -> Icons.Rounded.MyLocation

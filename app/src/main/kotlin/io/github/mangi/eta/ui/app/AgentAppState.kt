@@ -986,6 +986,7 @@ internal class AgentAppState(
                 noticeModelRetry = noticeText(SystemNoticeCode.ModelRetry),
                 noticeContextCompaction = noticeText(SystemNoticeCode.ContextCompaction),
                 noticeRuntimeFailed = noticeText(SystemNoticeCode.RuntimeFailed),
+                noticeUiPaused = noticeText(SystemNoticeCode.UiPaused),
                 noticeInterrupted = noticeText(SystemNoticeCode.Interrupted),
             ),
         )
@@ -998,6 +999,7 @@ internal class AgentAppState(
             SystemNoticeCode.ContextCompaction -> R.string.context_compaction
             SystemNoticeCode.ModelRetry -> R.string.system_notice_model_retry
             SystemNoticeCode.RuntimeFailed -> R.string.system_notice_runtime_failed
+            SystemNoticeCode.UiPaused -> R.string.virtual_screen_paused
             SystemNoticeCode.Interrupted -> R.string.system_notice_interrupted
         },
     )
@@ -2283,6 +2285,8 @@ internal class AgentAppState(
             result.ok -> replaceLatestAssistantWithNotice(runId, SystemNoticeCode.EmptyResult)
             result.error == LEGACY_STOPPED_ERROR || result.error == SYNTHETIC_STATUS_STOPPED ->
                 replaceLatestAssistantWithNotice(runId, SystemNoticeCode.Stopped)
+            result.errorCode == "UI_EXECUTION_PAUSED" ->
+                replaceLatestAssistantWithNotice(runId, SystemNoticeCode.UiPaused, result.error)
             else -> replaceLatestAssistantWithNotice(
                 runId,
                 SystemNoticeCode.RuntimeFailed,
@@ -2686,6 +2690,7 @@ internal fun buildToolsState(context: Context): AgentToolsUiState =
                 id = "app",
                 title = context.getString(R.string.state_applications_and_systems_9624e6),
                 tools = listOf(
+                    ToolItemUi("batch", context.getString(R.string.tool_batch), context.getString(R.string.tool_batch_description)),
                     ToolItemUi("search_apps", context.getString(R.string.tool_ui_search_apps_897fdf), context.getString(R.string.tool_ui_query_installed_applications_by_name_or_package__32b004)),
                     ToolItemUi("get_current_context", context.getString(R.string.tool_ui_time_and_location_693893), context.getString(R.string.tool_ui_read_system_time_and_recent_location_b9f4ae)),
                     ToolItemUi("launch_app", context.getString(R.string.tool_ui_open_app_7c65e7), context.getString(R.string.tool_ui_start_the_specified_package_name_or_application__beabff)),

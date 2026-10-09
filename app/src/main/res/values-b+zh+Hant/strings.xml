@@ -233,6 +233,8 @@
   <string name="tool_wait_for_text">等待文字</string>
   <string name="tool_wait_for_package">等待應用程式</string>
   <string name="tool_open_system_panel">系統面板</string>
+  <string name="tool_batch">批次執行</string>
+  <string name="tool_batch_description">一次執行最多八項。獨立唯讀查詢可並行，順序模式可執行任何已啟用工具，預設遇到失敗即停止；沿用各工具的權限檢查。</string>
   <string name="tool_search_apps">搜尋應用程式</string>
   <string name="tool_launch_app">開啟應用程式</string>
   <string name="tool_open_uri">使用應用程式開啟</string>
@@ -1435,6 +1437,7 @@
     <string name="virtual_screen_completed">已完成</string>
     <string name="virtual_screen_failed">執行失敗</string>
     <string name="virtual_screen_stopped">已停止</string>
+    <string name="virtual_screen_paused">已暫停，待確認</string>
     <string name="virtual_screen_started">建立虛擬螢幕</string>
     <string name="virtual_screen_history">操作記錄</string>
     <string name="virtual_screen_history_empty">暫無操作記錄</string>

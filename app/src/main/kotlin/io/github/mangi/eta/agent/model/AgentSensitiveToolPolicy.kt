@@ -6,6 +6,7 @@ internal object AgentSensitiveToolPolicy {
         toolName.startsWith("mcp_") || toolName in sensitiveTools || toolName in io.github.mangi.eta.agent.context.PersonalSearchTools.names || toolName in AgentPhoneToolCatalog.names
 
     private val sensitiveTools = setOf(
+        "batch",
         "get_setting",
         "wifi_credentials",
         "recent_notifications",

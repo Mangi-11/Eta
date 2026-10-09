@@ -20,6 +20,39 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class VirtualScreenRoutingTest {
     @Test
+    fun recoveryRechecksRootDirectPermissionSettingsAndCancellation() {
+        for (denied in listOf("root", "direct", "setting", "cancelled")) {
+            var dispatches = 0
+            AgentLocalTools(RuntimeEnvironment.getApplication(), NoOpLogger, browserRunId = "recovery-boundary",
+                rootAvailable = { denied != "root" },
+                deviceDirectToolsEnabled = { denied != "direct" },
+                virtualScreenSettings = { Settings(virtualScreenEnabled = denied != "setting") },
+                isRunCancelled = { denied == "cancelled" },
+                virtualUiExecutor = { _, _ -> dispatches++; result(true) },
+            ).use { tools ->
+                val recovered = tools.recoverVirtualUi(AgentModelClient.ToolStop("UI_INPUT_TIMEOUT", "暂停"))
+                assertFalse(denied, JSONObject(recovered.content).optBoolean("ok"))
+                assertEquals(denied, 0, dispatches)
+            }
+        }
+    }
+
+    @Test
+    fun recoveryUsesVirtualGuardAndRejectsOrdinaryFailures() {
+        var guards = 0
+        var dispatches = 0
+        tools(settings = { Settings(virtualScreenEnabled = true) },
+            before = { guards++; ToolExecutionDecision.Reject("DENIED", "任务许可已撤销") },
+            execute = { _, _ -> dispatches++; result(true) }).use { tools ->
+            assertFalse(JSONObject(tools.recoverVirtualUi(AgentModelClient.ToolStop("MODEL_TIMEOUT", "超时")).content).optBoolean("ok"))
+            assertEquals(0, guards)
+            val recovery = tools.recoverVirtualUi(AgentModelClient.ToolStop("UI_NO_PROGRESS", "暂停"))
+            assertEquals("DENIED", JSONObject(recovery.content).optString("code"))
+            assertEquals(1, guards)
+            assertEquals(0, dispatches)
+        }
+    }
+    @Test
     fun unavailableVirtualTreeRemovesNodeToolsButKeepsRootTextAndCoordinates() {
         val capabilities = AgentToolCapabilities(rootAvailable = true, accessibilityAvailable = false,
             virtualScreenEnabled = true, virtualUiTreeAvailable = false)
