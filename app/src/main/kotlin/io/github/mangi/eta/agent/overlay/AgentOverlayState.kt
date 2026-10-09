@@ -71,6 +71,10 @@ private fun AgentOverlayState.projectEvent(event: AgentEvent): AgentOverlayState
         status = AgentOverlayStatus.SupplementReceived,
         detailText = "",
     )
+    is AgentEvent.ModelRequestInterrupted -> copy(
+        phase = AgentOverlayPhase.RUNNING, round = event.round,
+        status = AgentOverlayStatus.SupplementReceived, thought = "", detailText = "",
+    )
 
     is AgentEvent.RunFinished -> copy(
         phase = AgentOverlayPhase.FINISHED,

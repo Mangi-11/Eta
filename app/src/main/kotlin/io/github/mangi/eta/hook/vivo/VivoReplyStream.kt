@@ -16,6 +16,11 @@ internal class VivoReplyStream {
         if (finished) return false
         when (event) {
             is AgentEvent.RoundStarted -> { round = event.round; blocks.clear() }
+            is AgentEvent.ModelRequestInterrupted -> if (event.round == round) {
+                blocks.clear()
+                round = -1
+                return true
+            }
             is AgentEvent.AssistantBlockDelta -> if (event.round == round && event.kind == AgentEvent.AssistantBlockKind.TEXT) {
                 val block = blocks.getOrPut(event.index) { StringBuilder() }
                 block.append(event.delta.take((MAX_CHARS - block.length).coerceAtLeast(0)))

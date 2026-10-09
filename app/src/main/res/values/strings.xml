@@ -211,7 +211,7 @@
   <string name="conversation_preview_tool_call">Tool call: %1$s</string>
   <string name="conversation_preview_empty">Ask anything. Eta can operate your device when needed</string>
   <string name="overlay_reasoning">Reasoning</string>
-  <string name="overlay_supplement_received">Additional input received. Continuing</string>
+  <string name="overlay_supplement_received">Message received; adapting</string>
   <string name="overlay_hosted_tool_running">Running %1$s</string>
   <string name="overlay_result_ready">Result ready</string>
   <string name="overlay_run_failed">Request failed</string>
@@ -222,9 +222,9 @@
   <string name="overlay_result_open_eta">Open Eta</string>
   <string name="overlay_pause">Pause</string>
   <string name="overlay_resume">Resume</string>
-  <string name="overlay_supplement">Add input</string>
+  <string name="overlay_supplement">Interject</string>
   <string name="overlay_capsule_toggle">%1$s. Tap to show controls</string>
-  <string name="overlay_supplement_hint">Add instructions; Eta continues the current task</string>
+  <string name="overlay_supplement_hint">Redirect the current task</string>
   <string name="overlay_send">Send</string>
   <string name="overlay_stopping">Stopping</string>
   <string name="overlay_paused">Paused</string>

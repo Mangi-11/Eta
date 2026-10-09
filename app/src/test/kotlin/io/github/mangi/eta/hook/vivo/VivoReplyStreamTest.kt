@@ -41,6 +41,20 @@ class VivoReplyStreamTest {
     }
 
     @Test
+    fun interjectionWithdrawsPartialAnswerAndIgnoresLateDeltas() {
+        val stream = VivoReplyStream()
+        stream.accept(AgentEvent.RoundStarted(1, 0))
+        stream.accept(delta("旧指令的半截回答"))
+        stream.flush()
+        assertTrue(stream.accept(AgentEvent.ModelRequestInterrupted(1)))
+        assertEquals("", stream.flush()!!.fullText)
+        assertFalse(stream.accept(delta("延迟片段")))
+        stream.accept(AgentEvent.RoundStarted(2, 0))
+        stream.accept(delta("调整后的回答", round = 2))
+        assertEquals("调整后的回答", stream.flush()!!.fullText)
+    }
+
+    @Test
     fun reasoningToolArgumentsAndOldRoundEventsNeverReachTheNativeAnswer() {
         val stream = VivoReplyStream()
         stream.accept(AgentEvent.RoundStarted(2, 0))

@@ -187,7 +187,7 @@
   <string name="time_yesterday">昨日</string>
   <string name="time_recent">最近</string>
   <string name="overlay_reasoning">思考中</string>
-  <string name="overlay_supplement_received">收到補充，繼續執行</string>
+  <string name="overlay_supplement_received">收到插話，調整中</string>
   <string name="overlay_hosted_tool_running">%1$s中</string>
   <string name="overlay_result_ready">結果已就緒</string>
   <string name="overlay_run_failed">請求失敗</string>
@@ -255,9 +255,9 @@
   <string name="voice_model_ready">語音套件已就緒，點擊麥克風重試</string>
   <string name="voice_model_download_failed">語音套件下載失敗</string>
   <string name="voice_request_failed">請求失敗，請重試。</string>
-  <string name="overlay_supplement">補充</string>
+  <string name="overlay_supplement">插話</string>
   <string name="overlay_capsule_toggle">%1$s，點擊展開控制</string>
-  <string name="overlay_supplement_hint">補充指令，Eta 會繼續目前任務</string>
+  <string name="overlay_supplement_hint">插話調整目前任務</string>
   <string name="overlay_send">傳送</string>
   <string name="overlay_stopping">停止中</string>
   <string name="overlay_paused">已暫停</string>

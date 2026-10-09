@@ -56,7 +56,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             .build()
 
         val call = AgentHttpClient.modelClient(request.purpose).newCall(httpRequest)
-        val binding = runController.register { call.cancel() }
+        val binding = runController.registerModelRequest(request.purpose == ProviderRequestPurpose.CHAT) { call.cancel() }
         try {
             runController.throwIfCancelled()
             onEvent(ProviderEvent.RequestStarted)
@@ -72,7 +72,10 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
                 return ProviderResponse(assistant)
             }
         } catch (throwable: Throwable) {
-            runCatching { runController.throwIfCancelled() }
+            runCatching {
+                if (request.purpose == ProviderRequestPurpose.CHAT) runController.throwIfModelInterrupted()
+                else runController.throwIfCancelled()
+            }
                 .getOrElse { interruption -> throw interruption }
             throw throwable
         } finally {

@@ -351,7 +351,7 @@ class AgentModelClientLoopTest {
     }
 
     @Test
-    fun steeringWaitsForWholeToolBatchWithoutCancellingResources() {
+    fun steeringSkipsUnstartedCallsAndPreservesCompletedToolsWithoutCancellingResources() {
         val controller = AgentRunController()
         val cancelledResources = AtomicInteger(0)
         controller.register { cancelledResources.incrementAndGet() }
@@ -379,10 +379,11 @@ class AgentModelClientLoopTest {
             runController = controller,
         )
 
-        assertEquals(listOf("call-1", "call-2"), executed)
+        assertEquals(listOf("call-1"), executed)
         assertEquals(0, cancelledResources.get())
         assertFalse(controller.hasPendingSteering)
         assertEquals("已按补充完成", result.content)
+        assertTrue(provider.requests[1].getJSONObjectFromEnd(2).getString("content").contains("USER_SUPPLEMENT_RECEIVED"))
         assertEquals(
             listOf("assistant", "tool", "tool", "user"),
             provider.requests[1].roleSuffix(4),

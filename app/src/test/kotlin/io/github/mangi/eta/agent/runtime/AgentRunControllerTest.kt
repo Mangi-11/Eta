@@ -13,6 +13,46 @@ import org.junit.Test
 
 class AgentRunControllerTest {
     @Test
+    fun interjectionCancelsOnlyActiveModelRequestAndLateRegistrationObservesPendingMessage() {
+        val controller = AgentRunController()
+        val toolCancellations = AtomicInteger()
+        val modelCancellations = AtomicInteger()
+        controller.register { toolCancellations.incrementAndGet() }
+        controller.registerModelRequest(true) { modelCancellations.incrementAndGet() }
+        assertTrue(controller.steer("redirect"))
+        assertEquals(1, modelCancellations.get())
+        controller.registerModelRequest(true) { modelCancellations.incrementAndGet() }
+        assertEquals(2, modelCancellations.get())
+        controller.registerModelRequest(false) { toolCancellations.incrementAndGet() }
+        assertEquals(0, toolCancellations.get())
+        assertFalse(controller.admitTool())
+        assertEquals("redirect", controller.pollSteeringMessage())
+        assertTrue(controller.admitTool())
+        assertFalse(controller.isCancelled)
+    }
+
+    @Test
+    fun interjectionWakesRetryBackoffWithoutCancellingRun() {
+        val controller = AgentRunController()
+        val finished = CountDownLatch(1)
+        val started = CountDownLatch(1)
+        val failure = AtomicReference<Throwable?>()
+        val worker = thread(isDaemon = true) {
+            started.countDown()
+            try { controller.awaitRetryDelay(60_000, interruptible = true) }
+            catch (error: Throwable) { failure.set(error) }
+            finally { finished.countDown() }
+        }
+        try {
+            assertTrue(started.await(1, TimeUnit.SECONDS))
+            controller.steer("redirect")
+            assertTrue(finished.await(1, TimeUnit.SECONDS))
+            assertTrue(failure.get() is AgentModelInterruptedException)
+            assertFalse(controller.isCancelled)
+        } finally { controller.cancel(); worker.join(1_000) }
+    }
+
+    @Test
     fun cancellationWakesLongRetryWait() {
         val controller = AgentRunController()
         val started = CountDownLatch(1)

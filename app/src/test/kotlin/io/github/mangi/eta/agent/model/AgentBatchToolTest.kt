@@ -19,6 +19,26 @@ import org.junit.Test
 
 class AgentBatchToolTest {
     @Test
+    fun interjectionSkipsRemainingSequentialMutationsEvenWithContinueAndPreservesCheckpoint() {
+        val controller = AgentRunController()
+        val provider = ScriptedProvider(wrapper(listOf(write("first"), write("second"), write("third")), "sequential", "continue"))
+        val executed = mutableListOf<String>()
+        val result = AgentModelClient.complete(config().copy(terminalTools = true), "执行", AgentModelClient.ToolExecutor { call ->
+            executed += JSONObject(call.argumentsJson).getString("content")
+            controller.steer("停止写入，改为回答")
+            AgentModelClient.ToolResult("{\"ok\":true}")
+        }, provider = provider, runController = controller)
+        assertEquals(listOf("first"), executed)
+        assertFalse(controller.isCancelled)
+        val raw = provider.requests.last().messages.objects().single { it.optString("tool_call_id") == "batch-call" }
+            .getString("content").let(::JSONObject).getJSONArray("results")
+        assertTrue(raw.getJSONObject(0).getBoolean("ok"))
+        assertEquals("USER_SUPPLEMENT_RECEIVED", raw.getJSONObject(1).getJSONObject("result").getString("code"))
+        val checkpoint = result.transcript.single { it.role == "tool" }.content.let(::JSONObject).getJSONArray("results")
+        assertEquals(listOf("completed", "skipped", "skipped"), checkpoint.objects().map { it.getString("status") })
+    }
+
+    @Test
     fun wrapperRunsIndependentQueriesInParallelButReturnsOrderedSingleToolResult() {
         val bothStarted = CountDownLatch(2)
         val secondFinished = CountDownLatch(1)

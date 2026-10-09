@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.model
 import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
+import io.github.mangi.eta.agent.runtime.AgentModelInterruptedException
 import io.github.mangi.eta.agent.roleplay.RoleplayRunContext
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CopyOnWriteArrayList
@@ -15,8 +16,8 @@ import org.json.JSONObject
 /**
  * 单次 Agent run 的纯编排循环。
  *
- * 一次 assistant 响应及其完整工具批次构成一个 turn；
- * steering 只在 turn 结束后注入，不能用取消网络或关闭工具资源来模拟。循环不设置本地轮次上限，
+ * 插话只中断模型请求；工具在动作边界调整，跳过未开始的调用，不关闭工具资源。
+ * 循环不设置本地轮次上限，
  * 由模型自然结束、取消或错误终止。
  */
 internal class AgentLoop(
@@ -99,7 +100,7 @@ internal class AgentLoop(
 
         while (true) {
             runController.throwIfCancelled()
-            if (purpose.allowsTools) appendPendingSteeringMessage()
+            if (purpose.allowsTools) while (appendPendingSteeringMessage()) { /* FIFO; one planning request for pending inputs. */ }
 
             // Anthropic 思考签名绑定发出工具调用时的 system 与 tools；工具结果回传后再刷新目录。
             val roundTools = if (AnthropicEphemeralState.hasPendingToolResponse(messages)) {
@@ -118,6 +119,8 @@ internal class AgentLoop(
             )
             var roundInputTokens: Int? = null
             val reasoningLengthBeforeRound = accumulatedReasoning.length
+            var interrupted = false
+            var attemptRound = round
             val completedRound = try {
                 modelRetry.complete(
                     initialRound = round,
@@ -125,7 +128,10 @@ internal class AgentLoop(
                     provider = provider,
                     controller = runController,
                     onEvent = { event ->
-                        if (event is AgentEvent.RoundStarted) roundInputTokens = null
+                        if (event is AgentEvent.RoundStarted) {
+                            roundInputTokens = null
+                            attemptRound = event.round
+                        }
                         onEvent(event)
                     },
                     onProviderEvent = { attemptRound, providerEvent ->
@@ -148,9 +154,17 @@ internal class AgentLoop(
                     rejectContentFilter(response.response)
                     if (purpose == ProviderRequestPurpose.CHAT) validateChatResponse(response.response)
                 }
+            } catch (_: AgentModelInterruptedException) {
+                runController.throwIfCancelled()
+                interrupted = true
+                accumulatedReasoning.setLength(reasoningLengthBeforeRound)
+                // Partial text, tool arguments and unsigned thinking never enter provider history.
+                onEvent(AgentEvent.ModelRequestInterrupted(attemptRound))
+                round = attemptRound + 1
+                continue
             } finally {
                 // 同一回合的重试仍需原始观察；整个回合结束后才移除截图。
-                discardPendingToolImageMessage()
+                if (!interrupted) discardPendingToolImageMessage()
             }
             context.observeInputTokens(roundInputTokens)
             round = completedRound.round
@@ -378,7 +392,7 @@ internal class AgentLoop(
         for (segment in segments) {
             // Bounded waves prevent queued work from starting beyond a pause/cancellation.
             for (wave in segment.calls.chunked(AgentToolBatchPlanner.MAX_CONCURRENT_CALLS)) {
-                if (segment.parallel && wave.size > 1 && stop == null && !stopOnError) {
+                if (segment.parallel && wave.size > 1 && stop == null && !stopOnError && !runController.hasPendingSteering) {
                     executeParallelTools(round, wave, onBeforeCall, ::record)
                 } else {
                     for (call in wave) {
@@ -386,6 +400,8 @@ internal class AgentLoop(
                         val outcome = when {
                             stop != null -> rejectedToolOutcome(round, call, "UI_EXECUTION_PAUSED",
                                 "本批次已因虚拟屏无响应或无进展暂停；后续工具未执行。")
+                            runController.hasPendingSteering -> rejectedToolOutcome(round, call, "USER_SUPPLEMENT_RECEIVED",
+                                "用户已插话调整指令；此项尚未开始，未执行。保留已完成结果，按新指令重新规划。")
                             stopOnError && failed -> rejectedToolOutcome(round, call, "BATCH_STOPPED_ON_ERROR",
                                 "本批次前序工具失败；该项未执行。请核实失败原因和已完成步骤后重新规划。")
                             else -> {
@@ -422,7 +438,10 @@ internal class AgentLoop(
             val jobs = toolCalls.map { call ->
                 runController.throwIfCancelled()
                 val validation = toolCallValidator.validate(call)
-                if (validation != null) {
+                if (runController.hasPendingSteering) {
+                    null to rejectedToolOutcome(round, call, "USER_SUPPLEMENT_RECEIVED",
+                        "用户已插话调整指令；此项尚未开始，未执行。")
+                } else if (validation != null) {
                     null to rejectedToolOutcome(round, call, "INVALID_TOOL_ARGUMENTS", validation)
                 } else {
                     onBeforeCall(call)
@@ -507,7 +526,7 @@ internal class AgentLoop(
                     val wasStarted = progress.getJSONObject(calls.indexOfFirst { it.id == outcome.call.id })
                         .getString("status") == "unknown"
                     val status = when {
-                        !wasStarted -> "skipped"
+                        !wasStarted || outcome.result.executionSkipped -> "skipped"
                         outcome.result.stop != null || !traceFormatter.isSuccessResult(outcome.result) -> "failed"
                         else -> "completed"
                     }
@@ -543,6 +562,11 @@ internal class AgentLoop(
 
     private fun invokeTool(toolCall: AgentModelClient.ToolCall): AgentModelClient.ToolResult {
         runController.throwIfCancelled()
+        if (!runController.admitTool()) return AgentModelClient.ToolResult(
+            JSONObject().put("ok", false).put("code", "USER_SUPPLEMENT_RECEIVED")
+                .put("message", "用户已插话调整指令；此项未执行，按新指令重新规划。")
+                .toString(), executionSkipped = true,
+        )
         return try {
             toolExecutor.execute(toolCall)
         } catch (cancelled: AgentRunCancelledException) {
@@ -588,6 +612,7 @@ internal class AgentLoop(
                 .put("message", message)
                 .toString(),
             sensitive = AgentSensitiveToolPolicy.isSensitive(toolCall.name),
+            executionSkipped = true,
         )
         if (result.sensitive) sensitiveToolCallIds += toolCall.id
         emitToolFinished(round, toolCall, result)

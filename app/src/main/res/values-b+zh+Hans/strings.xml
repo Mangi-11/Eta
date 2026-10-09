@@ -199,7 +199,7 @@
   <string name="time_yesterday">昨天</string>
   <string name="time_recent">最近</string>
   <string name="overlay_reasoning">思考中</string>
-  <string name="overlay_supplement_received">收到补充，继续执行</string>
+  <string name="overlay_supplement_received">收到插话，调整中</string>
   <string name="overlay_hosted_tool_running">%1$s中</string>
   <string name="overlay_result_ready">已返回结果</string>
   <string name="overlay_run_failed">调用失败</string>
@@ -267,9 +267,9 @@
   <string name="voice_model_ready">语音包已就绪，点击麦克风重试</string>
   <string name="voice_model_download_failed">语音包下载失败</string>
   <string name="voice_request_failed">请求失败，请重试。</string>
-  <string name="overlay_supplement">补充</string>
+  <string name="overlay_supplement">插话</string>
   <string name="overlay_capsule_toggle">%1$s，点击展开控制</string>
-  <string name="overlay_supplement_hint">补充指令，Eta 会继续当前任务</string>
+  <string name="overlay_supplement_hint">插话调整当前任务</string>
   <string name="overlay_send">发送</string>
   <string name="overlay_stopping">停止中</string>
   <string name="overlay_paused">已暂停</string>

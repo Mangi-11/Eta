@@ -24,6 +24,7 @@ internal object VivoIslandWire {
         companion object {
             fun from(event: AgentEvent, virtualScreen: Boolean = false): Progress? = when (event) {
                 is AgentEvent.RunStarted, is AgentEvent.RoundStarted,
+                is AgentEvent.ModelRequestInterrupted,
                 is AgentEvent.ProviderRequestStarted, is AgentEvent.ProviderResponseStarted,
                 is AgentEvent.ToolFinished, is AgentEvent.HostedToolFinished -> Progress(Phase.THINKING)
                 is AgentEvent.ToolStarted -> tool(event.name)

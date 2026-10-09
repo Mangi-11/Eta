@@ -73,6 +73,10 @@ internal sealed interface AgentEvent {
             "provider_request_started round=$round"
     }
 
+    data class ModelRequestInterrupted(val round: Int) : AgentEvent {
+        override fun toLogLine(): String = "model_request_interrupted round=$round"
+    }
+
     data class ProviderResponseStarted(
         val round: Int,
         val httpCode: Int

@@ -347,6 +347,8 @@ internal object AgentModelClient {
         val sensitive: Boolean = false,
         /** Trusted executor control, never inferred from model-visible JSON. */
         val stop: ToolStop? = null,
+        /** Set only by the loop when a call was rejected before invoking its executor. */
+        val executionSkipped: Boolean = false,
     )
 
     data class ToolStop(val code: String, val message: String) {

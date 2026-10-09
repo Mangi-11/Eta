@@ -43,6 +43,14 @@ internal class AgentRunMessageProjector(
             AgentEvent.AssistantBlockKind.TOOL_CALL -> messages
         }
         is AgentEvent.UsageReceived -> attachUsage(runId, event.round, event.usage.toUi(), messages)
+        is AgentEvent.ModelRequestInterrupted -> {
+            val thinkingPrefix = "$runId-thinking-${event.round}-"
+            thinkingStartedAt.keys.removeAll { it.startsWith(thinkingPrefix) }
+            failRunningTools("已按插话调整", messages.filterNot { message ->
+                message is AgentMessageUi && isAssistantMessageForRound(message.id, runId, event.round) ||
+                    message is ThinkingMessageUi && isThinkingMessageForRound(message.id, runId, event.round)
+            })
+        }
         is AgentEvent.ToolStarted ->
             startTool(runId, event, finalizeTextRound(runId, event.round, finalizeThinkingRound(runId, event.round, messages)))
         is AgentEvent.ToolFinished -> finishTool(runId, event, messages)
