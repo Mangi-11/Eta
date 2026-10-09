@@ -145,8 +145,13 @@ internal object VirtualScreenSession {
     }
 
     /** Only atomic bookkeeping happens on the main thread; root IPC stays serialized. */
-    fun setViewerVisible(viewerId: String, visible: Boolean) {
-        if (visible) viewerVisibility.show(viewerId) else if (!viewerVisibility.hide(viewerId)) return
+    fun setViewerVisible(viewerId: String, visible: Boolean, preview: Boolean = false) {
+        if (preview) {
+            if (visible) viewerVisibility.showPreview(viewerId) else if (!viewerVisibility.hidePreview(viewerId)) return
+        } else {
+            if (visible) viewerVisibility.show(viewerId) else if (!viewerVisibility.hide(viewerId)) return
+            viewerState.update { it.copy(fullViewerVisible = viewerVisibility.fullViewerVisible) }
+        }
         previewUpdates.execute {
             synchronized(lock) {
                 val current = session.get() ?: return@synchronized
@@ -247,6 +252,7 @@ internal object VirtualScreenSession {
                 }
                 current.displayId = response.getInt("displayId")
                 viewerState.value = VirtualScreenViewerState(
+                    fullViewerVisible = viewerVisibility.fullViewerVisible,
                     display = VirtualDisplayInfo(current.id, owner, current.displayId, width, height, density = density),
                     lastAction = "create",
                     taskPhase = if (runId == null) VirtualScreenTaskPhase.IDLE else VirtualScreenTaskPhase.RUNNING,

@@ -1,6 +1,10 @@
 package io.github.mangi.eta.ui.screens.tasks
 
 import android.content.Intent
+import android.net.Uri
+import android.provider.Settings as AndroidSettings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,6 +50,13 @@ internal fun VirtualScreenSettingsScreen(onBack: () -> Unit) {
     val settings by SettingsDataStore.settingsFlow().collectAsState(initial = Settings())
     val scope = rememberCoroutineScope()
     val requestNotifications = rememberExecutionNotificationRequest()
+    val overlayPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (AndroidSettings.canDrawOverlays(context)) {
+            scope.launch(Dispatchers.IO) {
+                SettingsDataStore.updateSettings { it.copy(virtualScreenFloatingPreviewEnabled = true) }
+            }
+        }
+    }
     var timeoutDraft by remember { mutableFloatStateOf(1f) }
     LaunchedEffect(settings.virtualScreenIdleTimeoutMinutes) {
         timeoutDraft = VirtualScreenIdleTimeout.options.indexOf(settings.virtualScreenIdleTimeoutMinutes).coerceAtLeast(0).toFloat()
@@ -69,6 +80,22 @@ internal fun VirtualScreenSettingsScreen(onBack: () -> Unit) {
                             if (!value) {
                                 VirtualScreenSession.revokePermission()
                                 MainScreenFallbackApproval.cancelAll()
+                            }
+                        }
+                    })
+                EtaPreferenceDivider(hasLeading = false)
+                EtaSwitchPreference(
+                    title = stringResource(R.string.virtual_screen_floating_enable),
+                    summary = stringResource(R.string.virtual_screen_floating_summary),
+                    checked = settings.virtualScreenFloatingPreviewEnabled,
+                    enabled = settings.virtualScreenEnabled,
+                    onCheckedChange = { value ->
+                        if (value && !AndroidSettings.canDrawOverlays(context)) {
+                            overlayPermission.launch(Intent(AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")))
+                        } else {
+                            scope.launch(Dispatchers.IO) {
+                                SettingsDataStore.updateSettings { it.copy(virtualScreenFloatingPreviewEnabled = value) }
                             }
                         }
                     })

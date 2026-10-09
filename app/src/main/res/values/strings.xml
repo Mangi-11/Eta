@@ -1559,4 +1559,8 @@
     <string name="inbox_refine">Refine</string>
     <string name="inbox_operation_failed">Could not update this proposal. Try again.</string>
     <string name="inbox_refinement_conversation">Refine learning proposal</string>
+    <string name="virtual_screen_floating_enable">Floating preview</string>
+    <string name="virtual_screen_floating_summary">Show a live preview while Eta uses the virtual screen. Drag to move, bring to an edge to fold, or tap to open. Captures stop when folded or hidden.</string>
+    <string name="virtual_screen_floating_open">Open virtual screen</string>
+    <string name="virtual_screen_floating_dismiss">Hide preview for this task</string>
 </resources>

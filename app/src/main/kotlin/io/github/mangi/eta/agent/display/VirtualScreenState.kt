@@ -39,6 +39,7 @@ internal data class VirtualScreenViewerState(
     val taskPhase: VirtualScreenTaskPhase = VirtualScreenTaskPhase.IDLE,
     val activeRunId: String? = null,
     val operations: List<VirtualScreenOperation> = emptyList(),
+    val fullViewerVisible: Boolean = false,
 ) {
     val isAgentControlling: Boolean get() = display != null && taskPhase == VirtualScreenTaskPhase.RUNNING
 

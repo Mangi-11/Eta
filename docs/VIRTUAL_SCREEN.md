@@ -93,3 +93,9 @@
 实现参考 Android [多屏 Activity 启动](https://source.android.com/docs/core/display/multi_display/activity-launch)、[多屏输入路由](https://source.android.com/docs/core/display/multi_display/input-routing)及 Android 16 的 [DisplayManager 标志](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-release/core/java/android/hardware/display/DisplayManager.java)。
 
 界面路由与节点范围参考 Android 官方 [多 display 窗口](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService#getWindowsOnAllDisplays()) 和 [手势 display ID](https://developer.android.com/reference/android/accessibilityservice/GestureDescription.Builder#setDisplayId(int))。
+
+## 可选悬浮预览
+
+虚拟屏设置的「虚拟屏悬浮预览」默认关闭，需要悬浮窗权限。任务使用虚拟屏时显示圆角矩形实时画面，可拖动；贴近屏幕边缘停留后折叠成小气泡，点击进入完整虚拟屏，拖离边缘重新展开。右上角关闭按钮只隐藏本次任务的浮窗。
+
+折叠、关闭、锁屏、任务结束或开关关闭均撤销预览抓帧；虚拟屏与应用本身按原生命周期保留。完整查看页和浮窗持有各自的查看租约，切换不会由旧查看器误关新查看器的抓帧。浮窗上限为 10fps，实际显示受编码与传输耗时影响。

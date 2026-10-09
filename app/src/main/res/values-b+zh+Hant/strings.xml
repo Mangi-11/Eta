@@ -1513,4 +1513,8 @@
     <string name="inbox_refine">繼續完善</string>
     <string name="inbox_operation_failed">方案操作未完成，請重試</string>
     <string name="inbox_refinement_conversation">完善整理方案</string>
+    <string name="virtual_screen_floating_enable">虛擬螢幕懸浮預覽</string>
+    <string name="virtual_screen_floating_summary">Eta 操作虛擬螢幕時顯示即時預覽。可拖動、貼邊摺疊，點擊進入虛擬螢幕；摺疊或隱藏時停止預覽擷取畫面。</string>
+    <string name="virtual_screen_floating_open">開啟虛擬螢幕</string>
+    <string name="virtual_screen_floating_dismiss">本次工作隱藏預覽</string>
 </resources>

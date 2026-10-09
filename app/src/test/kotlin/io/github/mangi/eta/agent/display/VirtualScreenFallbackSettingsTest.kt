@@ -18,13 +18,16 @@ class VirtualScreenFallbackSettingsTest {
     @Test
     fun restartAndIdleSettingsPersistWithConservativeDefaults() = runBlocking {
         assertFalse(Settings().virtualScreenAutoRestartApps)
+        assertFalse(Settings().virtualScreenFloatingPreviewEnabled)
         assertEquals(20, Settings().virtualScreenIdleTimeoutMinutes)
         SettingsDataStore.init(RuntimeEnvironment.getApplication())
         val original = SettingsDataStore.settings()
         try {
             for (minutes in listOf(10, 20, 60, 0)) {
-                SettingsDataStore.updateSettings { it.copy(virtualScreenAutoRestartApps = true, virtualScreenIdleTimeoutMinutes = minutes) }
+                SettingsDataStore.updateSettings { it.copy(virtualScreenAutoRestartApps = true,
+                    virtualScreenFloatingPreviewEnabled = true, virtualScreenIdleTimeoutMinutes = minutes) }
                 assertTrue(SettingsDataStore.settings().virtualScreenAutoRestartApps)
+                assertTrue(SettingsDataStore.settings().virtualScreenFloatingPreviewEnabled)
                 assertEquals(minutes, SettingsDataStore.settings().virtualScreenIdleTimeoutMinutes)
             }
             SettingsDataStore.updateSettings { it.copy(virtualScreenIdleTimeoutMinutes = -1) }

@@ -54,6 +54,7 @@ internal object SettingsDataStore {
     private val AUTO_MEMORY_ENABLED = booleanPreferencesKey("auto_memory_enabled")
     private val AUTO_SKILLS_ENABLED = booleanPreferencesKey("auto_skills_enabled")
     private val VIRTUAL_SCREEN_ENABLED = booleanPreferencesKey("virtual_screen_enabled")
+    private val VIRTUAL_SCREEN_FLOATING_PREVIEW = booleanPreferencesKey("virtual_screen_floating_preview")
     private val VIRTUAL_SCREEN_OFF_ENABLED = booleanPreferencesKey("virtual_screen_off_enabled")
     private val VIRTUAL_SCREEN_FALLBACK_ENABLED = booleanPreferencesKey("virtual_screen_fallback_enabled")
     private val VIRTUAL_SCREEN_AUTO_RESTART_APPS = booleanPreferencesKey("virtual_screen_auto_restart_apps")
@@ -124,6 +125,7 @@ internal object SettingsDataStore {
             prefs[AUTO_MEMORY_ENABLED] = updated.autoMemoryEnabled
             prefs[AUTO_SKILLS_ENABLED] = updated.autoSkillsEnabled
             prefs[VIRTUAL_SCREEN_ENABLED] = updated.virtualScreenEnabled
+            prefs[VIRTUAL_SCREEN_FLOATING_PREVIEW] = updated.virtualScreenFloatingPreviewEnabled
             prefs[VIRTUAL_SCREEN_OFF_ENABLED] = updated.virtualScreenOffEnabled
             prefs[VIRTUAL_SCREEN_FALLBACK_ENABLED] = updated.virtualScreenFallbackEnabled
             prefs[VIRTUAL_SCREEN_AUTO_RESTART_APPS] = updated.virtualScreenAutoRestartApps
@@ -259,6 +261,7 @@ internal object SettingsDataStore {
         autoMemoryEnabled = this[AUTO_MEMORY_ENABLED] ?: true,
         autoSkillsEnabled = this[AUTO_SKILLS_ENABLED] ?: true,
         virtualScreenEnabled = this[VIRTUAL_SCREEN_ENABLED] ?: false,
+        virtualScreenFloatingPreviewEnabled = this[VIRTUAL_SCREEN_FLOATING_PREVIEW] ?: false,
         virtualScreenOffEnabled = this[VIRTUAL_SCREEN_OFF_ENABLED] ?: false,
         virtualScreenFallbackEnabled = this[VIRTUAL_SCREEN_FALLBACK_ENABLED] ?: false,
         virtualScreenAutoRestartApps = this[VIRTUAL_SCREEN_AUTO_RESTART_APPS] ?: false,

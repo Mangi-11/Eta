@@ -1539,4 +1539,8 @@
     <string name="inbox_refine">继续完善</string>
     <string name="inbox_operation_failed">方案操作未完成，请重试</string>
     <string name="inbox_refinement_conversation">完善沉淀方案</string>
+    <string name="virtual_screen_floating_enable">虚拟屏悬浮预览</string>
+    <string name="virtual_screen_floating_summary">Eta 操作虚拟屏时显示实时预览。可拖动、贴边折叠，点击进入虚拟屏；折叠或隐藏时停止预览抓帧。</string>
+    <string name="virtual_screen_floating_open">打开虚拟屏</string>
+    <string name="virtual_screen_floating_dismiss">本次任务隐藏预览</string>
 </resources>

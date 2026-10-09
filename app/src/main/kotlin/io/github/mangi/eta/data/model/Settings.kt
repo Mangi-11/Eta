@@ -11,6 +11,7 @@ data class Settings(
     val autoMemoryEnabled: Boolean = true,
     val autoSkillsEnabled: Boolean = true,
     val virtualScreenEnabled: Boolean = false,
+    val virtualScreenFloatingPreviewEnabled: Boolean = false,
     val virtualScreenOffEnabled: Boolean = false,
     val virtualScreenFallbackEnabled: Boolean = false,
     val virtualScreenAutoRestartApps: Boolean = false,
