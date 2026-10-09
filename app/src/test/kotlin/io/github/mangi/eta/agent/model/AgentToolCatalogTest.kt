@@ -122,43 +122,28 @@ class AgentToolCatalogTest {
     }
 
     @Test
-    fun indexedTextToolsDescribeObservationPairingWithoutRequiringItForFocusedInput() {
+    fun typeTextReplacesLegacyTextToolsAndDescribesObservationPairing() {
         val tools = AgentToolCatalog.build(terminalTools = false, browserTools = false)
-
-        listOf("replace_text", "clear_text").forEach { name ->
-            val function = tools.function(name)
-            val parameters = function.getJSONObject("parameters")
-            val properties = parameters.getJSONObject("properties")
-
-            assertEquals("string", properties.getJSONObject("observation_id").getString("type"))
-            assertFalse("observation_id remains optional when $name targets focus", "observation_id" in parameters.requiredNames())
-            assertTrue(function.getString("description").contains("index 与 observation_id"))
-            assertTrue(properties.getJSONObject("index").getString("description").contains("同时传入"))
+        val names = (0 until tools.length()).map { tools.getJSONObject(it).getJSONObject("function").getString("name") }
+        listOf("input_text", "replace_text", "clear_text", "paste_text").forEach { legacy ->
+            assertFalse("$legacy 不再向模型暴露", legacy in names)
         }
 
-        val inputText = tools.function("input_text")
-        val inputProperties = inputText
-            .getJSONObject("parameters")
-            .getJSONObject("properties")
-        assertEquals("integer", inputProperties.getJSONObject("index").getString("type"))
-        assertEquals(
-            "string",
-            inputProperties.getJSONObject("observation_id").getString("type"),
-        )
-        assertTrue(
-            inputProperties.getJSONObject("index").getString("description")
-                .contains("observation_id"),
-        )
+        val function = tools.function("type_text")
+        val parameters = function.getJSONObject("parameters")
+        val properties = parameters.getJSONObject("properties")
+        assertEquals(listOf("text"), parameters.requiredNames().toList())
+        assertEquals(listOf("replace", "append"), properties.getJSONObject("mode").getJSONArray("enum").stringValues())
+        assertEquals("boolean", properties.getJSONObject("submit").getString("type"))
+        assertTrue(properties.getJSONObject("index").getString("description").contains("observation_id"))
     }
 
     @Test
     fun textToolsDeclareTheSameLimitsAsRuntime() {
         val tools = AgentToolCatalog.build(terminalTools = false, browserTools = false)
 
-        assertEquals(1_000, tools.maxTextLength("input_text"))
-        assertEquals(4_000, tools.maxTextLength("replace_text"))
+        assertEquals(4_000, tools.maxTextLength("type_text"))
         assertEquals(20_000, tools.maxTextLength("set_clipboard"))
-        assertEquals(20_000, tools.maxTextLength("paste_text"))
     }
 
     @Test

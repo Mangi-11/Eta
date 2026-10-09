@@ -7,4 +7,6 @@
         <item quantity="other">%1$d tasks are running. Return to Eta to check progress.</item>
     </plurals>
     <string name="execution_stop">Stop running tasks</string>
+    <string name="execution_chip_running">Working</string>
+    <string name="execution_chip_answering">Answering</string>
 </resources>

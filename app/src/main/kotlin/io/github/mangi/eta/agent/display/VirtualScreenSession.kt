@@ -406,7 +406,7 @@ internal object VirtualScreenSession {
                 val bounds = node.bounds
                 val value = JSONArray(listOf(stableText(node.text), stableText(node.desc), node.className, node.viewId,
                     bounds.left, bounds.top, bounds.right, bounds.bottom, node.enabled, node.focused,
-                    node.editable, node.clickable, node.scrollable)).toString()
+                    node.editable, node.clickable, node.scrollable, node.checked, node.selected, node.hint)).toString()
                 digest.update(value.toByteArray(Charsets.UTF_8))
             }
             digest.digest().joinToString("") { "%02x".format(it) }

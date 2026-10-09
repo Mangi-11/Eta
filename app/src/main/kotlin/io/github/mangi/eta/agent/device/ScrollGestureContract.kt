@@ -9,6 +9,21 @@ internal enum class ScrollAxis {
 }
 
 /**
+ * 滚动幅度。系统滚动动作固定翻约一屏，不接受距离参数；SMALL 因此只走手势，
+ * 用目标区域约四分之一的位移露出少量内容，适合微调到某一项。
+ */
+internal enum class ScrollAmount(val nearFraction: Float, val farFraction: Float) {
+    SMALL(0.38f, 0.62f),
+    PAGE(0.2f, 0.8f),
+    ;
+
+    companion object {
+        fun parse(value: String): ScrollAmount? =
+            if (value.isBlank()) PAGE else entries.firstOrNull { it.name.equals(value.trim(), ignoreCase = true) }
+    }
+}
+
+/**
  * 滚动方向表示希望显示的新内容所在方向，而不是手指移动方向。
  */
 internal enum class ScrollDirection(
@@ -21,15 +36,15 @@ internal enum class ScrollDirection(
     RIGHT(ScrollAxis.HORIZONTAL, 1),
     ;
 
-    fun gestureWithin(bounds: Rect): ScrollGesture? {
+    fun gestureWithin(bounds: Rect, amount: ScrollAmount = ScrollAmount.PAGE): ScrollGesture? {
         if (bounds.isEmpty) return null
 
         val axisStart = if (axis == ScrollAxis.VERTICAL) bounds.top else bounds.left
         val axisEndExclusive = if (axis == ScrollAxis.VERTICAL) bounds.bottom else bounds.right
         if (axisEndExclusive - axisStart < MIN_GESTURE_SPAN_PX) return null
 
-        val near = pointOnAxis(axisStart, axisEndExclusive, NEAR_FRACTION)
-        val far = pointOnAxis(axisStart, axisEndExclusive, FAR_FRACTION)
+        val near = pointOnAxis(axisStart, axisEndExclusive, amount.nearFraction)
+        val far = pointOnAxis(axisStart, axisEndExclusive, amount.farFraction)
         val perpendicular = if (axis == ScrollAxis.VERTICAL) {
             midpoint(bounds.left, bounds.right)
         } else {
@@ -56,8 +71,6 @@ internal enum class ScrollDirection(
             entries.firstOrNull { direction -> direction.name.equals(value.trim(), ignoreCase = true) }
 
         private const val MIN_GESTURE_SPAN_PX = 2
-        private const val NEAR_FRACTION = 0.2f
-        private const val FAR_FRACTION = 0.8f
 
         private fun pointOnAxis(start: Int, endExclusive: Int, fraction: Float): Int {
             val endInclusive = endExclusive - 1

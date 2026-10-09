@@ -34,6 +34,7 @@ internal class AgentConversationPersistence(initial: AgentConversationStore.Snap
         val appliedRuntimeRunIds: List<String>,
         val roleplay: RoleplayBinding?,
         val roleplayMessages: RoleplayMessageState,
+        val modelId: String?,
         val messages: List<AgentChatMessageUi>,
         val history: List<AgentModelClient.ConversationMessage>,
         val journal: List<AgentModelClient.ConversationMessage>,
@@ -42,13 +43,13 @@ internal class AgentConversationPersistence(initial: AgentConversationStore.Snap
         constructor(state: AgentChatHomeUiState, title: String, updatedAt: Long) : this(
             title, updatedAt, state.reasoningEffort, state.appliedRuntimeRunIds,
             state.roleplay, if (state.roleplay == null) RoleplayMessageState() else state.roleplayMessages,
-            state.messages, state.history, state.journal.ifEmpty { state.history },
+            state.modelId, state.messages, state.history, state.journal.ifEmpty { state.history },
             state.lastModelUsage,
         )
 
         fun sameMetadata(other: Content): Boolean =
             title == other.title && updatedAt == other.updatedAt && reasoningEffort == other.reasoningEffort &&
                 appliedRuntimeRunIds == other.appliedRuntimeRunIds && roleplay == other.roleplay &&
-                roleplayMessages == other.roleplayMessages && lastModelUsage == other.lastModelUsage
+                roleplayMessages == other.roleplayMessages && modelId == other.modelId && lastModelUsage == other.lastModelUsage
     }
 }

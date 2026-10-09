@@ -16,7 +16,8 @@ internal data class AppLatestRelease(
  * 应用更新检查：读取 GitHub 最新 Release 并与当前版本比较。
  *
  * 版本号遵循发版流程的 v 前缀 + 点分数字约定（v3.0.6），比较按段进行：两段都是数字时
- * 按数值比较，否则按字符串比较。所有网络与响应错误统一抛 [IOException]，由调用方提示。
+ * 按数值比较，否则按字符串比较。当前版本的构建类型后缀（-debug）与 CI 构建元数据（+提交号）不参与比较。
+ * 所有网络与响应错误统一抛 [IOException]，由调用方提示。
  */
 internal object AppUpdateChecker {
 
@@ -43,7 +44,8 @@ internal object AppUpdateChecker {
 
     fun isNewer(latest: String, current: String): Boolean {
         val latestParts = latest.removePrefix("v").split('.')
-        val currentParts = current.removePrefix("v").split('.')
+        val currentParts =
+            current.removePrefix("v").substringBefore('+').substringBefore('-').split('.')
         for (index in 0 until maxOf(latestParts.size, currentParts.size)) {
             val latestPart = latestParts.getOrNull(index) ?: "0"
             val currentPart = currentParts.getOrNull(index) ?: "0"

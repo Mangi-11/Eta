@@ -21,10 +21,32 @@ class AgentRuntimeRequestConfigResolverTest {
         val payload = AgentExternalArchivePayload.from(requireNotNull(resolved.handoff).payload)
 
         assertTrue(AgentRuntimeRequestConfigResolver.requiresRuntimeConfig(request))
-        assertSame(runtimeConfig, resolved.config)
+        assertEquals("runtime-key", resolved.config.apiKey)
         requireNotNull(payload)
         assertTrue(requireNotNull(payload.thinkingEnabled))
         assertEquals(ReasoningEffort.HIGH, payload.reasoningEffort)
+    }
+
+    @Test
+    fun etaVoiceRequestKeepsEntryToolSwitchesWhileTakingRuntimeModel() {
+        val entry = modelConfig("entry-key", ReasoningEffort.OFF).copy(
+            terminalTools = true,
+            deviceSensitiveReadTools = true,
+            deviceSensitiveActionTools = true,
+            browserTools = false,
+        )
+        val request = request(source = AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE, config = entry)
+
+        val resolved = AgentRuntimeRequestConfigResolver.applyRuntimeConfig(
+            request,
+            modelConfig("runtime-key", ReasoningEffort.HIGH),
+        ).config
+
+        assertEquals("runtime-key", resolved.apiKey)
+        assertTrue(resolved.terminalTools)
+        assertTrue(resolved.deviceSensitiveReadTools)
+        assertTrue(resolved.deviceSensitiveActionTools)
+        assertFalse(resolved.browserTools)
     }
 
     @Test

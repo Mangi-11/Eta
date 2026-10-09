@@ -193,6 +193,37 @@ class AgentLocalToolsPermissionTest {
     }
 
     @Test
+    fun coordinateToolsRequireExplicitCoordinateSpace() {
+        val tools = tools()
+        listOf(
+            "{\"x\":100,\"y\":200}",
+            "{\"x\":100,\"y\":200,\"coordinate_space\":\"pixel\"}",
+            "{\"x\":1000,\"y\":200,\"coordinate_space\":\"normalized\"}",
+        ).forEach { arguments ->
+            val result = tools.execute(AgentModelClient.ToolCall(id = "call-1", name = "tap", argumentsJson = arguments))
+            assertEquals(arguments, "INVALID_ARGUMENT", JSONObject(result.content).getString("code"))
+        }
+        tools.close()
+    }
+
+    @Test
+    fun typeTextRejectsInvalidModesBeforeTouchingTheScreen() {
+        val tools = tools()
+        listOf(
+            "{\"text\":\"hi\",\"mode\":\"paste\"}",
+            "{\"text\":\"\",\"mode\":\"append\"}",
+            "{\"text\":\"hi\",\"mode\":\"append\",\"index\":1}",
+        ).forEach { arguments ->
+            val result = tools.execute(AgentModelClient.ToolCall(id = "call-1", name = "type_text", argumentsJson = arguments))
+            assertEquals(arguments, "INVALID_ARGUMENT", JSONObject(result.content).getString("code"))
+        }
+        // 无障碍未连接时 replace 明确失败，不会退回到盲发按键。
+        val replace = tools.execute(AgentModelClient.ToolCall(id = "call-2", name = "type_text", argumentsJson = "{\"text\":\"hi\"}"))
+        assertEquals("ACCESSIBILITY_UNAVAILABLE", JSONObject(replace.content).getString("code"))
+        tools.close()
+    }
+
+    @Test
     fun textInputWithoutAccessibilityDoesNotSendBlindShellKeys() {
         val tools = tools()
 

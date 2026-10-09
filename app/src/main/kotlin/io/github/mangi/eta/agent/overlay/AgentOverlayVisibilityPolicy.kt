@@ -73,6 +73,7 @@ internal object AgentOverlayVisibilityPolicy {
         "swipe",
         "scroll",
         "scroll_element",
+        "type_text",
         "input_text",
         "replace_text",
         "clear_text",

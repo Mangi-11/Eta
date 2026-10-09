@@ -10,7 +10,7 @@ internal object AgentGestureToolCatalog {
             .put(
                 AgentToolSchema.function(
                     name = "tap",
-                    description = "点击坐标。默认使用最近一次 observe_screen 截图里的像素坐标；如果坐标来自 ui_nodes 的 center，请设置 coordinate_space=screen。",
+                    description = "点击坐标。能用节点时优先 tap_element；看截图定位时用 coordinate_space=normalized（0–999），坐标来自 ui_nodes 时用 screen。",
                     parameters = JSONObject()
                         .put("type", "object")
                         .put(
@@ -20,13 +20,13 @@ internal object AgentGestureToolCatalog {
                                 .put("y", JSONObject().put("type", "integer"))
                                 .put("coordinate_space", AgentToolSchema.coordinateSpace())
                         )
-                        .put("required", JSONArray().put("x").put("y"))
+                        .put("required", JSONArray().put("x").put("y").put("coordinate_space"))
                 )
             )
             .put(
                 AgentToolSchema.function(
                     name = "tap_area",
-                    description = "点击矩形区域中心。默认使用最近一次 observe_screen 截图里的像素坐标；大按钮、大列表项和可见文字区域优先用这个工具。",
+                    description = "点击矩形区域中心。大按钮、大列表项和可见文字区域优先用这个工具；坐标系同 tap，必须显式填写 coordinate_space。",
                     parameters = JSONObject()
                         .put("type", "object")
                         .put(
@@ -38,7 +38,7 @@ internal object AgentGestureToolCatalog {
                                 .put("y2", JSONObject().put("type", "integer"))
                                 .put("coordinate_space", AgentToolSchema.coordinateSpace())
                         )
-                        .put("required", JSONArray().put("x1").put("y1").put("x2").put("y2"))
+                        .put("required", JSONArray().put("x1").put("y1").put("x2").put("y2").put("coordinate_space"))
                 )
             )
             .put(
@@ -69,7 +69,7 @@ internal object AgentGestureToolCatalog {
             .put(
                 AgentToolSchema.function(
                     name = "long_press",
-                    description = "长按坐标。默认使用最近一次 observe_screen 截图里的像素坐标；如果坐标来自 ui_nodes 的 center，请设置 coordinate_space=screen。",
+                    description = "长按坐标。能用节点时优先 long_press_element；坐标系同 tap，必须显式填写 coordinate_space。",
                     parameters = JSONObject()
                         .put("type", "object")
                         .put(
@@ -85,7 +85,7 @@ internal object AgentGestureToolCatalog {
                                 )
                                 .put("coordinate_space", AgentToolSchema.coordinateSpace())
                         )
-                        .put("required", JSONArray().put("x").put("y"))
+                        .put("required", JSONArray().put("x").put("y").put("coordinate_space"))
                 )
             )
             .put(
@@ -122,7 +122,7 @@ internal object AgentGestureToolCatalog {
             .put(
                 AgentToolSchema.function(
                     name = "swipe",
-                    description = "从一个坐标滑动到另一个坐标。默认使用最近一次 observe_screen 截图里的像素坐标。向上滑动会让列表向下滚动。",
+                    description = "从一个坐标拖到另一个坐标（手指方向），用于拖动滑块、轮播、地图等精确手势。浏览列表请用 scroll。坐标系同 tap，必须显式填写 coordinate_space。",
                     parameters = JSONObject()
                         .put("type", "object")
                         .put(
@@ -140,13 +140,13 @@ internal object AgentGestureToolCatalog {
                                 )
                                 .put("coordinate_space", AgentToolSchema.coordinateSpace())
                         )
-                        .put("required", JSONArray().put("x1").put("y1").put("x2").put("y2"))
+                        .put("required", JSONArray().put("x1").put("y1").put("x2").put("y2").put("coordinate_space"))
                 )
             )
             .put(
                 AgentToolSchema.function(
                     name = "scroll",
-                    description = "按内容浏览方向滚动当前屏幕：down 显示下方内容，up 显示上方内容，left 显示左侧内容，right 显示右侧内容。",
+                    description = "按内容浏览方向滚动当前屏幕的主列表：down 显示下方内容，up 显示上方内容，left/right 同理。结果里 moved=false 且 at_boundary=true 表示已到底，换方向或结束；页面有多个列表时用 scroll_element 指定目标。",
                     parameters = JSONObject()
                         .put("type", "object")
                         .put(
@@ -157,6 +157,13 @@ internal object AgentGestureToolCatalog {
                                     JSONObject()
                                         .put("type", "string")
                                         .put("enum", JSONArray().put("up").put("down").put("left").put("right"))
+                                )
+                                .put(
+                                    "amount",
+                                    JSONObject()
+                                        .put("type", "string")
+                                        .put("enum", JSONArray().put("page").put("small"))
+                                        .put("description", "page 约翻一屏（默认），small 只露出少量新内容，用于把目标项微调进视野。"),
                                 )
                         )
                         .put("required", JSONArray().put("direction"))
@@ -189,6 +196,13 @@ internal object AgentGestureToolCatalog {
                                         .put("type", "string")
                                         .put("enum", JSONArray().put("up").put("down").put("left").put("right"))
                                         .put("description", "内容浏览方向；down 显示下方内容，up 显示上方内容。")
+                                )
+                                .put(
+                                    "amount",
+                                    JSONObject()
+                                        .put("type", "string")
+                                        .put("enum", JSONArray().put("page").put("small"))
+                                        .put("description", "page 约翻一屏（默认），small 只露出少量新内容，用于把目标项微调进视野。"),
                                 )
                         )
                         .put("required", JSONArray().put("index").put("observation_id").put("direction"))

@@ -21,7 +21,68 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class EtaDatabaseMigrationTest {
     @Test
-    fun migration6To25PreservesDataAndMovesCompleteConversationContext() {
+    fun upstream22MigrationPreservesModelBindingAndAddsForkTables() = verifyForkMergeMigration(upstream = true)
+
+    @Test
+    fun fork25MigrationPreservesUsageAndErrorsAndAddsModelBinding() = verifyForkMergeMigration(upstream = false)
+
+    private fun verifyForkMergeMigration(upstream: Boolean) {
+        val context = RuntimeEnvironment.getApplication() as Context
+        val name = "merge-migration-${UUID.randomUUID()}.db"
+        createVersion6Database(context, name)
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context).name(name).callback(
+                object : SupportSQLiteOpenHelper.Callback(6) {
+                    override fun onCreate(db: SupportSQLiteDatabase) = error("Existing database expected")
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+                },
+            ).build(),
+        )
+        try {
+            val db = helper.writableDatabase
+            listOf(
+                EtaDatabase.MIGRATION_6_7, EtaDatabase.MIGRATION_7_8, EtaDatabase.MIGRATION_8_9,
+                EtaDatabase.MIGRATION_9_10, EtaDatabase.MIGRATION_10_11, EtaDatabase.MIGRATION_11_12,
+                EtaDatabase.MIGRATION_12_13, EtaDatabase.MIGRATION_13_14, EtaDatabase.MIGRATION_14_15,
+                EtaDatabase.MIGRATION_15_16, EtaDatabase.MIGRATION_16_17, EtaDatabase.MIGRATION_17_18,
+                EtaDatabase.MIGRATION_18_19, EtaDatabase.MIGRATION_19_20, EtaDatabase.MIGRATION_20_21,
+            ).forEach { it.migrate(db) }
+            if (upstream) {
+                db.execSQL("ALTER TABLE conversations ADD COLUMN model_id TEXT")
+                db.execSQL("UPDATE conversations SET model_id='kept-model' WHERE id='conv-1'")
+                db.version = 22
+            } else {
+                listOf(EtaDatabase.MIGRATION_21_22, EtaDatabase.MIGRATION_22_23,
+                    EtaDatabase.MIGRATION_23_24, EtaDatabase.MIGRATION_24_25).forEach { it.migrate(db) }
+                db.execSQL("UPDATE conversations SET last_model_usage_json='{\"inputTokens\":42}' WHERE id='conv-1'")
+                db.execSQL("UPDATE runtime_results SET error_code='UI_EXECUTION_PAUSED'")
+                db.version = 25
+            }
+        } finally {
+            helper.close()
+        }
+        val database = Room.databaseBuilder(context, EtaDatabase::class.java, name)
+            .addMigrations(EtaDatabase.MIGRATION_22_23, EtaDatabase.MIGRATION_23_24,
+                EtaDatabase.MIGRATION_24_25, EtaDatabase.MIGRATION_25_26).build()
+        try {
+            runBlocking(Dispatchers.IO) {
+                val conversation = database.conversationDao().conversations().first { it.id == "conv-1" }
+                assertEquals("保留的对话", conversation.title)
+                assertEquals(if (upstream) "kept-model" else null, conversation.modelId)
+                assertEquals(if (upstream) "" else "{\"inputTokens\":42}", conversation.lastModelUsageJson)
+                assertEquals(if (upstream) "" else "UI_EXECUTION_PAUSED",
+                    database.runtimeRunDao().runtimeResults().single().errorCode)
+                assertEquals(emptyList<AgentTaskEntity>(), database.agentTaskDao().tasks())
+                assertEquals("旧消息", database.conversationDao().messages().single().content)
+            }
+        } finally {
+            database.close()
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test
+    fun migration6To26PreservesDataAndMovesCompleteConversationContext() {
         val context = RuntimeEnvironment.getApplication() as Context
         val databaseName = "migration-${UUID.randomUUID()}.db"
         createVersion6Database(context, databaseName)
@@ -58,6 +119,7 @@ class EtaDatabaseMigrationTest {
                 EtaDatabase.MIGRATION_22_23,
                 EtaDatabase.MIGRATION_23_24,
                 EtaDatabase.MIGRATION_24_25,
+                EtaDatabase.MIGRATION_25_26,
             )
             .build()
         try {
@@ -120,6 +182,7 @@ class EtaDatabaseMigrationTest {
             assertEquals("", conversations.first { it.id == "conv-1" }.revisionsJson)
             assertEquals(emptyList<CharacterEntity>(), runBlocking(Dispatchers.IO) { database.characterDao().characters() })
             assertEquals("off", conversations.first { it.id == "conv-1" }.reasoningEffort)
+            assertEquals(null, conversations.first { it.id == "conv-1" }.modelId)
             assertEquals("default", conversations.first { it.id == "conv-enabled" }.reasoningEffort)
             assertEquals(null, runBlocking(Dispatchers.IO) { database.conversationDao().state() })
             assertEquals(listOf("built-in", "manual"), provider.models.map { it.modelId })

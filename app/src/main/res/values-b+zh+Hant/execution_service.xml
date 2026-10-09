@@ -6,4 +6,6 @@
         <item quantity="other">%1$d 項任務正在執行，可返回 Eta 查看進度</item>
     </plurals>
     <string name="execution_stop">停止執行任務</string>
+    <string name="execution_chip_running">操作中</string>
+    <string name="execution_chip_answering">回答中</string>
 </resources>

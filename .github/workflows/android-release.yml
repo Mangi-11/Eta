@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -16,6 +16,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 与打包并行且不接触签名 Secrets；失败不影响 APK 上传，但会阻止发版草稿
+  verify:
+    name: Lint 与单元测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: 配置构建环境
+        uses: ./.github/actions/setup-build
+
+      - name: Lint 与单元测试
+        run: >-
+          ./gradlew --no-daemon --no-configuration-cache --continue
+          :app:lintDebug :app:testDebugUnitTest
+
+      - name: 上传检查报告
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: verify-reports
+          path: |
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
   build-apks:
     name: 构建 Debug 与 Release APK
     runs-on: ubuntu-latest
@@ -25,43 +56,28 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: 配置 JDK 25
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
-        with:
-          distribution: temurin
-          java-version: "25"
-
-      - name: 配置 Gradle
-        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
-        with:
-          cache-provider: basic
-
-      - name: 配置 Android SDK 工具
-        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
-        with:
-          packages: ""
-          log-accepted-android-sdk-licenses: false
-
-      - name: 安装 Android SDK 37
-        run: sdkmanager --channel=3 "platforms;android-37.0"
+      - name: 配置构建环境
+        uses: ./.github/actions/setup-build
 
       - name: 构建 Debug APK
-        run: >-
-          ./gradlew --no-daemon --no-configuration-cache
-          :app:assembleDebug
+        run: |
+          metadata_arg=()
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            metadata_arg=("-Peta.buildMetadata=${GITHUB_SHA::7}")
+          fi
+          ./gradlew --no-daemon --no-configuration-cache "${metadata_arg[@]}" \
+            :app:assembleDebug
 
       - name: 验证并整理 Debug APK
         id: debug-apk
         run: |
-          debug_apk="app/build/outputs/apk/debug/app-debug.apk"
-          output_dir="$RUNNER_TEMP/apks"
-          if [[ ! -f "$debug_apk" ]]; then
-            echo "::error::未找到 Debug APK。"
+          shopt -s nullglob
+          debug_apks=(app/build/outputs/apk/debug/Eta-v*.apk)
+          if [[ ${#debug_apks[@]} -ne 1 ]]; then
+            echo "::error::Debug APK 数量异常（${#debug_apks[@]}）。"
             exit 1
           fi
-          mkdir -p "$output_dir"
-          cp "$debug_apk" "$output_dir/app-debug.apk"
-          echo "debug_path=$output_dir/app-debug.apk" >> "$GITHUB_OUTPUT"
+          echo "debug_path=${debug_apks[0]}" >> "$GITHUB_OUTPUT"
 
       - name: 上传 Debug APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -95,20 +111,31 @@ jobs:
           ETA_RELEASE_STORE_PASSWORD: ${{ secrets.ETA_RELEASE_STORE_PASSWORD }}
           ETA_RELEASE_KEY_ALIAS: ${{ secrets.ETA_RELEASE_KEY_ALIAS }}
           ETA_RELEASE_KEY_PASSWORD: ${{ secrets.ETA_RELEASE_KEY_PASSWORD }}
-        run: >-
-          ./gradlew --no-daemon --no-configuration-cache
-          :app:assembleRelease
+        # 发版标签保持纯净版本名；其余构建追加 +<短提交号>，与已发布版本区分
+        run: |
+          metadata_arg=()
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            metadata_arg=("-Peta.buildMetadata=${GITHUB_SHA::7}")
+          fi
+          ./gradlew --no-daemon --no-configuration-cache "${metadata_arg[@]}" \
+            :app:assembleRelease
 
       - name: 验证并整理 Release APK
         id: apk
         run: |
-          release_apk="app/build/outputs/apk/release/app-release.apk"
-          output_dir="$RUNNER_TEMP/apks"
+          # 文件名由 Gradle 按 versionName 生成，例如 Eta-vX.Y.Z.apk、Eta-vX.Y.Z-debug+<sha>.apk
+          shopt -s nullglob
+          debug_apks=(app/build/outputs/apk/debug/Eta-v*.apk)
+          release_apks=(app/build/outputs/apk/release/Eta-v*.apk)
           apksigner_path="$(find "$ANDROID_HOME/build-tools" \
             -type f -name apksigner | sort -V | tail -n 1)"
 
-          if [[ ! -f "$release_apk" ]]; then
-            echo "::error::未找到 Release APK。"
+          if [[ ${#debug_apks[@]} -ne 1 ]]; then
+            echo "::error::Debug APK 数量异常（${#debug_apks[@]}）。"
+            exit 1
+          fi
+          if [[ ${#release_apks[@]} -ne 1 ]]; then
+            echo "::error::Release APK 数量异常（${#release_apks[@]}）。"
             exit 1
           fi
           if [[ -z "$apksigner_path" ]]; then
@@ -116,10 +143,19 @@ jobs:
             exit 1
           fi
 
-          "$apksigner_path" verify "$release_apk"
-          mkdir -p "$output_dir"
-          cp "$release_apk" "$output_dir/app-release.apk"
-          echo "release_path=$output_dir/app-release.apk" >> "$GITHUB_OUTPUT"
+          "$apksigner_path" verify "${release_apks[0]}"
+
+          # 发版标签必须与 versionName 一致，避免标签与安装包版本错位
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version_name="$(jq -r '.elements[0].versionName' \
+              app/build/outputs/apk/release/output-metadata.json)"
+            if [[ "$GITHUB_REF_NAME" != "v$version_name" ]]; then
+              echo "::error::标签 $GITHUB_REF_NAME 与 versionName $version_name 不一致。"
+              exit 1
+            fi
+          fi
+          echo "debug_path=${debug_apks[0]}" >> "$GITHUB_OUTPUT"
+          echo "release_path=${release_apks[0]}" >> "$GITHUB_OUTPUT"
 
       - name: 上传 Release APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -132,3 +168,36 @@ jobs:
       - name: 清理发布证书
         if: always()
         run: rm -f "$RUNNER_TEMP/eta-release.jks"
+
+  # 构建 job 持有签名 Secrets，写 Release 的权限单独放在这里，且只在发版标签上运行
+  draft-release:
+    name: 创建 Release 草稿
+    needs: [verify, build-apks]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      # 未压缩上传的 Artifact 以文件名命名。文件名不经 job outputs 传递：
+      # 输出值只要包含任一 Secret 的子串就会被 Actions 整体丢弃，下载步骤随之退化为下载全部产物。
+      # 标签已在构建 job 中校验等于 v<versionName>，Gradle 产物名为 Eta-v<versionName>.apk，可直接由标签推导。
+      - name: 下载 Release APK
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: Eta-${{ github.ref_name }}.apk
+          path: ${{ runner.temp }}/release
+
+      # 只建草稿：草稿不会出现在 releases/latest，App 内更新检查要等维护者手动发布后才可见
+      - name: 创建 Release 草稿
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK_PATH: ${{ runner.temp }}/release/Eta-${{ github.ref_name }}.apk
+        run: >-
+          gh release create "$GITHUB_REF_NAME" "$APK_PATH"
+          --repo "$GITHUB_REPOSITORY"
+          --draft
+          --verify-tag
+          --title "$GITHUB_REF_NAME"
+          --generate-notes

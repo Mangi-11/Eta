@@ -6,6 +6,7 @@ import android.graphics.Rect
 import android.os.SystemClock
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.device.ScrollDirection
+import io.github.mangi.eta.agent.device.ScrollAmount
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.model.AgentScreenObservationContract
 import io.github.mangi.eta.data.datastore.SettingsDataStore
@@ -97,6 +98,7 @@ internal class VirtualScreenUiTools(
         "observe_screen" -> observe(args, info)
         "tap", "tap_area", "long_press", "swipe", "scroll" -> coordinateAction(name, args, info)
         "tap_element", "long_press_element", "scroll_element" -> nodeAction(name, args, info)
+        "type_text" -> typeText(args, info)
         "input_text", "replace_text", "clear_text", "paste_text" -> textAction(name, args, info)
         "set_clipboard" -> {
             val text = args.getString("text")
@@ -235,12 +237,17 @@ internal class VirtualScreenUiTools(
             args.optString("coordinate_space", "screen") in setOf(
                 "",
                 "screen",
-                "screenshot"
+                "screenshot",
+                "normalized",
             )
         ) { "INVALID_COORDINATE_SPACE" }
         fun point(x: String, y: String): Pair<Int, Int> {
-            val px = integer(args, x);
-            val py = integer(args, y)
+            val sourceX = integer(args, x)
+            val sourceY = integer(args, y)
+            val normalized = args.optString("coordinate_space") == "normalized"
+            if (normalized) require(sourceX in 0..999 && sourceY in 0..999) { "INVALID_COORDINATES" }
+            val px = if (normalized) (sourceX.toLong() * (info.width - 1) / 999).toInt() else sourceX
+            val py = if (normalized) (sourceY.toLong() * (info.height - 1) / 999).toInt() else sourceY
             require(px in 0 until info.width && py in 0 until info.height) { "INVALID_COORDINATES" }
             return px to py
         }
@@ -276,7 +283,8 @@ internal class VirtualScreenUiTools(
                             0,
                             info.width,
                             info.height
-                        )
+                        ),
+                        requireNotNull(ScrollAmount.parse(args.optString("amount"))) { "INVALID_SCROLL_AMOUNT" },
                     )
                 ) { "INVALID_COORDINATES" }
                 action.put("x1", gesture.start.x).put("y1", gesture.start.y)
@@ -320,7 +328,8 @@ internal class VirtualScreenUiTools(
         if (name == "scroll_element") {
             val direction =
                 requireNotNull(ScrollDirection.parse(args.optString("direction"))) { "INVALID_DIRECTION" }
-            direction.gestureWithin(node.bounds)?.let { gesture ->
+            val amount = requireNotNull(ScrollAmount.parse(args.optString("amount"))) { "INVALID_SCROLL_AMOUNT" }
+            direction.gestureWithin(node.bounds, amount)?.let { gesture ->
                 VirtualScreenSession.checkUiAction(context, owner, JSONObject().put("action", "swipe")
                     .put("x1", gesture.start.x).put("y1", gesture.start.y)
                     .put("x2", gesture.end.x).put("y2", gesture.end.y))?.let { return it }
@@ -329,7 +338,7 @@ internal class VirtualScreenUiTools(
                     gesture.end.x, gesture.end.y
                 )
             }
-            val result = service.scrollNode(nodes, index, direction)
+            val result = service.scrollNode(nodes, index, direction, amount)
             return VirtualScreenSession.finishUiAction(owner, AgentModelClient.ToolResult(
                 JSONObject().put("ok", result.ok).put("code", result.code)
                     .put("message", result.message).put("display_id", info.displayId)
@@ -383,6 +392,31 @@ internal class VirtualScreenUiTools(
         VirtualScreenSession.checkUiAction(context, owner, JSONObject().put("action", "text")
             .put("text", text).put("replace", replace))?.let { return it }
         return VirtualScreenSession.finishUiAction(owner, actionResult(service.setTextNode(nodes, index, text, info.displayId), info))
+    }
+
+    private fun typeText(args: JSONObject, info: VirtualDisplayInfo): AgentModelClient.ToolResult {
+        val text = args.getString("text")
+        require(text.length <= 4000) { "TEXT_TOO_LONG" }
+        val mode = args.optString("mode", "replace").trim().lowercase().ifBlank { "replace" }
+        require(mode == "replace" || mode == "append") { "INVALID_ARGUMENT" }
+        require(mode != "append" || (text.isNotEmpty() && (!args.has("index") || args.isNull("index")))) {
+            "INVALID_ARGUMENT"
+        }
+        val written = textAction(
+            if (mode == "replace") "replace_text" else if (text.length > 1000) "paste_text" else "input_text",
+            args, info,
+        )
+        val result = JSONObject(written.content).put("tool", "type_text").put("mode", mode)
+        if (written.stop == null && result.optBoolean("ok") && args.optBoolean("submit")) {
+            val submitted = VirtualScreenSession.execute(context, owner,
+                JSONObject().put("action", "key").put("button", "ENTER"), isCancelled)
+            val json = JSONObject(submitted.content)
+            result.put("submitted", json.optBoolean("ok"))
+            if (!json.optBoolean("ok")) result.put("submit_error", json.optString("code", "SUBMIT_FAILED"))
+            // Writing already succeeded; a failed submit must never cause the text to be replayed.
+            return written.copy(content = result.toString(), stop = submitted.stop)
+        }
+        return written.copy(content = result.toString())
     }
 
     private fun waitFor(name: String, args: JSONObject): AgentModelClient.ToolResult {
@@ -468,6 +502,11 @@ internal class VirtualScreenUiTools(
         .put("scrollable", node.scrollable)
         .put("focused", node.focused).put("editable", node.editable).put("password", node.password)
         .put("enabled", node.enabled)
+        .apply {
+            node.checked?.let { put("checked", it) }
+            if (node.selected) put("selected", true)
+            if (node.hint.isNotBlank()) put("hint", node.hint)
+        }
 
     private fun actionResult(
         result: AgentAccessibilityService.NodeActionResult,

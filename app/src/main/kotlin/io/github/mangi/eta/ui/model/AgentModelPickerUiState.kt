@@ -135,7 +135,7 @@ internal fun contextUsageProgress(contextTokens: Int?, contextWindow: Int?): Flo
 internal fun formatContextUsage(
     usage: AgentContextUsageUi,
     noUsageText: String = "No usage data yet",
-    noLimitText: String = "Set this model's context window in Settings first",
+    noLimitText: String = "Context window unknown, so automatic compaction is off",
     locale: Locale = Locale.getDefault(),
 ): String = when {
     usage.contextWindow == null || usage.contextWindow <= 0 -> noLimitText

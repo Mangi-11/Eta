@@ -64,9 +64,7 @@ import io.github.mangi.eta.ui.app.AgentRunMessageProjector
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.SystemNoticeCode
-import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
-import io.github.mangi.eta.ui.model.TokenUsageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.UserMessageUi
 import java.util.UUID
@@ -547,176 +545,27 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         event: AgentEvent,
         state: EtaVoiceUiState,
     ): EtaVoiceUiState {
-        var messages = state.messages
+        var messages = runMessageProjector.applyEvent(runId, event, state.messages)
         var status = state.status
         var phase = state.phase
         when (event) {
-            is AgentEvent.AssistantBlockStart -> {
-                messages = runMessageProjector.startAssistantBlock(runId, event, messages)
-            }
-
-            is AgentEvent.AssistantBlockDelta -> {
-                messages = when (event.kind) {
-                    AgentEvent.AssistantBlockKind.TEXT ->
-                        runMessageProjector.appendTextDelta(
-                            runId,
-                            event.round,
-                            event.index,
-                            event.delta,
-                            messages,
-                        )
-
-                    AgentEvent.AssistantBlockKind.THINKING ->
-                        runMessageProjector.appendReasoningDelta(
-                            runId,
-                            event.round,
-                            event.index,
-                            event.delta,
-                            messages,
-                        )
-
-                    AgentEvent.AssistantBlockKind.TOOL_CALL -> messages
-                }
-            }
-
-            is AgentEvent.AssistantBlockEnd -> {
-                messages = when (event.kind) {
-                    AgentEvent.AssistantBlockKind.TEXT ->
-                        runMessageProjector.finalizeTextBlock(
-                            runId,
-                            event.round,
-                            event.index,
-                            event.replacementContent,
-                            messages,
-                        )
-
-                    AgentEvent.AssistantBlockKind.THINKING ->
-                        runMessageProjector.finalizeThinkingBlock(
-                            runId,
-                            event.round,
-                            event.index,
-                            event.replacementContent,
-                            messages,
-                        )
-
-                    AgentEvent.AssistantBlockKind.TOOL_CALL -> messages
-                }
-            }
-
-            is AgentEvent.UsageReceived -> {
-                val assistantPrefix = "assistant-$runId-${event.round}"
-                val usage = TokenUsageUi(
-                    contextTokens = event.usage.contextTokens,
-                    inputTokens = event.usage.inputTokens,
-                    outputTokens = event.usage.outputTokens,
-                    reasoningTokens = event.usage.reasoningTokens,
-                    cachedTokens = event.usage.cachedTokens,
-                )
-                val targetIndex = messages.indexOfLast { message ->
-                    message is AgentMessageUi &&
-                        (message.id == assistantPrefix || message.id.startsWith("$assistantPrefix-"))
-                }
-                messages = messages.mapIndexed { index, message ->
-                    if (index == targetIndex && message is AgentMessageUi) {
-                        message.copy(usage = usage)
-                    } else {
-                        message
-                    }
-                }
-            }
-
             is AgentEvent.UserSupplementReceived -> {
                 val id = "user-$runId-supplement-${event.index}"
                 if (messages.none { it.id == id }) {
                     messages = messages + UserMessageUi(id = id, content = event.text)
                 }
             }
-
-            is AgentEvent.ToolStarted -> {
-                status = EtaVoiceStatus.RunningTool(event.name)
-                messages = runMessageProjector.startTool(
-                    runId,
-                    event,
-                    runMessageProjector.finalizeTextRound(
-                        runId,
-                        event.round,
-                        runMessageProjector.finalizeThinkingRound(runId, event.round, messages),
-                    ),
-                )
-            }
-
-            is AgentEvent.ToolFinished -> {
-                messages = runMessageProjector.finishTool(runId, event, messages)
-            }
-
-            is AgentEvent.HostedToolStarted -> {
-                status = EtaVoiceStatus.RunningTool(event.name)
-                messages = runMessageProjector.startHostedTool(
-                    runId,
-                    event,
-                    runMessageProjector.finalizeTextRound(
-                        runId,
-                        event.round,
-                        runMessageProjector.finalizeThinkingRound(runId, event.round, messages),
-                    ),
-                )
-            }
-
-            is AgentEvent.HostedToolFinished -> {
-                messages = runMessageProjector.finishHostedTool(runId, event, messages)
-            }
-
+            is AgentEvent.ToolStarted -> status = EtaVoiceStatus.RunningTool(event.name)
+            is AgentEvent.HostedToolStarted -> status = EtaVoiceStatus.RunningTool(event.name)
             is AgentEvent.RunFailed -> {
                 phase = EtaVoicePhase.ERROR
                 status = EtaVoiceStatus.Failed(event.reason)
-                messages = runMessageProjector.failRunningTools(
-                    event.reason,
-                    runMessageProjector.finalizeText(
-                        runId,
-                        runMessageProjector.finalizeThinking(runId, messages),
-                    ),
-                )
             }
-
-            is AgentEvent.AssistantReceived -> {
-                if (event.reasoningContent.isNotBlank()) {
-                    messages = runMessageProjector.ensureCompletedThinking(
-                        runId = runId,
-                        round = event.round,
-                        content = event.reasoningContent,
-                        messages = messages,
-                    )
-                }
-            }
-
-            is AgentEvent.RunFinished -> {
-                messages = runMessageProjector.finalizeText(
-                    runId,
-                    runMessageProjector.finalizeThinking(runId, messages),
-                )
-            }
-
-            is AgentEvent.ContextCompaction -> {
-                val noticeId = "assistant-$runId-compaction-${event.operationId}"
-                messages = messages.filterNot { it.id == noticeId } + SystemNoticeMessageUi(
-                    id = noticeId,
-                    code = SystemNoticeCode.ContextCompaction,
-                    detail = event.displayMessage,
-                    contextTokens = event.tokensAfter,
-                    running = event.phase == AgentEvent.ContextCompaction.PHASE_STARTED,
-                )
-                status = EtaVoiceStatus.Reasoning
-            }
-            is AgentEvent.ModelRetryScheduled -> {
-                messages = runMessageProjector.scheduleModelRetry(runId, event, messages)
-                status = EtaVoiceStatus.Reasoning
-            }
-            is AgentEvent.ProviderRequestStarted -> status = EtaVoiceStatus.Reasoning
-            is AgentEvent.RunStarted,
-            is AgentEvent.ProviderResponseStarted,
-            is AgentEvent.ToolImagesAttached,
-            is AgentEvent.RoundStarted,
-            -> Unit
+            is AgentEvent.ContextCompaction,
+            is AgentEvent.ModelRetryScheduled,
+            is AgentEvent.ProviderRequestStarted,
+            -> status = EtaVoiceStatus.Reasoning
+            else -> Unit
         }
         return state.copy(messages = messages, phase = phase, status = status)
     }
@@ -742,64 +591,12 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
             !result.ok -> SystemNoticeCode.RuntimeFailed
             else -> null
         }
-        val lastAssistantIndex = AgentRunMessageProjector.resultTargetIndex(runId, messages)
-        messages = if (lastAssistantIndex >= 0) {
-            val targetRound = (messages[lastAssistantIndex] as AgentMessageUi).id
-                .assistantRound(runId)
-            val sameRoundBlocks = targetRound?.let { round ->
-                messages.count { message ->
-                    message is AgentMessageUi && message.id.assistantRound(runId) == round
-                }
-            } ?: 0
-            messages.mapIndexed { index, message ->
-                if (index == lastAssistantIndex && message is AgentMessageUi) {
-                    if (notice == null) {
-                        message.copy(
-                            content = if (sameRoundBlocks <= 1) {
-                                result.content
-                            } else {
-                                message.content.ifBlank { result.content }
-                            },
-                            isStreaming = false,
-                            renderMarkdown = true,
-                        )
-                    } else {
-                        SystemNoticeMessageUi(
-                            id = message.id,
-                            code = notice,
-                            detail = result.error.takeIf { notice == SystemNoticeCode.RuntimeFailed || notice == SystemNoticeCode.UiPaused },
-                        )
-                    }
-                } else {
-                    message
-                }
-            }
-        } else {
-            if (notice == null) {
-                messages + AgentMessageUi(
-                    id = AgentRunMessageProjector.resultFallbackId(runId, messages),
-                    content = result.content,
-                    isStreaming = false,
-                    renderMarkdown = true,
-                )
-            } else {
-                messages + SystemNoticeMessageUi(
-                    id = AgentRunMessageProjector.resultFallbackId(runId, messages),
-                    code = notice,
-                    detail = result.error.takeIf { notice == SystemNoticeCode.RuntimeFailed || notice == SystemNoticeCode.UiPaused },
-                )
-            }
-        }
+        messages = AgentRunMessageProjector.applyResult(
+            runId, messages, result.content, notice,
+            detail = result.error.takeIf { notice == SystemNoticeCode.RuntimeFailed || notice == SystemNoticeCode.UiPaused },
+        )
         runMessageProjector.clearRun(runId)
         return messages
-    }
-
-    private fun String.assistantRound(runId: String): Int? {
-        val prefix = "assistant-$runId-"
-        return removePrefix(prefix)
-            .takeIf { it != this }
-            ?.substringBefore('-')
-            ?.toIntOrNull()
     }
 
     private fun stopCurrentRun() {

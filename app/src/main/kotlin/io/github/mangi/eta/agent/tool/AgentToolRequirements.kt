@@ -32,7 +32,7 @@ internal object AgentToolRequirements {
             RootRequirement.NONE,
             "batch", "get_current_context", "search_apps", "launch_app", "open_uri", "browser_use", "web_search", "fetch_url",
             "observe_screen", "tap", "tap_area", "tap_element", "long_press",
-            "long_press_element", "swipe", "scroll", "scroll_element", "input_text",
+            "long_press_element", "swipe", "scroll", "scroll_element", "type_text", "input_text",
             "replace_text", "clear_text", "set_clipboard", "get_clipboard", "paste_text",
             "wait", "wait_for_text", "wait_for_package", "open_system_panel",
             "set_alarm", "set_timer", "device_status", "inspect_app", "media_control", "set_volume",
@@ -71,7 +71,7 @@ internal object AgentToolRequirements {
         put("search_calendar_events", LocalToolRequirement(RootRequirement.PARTIAL, systemAccess = ToolSystemAccess.CALENDAR_READ))
         listOf(
             "observe_screen", "tap", "tap_area", "tap_element", "long_press",
-            "long_press_element", "swipe", "scroll", "scroll_element", "input_text",
+            "long_press_element", "swipe", "scroll", "scroll_element", "type_text", "input_text",
             "replace_text", "clear_text", "paste_text", "press_key", "open_system_panel",
             "wait_for_text", "wait_for_package",
         ).forEach { name -> put(name, getValue(name).copy(accessibility = true)) }
@@ -163,7 +163,7 @@ internal object AgentToolRequirements {
                         if (!value.equals("PASTE", ignoreCase = true)) allowed.put(value)
                     }
                 })
-                button.put("description", "无障碍支持的系统按键；粘贴文本请使用 paste_text。")
+                button.put("description", "无障碍支持的系统按键；输入文本请使用 type_text。")
             }
             "search_personal_orders" -> function.put("description",
                 "从用户已授权保存的通知历史检索外卖、购物、快递、票券和出行订单。")

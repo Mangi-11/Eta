@@ -28,7 +28,7 @@ import androidx.room.migration.Migration
         AgentTaskEntity::class,
         AgentTaskRunEntity::class,
     ],
-    version = 25,
+    version = 26,
     exportSchema = false,
 )
 internal abstract class EtaDatabase : RoomDatabase() {
@@ -71,6 +71,7 @@ internal abstract class EtaDatabase : RoomDatabase() {
                         MIGRATION_22_23,
                         MIGRATION_23_24,
                         MIGRATION_24_25,
+                        MIGRATION_25_26,
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
@@ -138,6 +139,19 @@ internal abstract class EtaDatabase : RoomDatabase() {
             database.execSQL("CREATE TABLE IF NOT EXISTS roleplay_user_persona (" +
                 "id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL)")
             createTextChunkCleanup(database)
+        }
+
+        internal val MIGRATION_25_26 = Migration(25, 26) { database ->
+            // Upstream 3.3.0 and this fork both used schema 22 with different additions.
+            // Preserve either lineage, including upstream installs without automation tables.
+            val hasModelId = database.query("PRAGMA table_info(conversations)").use { cursor ->
+                val nameIndex = cursor.getColumnIndexOrThrow("name")
+                var found = false
+                while (cursor.moveToNext()) if (cursor.getString(nameIndex) == "model_id") found = true
+                found
+            }
+            if (!hasModelId) database.execSQL("ALTER TABLE conversations ADD COLUMN model_id TEXT")
+            MIGRATION_21_22.migrate(database)
         }
 
         private fun createTextChunkCleanup(database: androidx.sqlite.db.SupportSQLiteDatabase) {

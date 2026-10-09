@@ -88,7 +88,10 @@ internal class RootShellDeviceController(
         val focused: Boolean,
         val editable: Boolean,
         val password: Boolean,
-        val enabled: Boolean
+        val enabled: Boolean,
+        val checked: Boolean? = null,
+        val selected: Boolean = false,
+        val hint: String = "",
     ) {
         val centerX: Int get() = bounds.centerX()
         val centerY: Int get() = bounds.centerY()
@@ -167,7 +170,7 @@ internal class RootShellDeviceController(
                     .put(
                         "note",
                         if (accessibility != null) {
-                            "节点来自无障碍服务，支持 tap_element、replace_text、clear_text、scroll_element 等稳定节点动作"
+                            "节点来自无障碍服务，支持 tap_element、type_text、scroll_element 等稳定节点动作"
                         } else {
                             "无障碍服务未启用，节点来自 uiautomator；坐标工具会回退到 Root Shell"
                         }
@@ -177,11 +180,10 @@ internal class RootShellDeviceController(
                 "coordinate_contract",
                 if (coordinateSpace == null) {
                     JSONObject()
-                        .put("default_coordinate_space", "screen")
-                        .put("note", "未附加截图，坐标工具使用真实设备屏幕坐标")
+                        .put("note", "坐标工具必须显式填写 coordinate_space：ui_nodes 的 center/bounds 用 screen；本次未附图")
                 } else {
                     JSONObject()
-                        .put("default_coordinate_space", "screenshot")
+                        .put("recommended_coordinate_space", "normalized")
                         .put(
                             "screenshot",
                             JSONObject()
@@ -200,7 +202,10 @@ internal class RootShellDeviceController(
                                 .put("x", coordinateSpace.screenWidth.toDouble() / coordinateSpace.screenshotWidth)
                                 .put("y", coordinateSpace.screenHeight.toDouble() / coordinateSpace.screenshotHeight)
                         )
-                        .put("note", "tap、tap_area、long_press、swipe 默认接收截图像素坐标；ui_nodes.center 是 screen 坐标")
+                        .put(
+                            "note",
+                            "看截图定位用 normalized（0–999，相对整屏），不受模型侧图片缩放影响；ui_nodes 的 center/bounds 用 screen",
+                        )
                 }
             )
             .put("focus", focus)
@@ -286,7 +291,7 @@ internal class RootShellDeviceController(
         return inputCommand("input swipe $x1 $y1 $x2 $y2 $duration", "swipe")
     }
 
-    fun scroll(direction: String): String {
+    fun scroll(direction: String, amount: String = ""): String {
         val parsed = ScrollDirection.parse(direction)
             ?: return scrollErrorJson(
                 "scroll",
@@ -294,8 +299,10 @@ internal class RootShellDeviceController(
                 "INVALID_ARGUMENT",
                 "direction 仅支持 up/down/left/right",
             )
+        val parsedAmount = ScrollAmount.parse(amount)
+            ?: return scrollErrorJson("scroll", parsed, "INVALID_ARGUMENT", "amount 仅支持 small/page")
         AgentAccessibilityService.current()?.let { service ->
-            return scrollActionJson("scroll", service.scrollCurrent(parsed))
+            return scrollActionJson("scroll", service.scrollCurrent(parsed, parsedAmount))
         }
         if (!rootAvailable()) return accessibilityUnavailable()
         val beforeNodes = dumpUiNodes(120)
@@ -312,6 +319,7 @@ internal class RootShellDeviceController(
             beforeNodes = beforeNodes,
             maxNodes = 120,
             targetIndex = null,
+            amount = parsedAmount,
         )
     }
 
@@ -406,6 +414,7 @@ internal class RootShellDeviceController(
         observation: ElementObservation,
         index: Int,
         direction: String,
+        amount: String = "",
     ): String {
         val parsed = ScrollDirection.parse(direction)
             ?: return scrollErrorJson(
@@ -414,6 +423,8 @@ internal class RootShellDeviceController(
                 "INVALID_ARGUMENT",
                 "direction 仅支持 up/down/left/right",
             )
+        val parsedAmount = ScrollAmount.parse(amount)
+            ?: return scrollErrorJson("scroll_element", parsed, "INVALID_ARGUMENT", "amount 仅支持 small/page")
         val snapshot = observation.accessibilitySnapshot
         if (snapshot != null) {
             val service = AgentAccessibilityService.current()
@@ -425,7 +436,7 @@ internal class RootShellDeviceController(
                 )
             return scrollActionJson(
                 tool = "scroll_element",
-                result = service.scrollNode(snapshot, index, parsed),
+                result = service.scrollNode(snapshot, index, parsed, parsedAmount),
             )
         }
         if (!rootAvailable()) return rootRequired()
@@ -452,6 +463,7 @@ internal class RootShellDeviceController(
             beforeNodes = resolved.currentNodes,
             maxNodes = observation.maxNodes,
             targetIndex = index,
+            amount = parsedAmount,
         )
     }
 
@@ -873,7 +885,10 @@ internal class RootShellDeviceController(
                             focused = focused,
                             editable = parser.attr("class").contains("EditText", ignoreCase = true),
                             password = parser.attr("password").toBoolean(),
-                            enabled = enabled
+                            enabled = enabled,
+                            checked = parser.attr("checked").toBoolean()
+                                .takeIf { parser.attr("checkable").toBoolean() },
+                            selected = parser.attr("selected").toBoolean(),
                         )
                     }
                 }
@@ -918,9 +933,10 @@ internal class RootShellDeviceController(
         beforeNodes: List<UiNode>,
         maxNodes: Int,
         targetIndex: Int?,
+        amount: ScrollAmount = ScrollAmount.PAGE,
     ): String {
         val startedAt = SystemClock.elapsedRealtime()
-        val gesture = direction.gestureWithin(bounds)
+        val gesture = direction.gestureWithin(bounds, amount)
             ?: return scrollErrorJson(
                 tool,
                 direction,
@@ -1128,6 +1144,11 @@ internal class RootShellDeviceController(
             .put("editable", editable)
             .put("password", password)
             .put("enabled", enabled)
+            .apply {
+                checked?.let { put("checked", it) }
+                if (selected) put("selected", true)
+                if (hint.isNotBlank()) put("hint", hint)
+            }
 
     private fun XmlPullParser.attr(name: String): String =
         getAttributeValue(null, name).orEmpty()
@@ -1313,7 +1334,10 @@ internal class RootShellDeviceController(
             focused = focused,
             editable = editable,
             password = password,
-            enabled = enabled
+            enabled = enabled,
+            checked = checked,
+            selected = selected,
+            hint = hint,
         )
 
     private data class ShellTextResult(val exitCode: Int, val output: String)

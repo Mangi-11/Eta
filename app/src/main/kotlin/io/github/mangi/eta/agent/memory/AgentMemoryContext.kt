@@ -75,7 +75,8 @@ internal object AgentMemoryContextBuilder {
 
     private val HEADING = Regex("^#{1,2}\\s+.+$")
     private const val CORE_HEADING = "# 核心记忆"
-    private const val DEFAULT_CONTEXT_WINDOW = 128_000
+    /** 窗口未知时用于按比例分配记忆、世界书等注入预算的保守基准，不参与压缩判定。 */
+    const val DEFAULT_CONTEXT_WINDOW = 128_000
     private const val CONTEXT_WINDOW_DIVISOR = 16
     private const val MIN_CORE_CHARS = 4_000
     private const val MAX_CORE_CHARS = 32_000

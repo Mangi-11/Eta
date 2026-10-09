@@ -2,22 +2,19 @@ package io.github.mangi.eta.agent.overlay
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,7 +29,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,16 +37,30 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.Path
+import top.yukonga.miuix.kmp.squircle.addSquircleRect
+import top.yukonga.miuix.kmp.basic.IconButton
+import androidx.compose.material.icons.rounded.ContentCopy
+import kotlinx.coroutines.launch
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,35 +69,23 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.R
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -95,407 +93,112 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 // Miuix 未提供语义 success 色，沿用项目既有值；失败色走主题 error
 private val SuccessColor = Color(0xFF34C759)
 
-private const val SupplementExitDelayMs = 380L
 
 @Composable
-private fun phaseAccent(phase: AgentOverlayPhase): Color = when (phase) {
+internal fun overlayPhaseAccent(phase: AgentOverlayPhase): Color = when (phase) {
     AgentOverlayPhase.RUNNING -> MiuixTheme.colorScheme.primary
     AgentOverlayPhase.PAUSED -> Color(0xFFFF9F0A)
     AgentOverlayPhase.FINISHED -> SuccessColor
     AgentOverlayPhase.FAILED -> MiuixTheme.colorScheme.error
 }
 
-// 彩虹光圈颜色（青/黄/橙/粉循环）
-private val RainbowColors = listOf(
-    Color(0xFFB0F2FF),
-    Color(0xFFFAFAA3),
-    Color(0xFFFFB472),
-    Color(0xFFFB8DFF),
-    Color(0xFFB0F2FF),
-    Color(0xFFFB8DFF),
-    Color(0xFFFFB472),
-    Color(0xFFFAFAA3),
-    Color(0xFFB0F2FF),
+// 边缘流光取主题强调色与相邻冷暖色，避免高饱和彩虹在浅色页面上喧宾夺主。
+private val EdgeLightColors = listOf(
+    Color(0xFF7AB8FF),
+    Color(0xFFB59CFF),
+    Color(0xFFFF9EC7),
+    Color(0xFFFFC98A),
+    Color(0xFF7AB8FF),
 )
 
 /**
- * 屏幕四边氛围光窗口：全屏触摸穿透（FLAG_NOT_TOUCHABLE），不挡操作。
+ * 屏幕边缘光窗口：全屏触摸穿透（FLAG_NOT_TOUCHABLE），不压暗页面，不挡操作。
  * 窗口类型 TYPE_ACCESSIBILITY_OVERLAY，截图时被 takeScreenshotOfWindow 过滤，对 Agent 透明。
- * - RUNNING：半透明黑底压暗 + 彩虹色旋转 SweepGradient 光圈。
- * - PAUSED / FINISHED / FAILED：不绘制。
+ * - RUNNING：沿屏幕圆角边缘流动的细光带，外侧一层柔光；告诉用户手机正被接管。
+ * - PAUSED：静止的淡色描边，提示任务仍在、控制权暂回用户。
+ * - FINISHED / FAILED：不绘制。
  */
-@Composable
-internal fun AgentOverlayGlow(state: AgentOverlayState) {
-    val phase = state.phase
-    if (phase != AgentOverlayPhase.RUNNING) return
+/**
+ * 屏幕圆角半径（像素）。Display 只按圆弧上报一个半径，实际面板是连续曲率的圆角；
+ * 光带用同一半径画连续曲线，转角处比圆弧更饱满，贴住屏幕边缘而不是在角上内缩一截。
+ */
+@Immutable
+internal data class ScreenCornerRadii(val topLeft: Float, val topRight: Float, val bottomRight: Float, val bottomLeft: Float) {
+    /** 四角在主流机型上一致；取最大值作为连续曲线的转角尺寸，不让任何一角露出直边。 */
+    val radius: Float get() = maxOf(topLeft, topRight, bottomRight, bottomLeft)
+}
 
-    val dimAlpha = 0.31f
-    val transition = rememberInfiniteTransition(label = "glow")
-    val rotation by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(5000), RepeatMode.Restart),
-        label = "rotation",
-    )
+@Composable
+internal fun AgentOverlayGlow(state: AgentOverlayState, corners: ScreenCornerRadii) {
+    val phase = state.phase
+    if (phase != AgentOverlayPhase.RUNNING && phase != AgentOverlayPhase.PAUSED) return
+    val running = phase == AgentOverlayPhase.RUNNING
+    val pausedAccent = overlayPhaseAccent(AgentOverlayPhase.PAUSED)
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    val reveal by animateFloatAsState(if (shown) 1f else 0f, tween(420), label = "edge_reveal")
+
+    val rotation = if (running) {
+        val transition = rememberInfiniteTransition(label = "edge_light")
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(4200, easing = LinearEasing), RepeatMode.Restart),
+            label = "edge_rotation",
+        ).value
+    } else 0f
 
     Box(
         modifier = Modifier.fillMaxSize().drawBehind {
-            // 半透明黑底压暗
-            drawRect(color = Color.Black.copy(alpha = dimAlpha))
-
-            // 彩虹光圈：SweepGradient 描边 + 模糊，全屏 RectF，旋转
-            val w = size.width
-            val h = size.height
-            val cx = w / 2f
-            val cy = h / 2f
-            val strokePx = 40f
-            val colorsArgb = RainbowColors.map { it.toArgb() }
-            val positions = floatArrayOf(
-                0f, 0.13f, 0.257f, 0.37f, 0.505f, 0.634f, 0.744f, 0.87f, 1f
-            )
+            val density = this.density
+            val inset = 1.5f * density
+            // 光带沿屏幕轮廓的连续曲线走：路径向内收 inset，转角同步减小，保证与屏幕边缘等距。
+            val edge = Path().apply {
+                addSquircleRect(
+                    width = size.width - inset * 2,
+                    height = size.height - inset * 2,
+                    cornerRadius = (corners.radius - inset).coerceAtLeast(0f),
+                )
+                translate(Offset(inset, inset))
+            }.asAndroidPath()
             drawIntoCanvas { canvas ->
-                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    style = android.graphics.Paint.Style.STROKE
-                    strokeWidth = strokePx
-                    maskFilter = android.graphics.BlurMaskFilter(
-                        strokePx,
-                        android.graphics.BlurMaskFilter.Blur.NORMAL,
-                    )
-                }
-                val shader = android.graphics.SweepGradient(cx, cy, colorsArgb.toIntArray(), positions)
-                val matrix = android.graphics.Matrix()
-                matrix.setRotate(rotation, cx, cy)
-                shader.setLocalMatrix(matrix)
-                paint.shader = shader
-                val rect = android.graphics.RectF(0f, 0f, w, h)
-                canvas.nativeCanvas.drawRoundRect(rect, 30f, 30f, paint)
-            }
-        }
-    )
-}
-
-/**
- * 助手光球窗口：始终显示在屏幕右侧中下，点击展开/收起小气泡。
- * 独立小窗口（WRAP_CONTENT），不遮挡页面操作。
- */
-@Composable
-internal fun AgentOverlayOrb(
-    state: AgentOverlayState,
-    onToggleCollapse: () -> Unit,
-) {
-    var visible by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        visible = true
-    }
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = scaleIn(
-            initialScale = 0.5f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            )
-        ) + fadeIn(animationSpec = tween(durationMillis = 200)),
-        exit = scaleOut(
-            targetScale = 0.5f,
-            animationSpec = tween(durationMillis = 150)
-        ) + fadeOut(animationSpec = tween(durationMillis = 150)),
-    ) {
-        // 点击直接交给 Service 侧 toggle，不在 Compose 协程作用域里做延迟动作，
-        // 避免 scope 取消导致浮层残留。
-        CollapsedAgentOrb(state = state, onExpand = onToggleCollapse)
-    }
-}
-
-@Composable
-private fun CollapsedAgentOrb(state: AgentOverlayState, onExpand: () -> Unit) {
-    AssistantOrb(phase = state.phase, onClick = onExpand)
-}
-
-/**
- * 助手光球：外层径向光晕 + 实心球体 + 高光点。
- * 运行中光晕呼吸，暂停/完成/失败静止，颜色随阶段变化。
- */
-@Composable
-private fun AssistantOrb(
-    phase: AgentOverlayPhase,
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-) {
-    val accent = phaseAccent(phase)
-    val pulsing = phase == AgentOverlayPhase.RUNNING
-    val transition = rememberInfiniteTransition(label = "orb")
-    val pulse by transition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse),
-        label = "pulse",
-    )
-    val haloAlpha = if (pulsing) pulse else 0.85f
-    val tapModifier = if (onClick != null) Modifier.clickable { onClick() } else Modifier
-    Box(
-        modifier = modifier
-            .then(tapModifier)
-            .size(56.dp)
-            .drawBehind {
-                val outer = size.minDimension
-                val center = Offset(outer / 2f, outer / 2f)
-                // 外光晕
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(accent.copy(alpha = 0.5f * haloAlpha), Color.Transparent),
-                        center = center,
-                        radius = outer / 2f,
-                    )
-                )
-                // 球体
-                val ballRadius = outer * 0.3f
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(accent, accent.copy(alpha = 0.8f)),
-                        center = Offset(center.x - ballRadius * 0.3f, center.y - ballRadius * 0.3f),
-                        radius = ballRadius,
-                    ),
-                    radius = ballRadius,
-                    center = center,
-                )
-                // 高光
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.55f),
-                    radius = ballRadius * 0.3f,
-                    center = Offset(center.x - ballRadius * 0.32f, center.y - ballRadius * 0.38f),
-                )
-            }
-    )
-}
-
-/**
- * 运行时小气泡窗口：WRAP_CONTENT，跟随光球，窗口外触摸穿透。
- * 一句话状态 + 动作按钮 + 可展开补充输入。结束时由 Service 撤掉、改显结果卡片。
- */
-@Composable
-internal fun AgentOverlayBubble(
-    state: AgentOverlayState,
-    onCollapse: () -> Unit,
-    onPause: () -> Unit,
-    onResume: () -> Unit,
-    onStop: () -> Unit,
-    onSupplementModeChange: (Boolean) -> Unit,
-    onSupplement: (String) -> Unit,
-) {
-    var visible by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        visible = true
-    }
-
-    var supplementMode by remember { mutableStateOf(false) }
-    var supplementText by remember { mutableStateOf("") }
-    val keyboard = LocalSoftwareKeyboardController.current
-    val focusManager = LocalFocusManager.current
-
-    fun enterSupplementMode() {
-        onSupplementModeChange(true)
-        supplementMode = true
-    }
-
-    fun exitSupplementMode() {
-        onSupplementModeChange(false)
-        supplementMode = false
-        supplementText = ""
-    }
-
-    fun closeSupplementMode() {
-        focusManager.clearFocus(force = true)
-        keyboard?.hide()
-        scope.launch {
-            delay(80)
-            exitSupplementMode()
-        }
-    }
-
-    fun submitSupplement() {
-        val text = supplementText.trim()
-        if (text.isBlank()) return
-        focusManager.clearFocus(force = true)
-        keyboard?.hide()
-        scope.launch {
-            delay(80)
-            exitSupplementMode()
-            onSupplement(text)
-        }
-    }
-
-    val accent = phaseAccent(state.phase)
-    val statusText = state.status.localizedText()
-    val dotAlpha = rememberStatusDotPulse(active = state.phase == AgentOverlayPhase.RUNNING)
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = scaleIn(
-            initialScale = 0.5f,
-            transformOrigin = TransformOrigin(1f, 0.5f),
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            )
-        ) + fadeIn(animationSpec = tween(durationMillis = 180)),
-        exit = scaleOut(
-            targetScale = 0.5f,
-            transformOrigin = TransformOrigin(1f, 0.5f),
-            animationSpec = tween(durationMillis = 150)
-        ) + fadeOut(animationSpec = tween(durationMillis = 150)),
-    ) {
-        Card(
-            modifier = Modifier
-                .widthIn(max = 136.dp),
-            cornerRadius = 16.dp,
-            insideMargin = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-            colors = CardDefaults.defaultColors(
-                color = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f)
-            ),
-        ) {
-            // 阶段色由圆点承载，状态文字保持中性；运行中圆点呼吸，暂停/结束静止
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .graphicsLayer(alpha = dotAlpha)
-                        .clip(CircleShape)
-                        .background(accent),
-                )
-                Spacer(modifier = Modifier.width(7.dp))
-                Text(
-                    text = statusText,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 2,
-                    lineHeight = 17.sp,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            AnimatedVisibility(
-                visible = supplementMode,
-                enter = expandVertically(
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMedium,
-                    )
-                ) + fadeIn(animationSpec = tween(durationMillis = 140)),
-                exit = shrinkVertically(
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMedium,
-                    )
-                ) + fadeOut(animationSpec = tween(durationMillis = 100)),
-            ) {
-                SupplementInput(
-                    value = supplementText,
-                    onValueChange = { supplementText = it },
-                    onCancel = ::closeSupplementMode,
-                    onSend = ::submitSupplement,
-                )
-            }
-
-            AnimatedVisibility(
-                visible = !supplementMode,
-                enter = expandVertically(
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMedium,
-                    )
-                ) + fadeIn(animationSpec = tween(durationMillis = 140)),
-                exit = shrinkVertically(
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMedium,
-                    )
-                ) + fadeOut(animationSpec = tween(durationMillis = 100)),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                ) {
-                    OverlayControlButton(
-                        onClick = ::enterSupplementMode,
-                        icon = Icons.Rounded.Edit,
-                        contentDescription = stringResource(R.string.overlay_supplement),
-                        tint = MiuixTheme.colorScheme.onSurface,
-                    )
-                    if (state.phase == AgentOverlayPhase.RUNNING) {
-                        OverlayControlButton(
-                            onClick = onPause,
-                            icon = Icons.Rounded.Pause,
-                            contentDescription = stringResource(R.string.overlay_pause),
-                            tint = MiuixTheme.colorScheme.onSurface,
-                        )
-                    } else if (state.phase == AgentOverlayPhase.PAUSED) {
-                        OverlayControlButton(
-                            onClick = onResume,
-                            icon = Icons.Rounded.PlayArrow,
-                            contentDescription = stringResource(R.string.overlay_resume),
-                            tint = MiuixTheme.colorScheme.primary,
-                        )
+                if (!running) {
+                    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        style = android.graphics.Paint.Style.STROKE
+                        strokeWidth = 3f * density
+                        color = pausedAccent.copy(alpha = 0.55f * reveal).toArgb()
                     }
-                    OverlayControlButton(
-                        onClick = onStop,
-                        icon = Icons.Rounded.Stop,
-                        contentDescription = stringResource(R.string.action_stop),
-                        tint = MiuixTheme.colorScheme.error,
-                    )
+                    canvas.nativeCanvas.drawPath(edge, paint)
+                    return@drawIntoCanvas
                 }
+                val shader = android.graphics.SweepGradient(
+                    size.width / 2f, size.height / 2f, EdgeLightColors.map { it.toArgb() }.toIntArray(), null,
+                ).apply {
+                    setLocalMatrix(android.graphics.Matrix().apply { setRotate(rotation, size.width / 2f, size.height / 2f) })
+                }
+                // 外层柔光与内层亮线共用同一个旋转渐变，光带看起来是一体流动的。
+                val halo = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeWidth = 14f * density
+                    maskFilter = android.graphics.BlurMaskFilter(12f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                    this.shader = shader
+                    alpha = (0.55f * reveal * 255).toInt()
+                }
+                val line = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeWidth = 3f * density
+                    this.shader = shader
+                    alpha = (0.95f * reveal * 255).toInt()
+                }
+                canvas.nativeCanvas.drawPath(edge, halo)
+                canvas.nativeCanvas.drawPath(edge, line)
             }
         }
-    }
-}
-
-/** 运行中状态圆点的呼吸透明度；其他阶段不持有帧动画。 */
-@Composable
-private fun rememberStatusDotPulse(active: Boolean): Float {
-    if (!active) return 1f
-    val transition = rememberInfiniteTransition(label = "status_dot")
-    val alpha by transition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
-        label = "status_dot_alpha",
     )
-    return alpha
 }
 
 @Composable
-private fun OverlayControlButton(
-    onClick: () -> Unit,
-    icon: ImageVector,
-    contentDescription: String,
-    tint: Color,
-) {
-    IconButton(
-        onClick = onClick,
-        backgroundColor = MiuixTheme.colorScheme.surfaceContainerHigh,
-        minWidth = 32.dp,
-        minHeight = 32.dp,
-        cornerRadius = 16.dp,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            modifier = Modifier.size(15.dp),
-            tint = tint,
-        )
-    }
-}
-
-@Composable
-private fun SupplementInput(
+internal fun OverlaySupplementInput(
     value: String,
     onValueChange: (String) -> Unit,
     onCancel: () -> Unit,
@@ -577,107 +280,190 @@ private fun SupplementInput(
 }
 
 /**
- * 结束时半屏结果卡片窗口：Markdown 渲染完整结果，可滚动，底部对齐。
- * 窗口本身已由 Service 定为半屏尺寸，此处填满窗口。
+ * 任务结束后的结果卡片：底部浮起的圆角面板，顶部抓手提示可下滑关闭。
+ * 关闭途径有三条：下滑、系统返回（由 Service 注册）、底部"完成"按钮；
+ * 次要操作"复制"放在同一行，正文可滚动，过长时底部渐隐提示还有内容。
  */
 @Composable
 internal fun AgentResultCard(
     state: AgentOverlayState,
     onClose: () -> Unit,
+    onOpenEta: () -> Unit,
 ) {
     var visible by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        visible = true
+    LaunchedEffect(Unit) { visible = true }
+    val scope = rememberCoroutineScope()
+    fun close() {
+        if (!visible) return
+        visible = false
+        // 等退场动画结束再移除窗口，避免卡片被瞬间抽走。
+        scope.launch {
+            delay(ResultCardExitMs.toLong())
+            onClose()
+        }
     }
 
     val isFailed = state.phase == AgentOverlayPhase.FAILED
-    val dotColor = phaseAccent(state.phase)
-    val statusText = state.status.localizedText()
+    val accent = overlayPhaseAccent(state.phase)
     val statusLabel = stringResource(
         if (isFailed) R.string.overlay_substatus_failed else R.string.overlay_substatus_finished,
     )
-    val content = state.detailText.ifBlank { statusText }
+    val content = state.detailText.ifBlank { state.status.localizedText() }
+    val density = LocalDensity.current
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val settledOffset by animateFloatAsState(
+        targetValue = dragOffset,
+        animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium),
+        label = "result_drag",
+    )
+    val dismissThreshold = with(density) { 96.dp.toPx() }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .navigationBarsPadding()
-            .padding(start = 12.dp, end = 12.dp, bottom = 20.dp),
+            .padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
     ) {
         AnimatedVisibility(
             visible = visible,
-            enter = slideInVertically(
-                initialOffsetY = { it },
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                )
-            ) + fadeIn(animationSpec = tween(durationMillis = 200)),
-            exit = slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = tween(durationMillis = 180),
-            ) + fadeOut(animationSpec = tween(durationMillis = 180)),
+            enter = slideInVertically(spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow)) { it } +
+                fadeIn(tween(200)),
+            exit = slideOutVertically(tween(ResultCardExitMs)) { it } + fadeOut(tween(ResultCardExitMs)),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Card(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 360.dp)
-                    .shadow(8.dp, RoundedCornerShape(CardDefaults.CornerRadius)),
-                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    // 状态行降级为圆点 + 灰色小字，关闭用幽灵图标，视觉重心留给内容
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(dotColor),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = statusLabel,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            fontSize = 13.sp,
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        // 关闭直接交给 Service，不经 Compose 协程延迟
-                        IconButton(
-                            onClick = onClose,
-                            backgroundColor = Color.Transparent,
-                            minWidth = 32.dp,
-                            minHeight = 32.dp,
-                            cornerRadius = 16.dp,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = stringResource(R.string.action_close),
-                                modifier = Modifier.size(16.dp),
-                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            )
+                    .heightIn(max = 420.dp)
+                    .graphicsLayer { translationY = settledOffset }
+                    .shadow(16.dp, RoundedCornerShape(ResultCardCorner), ambientColor = Color.Black.copy(alpha = 0.18f))
+                    .clip(RoundedCornerShape(ResultCardCorner))
+                    .background(MiuixTheme.colorScheme.surface)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragEnd = { if (dragOffset > dismissThreshold) close() else dragOffset = 0f },
+                            onDragCancel = { dragOffset = 0f },
+                        ) { change, amount ->
+                            change.consume()
+                            // 只允许向下拖；向上带阻尼，避免卡片被拖离底边。
+                            dragOffset = (dragOffset + amount).coerceAtLeast(0f)
                         }
+                    },
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .align(Alignment.CenterHorizontally)
+                        .size(width = 36.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.3f)),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(accent.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = if (isFailed) Icons.Rounded.Close else Icons.Rounded.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = accent,
+                        )
                     }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = statusLabel,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Markdown 结果，可滚动
+                Box(modifier = Modifier.weight(1f, fill = false)) {
+                    val scroll = rememberScrollState()
                     StaticMarkdown(
                         content = content,
                         tone = MarkdownTone.Answer,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 280.dp)
-                            .verticalScroll(rememberScrollState()),
+                            .verticalScroll(scroll)
+                            .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 12.dp),
                     )
+                    if (scroll.canScrollForward) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .height(28.dp)
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(Color.Transparent, MiuixTheme.colorScheme.surface),
+                                    ),
+                                ),
+                        )
+                    }
                 }
+
+                ResultCardActions(content = content, onOpenEta = onOpenEta, onDone = ::close)
             }
         }
     }
 }
+
+@Composable
+private fun ResultCardActions(content: String, onOpenEta: () -> Unit, onDone: () -> Unit) {
+    @Suppress("DEPRECATION")
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1_400)
+            copied = false
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        // 复制是图标按钮，主次两个文字按钮分别是"完成"（留在当前应用）与"回到 Eta"（查看完整过程）。
+        IconButton(
+            onClick = {
+                clipboard.setText(AnnotatedString(content))
+                copied = true
+            },
+            backgroundColor = MiuixTheme.colorScheme.secondaryContainer,
+            minWidth = 44.dp,
+            minHeight = 44.dp,
+            cornerRadius = 22.dp,
+        ) {
+            Icon(
+                imageVector = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
+                contentDescription = stringResource(if (copied) R.string.copy_copied else R.string.ui_copy_4edd1d),
+                modifier = Modifier.size(18.dp),
+                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            )
+        }
+        TextButton(
+            text = stringResource(R.string.overlay_result_done),
+            onClick = onDone,
+            modifier = Modifier.weight(1f),
+            minHeight = 44.dp,
+        )
+        TextButton(
+            text = stringResource(R.string.overlay_result_open_eta),
+            onClick = onOpenEta,
+            modifier = Modifier.weight(1f),
+            minHeight = 44.dp,
+            colors = ButtonDefaults.textButtonColorsPrimary(),
+        )
+    }
+}
+
+private val ResultCardCorner = 28.dp
+private const val ResultCardExitMs = 200
