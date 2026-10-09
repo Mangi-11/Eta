@@ -33,6 +33,7 @@ import io.github.mangi.eta.agent.display.VirtualScreenAppConflictDialog
 import io.github.mangi.eta.agent.display.VirtualScreenSession
 import io.github.mangi.eta.agent.display.VirtualScreenViewerActivity
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.tool.AgentLocalTools
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
 import io.github.mangi.eta.core.AgentLogger
@@ -101,7 +102,7 @@ class DeviceValidationRunner : Instrumentation() {
                 flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
             }
             automation.adoptShellPermissionIdentity("android.permission.QUERY_ALL_PACKAGES")
-            if (mode !in setOf("recovery", "landscape", "frames", "frame_recovery")) connectEnabledAccessibilityService()
+            if (mode !in setOf("recovery", "landscape", "frames", "frame_recovery", "stop_resume", "stop_resume_baseline")) connectEnabledAccessibilityService()
             runBlocking { SettingsDataStore.updateSettings { it.copy(virtualScreenEnabled = true,
                 virtualScreenFallbackEnabled = false, virtualScreenAutoRestartApps = false,
                 virtualScreenOffEnabled = mode in setOf("recovery", "landscape", "frames", "frame_recovery") || original.virtualScreenOffEnabled,
@@ -112,6 +113,7 @@ class DeviceValidationRunner : Instrumentation() {
                 "recovery", "frame_recovery" -> validateUiRecovery()
                 "landscape" -> validateLandscape()
                 "frames" -> validateFrameCapture()
+                "stop_resume", "stop_resume_baseline" -> validateStopResume(mode == "stop_resume")
                 "tree" -> DeviceUiTreeValidation(this, automation) { record ->
                     checks += record
                     sendStatus(0, Bundle().apply { putString("stream", record + "\n") })
@@ -147,6 +149,45 @@ class DeviceValidationRunner : Instrumentation() {
         AgentLocalTools(targetContext, NoOpLogger, browserRunId = run,
             deviceDirectToolsEnabled = { true }, browserToolsEnabled = { true },
             fallbackApproval = { _, _ -> approval }, virtualScreenOwner = "device-validation")
+
+    private fun validateStopResume(expectRetained: Boolean) {
+        val controller = AgentRunController()
+        val first = AgentLocalTools(targetContext, NoOpLogger, browserRunId = "retention-first",
+            virtualScreenOwner = "device-validation", deviceDirectToolsEnabled = { true },
+            isRunCancelled = { controller.isCancelled },
+            fallbackApproval = { _, _ -> MainScreenFallbackDecision.RESTART_VIRTUAL })
+        controller.register(first::close)
+        val component = "io.github.mangi.eta.test/${DisplayProbeActivity::class.java.name}"
+        ok("create cancellation fixture", call(first, "virtual_screen", JSONObject().put("action", "create")))
+        ok("launch cancellation fixture", call(first, "virtual_screen", JSONObject().put("action", "launch").put("component", component)))
+        ok("observe before cancellation", call(first, "observe_screen", JSONObject().put("include_screenshot", true)))
+        val sessionId = VirtualScreenSession.state.value.display!!.sessionId
+        val startedAt = SystemClock.elapsedRealtime()
+        controller.cancel()
+        val elapsed = SystemClock.elapsedRealtime() - startedAt
+        verify("stop retains display=$expectRetained", VirtualScreenSession.isActive() == expectRetained)
+        if (!expectRetained) {
+            sendStatus(0, Bundle().apply { putString("stream", "BASELINE: stop destroyed virtual display; cancellation_ms=$elapsed\n") })
+            return
+        }
+        verify("cancellation returns within 500 ms", elapsed < 500)
+        verify("stop keeps same session", VirtualScreenSession.state.value.display?.sessionId == sessionId)
+        tools("retention-resume").use { resumed ->
+            val stale = call(resumed, "tap", JSONObject().put("x", 1).put("y", 1).put("coordinate_space", "screen"))
+            verify("resumed run requires fresh observation", !stale.optBoolean("ok") && stale.optString("code") == "NO_OBSERVATION")
+            val observed = ok("resume observes retained app", call(resumed, "observe_screen", JSONObject().put("include_screenshot", true)))
+            verify("resume preserves display and application", VirtualScreenSession.state.value.display?.sessionId == sessionId &&
+                observed.getJSONObject("focus").optString("package") == context.packageName)
+            ok("resume controls same virtual display", call(resumed, "tap", JSONObject().put("x", 1).put("y", 1).put("coordinate_space", "screen")))
+            resumed.retainVirtualScreenOnSuccess()
+        }
+        tools("retention-failure").use { failed ->
+            ok("failure run observes preserved app", call(failed, "observe_screen"))
+            // Model/transport failure closes tools without retainVirtualScreenOnSuccess().
+        }
+        verify("failed run retains same session", VirtualScreenSession.state.value.display?.sessionId == sessionId)
+        verify("failed run is shown as failed", VirtualScreenSession.state.value.taskPhase.name == "FAILED")
+    }
 
     private fun call(tools: AgentLocalTools, name: String, args: JSONObject = JSONObject()): JSONObject =
         JSONObject(tools.execute(AgentModelClient.ToolCall("validation", name, args.toString())).content)

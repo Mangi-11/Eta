@@ -65,7 +65,7 @@ internal class VirtualScreenUiTools(
 
     fun launchComponent(component: String, uri: String = ""): AgentModelClient.ToolResult =
         withDisplay {
-            snapshot = null
+            invalidateObservation()
             VirtualScreenSession.execute(
                 context, owner, JSONObject().put("action", "launch")
                     .put("component", component).put("uri", uri), isCancelled
@@ -116,6 +116,7 @@ internal class VirtualScreenUiTools(
         )
 
         "press_key" -> {
+            requireFreshObservation(info)
             if (args.optString("button").equals("PASTE", true)) textAction(
                 "paste_text",
                 JSONObject().put("text", clipboard),
@@ -229,10 +230,7 @@ internal class VirtualScreenUiTools(
         args: JSONObject,
         info: VirtualDisplayInfo
     ): AgentModelClient.ToolResult {
-        require(
-            info.manualInputGeneration == 0L ||
-                    (observedSession == info.sessionId && observedManualGeneration == info.manualInputGeneration)
-        ) { "STALE_OBSERVATION" }
+        requireFreshObservation(info)
         require(
             args.optString("coordinate_space", "screen") in setOf(
                 "",
@@ -367,6 +365,7 @@ internal class VirtualScreenUiTools(
         args: JSONObject,
         info: VirtualDisplayInfo
     ): AgentModelClient.ToolResult {
+        requireFreshObservation(info)
         val text = if (name == "clear_text") "" else args.getString("text")
         require(
             text.length <= when (name) {
@@ -392,6 +391,13 @@ internal class VirtualScreenUiTools(
         VirtualScreenSession.checkUiAction(context, owner, JSONObject().put("action", "text")
             .put("text", text).put("replace", replace))?.let { return it }
         return VirtualScreenSession.finishUiAction(owner, actionResult(service.setTextNode(nodes, index, text, info.displayId), info))
+    }
+
+    private fun requireFreshObservation(info: VirtualDisplayInfo) {
+        check(observedSession != null) { "NO_OBSERVATION" }
+        require(observedSession == info.sessionId && observedManualGeneration == info.manualInputGeneration) {
+            "STALE_OBSERVATION"
+        }
     }
 
     private fun typeText(args: JSONObject, info: VirtualDisplayInfo): AgentModelClient.ToolResult {

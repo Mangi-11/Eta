@@ -121,11 +121,19 @@ internal object VirtualScreenSession {
     }
 
     fun releaseRun(owner: String, runId: String, retain: Boolean, cancelled: Boolean = false,
-        paused: Boolean = false) = synchronized(lock) {
-        val current = session.get()?.takeIf { it.owner == owner } ?: return@synchronized
-        if (!current.runLease.release(runId, retain)) return@synchronized
-        viewerState.update { if (it.display?.sessionId == current.id) it.finishRun(runId, retain, cancelled, paused) else it }
-        if (!retain) current.close() else updateIdleTimeout()
+        paused: Boolean = false, completed: Boolean = retain) {
+        // Cancellation may arrive while a root input is awaiting acknowledgement under lock.
+        // Releasing a run must not wait for that input or destroy its independent display process.
+        val current = session.get()?.takeIf { it.owner == owner } ?: return
+        if (!current.runLease.release(runId, retain)) return
+        viewerState.update { if (it.display?.sessionId == current.id) it.finishRun(runId, completed, cancelled, paused) else it }
+        if (!retain) current.close() else previewUpdates.execute {
+            synchronized(lock) {
+                if (session.get() === current && !current.closed.get() && viewerState.value.activeRunId == null) {
+                    updateIdleTimeout()
+                }
+            }
+        }
     }
 
     fun updateIdleTimeout() = synchronized(lock) {

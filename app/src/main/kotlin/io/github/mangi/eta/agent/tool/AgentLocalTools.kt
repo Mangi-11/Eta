@@ -176,9 +176,14 @@ internal class AgentLocalTools(
         if (!closed.compareAndSet(false, true)) return
         MainScreenFallbackApproval.cancelOwner(browserRunId)
         val cancelled = isRunCancelled()
-        VirtualScreenSession.releaseRun(virtualScreenOwner, browserRunId, retainVirtualScreen.get() && !cancelled,
-            cancelled, paused = pausedVirtualScreen.get() && !cancelled)
+        val retain = VirtualScreenSession.isOwnedBy(virtualScreenOwner) && !virtualRouting.usesPrimary &&
+            runCatching { deviceDirectToolsEnabled() && rootAvailable() && virtualScreenSettings().virtualScreenEnabled }
+                .getOrDefault(false)
+        VirtualScreenSession.releaseRun(virtualScreenOwner, browserRunId, retain,
+            cancelled, paused = pausedVirtualScreen.get() && !cancelled,
+            completed = retainVirtualScreen.get() && !pausedVirtualScreen.get())
         publishedObservation.set(PublishedObservation())
+        virtualUiTools.invalidateObservation()
         AgentBrowserSession.interruptAgentAction(browserRunId)
         webTools.close()
         terminalController.interruptAll()
