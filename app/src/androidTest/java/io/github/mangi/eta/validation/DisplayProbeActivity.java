@@ -15,6 +15,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Switch;
 
 /** Synthetic screen: no accounts, network requests or user data. */
 public class DisplayProbeActivity extends Activity {
@@ -25,6 +26,36 @@ public class DisplayProbeActivity extends Activity {
         state = getSharedPreferences("display_probe", MODE_PRIVATE);
         state.edit().clear().putInt("display", getDisplay().getDisplayId()).putInt("taps", 0)
             .putInt("longPresses", 0).putString("text", "").apply();
+        if (getIntent().getData() != null && "empty-tree".equals(getIntent().getData().getHost())) {
+            if (getActionBar() != null) getActionBar().hide();
+            View canvas = new View(this) {
+                final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                @Override protected void onDraw(android.graphics.Canvas output) {
+                    output.drawColor(0xfff5f5f5);
+                    paint.setColor(0xff2255aa);
+                    output.drawRect(80, 200, getWidth() - 80, 500, paint);
+                    paint.setColor(0xffffffff);
+                    paint.setTextSize(56);
+                    output.drawText("Counter: " + state.getInt("taps", 0), 120, 370, paint);
+                }
+                @Override public boolean onTouchEvent(android.view.MotionEvent event) {
+                    if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
+                        state.edit().putInt("taps", state.getInt("taps", 0) + 1).apply();
+                        invalidate();
+                    }
+                    return true;
+                }
+            };
+            canvas.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            setContentView(canvas);
+            canvas.post(() -> {
+                int[] location = new int[2];
+                canvas.getLocationOnScreen(location);
+                state.edit().putInt("buttonX", canvas.getWidth() / 2 + location[0])
+                    .putInt("buttonY", location[1] + 350).apply();
+            });
+            return;
+        }
         ScrollView scroll = new ScrollView(this);
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -68,6 +99,12 @@ public class DisplayProbeActivity extends Activity {
             state.edit().putInt("longPresses", state.getInt("longPresses", 0) + 1).apply();
             return true;
         });
+        Switch toggle = new Switch(this);
+        if (getIntent().getData() != null && "audit".equals(getIntent().getData().getHost())) {
+            toggle.setText("Audit toggle");
+            content.addView(toggle, new LinearLayout.LayoutParams(-1, 160));
+            toggle.setOnCheckedChangeListener((view, checked) -> state.edit().putBoolean("toggle", checked).apply());
+        }
         Button freeze = new Button(this);
         if (getIntent().getBooleanExtra("stall_validation", false)) {
             freeze.setText("Block UI for 15 seconds");
@@ -99,6 +136,7 @@ public class DisplayProbeActivity extends Activity {
             bounds("editor", editor);
             bounds("button", button);
             bounds("title", title);
+            if (toggle.getParent() != null) bounds("toggle", toggle);
             if (freeze.getParent() != null) bounds("freeze", freeze);
             if (rotate.getParent() != null) bounds("rotate", rotate);
             Point size = new Point();

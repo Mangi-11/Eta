@@ -9,6 +9,7 @@ import io.github.mangi.eta.agent.device.ScrollDirection
 import io.github.mangi.eta.agent.device.ScrollAmount
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.model.AgentScreenObservationContract
+import io.github.mangi.eta.agent.tool.AgentAfterActionSummary
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
@@ -38,7 +39,8 @@ internal class VirtualScreenUiTools(
     }
 
     fun execute(name: String, args: JSONObject): AgentModelClient.ToolResult = try {
-        if (name in VirtualScreenRoutingPolicy.unavailableTools) {
+        val before = snapshot
+        val result = if (name in VirtualScreenRoutingPolicy.unavailableTools) {
             failure(
                 "VIRTUAL_ACTION_UNSUPPORTED",
                 "此 UI 工具不能在虚拟屏执行；请使用虚拟屏内的应用，不会操作主屏。"
@@ -55,12 +57,50 @@ internal class VirtualScreenUiTools(
             "wait_for_text", "wait_for_package" -> waitFor(name, args)
             else -> withDisplay { info -> dispatch(name, args, info) }
         }
+        if (name in AFTER_ACTION_TOOLS) afterAction(result, before) else result
     } catch (error: Exception) {
         failure(
             if (error is IllegalArgumentException || error is IllegalStateException) error.message
                 ?: "VIRTUAL_UI_FAILED" else "VIRTUAL_UI_FAILED",
             "虚拟屏操作未完成；请重新观察，不会回退到主屏。"
         )
+    }
+
+    /** One action returns a new handle, or one image when this window cannot expose a tree. */
+    private fun afterAction(
+        result: AgentModelClient.ToolResult,
+        before: AgentAccessibilityService.NodeSnapshot?,
+    ): AgentModelClient.ToolResult {
+        val json = JSONObject(result.content)
+        if (result.stop != null || !json.optBoolean("ok") &&
+            json.optString("code") != "INPUT_DISPATCH_UNCONFIRMED") return result
+        val observation = runCatching {
+            // WAIT_FOR_FINISH can precede View's posted performClick/text update. Allow a few
+            // frames before refreshing; this bounded local settle replaces an extra model/tool round.
+            waitCancellable(80)
+            withDisplay { info -> observe(JSONObject().put("max_nodes", 30), info, retryEmptyTree = false) }
+        }.getOrElse {
+            json.put("after", JSONObject().put("requires_observation", true)
+                .put("note", "动作后观察暂不可用；重新观察并核对结果，勿直接重复操作。"))
+            return result.copy(content = json.toString())
+        }
+        // A health guard can pause while reading; carry that stop without claiming the action was undone.
+        observation.stop?.let { return observation.copy(content = JSONObject(observation.content)
+            .put("action_result", json).toString()) }
+        val observed = JSONObject(observation.content)
+        val after = snapshot?.let { AgentAfterActionSummary.build(before, it) } ?: JSONObject()
+            .put("observation_id", JSONObject.NULL).put("ui_nodes", JSONArray())
+            .put("screen_changed", JSONObject.NULL)
+            .put("note", "本窗口没有有效 UI 树；根据附带的新截图核对效果，勿原样重复。需要等待加载时再观察。")
+        for (key in listOf("display_id", "screen", "focus", "accessibility", "screenshot", "execution_scope", "coordinate_contract")) {
+            if (observed.has(key)) after.put(key, observed.get(key))
+        }
+        if (!observed.optBoolean("ok")) {
+            after.put("requires_observation", true).put("code", observed.optString("code"))
+                .put("note", "动作已尝试，但观察未完成；重新观察并核对结果，勿直接重复操作。")
+        }
+        json.put("after", after)
+        return result.copy(content = json.toString(), images = result.images + observation.images, sensitive = true)
     }
 
     fun launchComponent(component: String, uri: String = ""): AgentModelClient.ToolResult =
@@ -131,12 +171,12 @@ internal class VirtualScreenUiTools(
         else -> failure("VIRTUAL_ACTION_UNSUPPORTED", "此 UI 操作不支持虚拟屏")
     }
 
-    private fun observe(args: JSONObject, info: VirtualDisplayInfo): AgentModelClient.ToolResult {
+    private fun observe(args: JSONObject, info: VirtualDisplayInfo, retryEmptyTree: Boolean = true): AgentModelClient.ToolResult {
         snapshot = null
         observedSession = null
         val options = AgentScreenObservationContract.resolve(args)
         val service = AgentAccessibilityService.current()
-        fun captureTree() = service?.captureNodeSnapshot(options.maxNodes, info.displayId)?.takeIf {
+        fun captureTree() = service?.captureNodeSnapshot(options.maxNodes, info.displayId, refreshCache = !retryEmptyTree)?.takeIf {
             it.displayId == info.displayId && it.packageName == info.focusedPackage
         }
         var candidate = if (options.includeUiTree) {
@@ -146,7 +186,7 @@ internal class VirtualScreenUiTools(
         // Every requested observation probes again, including a previously empty window. Startup
         // retries count as one observation; only spaced empty observations hide node tools.
         var retry = 0
-        while (options.includeUiTree && nodes == null && candidate != null &&
+        while (retryEmptyTree && options.includeUiTree && nodes == null && candidate != null &&
             !uiTreeAvailability.unavailableFor(info) && retry++ < 2) {
             waitCancellable(250)
             candidate = captureTree()
@@ -542,4 +582,12 @@ internal class VirtualScreenUiTools(
         JSONObject().put("ok", false)
             .put("code", code).put("message", message).toString(), sensitive = true
     )
+
+    private companion object {
+        val AFTER_ACTION_TOOLS = setOf(
+            "launch_app", "open_uri", "tap", "tap_area", "tap_element", "long_press",
+            "long_press_element", "swipe", "scroll", "scroll_element", "type_text",
+            "input_text", "replace_text", "clear_text", "paste_text", "press_key",
+        )
+    }
 }

@@ -151,8 +151,17 @@ class AgentAccessibilityService : AccessibilityService() {
      * 一次观察与其节点句柄组成不可变快照。调用方必须把同一实例传回节点动作，
      * 避免其他运行或 wait_for_text 的临时观察改写 index 含义。
      */
-    fun captureNodeSnapshot(maxNodes: Int, displayId: Int = android.view.Display.DEFAULT_DISPLAY): NodeSnapshot? = runOnMainSync {
+    fun captureNodeSnapshot(
+        maxNodes: Int,
+        displayId: Int = android.view.Display.DEFAULT_DISPLAY,
+        refreshCache: Boolean = false,
+    ): NodeSnapshot? = runOnMainSync {
         val startedAt = SystemClock.elapsedRealtime()
+        if (refreshCache) {
+            // Root input can finish before the ROM delivers the cache-invalidation event.
+            // Refresh only this display's subtree, then obtain the root and children again.
+            rootForDisplay(displayId)?.let { clearCachedSubtree(it) }
+        }
         val root = rootForDisplay(displayId) ?: return@runOnMainSync null
         val nodeLimit = maxNodes.coerceIn(1, 120)
         val indexedNodes = mutableListOf<IndexedNode>()
