@@ -358,7 +358,12 @@ internal fun AgentChatInputBar(
                         )
 
                         if (canInterject) IconButton(onClick = onStop, minWidth = ChatInputActionSize, minHeight = ChatInputActionSize) {
-                            Icon(Icons.Rounded.Stop, stringResource(R.string.chat_stop), modifier = Modifier.size(StopIconSize))
+                            Icon(
+                                imageVector = Icons.Rounded.Stop,
+                                contentDescription = stringResource(R.string.chat_stop),
+                                modifier = Modifier.size(StopIconSize),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                            )
                         }
 
                         IconButton(
