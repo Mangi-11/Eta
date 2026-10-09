@@ -27,8 +27,9 @@ import androidx.room.migration.Migration
         UserPersonaEntity::class,
         AgentTaskEntity::class,
         AgentTaskRunEntity::class,
+        LearningProposalEntity::class,
     ],
-    version = 26,
+    version = 27,
     exportSchema = false,
 )
 internal abstract class EtaDatabase : RoomDatabase() {
@@ -39,6 +40,7 @@ internal abstract class EtaDatabase : RoomDatabase() {
     abstract fun mcpServerDao(): McpServerDao
     abstract fun characterDao(): CharacterDao
     abstract fun agentTaskDao(): AgentTaskDao
+    abstract fun learningProposalDao(): LearningProposalDao
 
     companion object {
         @Volatile
@@ -72,6 +74,7 @@ internal abstract class EtaDatabase : RoomDatabase() {
                         MIGRATION_23_24,
                         MIGRATION_24_25,
                         MIGRATION_25_26,
+                        MIGRATION_26_27,
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
@@ -94,6 +97,16 @@ internal abstract class EtaDatabase : RoomDatabase() {
             listOf("runtime_results", "runtime_archive_runs").forEach { table ->
                 database.execSQL("ALTER TABLE $table ADD COLUMN error_code TEXT NOT NULL DEFAULT ''")
             }
+        }
+
+        internal val MIGRATION_26_27 = Migration(26, 27) { database ->
+            database.execSQL("CREATE TABLE IF NOT EXISTS learning_proposals (" +
+                "id TEXT NOT NULL PRIMARY KEY,kind TEXT NOT NULL,title TEXT NOT NULL,detailMarkdown TEXT NOT NULL," +
+                "argumentsJson TEXT NOT NULL,conversationId TEXT NOT NULL,runId TEXT NOT NULL,automatic INTEGER NOT NULL," +
+                "status TEXT NOT NULL,errorCode TEXT NOT NULL,createdAt INTEGER NOT NULL,updatedAt INTEGER NOT NULL," +
+                "read INTEGER NOT NULL,applyOwner TEXT NOT NULL)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_learning_proposals_status ON learning_proposals(status)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_learning_proposals_createdAt ON learning_proposals(createdAt)")
         }
 
         internal val MIGRATION_23_24 = Migration(23, 24) { database ->

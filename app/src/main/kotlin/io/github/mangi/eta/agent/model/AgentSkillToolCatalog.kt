@@ -105,7 +105,7 @@ internal object AgentSkillToolCatalog {
 
     private fun authoringSchema() = AgentToolSchema.function(
         name = "skills_manage",
-        description = "Create or update an Android procedural skill from verified successful experience. Prefer improving an existing relevant user skill after skills_read. Store reusable steps, prerequisites, observed pitfalls and a completion check; exclude private content, secrets, temporary node IDs and unsupported guesses. Updates require the exact expectedRevision from skills_read and preserve existing resources. Built-in and disabled skills cannot be overwritten. Changes become available next run and never execute scripts.",
+        description = "Propose creating or updating an Android procedural skill from verified successful experience. The proposal goes to the notification center and only becomes active after user approval; pending content is not installed. Prefer improving an existing relevant user skill after skills_read. Store reusable steps, prerequisites, observed pitfalls and a completion check; exclude private content, secrets, temporary node IDs and unsupported guesses. Updates require the exact expectedRevision from skills_read and preserve existing resources. Built-in and disabled skills cannot be overwritten. Changes become available next run and never execute scripts.",
         parameters = JSONObject().put("type", "object").put("additionalProperties", false)
             .put("properties", JSONObject()
                 .put("action", JSONObject().put("type", "string").put("enum", JSONArray().put("create").put("update")))

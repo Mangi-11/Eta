@@ -33,6 +33,15 @@ sealed interface AppRoute : NavKey {
     data object CharacterPersona : AppRoute
 
     @Serializable
+    data object DefaultAssistantPrompt : AppRoute
+
+    @Serializable
+    data object Notifications : AppRoute
+
+    @Serializable
+    data class LearningProposalDetail(val proposalId: String) : AppRoute
+
+    @Serializable
     data class CharacterMemory(val characterId: String) : AppRoute
 
     @Serializable

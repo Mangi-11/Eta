@@ -59,6 +59,8 @@ class EtaApp : Application(), XposedServiceHelper.OnServiceListener {
         ProviderRepository.init(this)
         McpServerRepository.init(this)
         applicationScope.launch(Dispatchers.IO) {
+            runCatching { io.github.mangi.eta.data.repository.LearningProposalRepository.recoverInterrupted(this@EtaApp) }
+                .onFailure { AndroidAgentLogger.warn("Learning approval recovery unavailable") }
             runCatching {
                 io.github.mangi.eta.data.db.EtaDatabase.get(this@EtaApp).agentTaskDao().recoverInterrupted(System.currentTimeMillis())
                 io.github.mangi.eta.agent.automation.AgentTaskScheduler.enqueueDue(this@EtaApp)

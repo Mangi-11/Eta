@@ -8,10 +8,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
 import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+
+@Composable
+internal fun DefaultAssistantPromptScreen(store: CharacterLibraryStore, onBack: () -> Unit) {
+    MiuixScaffoldPage(title = stringResource(R.string.default_prompt_title), onBack = onBack, modifier = Modifier.imePadding()) {
+        store.notice?.let { item { CharacterPageMessage(it) } }
+        item { CharacterPageMessage(stringResource(R.string.default_prompt_description)) }
+        item(key = "prompt") {
+            CharacterTextField(stringResource(R.string.default_prompt_field), store.defaultPromptDraft,
+                store::updateDefaultPrompt, !store.busy, minLines = 10)
+        }
+        item(key = "actions") {
+            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                EtaTextButton(stringResource(R.string.default_prompt_reset), onClick = store::resetDefaultPrompt,
+                    enabled = !store.busy, modifier = Modifier.weight(1f))
+                EtaTextButton(stringResource(R.string.default_prompt_save), onClick = { store.saveDefaultPrompt(onBack) },
+                    enabled = !store.busy, modifier = Modifier.weight(1f), colors = ButtonDefaults.textButtonColorsPrimary())
+            }
+        }
+    }
+}
 
 @Composable
 internal fun CharacterPersonaScreen(store: CharacterLibraryStore, onBack: () -> Unit) {

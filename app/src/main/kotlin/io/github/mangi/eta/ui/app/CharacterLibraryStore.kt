@@ -3,6 +3,8 @@ package io.github.mangi.eta.ui.app
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import io.github.mangi.eta.R
+import io.github.mangi.eta.EtaApp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,6 +24,9 @@ import io.github.mangi.eta.data.repository.AgentMemorySnapshot
 import io.github.mangi.eta.data.repository.AgentMemoryWriteResult
 import io.github.mangi.eta.data.repository.CharacterMemoryRepository
 import io.github.mangi.eta.data.repository.CharacterRepository
+import io.github.mangi.eta.data.repository.RuntimeConfigRepository
+import io.github.mangi.eta.data.datastore.SettingsDataStore
+import io.github.mangi.eta.data.provider.BuiltinProviders
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +59,10 @@ internal class CharacterLibraryStore(
     var personaDraft by mutableStateOf(UserPersona())
         private set
     var usePersona by mutableStateOf(true)
+    var defaultPromptDraft by mutableStateOf("")
+        private set
+    private var defaultPromptLoaded = false
+    private var defaultPromptSaved = ""
     var greetingIndex by mutableStateOf(0)
     var memoryDraft by mutableStateOf("")
         private set
@@ -207,6 +216,32 @@ internal class CharacterLibraryStore(
             personaDraft = persona
             personaLoaded = true
         }
+    }
+
+    fun loadDefaultPrompt() {
+        if (defaultPromptLoaded && defaultPromptDraft != defaultPromptSaved) return
+        runOperation(context.getString(R.string.default_prompt_load_failed), queueIfBusy = true) {
+            defaultPromptSaved = io { SettingsDataStore.settings().defaultAssistantSystemPrompt }
+                .ifBlank { BuiltinProviders.DEFAULT_SYSTEM_PROMPT }
+            defaultPromptDraft = defaultPromptSaved
+            defaultPromptLoaded = true
+        }
+    }
+
+    fun updateDefaultPrompt(text: String) { if (!busy && text.length <= 32_000) defaultPromptDraft = text }
+
+    fun resetDefaultPrompt() { if (!busy) defaultPromptDraft = BuiltinProviders.DEFAULT_SYSTEM_PROMPT }
+
+    fun saveDefaultPrompt(onSaved: () -> Unit) = runOperation(context.getString(R.string.default_prompt_save_failed)) {
+        val prompt = defaultPromptDraft.trim()
+        io {
+            SettingsDataStore.updateSettings { it.copy(defaultAssistantSystemPrompt =
+                prompt.takeUnless { it == BuiltinProviders.DEFAULT_SYSTEM_PROMPT }.orEmpty()) }
+            RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+        }
+        defaultPromptSaved = prompt.ifBlank { BuiltinProviders.DEFAULT_SYSTEM_PROMPT }
+        defaultPromptDraft = defaultPromptSaved
+        onSaved()
     }
 
     fun updatePersona(name: String = personaDraft.name, description: String = personaDraft.description) {

@@ -14,7 +14,9 @@ internal class SkillAuthoringService(
     private val index: SkillIndexService,
     private val installer: SkillPackageInstaller,
 ) {
-    fun manage(args: JSONObject, isCancelled: () -> Boolean = { false }): JSONObject =
+    fun validate(args: JSONObject): JSONObject = manage(args, reviewOnly = true)
+
+    fun manage(args: JSONObject, reviewOnly: Boolean = false, isCancelled: () -> Boolean = { false }): JSONObject =
         index.withMutationLock {
             try {
                 require(args.keys().asSequence().all { it in FIELDS }) { "存在不支持的字段" }
@@ -78,6 +80,8 @@ internal class SkillAuthoringService(
                     append(preservedFrontmatter).append("---\n\n").append(body).append('\n')
                 }.toByteArray(Charsets.UTF_8)
                 files["SKILL.md"] = content
+                if (reviewOnly) return@withMutationLock JSONObject().put("ok", true)
+                    .put("skillId", id).put("revision", skillRevision(content)).put("applied", false)
                 val archive = ByteArrayOutputStream().also { out ->
                     ZipOutputStream(out).use { zip ->
                         files.forEach { (path, bytes) ->

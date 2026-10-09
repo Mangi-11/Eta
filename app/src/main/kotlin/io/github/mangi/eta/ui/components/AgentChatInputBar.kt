@@ -168,6 +168,11 @@ internal fun AgentChatInputBar(
         wasEditingMessage = isEditingMessage
     }
 
+    LaunchedEffect(input) {
+        // A delayed rejected interjection must not overwrite a newer draft typed while awaiting its ACK.
+        if (!isEditingMessage && textFieldState.text.isBlank()) textFieldState.setTextAndPlaceCursorAtEnd(input)
+    }
+
     LaunchedEffect(isStreaming, isCompacting) {
         if (isStreaming && !isCompacting) {
             // 发送按钮、建议词和外部恢复都可能启动流式任务，统一清掉本地草稿。

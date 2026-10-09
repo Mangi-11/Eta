@@ -63,7 +63,7 @@ class EtaDatabaseMigrationTest {
         }
         val database = Room.databaseBuilder(context, EtaDatabase::class.java, name)
             .addMigrations(EtaDatabase.MIGRATION_22_23, EtaDatabase.MIGRATION_23_24,
-                EtaDatabase.MIGRATION_24_25, EtaDatabase.MIGRATION_25_26).build()
+                EtaDatabase.MIGRATION_24_25, EtaDatabase.MIGRATION_25_26, EtaDatabase.MIGRATION_26_27).build()
         try {
             runBlocking(Dispatchers.IO) {
                 val conversation = database.conversationDao().conversations().first { it.id == "conv-1" }
@@ -82,7 +82,7 @@ class EtaDatabaseMigrationTest {
     }
 
     @Test
-    fun migration6To26PreservesDataAndMovesCompleteConversationContext() {
+    fun migration6To27PreservesDataAndMovesCompleteConversationContext() {
         val context = RuntimeEnvironment.getApplication() as Context
         val databaseName = "migration-${UUID.randomUUID()}.db"
         createVersion6Database(context, databaseName)
@@ -120,6 +120,7 @@ class EtaDatabaseMigrationTest {
                 EtaDatabase.MIGRATION_23_24,
                 EtaDatabase.MIGRATION_24_25,
                 EtaDatabase.MIGRATION_25_26,
+                EtaDatabase.MIGRATION_26_27,
             )
             .build()
         try {

@@ -48,6 +48,7 @@ internal object SettingsDataStore {
 
     private val SELECTED_PROVIDER_ID = stringPreferencesKey("selected_provider_id")
     private val SELECTED_MODEL_ID = stringPreferencesKey("selected_model_id")
+    private val DEFAULT_ASSISTANT_SYSTEM_PROMPT = stringPreferencesKey("default_assistant_system_prompt")
     private val OFFICIAL_MODEL_CATALOG_REVISION = intPreferencesKey("official_model_catalog_revision")
     private val MEMORY_ENABLED = booleanPreferencesKey("memory_enabled")
     private val AUTO_MEMORY_ENABLED = booleanPreferencesKey("auto_memory_enabled")
@@ -115,6 +116,8 @@ internal object SettingsDataStore {
         dataStore.edit { prefs ->
             val current = prefs.toSettings()
             val updated = transform(current)
+            require(updated.defaultAssistantSystemPrompt.length <= 32_000 && '\u0000' !in updated.defaultAssistantSystemPrompt)
+            prefs.putOrRemove(DEFAULT_ASSISTANT_SYSTEM_PROMPT, updated.defaultAssistantSystemPrompt)
             prefs.putOrRemove(SELECTED_PROVIDER_ID, updated.selectedProviderId)
             prefs.putOrRemove(SELECTED_MODEL_ID, updated.selectedModelId)
             prefs[MEMORY_ENABLED] = updated.memoryEnabled
@@ -251,6 +254,7 @@ internal object SettingsDataStore {
     private fun Preferences.toSettings(): Settings = Settings(
         selectedProviderId = this[SELECTED_PROVIDER_ID],
         selectedModelId = this[SELECTED_MODEL_ID],
+        defaultAssistantSystemPrompt = this[DEFAULT_ASSISTANT_SYSTEM_PROMPT].orEmpty(),
         memoryEnabled = this[MEMORY_ENABLED] ?: true,
         autoMemoryEnabled = this[AUTO_MEMORY_ENABLED] ?: true,
         autoSkillsEnabled = this[AUTO_SKILLS_ENABLED] ?: true,

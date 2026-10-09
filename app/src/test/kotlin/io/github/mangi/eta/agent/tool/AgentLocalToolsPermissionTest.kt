@@ -117,6 +117,26 @@ class AgentLocalToolsPermissionTest {
     }
 
     @Test
+    fun proposalStagingCannotBypassMemoryRevocationOrRoleplayWriteBoundary() {
+        val staged = java.util.concurrent.atomic.AtomicInteger()
+        val writer: (String, JSONObject) -> JSONObject = { _, _ ->
+            staged.incrementAndGet()
+            JSONObject().put("ok", true)
+        }
+        tools(memoryEnabled = { false }, learningProposalWriter = writer).use { local ->
+            assertEquals("MEMORY_DISABLED", JSONObject(local.execute(
+                AgentModelClient.ToolCall("write", "memory_write", "{}")).content).getString("code"))
+        }
+        tools(memoryEnabled = { true }, memoryWritable = false, learningProposalWriter = writer).use { local ->
+            assertEquals("REAL_MEMORY_READ_ONLY", JSONObject(local.execute(
+                AgentModelClient.ToolCall("write", "memory_write", "{}")).content).getString("code"))
+            assertEquals("SKILL_READ_ONLY", JSONObject(local.execute(
+                AgentModelClient.ToolCall("skill", "skills_manage", "{}")).content).getString("code"))
+        }
+        assertEquals(0, staged.get())
+    }
+
+    @Test
     fun roleplayCannotWriteRealMemoryEvenWithAStaleToolDeclaration() {
         val tools = tools(memoryEnabled = { true }, memoryWritable = false)
         try {
@@ -312,6 +332,7 @@ class AgentLocalToolsPermissionTest {
         browserEnabled: () -> Boolean = { false },
         memoryEnabled: () -> Boolean = { false },
         memoryWritable: Boolean = true,
+        learningProposalWriter: ((String, JSONObject) -> JSONObject)? = null,
         rootAvailable: () -> Boolean = { false },
         sensitiveReadEnabled: () -> Boolean = { false },
         screenObservationProvider: (
@@ -329,6 +350,7 @@ class AgentLocalToolsPermissionTest {
             browserToolsEnabled = browserEnabled,
             memoryToolsEnabled = memoryEnabled,
             memoryWritable = memoryWritable,
+            learningProposalWriter = learningProposalWriter,
             rootAvailable = rootAvailable,
             deviceSensitiveReadToolsEnabled = sensitiveReadEnabled,
             screenObservationProvider = screenObservationProvider,

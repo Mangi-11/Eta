@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -141,6 +143,8 @@ internal fun ConversationPanePanel(
     onOpenCharacters: () -> Unit,
     onOpenPermissions: () -> Unit,
     onOpenTasks: () -> Unit,
+    onOpenNotifications: () -> Unit = {},
+    notificationCount: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     // state.conversations 已由 AgentAppState 按标题、预览与消息内容过滤。
@@ -218,6 +222,8 @@ internal fun ConversationPanePanel(
                 if (query.isBlank()) {
                     item(key = "shortcuts") {
                         Column(Modifier.fillMaxWidth().padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            PaneShortcut(Icons.Rounded.NotificationsNone, stringResource(R.string.inbox_title),
+                                onOpenNotifications, badgeCount = notificationCount)
                             PaneShortcut(MiuixIcons.Alarm, stringResource(R.string.automation_title), onOpenTasks)
                             PaneShortcut(MiuixIcons.Contacts, stringResource(R.string.sidebar_characters), onOpenCharacters)
                             PaneShortcut(MiuixIcons.Lock, stringResource(R.string.sidebar_permissions), onOpenPermissions)
@@ -567,6 +573,7 @@ private fun PaneShortcut(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    badgeCount: Int = 0,
 ) {
     Row(modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
         .clickable(onClickLabel = label, onClick = onClick).padding(horizontal = 12.dp, vertical = 12.dp),
@@ -574,6 +581,9 @@ private fun PaneShortcut(
         Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = MiuixTheme.colorScheme.onSurface)
         Text(label, style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.Medium, color = MiuixTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (badgeCount > 0) Text(badgeCount.coerceAtMost(99).toString(), style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onPrimary, modifier = Modifier.clip(CircleShape)
+                .background(MiuixTheme.colorScheme.primary).padding(horizontal = 7.dp, vertical = 2.dp))
     }
 }
 

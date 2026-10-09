@@ -72,14 +72,14 @@ internal object RuntimeConfigRepository {
         val settings = ProviderRepository.repairSelection()
         val provider = settings.selectedProviderId?.let { ProviderRepository.providerById(it) } ?: return null
         val model = provider.selectedOrFirstModel(settings.selectedModelId) ?: return null
-        return buildRuntimeConfig(provider, model)
+        return buildRuntimeConfig(provider, model, settings.defaultAssistantSystemPrompt)
     }
 
     /** 会话绑定的模型仍可用时使用它，否则回落到默认模型。 */
     suspend fun runtimeConfigFor(modelId: String?): AgentModelClient.ModelConfig? {
         ProviderRepository.ensureBuiltInsMerged()
         ProviderRepository.allProviders().enabledModel(modelId)?.let { (provider, model) ->
-            return buildRuntimeConfig(provider, model)
+            return buildRuntimeConfig(provider, model, SettingsDataStore.settings().defaultAssistantSystemPrompt)
         }
         return currentRuntimeConfig()
     }
@@ -99,10 +99,15 @@ internal object RuntimeConfigRepository {
     fun runtimeConfigJson(config: AgentModelClient.ModelConfig): String =
         json.encodeToString(config)
 
-    fun buildRuntimeConfig(provider: ProviderSetting, model: Model): AgentModelClient.ModelConfig {
+    fun buildRuntimeConfig(
+        provider: ProviderSetting,
+        model: Model,
+        defaultAssistantSystemPrompt: String = "",
+    ): AgentModelClient.ModelConfig {
         val systemPrompt = provider.systemPrompt
             ?.trim()
-            ?.takeIf { it.isNotBlank() }
+            ?.takeIf { it.isNotBlank() && it != BuiltinProviders.DEFAULT_SYSTEM_PROMPT }
+            ?: defaultAssistantSystemPrompt.trim().takeIf { it.isNotBlank() }
             ?: BuiltinProviders.DEFAULT_SYSTEM_PROMPT
         val sourceType = ProviderSourceRegistry.resolve(provider)
         val endpointMode = provider.endpointMode()

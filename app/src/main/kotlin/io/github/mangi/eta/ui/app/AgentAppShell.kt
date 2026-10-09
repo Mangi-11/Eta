@@ -88,6 +88,8 @@ fun AgentAppShell(
     onOpenAccessibilitySettings: () -> Unit,
     onOpenModelProviders: () -> Unit,
     onOpenTasks: () -> Unit,
+    onOpenNotifications: () -> Unit = {},
+    notificationCount: Int = 0,
     conversationStatus: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: @Composable (PaddingValues) -> Unit,
@@ -158,6 +160,8 @@ fun AgentAppShell(
                 onOpenCharacters = onOpenCharacters,
                 onOpenPermissions = onOpenPermissions,
                 onOpenTasks = onOpenTasks,
+                onOpenNotifications = onOpenNotifications,
+                notificationCount = notificationCount,
             ) {
                 pageContent()
             }
@@ -356,6 +360,9 @@ private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.CharacterDetail -> "角色详情"
     is AppRoute.CharacterEditor -> "编辑角色"
     is AppRoute.CharacterPersona -> "我的人设"
+    is AppRoute.DefaultAssistantPrompt -> stringResource(R.string.default_prompt_title)
+    is AppRoute.Notifications -> stringResource(R.string.inbox_title)
+    is AppRoute.LearningProposalDetail -> stringResource(R.string.inbox_detail)
     is AppRoute.CharacterMemory -> "剧情记忆"
     is AppRoute.Permissions -> stringResource(R.string.route_permissions)
     is AppRoute.SystemEnhance -> stringResource(R.string.route_system_enhancements)

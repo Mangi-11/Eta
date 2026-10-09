@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class Settings(
     val selectedProviderId: String? = null,
     val selectedModelId: String? = null,
+    val defaultAssistantSystemPrompt: String = "",
     val memoryEnabled: Boolean = true,
     val autoMemoryEnabled: Boolean = true,
     val autoSkillsEnabled: Boolean = true,
