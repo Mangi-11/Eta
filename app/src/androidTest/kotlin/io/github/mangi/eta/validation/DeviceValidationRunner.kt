@@ -1041,7 +1041,7 @@ class DeviceValidationRunner : Instrumentation() {
         val now = SystemClock.uptimeMillis()
         val down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x, y, 0)
         val up = MotionEvent.obtain(now, now + 60, MotionEvent.ACTION_UP, x, y, 0)
-        return try { automation.injectInputEvent(down, true) && automation.injectInputEvent(up, true) }
+        return try { injectPrimaryEvent(down) && injectPrimaryEvent(up) }
         finally { down.recycle(); up.recycle() }
     }
 
@@ -1051,10 +1051,19 @@ class DeviceValidationRunner : Instrumentation() {
         for (step in 0..8) {
             val action = when (step) { 0 -> MotionEvent.ACTION_DOWN; 8 -> MotionEvent.ACTION_UP; else -> MotionEvent.ACTION_MOVE }
             val event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action, x1 + (x2 - x1) * step / 8f, y, 0)
-            try { accepted = automation.injectInputEvent(event, true) && accepted } finally { event.recycle() }
+            try { accepted = injectPrimaryEvent(event) && accepted } finally { event.recycle() }
             SystemClock.sleep(30)
         }
         return accepted
+    }
+
+    private fun injectPrimaryEvent(event: MotionEvent): Boolean {
+        // An unspecified display follows focus, which may currently belong to the virtual app.
+        event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+        org.lsposed.hiddenapibypass.HiddenApiBypass.invoke(
+            android.view.InputEvent::class.java, event, "setDisplayId", Display.DEFAULT_DISPLAY,
+        )
+        return automation.injectInputEvent(event, true)
     }
 
     private fun validateSettingsAndApproval(viewer: VirtualScreenViewerActivity) {
