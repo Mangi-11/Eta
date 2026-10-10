@@ -19,7 +19,8 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+// Scheduler fixtures control the lifecycle explicitly; EtaApp also schedules jobs at startup.
+@Config(sdk = [36], application = android.app.Application::class)
 class AgentTaskSchedulerTest {
     private val context: Context get() = RuntimeEnvironment.getApplication()
     private val dao get() = EtaDatabase.get(context).agentTaskDao()
