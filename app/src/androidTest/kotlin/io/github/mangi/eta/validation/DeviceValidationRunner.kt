@@ -328,8 +328,12 @@ class DeviceValidationRunner : Instrumentation() {
         }
     }
 
-    private fun call(tools: AgentLocalTools, name: String, args: JSONObject = JSONObject()): JSONObject =
-        JSONObject(tools.execute(AgentModelClient.ToolCall("validation", name, args.toString())).content)
+    private fun call(tools: AgentLocalTools, name: String, args: JSONObject = JSONObject()): JSONObject {
+        if (name in setOf("tap", "tap_area", "long_press", "swipe") && !args.has("coordinate_space")) {
+            args.put("coordinate_space", "screen")
+        }
+        return JSONObject(tools.execute(AgentModelClient.ToolCall("validation", name, args.toString())).content)
+    }
 
     private fun ok(name: String, result: JSONObject): JSONObject {
         verify(name + " (" + result.optString("code") + ":" + result.optString("error_type") + ":" + result.optString("error_stage") +
@@ -472,7 +476,7 @@ class DeviceValidationRunner : Instrumentation() {
             }
             val position = probe()
             val paused = tools.execute(AgentModelClient.ToolCall("pause", "tap", JSONObject()
-                .put("x", position.getInt("titleX")).put("y", position.getInt("titleY")).toString()))
+                .put("x", position.getInt("titleX")).put("y", position.getInt("titleY")).put("coordinate_space", "screen").toString()))
             verify("fourth missed tap pauses", paused.stop?.code == "UI_NO_PROGRESS")
             verify("missed tap is not business progress", probe().optInt("taps") == 5)
         }
@@ -504,12 +508,12 @@ class DeviceValidationRunner : Instrumentation() {
             ok("observe freeze fixture", call(tools, "observe_screen"))
             val position = probe()
             val freeze = tools.execute(AgentModelClient.ToolCall("freeze", "tap", JSONObject()
-                .put("x", position.getInt("freezeX")).put("y", position.getInt("freezeY")).toString()))
+                .put("x", position.getInt("freezeX")).put("y", position.getInt("freezeY")).put("coordinate_space", "screen").toString()))
             val result = if (freeze.stop != null) freeze else {
                 ok("freeze input dispatch completes", JSONObject(freeze.content))
                 eventually("fixture main thread is blocked", { probe().optBoolean("blocked") })
                 tools.execute(AgentModelClient.ToolCall("blocked-input", "tap", JSONObject()
-                    .put("x", position.getInt("buttonX")).put("y", position.getInt("buttonY")).toString()))
+                    .put("x", position.getInt("buttonX")).put("y", position.getInt("buttonY")).put("coordinate_space", "screen").toString()))
             }
             verify("blocked UI pauses from system evidence or input timeout (${result.stop?.code ?: JSONObject(result.content).optString("code")})", result.stop?.code in
                 setOf("UI_APP_UNRESPONSIVE", "UI_INPUT_TIMEOUT"))
@@ -538,7 +542,7 @@ class DeviceValidationRunner : Instrumentation() {
                 ok("observe missed recovery tap ${index + 1}", call(tools, "observe_screen"))
             }
             val paused = tools.execute(AgentModelClient.ToolCall("pause", "tap", JSONObject()
-                .put("x", position.getInt("titleX")).put("y", position.getInt("titleY")).toString()))
+                .put("x", position.getInt("titleX")).put("y", position.getInt("titleY")).put("coordinate_space", "screen").toString()))
             verify("recovery fixture pauses after missed taps", paused.stop?.code == "UI_NO_PROGRESS")
             if (screenOffValidation) lockPrimaryForRecovery("missed taps")
             val previousFrameId = JSONObject(VirtualScreenSession.observeForViewer(targetContext).content).getLong("frameId")
@@ -572,12 +576,12 @@ class DeviceValidationRunner : Instrumentation() {
             ok("observe blocking recovery fixture", call(tools, "observe_screen"))
             val position = probe()
             val freeze = tools.execute(AgentModelClient.ToolCall("freeze", "tap", JSONObject()
-                .put("x", position.getInt("freezeX")).put("y", position.getInt("freezeY")).toString()))
+                .put("x", position.getInt("freezeX")).put("y", position.getInt("freezeY")).put("coordinate_space", "screen").toString()))
             val paused = if (freeze.stop != null) freeze else {
                 eventually("recovery fixture main thread is blocked", { probe().optBoolean("blocked") })
                 if (screenOffValidation) lockPrimaryForRecovery("blocked application")
                 tools.execute(AgentModelClient.ToolCall("blocked-tap", "tap", JSONObject()
-                    .put("x", position.getInt("buttonX")).put("y", position.getInt("buttonY")).toString()))
+                    .put("x", position.getInt("buttonX")).put("y", position.getInt("buttonY")).put("coordinate_space", "screen").toString()))
             }
             verify("blocked application produces trusted pause", paused.stop?.code in setOf("UI_INPUT_TIMEOUT", "UI_APP_UNRESPONSIVE"))
             val previousFrameId = JSONObject(VirtualScreenSession.observeForViewer(targetContext).content).getLong("frameId")

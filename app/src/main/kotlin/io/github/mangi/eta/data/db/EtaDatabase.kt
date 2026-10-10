@@ -164,6 +164,16 @@ internal abstract class EtaDatabase : RoomDatabase() {
                 found
             }
             if (!hasModelId) database.execSQL("ALTER TABLE conversations ADD COLUMN model_id TEXT")
+            // The earlier upstream contribution used schema 25 before adding runtime error codes.
+            listOf("runtime_results", "runtime_archive_runs").forEach { table ->
+                val hasErrorCode = database.query("PRAGMA table_info($table)").use { cursor ->
+                    val nameIndex = cursor.getColumnIndexOrThrow("name")
+                    var found = false
+                    while (cursor.moveToNext()) if (cursor.getString(nameIndex) == "error_code") found = true
+                    found
+                }
+                if (!hasErrorCode) database.execSQL("ALTER TABLE $table ADD COLUMN error_code TEXT NOT NULL DEFAULT ''")
+            }
             MIGRATION_21_22.migrate(database)
         }
 

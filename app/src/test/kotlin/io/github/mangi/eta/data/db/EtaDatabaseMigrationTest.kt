@@ -26,7 +26,11 @@ class EtaDatabaseMigrationTest {
     @Test
     fun fork25MigrationPreservesUsageAndErrorsAndAddsModelBinding() = verifyForkMergeMigration(upstream = false)
 
-    private fun verifyForkMergeMigration(upstream: Boolean) {
+    @Test
+    fun contribution25MigrationPreservesModelTasksAndUsageWhileAddingRuntimeErrors() =
+        verifyForkMergeMigration(upstream = false, contribution = true)
+
+    private fun verifyForkMergeMigration(upstream: Boolean, contribution: Boolean = false) {
         val context = RuntimeEnvironment.getApplication() as Context
         val name = "merge-migration-${UUID.randomUUID()}.db"
         createVersion6Database(context, name)
@@ -56,6 +60,15 @@ class EtaDatabaseMigrationTest {
                     EtaDatabase.MIGRATION_23_24, EtaDatabase.MIGRATION_24_25).forEach { it.migrate(db) }
                 db.execSQL("UPDATE conversations SET last_model_usage_json='{\"inputTokens\":42}' WHERE id='conv-1'")
                 db.execSQL("UPDATE runtime_results SET error_code='UI_EXECUTION_PAUSED'")
+                db.execSQL("INSERT INTO agent_tasks (id,name,prompt,triggerJson,enabled,cooldownSeconds," +
+                    "maxRuns,runCount,lastStatus,createdAt,updatedAt) VALUES " +
+                    "('kept-task','Retained task','Summarize','{}',0,900,10,2,'completed',1,2)")
+                if (contribution) {
+                    db.execSQL("ALTER TABLE conversations ADD COLUMN model_id TEXT")
+                    db.execSQL("UPDATE conversations SET model_id='kept-model' WHERE id='conv-1'")
+                    db.execSQL("ALTER TABLE runtime_results DROP COLUMN error_code")
+                    db.execSQL("ALTER TABLE runtime_archive_runs DROP COLUMN error_code")
+                }
                 db.version = 25
             }
         } finally {
@@ -68,11 +81,14 @@ class EtaDatabaseMigrationTest {
             runBlocking(Dispatchers.IO) {
                 val conversation = database.conversationDao().conversations().first { it.id == "conv-1" }
                 assertEquals("保留的对话", conversation.title)
-                assertEquals(if (upstream) "kept-model" else null, conversation.modelId)
+                assertEquals(if (upstream || contribution) "kept-model" else null, conversation.modelId)
                 assertEquals(if (upstream) "" else "{\"inputTokens\":42}", conversation.lastModelUsageJson)
-                assertEquals(if (upstream) "" else "UI_EXECUTION_PAUSED",
+                assertEquals(if (upstream || contribution) "" else "UI_EXECUTION_PAUSED",
                     database.runtimeRunDao().runtimeResults().single().errorCode)
-                assertEquals(emptyList<AgentTaskEntity>(), database.agentTaskDao().tasks())
+                val tasks = database.agentTaskDao().tasks()
+                assertEquals(if (upstream) emptyList<String>() else listOf("kept-task"), tasks.map { it.id })
+                if (!upstream) assertEquals(2, tasks.single().runCount)
+                assertEquals("", database.runtimeRunDao().archivedRuns().single().run.errorCode)
                 assertEquals("旧消息", database.conversationDao().messages().single().content)
             }
         } finally {
