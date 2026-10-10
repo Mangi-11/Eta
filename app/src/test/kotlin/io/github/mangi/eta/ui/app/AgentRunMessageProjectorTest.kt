@@ -50,9 +50,11 @@ class AgentRunMessageProjectorTest {
         val projector = AgentRunMessageProjector { 1_000L }
         val streaming = projector.appendTextDelta("run", 1, 0, "回答", emptyList())
         val finished = projector.finalizeTextBlock("run", 1, 0, null, streaming)
-        val withUsage = projector.applyEvent("run", AgentEvent.UsageReceived(1, AgentTokenUsage(100, 80, 20, null, null)), finished)
+        val withUsage = projector.applyEvent("run", AgentEvent.UsageReceived(1, AgentTokenUsage(100, 80, 20, null, null, requestDurationMs = 1_250)), finished)
         val message = withUsage.filterIsInstance<AgentMessageUi>().single()
         assertEquals(100, message.usage?.contextTokens)
+        assertEquals(1_250L, message.usage?.requestDurationMs)
+        assertEquals(16.0, message.usage!!.averageTokensPerSecond!!, 0.001)
         assertFalse(message.isStreaming)
     }
 

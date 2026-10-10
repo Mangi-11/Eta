@@ -50,9 +50,10 @@ internal object AgentTaskScheduler {
     }
     private val activeRuns = ConcurrentHashMap<String, String>()
     private val jobRunning = AtomicBoolean()
+    private val jobLock = Any()
 
-    fun jobStarted(): Boolean = jobRunning.compareAndSet(false, true)
-    fun jobFinished() {
+    fun jobStarted(): Boolean = synchronized(jobLock) { jobRunning.compareAndSet(false, true) }
+    fun jobFinished() = synchronized(jobLock) {
         jobRunning.set(false)
     }
 
@@ -103,10 +104,13 @@ internal object AgentTaskScheduler {
             maxOf(earliest, System.currentTimeMillis() + 60_000),
             alarm
         )
-        if (!jobRunning.get()) {
-            if (dao.nextQueued() != null) requestJob(context)
-            else if (earliest != null) requestJob(context, (earliest - now).coerceAtLeast(0))
-            else context.getSystemService(JobScheduler::class.java).cancel(JOB_ID)
+        val queued = dao.nextQueued() != null
+        synchronized(jobLock) {
+            if (!jobRunning.get()) {
+                if (queued) requestJob(context)
+                else if (earliest != null) requestJob(context, (earliest - now).coerceAtLeast(0))
+                else context.getSystemService(JobScheduler::class.java).cancel(JOB_ID)
+            }
         }
         if (tasks.any { JSONObject(it.triggerJson).optString("type") in monitoredEventTypes }) {
             runCatching {
@@ -121,7 +125,7 @@ internal object AgentTaskScheduler {
         } else context.stopService(Intent(context, AgentTriggerMonitorService::class.java))
     }
 
-    fun requestJob(context: Context, delayMs: Long = 0) {
+    fun requestJob(context: Context, delayMs: Long = 0): Unit = synchronized(jobLock) {
         if (jobRunning.get()) return
         val scheduler = context.getSystemService(JobScheduler::class.java)
         val delay = delayMs.coerceIn(0, TimeUnit.DAYS.toMillis(365))
