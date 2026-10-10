@@ -83,6 +83,7 @@ private fun buildPermissionHealthState(context: Context): PermissionHealthUiStat
                 primaryActionLabel = if (appListEnabled) null else context.getString(R.string.state_ui_to_open_13ec17),
             ),
             localNetworkPermissionHealthItem(context),
+            bluetoothPermissionHealthItem(context),
             PermissionHealthItemUi(
                 id = "calendar", title = "日历访问", summary = "读取日程并创建、修改事件与提醒；未授权时只在已有 Root 授权下使用增强通道。",
                 status = if (io.github.mangi.eta.agent.device.CalendarPermissions.granted(context, true)) PermissionStatusUi.Available else PermissionStatusUi.Missing,

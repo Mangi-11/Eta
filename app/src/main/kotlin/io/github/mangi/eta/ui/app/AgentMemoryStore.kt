@@ -8,6 +8,7 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.memory.AgentMemoryContextBuilder
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
+import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.repository.AgentMemoryRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.model.AgentMemoryUiState
@@ -31,14 +32,16 @@ internal class AgentMemoryStore(
         scope.launch(Dispatchers.IO) {
             runCatching {
                 val snapshot = AgentMemoryRepository.snapshot()
-                val enabled = AgentMemoryRepository.isEnabled()
+                val settings = SettingsDataStore.settings()
                 val contextWindow = RuntimeConfigRepository.currentRuntimeConfig()?.contextWindow
-                Triple(snapshot, enabled, AgentMemoryContextBuilder.coreBudgetChars(contextWindow))
+                Triple(snapshot, settings, AgentMemoryContextBuilder.coreBudgetChars(contextWindow))
             }.fold(
-                onSuccess = { (snapshot, enabled, coreBudget) ->
+                onSuccess = { (snapshot, settings, coreBudget) ->
                     withContext(Dispatchers.Main) {
                         memoryState = AgentMemoryUiState(
-                            enabled = enabled,
+                            enabled = settings.memoryEnabled,
+                            autoMemoryEnabled = settings.autoMemoryEnabled,
+                            autoSkillsEnabled = settings.autoSkillsEnabled,
                             isLoading = false,
                             draft = snapshot.content,
                             savedContent = snapshot.content,
@@ -70,6 +73,27 @@ internal class AgentMemoryStore(
         )
     }
 
+    fun setAutomaticReview(memory: Boolean? = null, skills: Boolean? = null) {
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                SettingsDataStore.updateSettings { current -> current.copy(
+                    autoMemoryEnabled = memory ?: current.autoMemoryEnabled,
+                    autoSkillsEnabled = skills ?: current.autoSkillsEnabled,
+                ) }
+                SettingsDataStore.settings()
+            }.onSuccess { settings ->
+                withContext(Dispatchers.Main) {
+                    memoryState = memoryState.copy(autoMemoryEnabled = settings.autoMemoryEnabled,
+                        autoSkillsEnabled = settings.autoSkillsEnabled, notice = null)
+                }
+            }.onFailure {
+                withContext(Dispatchers.Main) {
+                    memoryState = memoryState.copy(notice = appContext.getString(R.string.state_ui_memory_switch_failed_to_save_83b5d6))
+                }
+            }
+        }
+    }
+
     fun setMemoryEnabled(enabled: Boolean) {
         scope.launch(Dispatchers.IO) {
             runCatching { AgentMemoryRepository.setEnabled(enabled) }
@@ -99,6 +123,9 @@ internal class AgentMemoryStore(
             runCatching { AgentMemoryRepository.replaceAll(target) }
                 .fold(
                     onSuccess = { snapshot ->
+                        io.github.mangi.eta.agent.automation.AgentTaskScheduler.publish(
+                            appContext, "memory_updated", snapshot.revision,
+                        )
                         withContext(Dispatchers.Main) {
                             memoryState = memoryState.copy(
                                 isSaving = false,
@@ -163,4 +190,5 @@ internal class AgentMemoryStore(
     fun dismissMemoryNotice() {
         memoryState = memoryState.copy(notice = null)
     }
+
 }

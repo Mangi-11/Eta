@@ -20,6 +20,7 @@ internal data class ConversationEntity(
     @ColumnInfo(name = "applied_runtime_run_ids_json") val appliedRuntimeRunIdsJson: String = "[]",
     @ColumnInfo(name = "roleplay_json", defaultValue = "''") val roleplayJson: String = "",
     @ColumnInfo(name = "revisions_json", defaultValue = "''") val revisionsJson: String = "",
+    @ColumnInfo(name = "last_model_usage_json", defaultValue = "''") val lastModelUsageJson: String = "",
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
     /** 会话最近使用的本地 Model.id；null 表示跟随默认模型。 */
@@ -34,6 +35,7 @@ internal data class ConversationMetadata(
     @ColumnInfo(name = "applied_runtime_run_ids_json") val appliedRuntimeRunIdsJson: String,
     @ColumnInfo(name = "roleplay_json") val roleplayJson: String = "",
     @ColumnInfo(name = "revisions_json") val revisionsJson: String = "",
+    @ColumnInfo(name = "last_model_usage_json") val lastModelUsageJson: String = "",
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
     @ColumnInfo(name = "model_id") val modelId: String? = null,
@@ -99,6 +101,7 @@ internal data class ConversationMessageEntity(
     @ColumnInfo(name = "output_tokens") val outputTokens: Int? = null,
     @ColumnInfo(name = "reasoning_tokens") val reasoningTokens: Int? = null,
     @ColumnInfo(name = "cached_tokens") val cachedTokens: Int? = null,
+    @ColumnInfo(name = "request_duration_ms") val requestDurationMs: Long? = null,
     @ColumnInfo(name = "elapsed_seconds") val elapsedSeconds: Int? = null,
     @ColumnInfo(name = "tool_name") val toolName: String? = null,
     @ColumnInfo(name = "tool_status") val toolStatus: String? = null,

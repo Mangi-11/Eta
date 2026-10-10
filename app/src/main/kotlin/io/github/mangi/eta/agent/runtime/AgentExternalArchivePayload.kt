@@ -39,6 +39,14 @@ internal data class AgentExternalArchivePayload(
         private const val TYPE = "external_archive"
         private const val VERSION = 1
 
+        fun conversationId(source: String, conversationKey: String): String {
+            val prefix = if (source == AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE) "assistant-" else "archive-"
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+                .digest("$source:$conversationKey".toByteArray(Charsets.UTF_8))
+                .take(12).joinToString("") { "%02x".format(it) }
+            return prefix + digest
+        }
+
         fun from(raw: String): AgentExternalArchivePayload? =
             runCatching {
                 val json = JSONObject(raw)

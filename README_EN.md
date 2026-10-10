@@ -20,6 +20,8 @@ Requires **Android 13 or later**. The app works across phone brands, and core fe
 
 [Download APK](https://github.com/Mangi-11/Eta/releases) · [Getting started](#getting-started) · [Why I built Eta](#why-i-built-eta)
 
+**October 9, 2026 update:** Added sequential batch execution and improved virtual-screen landscape support, recovery, and previews capped at 10 fps with capture on demand. [Update notes and validation (Chinese)](docs/UPDATE_2026-10-09.md).
+
 ## See it in action
 
 | GUI Agent | Breeno with your own model |
@@ -53,6 +55,9 @@ A task can combine these tools: read web sources and then organize files with a 
 - **Personal context:** retrieve notifications, app usage, and location on demand. Dedicated searches for photos, calendar events, SMS messages, recordings, health summaries, and chat images require root; some sources also depend on the ROM and installed apps.
 - **Long-term memory:** store context for future conversations in a local `MEMORY.md`. Core memory is included within a context budget, with the rest retrieved as needed. You can edit, clear, or disable it.
 - **Skills:** load task instructions, reference material, and script resources as needed. Install from public GitHub repositories or import a local ZIP. Installation does not run scripts or grant additional permissions.
+- **Experience learning:** after successful tasks, a separate review can append durable memory and create or update user skills from verified methods. Foreground work takes priority; both learning options can be disabled. See [experience learning](docs/EXPERIENCE_LEARNING.md).
+- **Automation:** ask AI to create time or event rules with local matching, cooldowns, run limits, history, and cancellation. Android background scheduling may delay execution. See [automation](docs/AUTOMATION.md).
+- **Root virtual screen (experimental):** automatically route AI UI tools to a separate display when enabled. Open its interactive viewer from the notification, with touch controls and gesture indicators. An optional fallback setting allows notification requests; only an explicit Allow action authorizes the current task to use the main screen. Requires Android 14+, root, and a user setting; screen-off operation has separate consent and remains unverified. See [virtual screen](docs/VIRTUAL_SCREEN.md).
 - **MCP:** connect remote tools over Streamable HTTP, with optional bearer-token authentication. Enable tools individually to use them alongside local tools.
 
 ### Agent runtime
@@ -170,12 +175,16 @@ These implementation notes are currently in Chinese:
 - [Device support and permissions](docs/ROOTLESS_SUPPORT.md): unrooted and rooted devices, the file workspace, and background execution.
 - [Technical implementation](docs/TECHNICAL.md): system tools, data retrieval, browser, terminal, and system integration.
 - [Agent Runtime](docs/AGENT_RUNTIME.md): the agent loop, providers, steering, transcripts, and result recovery.
+- [Experience learning](docs/EXPERIENCE_LEARNING.md): background review, user skill updates, and permission boundaries.
+- [Automation](docs/AUTOMATION.md): model tools, triggers, rules, and scheduling limits.
+- [Root virtual screen](docs/VIRTUAL_SCREEN.md): the experimental display and notification approval flow.
 - [HyperOS system entry points](docs/HYPEROS_SYSTEM_ENTRY.md): power-button and Circle to Search integration, requirements, and validation coverage.
 - [Native terminal components](docs/TERMINAL_NATIVE.md): PTY and PRoot components, and rebuilding the bundled source.
 
 ## References and acknowledgements
 
 - [Pi Coding Agent](https://github.com/earendil-works/pi): the main reference for Eta's agent runtime, including the agent loop, tool calling, steering, and transcript state management.
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent): design references for background experience review, skill management, and task scheduling.
 - [OmniBot](https://github.com/omnimind-ai/OmniBot): a reference project for AI agents on Android.
 - [libxposed API](https://github.com/libxposed/api): the modern Xposed API.
 - [Miuix](https://github.com/compose-miuix-ui/miuix): the UI component library.

@@ -32,6 +32,14 @@ import kotlinx.serialization.json.Json
  */
 internal object AgentRuntimeWire {
     const val MSG_READ_CONTEXT_RESULT = 15
+    const val MSG_STEER_RUN = 16
+    const val MSG_STEER_RESPONSE = 17
+
+    fun steerBundle(runId: String, text: String): Bundle {
+        require(runId.isNotBlank() && runId.length <= 256)
+        require(text.isNotBlank() && text.length <= 8_000 && '\u0000' !in text)
+        return ackBundle(runId).apply { putString("supplement_text", text) }
+    }
     const val OP_CHAT = "chat"
     const val OP_COMPACT = "compact"
     const val OP_REWRITE_REPLY = "rewrite_reply"
@@ -87,6 +95,7 @@ internal object AgentRuntimeWire {
     private const val SERVICE_CLASS = "io.github.mangi.eta.agent.runtime.AgentRuntimeService"
 
     private const val KEY_TYPE = "type"
+    private const val KEY_EVENT_VIRTUAL_SCREEN = "virtual_screen"
     private const val KEY_RUN_ID = "run_id"
     private const val KEY_PROMPT = "prompt"
     private const val KEY_ASSISTANT_SCREEN_CONTEXT = "assistant_screen_context"
@@ -172,6 +181,13 @@ internal object AgentRuntimeWire {
                     ?.let { AgentUiHandoffPayload.from(it.payload).conversationId }
                     ?.takeIf { it.isNotBlank() } ?: runId
             }
+
+        val virtualScreenOwner: String
+            get() = handoff?.let { entry ->
+                AgentExternalArchivePayload.from(entry.payload)?.let {
+                    AgentExternalArchivePayload.conversationId(entry.source, it.conversationKey)
+                }
+            } ?: effectiveModelSessionId
     }
 
     /**
@@ -222,6 +238,7 @@ internal object AgentRuntimeWire {
         val contextSnapshotRef: String = "",
         val operation: String = OP_CHAT,
         val rewriteTargetMessageId: String? = null,
+        val errorCode: String = "",
     )
 
     data class EntryHandoff(
@@ -540,6 +557,7 @@ internal object AgentRuntimeWire {
             ),
         )
         putString(KEY_ERROR, error?.boundedText(MAX_DRAIN_CONTENT_CHARS))
+        putString("error_code", errorCode)
         putString(
             KEY_TRANSCRIPT_JSON,
             if (compactForDrain) {
@@ -560,6 +578,7 @@ internal object AgentRuntimeWire {
             ok = bundle.getBoolean(KEY_OK),
             content = bundle.getString(KEY_CONTENT).orEmpty(),
             error = bundle.getString(KEY_ERROR),
+            errorCode = bundle.getString("error_code").orEmpty(),
             reasoningContent = bundle.getString(KEY_REASONING_CONTENT).orEmpty(),
             transcript = AgentConversationCodec.decodeTranscript(bundle.getString(KEY_TRANSCRIPT_JSON)),
         )
@@ -621,8 +640,13 @@ internal object AgentRuntimeWire {
         }
     }
 
-    /** 将 [AgentEvent] 打包为可跨进程传递的 [Bundle]。 */
-    fun eventToBundle(event: AgentEvent): Bundle = Bundle().apply {
+    /** 旧 Runtime 未携带执行位置时返回 null。 */
+    fun eventVirtualScreenFromBundle(bundle: Bundle): Boolean? =
+        if (bundle.containsKey(KEY_EVENT_VIRTUAL_SCREEN)) bundle.getBoolean(KEY_EVENT_VIRTUAL_SCREEN) else null
+
+    /** 将 [AgentEvent] 和可选的执行位置打包为可跨进程传递的 [Bundle]。 */
+    fun eventToBundle(event: AgentEvent, virtualScreen: Boolean? = null): Bundle = Bundle().apply {
+        virtualScreen?.let { putBoolean(KEY_EVENT_VIRTUAL_SCREEN, it) }
         when (event) {
             is AgentEvent.RunStarted -> {
                 putString(KEY_TYPE, "run_started")
@@ -654,6 +678,11 @@ internal object AgentRuntimeWire {
                 putInt("max_attempts", event.maxAttempts)
                 putInt("delay_ms", event.delayMs)
                 putString("reason_code", event.reasonCode)
+            }
+
+            is AgentEvent.ModelRequestInterrupted -> {
+                putString(KEY_TYPE, "model_request_interrupted")
+                putInt("round", event.round)
             }
 
             is AgentEvent.ProviderRequestStarted -> {
@@ -810,11 +839,14 @@ internal object AgentRuntimeWire {
             httpCode = bundle.getInt("http_code"),
         )
 
+        "model_request_interrupted" -> AgentEvent.ModelRequestInterrupted(bundle.getInt("round"))
+
         "assistant_block_start" -> AgentEvent.AssistantBlockStart(
             round = bundle.getInt("round"),
             kind = AgentEvent.AssistantBlockKind.valueOf(
                 bundle.getString("kind").orEmpty()
             ),
+
             index = bundle.getInt("index"),
             blockId = bundle.getString("block_id"),
             name = bundle.getString("name"),
@@ -919,8 +951,10 @@ internal object AgentRuntimeWire {
         usage.outputTokens?.let { putInt("usage_output", it) }
         usage.reasoningTokens?.let { putInt("usage_reasoning", it) }
         usage.cachedTokens?.let { putInt("usage_cache", it) }
+        usage.requestDurationMs?.let { putLong("usage_duration_ms", it) }
     }
 
+    @Suppress("DEPRECATION")
     private fun Bundle.getTokenUsage(): AgentTokenUsage =
         AgentTokenUsage(
             contextTokens = optionalInt("usage_context"),
@@ -928,6 +962,7 @@ internal object AgentRuntimeWire {
             outputTokens = optionalInt("usage_output"),
             reasoningTokens = optionalInt("usage_reasoning"),
             cachedTokens = optionalInt("usage_cache"),
+            requestDurationMs = (get("usage_duration_ms") as? Number)?.toLong()?.takeIf { it > 0 },
         )
 
     private fun decodeCustomHeaders(raw: String?): List<CustomHeader> =

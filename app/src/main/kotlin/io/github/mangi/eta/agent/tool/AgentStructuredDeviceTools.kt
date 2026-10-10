@@ -20,6 +20,7 @@ import io.github.mangi.eta.agent.context.IndexedPersonalSearch
 import io.github.mangi.eta.agent.context.PersonalContextQueryService
 import io.github.mangi.eta.agent.context.PersonalSearchTools
 import io.github.mangi.eta.agent.context.RootDmpQueryTransport
+import io.github.mangi.eta.agent.context.VivoPersonalContextQuery
 import io.github.mangi.eta.agent.device.AgentNotificationHistoryService
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
 import io.github.mangi.eta.agent.device.DeviceToolContract
@@ -68,6 +69,9 @@ internal class AgentStructuredDeviceTools(
     fun execute(name: String, args: JSONObject): AgentModelClient.ToolResult? {
         val canonical = PersonalSearchTools.canonical(name)
         return try {
+            if (AgentToolCapabilities.isVivoDevice() && canonical in VivoPersonalContextQuery.tools) {
+                return sensitive(phoneApps.executeVivoPersonal(canonical, args).toString())
+            }
             personalSearch.execute(canonical, args)?.let {
                 return sensitive(it.toString())
             }

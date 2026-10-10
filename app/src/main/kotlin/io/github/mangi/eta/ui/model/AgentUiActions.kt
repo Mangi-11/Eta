@@ -60,6 +60,8 @@ sealed interface AgentSystemEnhanceAction {
 sealed interface AgentMemoryAction {
     data object NavigateBack : AgentMemoryAction
     data class ToggleEnabled(val enabled: Boolean) : AgentMemoryAction
+    data class ToggleAutoMemory(val enabled: Boolean) : AgentMemoryAction
+    data class ToggleAutoSkills(val enabled: Boolean) : AgentMemoryAction
     data class DraftChanged(val content: String) : AgentMemoryAction
     data object Save : AgentMemoryAction
     data object Clear : AgentMemoryAction

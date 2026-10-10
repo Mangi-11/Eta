@@ -33,6 +33,8 @@
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <permission
         android:name="io.github.mangi.eta.permission.CONTROL_ACCESSIBILITY_PROTECTION"
@@ -41,6 +43,7 @@
     <uses-permission android:name="io.github.mangi.eta.permission.CONTROL_ACCESSIBILITY_PROTECTION" />
 
     <queries>
+        <package android:name="com.vivo.ai.copilot" />
         <package android:name="com.google.android.googlequicksearchbox" />
         <intent>
             <action android:name="android.speech.RecognitionService" />
@@ -89,6 +92,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <receiver android:name=".agent.display.MainScreenFallbackReceiver" android:exported="false" />
+        <activity android:name=".agent.display.VirtualScreenViewerActivity" android:exported="false"
+            android:label="@string/virtual_screen_title" android:theme="@style/Theme.Eta"
+            android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".agent.display.VirtualScreenHomeActivity" android:exported="false"
+            android:excludeFromRecents="true" android:resizeableActivity="true"
+            android:taskAffinity="io.github.mangi.eta.virtualscreen"
+            android:theme="@style/Theme.Eta" />
 
         <service
             android:name=".agent.voice.EtaVoiceInteractionService"
@@ -141,6 +152,22 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-initiated interactive terminals, local Linux services and device automation tasks" />
         </service>
+
+        <service android:name=".agent.automation.AgentTaskJobService"
+            android:exported="true" android:permission="android.permission.BIND_JOB_SERVICE" />
+        <service android:name=".agent.automation.AgentTriggerMonitorService"
+            android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-configured event trigger monitoring for saved assistant tasks" />
+        </service>
+        <receiver android:name=".agent.automation.AgentTaskReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".agent.accessibility.AgentAccessibilityService"

@@ -24,7 +24,8 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+// Installer fixtures own their databases; EtaApp's startup recovery must not race fixture cleanup.
+@Config(sdk = [36], application = android.app.Application::class)
 class SkillPackageInstallerTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()

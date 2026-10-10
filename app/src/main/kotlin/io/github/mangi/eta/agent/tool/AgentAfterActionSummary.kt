@@ -1,15 +1,20 @@
 package io.github.mangi.eta.agent.tool
 
+import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService.NodeSnapshot
 import io.github.mangi.eta.agent.device.RootShellDeviceController.ElementObservation
+import io.github.mangi.eta.agent.device.RootShellDeviceController.ElementSource
 import io.github.mangi.eta.agent.device.RootShellDeviceController.UiNode
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
  * 动作后观察的模型投影：先给结论（界面是否变化、是否切换应用或窗口），再给新的节点列表。
- * 变化判定只比较节点的可见语义（文本、描述、类名、view_id、位置），不依赖时间戳或动画帧。
+ * 比较节点语义、位置与控件状态，不依赖时间戳或动画帧。
  */
 internal object AgentAfterActionSummary {
+    fun build(before: NodeSnapshot?, after: NodeSnapshot): JSONObject =
+        build(before?.asElements(), after.asElements())
+
     fun build(before: ElementObservation?, after: ElementObservation): JSONObject {
         val changed = before == null || signature(before.nodes) != signature(after.nodes)
         return JSONObject()
@@ -28,7 +33,20 @@ internal object AgentAfterActionSummary {
     }
 
     private fun signature(nodes: List<UiNode>): List<String> =
-        nodes.map { "${it.className}|${it.viewId}|${it.text}|${it.desc}|${it.bounds.toShortString()}" }
+        nodes.map {
+            "${it.className}|${it.viewId}|${it.text}|${it.desc}|${it.bounds.toShortString()}|" +
+                "${it.checked}|${it.selected}|${it.focused}|${it.enabled}|${it.hint}|" +
+                "${it.clickable}|${it.longClickable}|${it.scrollable}|${it.editable}"
+        }
+
+    private fun NodeSnapshot.asElements() = ElementObservation(
+        id = id, source = ElementSource.ACCESSIBILITY, packageName = packageName, windowId = windowId,
+        nodes = nodes.map { node -> UiNode(
+            node.index, node.text, node.desc, node.className, node.packageName, node.viewId, node.bounds,
+            node.clickable, node.longClickable, node.scrollable, node.focused, node.editable,
+            node.password, node.enabled, node.checked, node.selected, node.hint,
+        ) }, maxNodes = 30, truncated = truncated,
+    )
 
     /** 精简字段：省略默认值为 false 的布尔与包名，降低每步附带观察的 token 开销。 */
     private fun UiNode.compactJson(): JSONObject = JSONObject()

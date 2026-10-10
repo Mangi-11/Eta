@@ -17,6 +17,7 @@ internal data class LocalToolRequirement(
     val accessibility: Boolean = false,
     val systemAccess: ToolSystemAccess = ToolSystemAccess.NONE,
     val colorOs: Boolean = false,
+    val vivoAlternative: Boolean = false,
 )
 
 /** 展示、模型目录与执行边界共同使用的本地工具能力合同。未登记的工具不能发布。 */
@@ -29,7 +30,7 @@ internal object AgentToolRequirements {
         }
         register(
             RootRequirement.NONE,
-            "get_current_context", "search_apps", "launch_app", "open_uri", "browser_use", "web_search", "fetch_url",
+            "batch", "get_current_context", "search_apps", "launch_app", "open_uri", "browser_use", "web_search", "fetch_url",
             "observe_screen", "tap", "tap_area", "tap_element", "long_press",
             "long_press_element", "swipe", "scroll", "scroll_element", "type_text", "input_text",
             "replace_text", "clear_text", "set_clipboard", "get_clipboard", "paste_text",
@@ -38,8 +39,9 @@ internal object AgentToolRequirements {
             "search_notification_history", "recent_app_activity", "app_usage_summary",
             "get_current_location", "get_device_environment", "memory_get", "memory_write",
             "character_memory_get", "character_memory_write",
-            "skills_list", "skills_read", "skills_read_resource", "skills_list_curated",
+            "skills_list", "skills_read", "skills_read_resource", "skills_list_curated", "skills_manage",
             "skills_inspect_github", "skills_install_from_github",
+            "tasks_triggers", "tasks_list", "tasks_create", "tasks_update", "tasks_delete", "tasks_run", "tasks_cancel", "tasks_history",
         )
         register(
             RootRequirement.PARTIAL,
@@ -49,6 +51,7 @@ internal object AgentToolRequirements {
         )
         register(
             RootRequirement.REQUIRED,
+            "virtual_screen",
             "top_memory_apps", "top_storage_apps", "wifi_credentials", "read_sms_code",
             "get_logcat", "set_setting", "set_device_state", "app_state_control",
             "list_alarms", "list_active_timers", "get_health_summary", "search_clipboard_history",
@@ -84,6 +87,9 @@ internal object AgentToolRequirements {
             "search_notes", "search_coloros_recordings", "search_recording_summaries",
             "search_system_memories", "search_saved_places",
         ).forEach { name -> put(name, getValue(name).copy(colorOs = true)) }
+        io.github.mangi.eta.agent.context.VivoPersonalContextQuery.tools.forEach { name ->
+            put(name, getValue(name).copy(vivoAlternative = true))
+        }
         // 系统记忆优先使用 Hook 桥接，框架失联时仍有独立的 Root 快照来源。
         listOf("search_system_memories", "search_saved_places", "search_personal_orders").forEach { name ->
             put(name, getValue(name).copy(lsposedRequirement = LsposedRequirement.OPTIONAL))

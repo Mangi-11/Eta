@@ -18,6 +18,20 @@ import org.junit.Test
 
 class AgentRunMessageProjectorTest {
     @Test
+    fun modelInterjectionRemovesOnlyUncommittedRoundAndPreservesCompletedWorkAndSupplement() {
+        val projector = AgentRunMessageProjector { 1_000L }
+        var messages = projector.appendTextDelta("run", 1, 0, "completed work", emptyList())
+        messages = projector.finalizeTextRound("run", 1, messages)
+        messages = projector.appendReasoningDelta("run", 2, 0, "unfinished thinking", messages)
+        messages = projector.appendTextDelta("run", 2, 0, "unfinished text", messages)
+        messages = messages + UserMessageUi("user-run-supplement-1", "redirect")
+        val after = projector.applyEvent("run", AgentEvent.ModelRequestInterrupted(2), messages)
+        assertEquals(2, after.size)
+        assertEquals("completed work", (after[0] as AgentMessageUi).content)
+        assertEquals("redirect", (after[1] as UserMessageUi).content)
+    }
+
+    @Test
     fun eventsWithoutVisibleChangeReturnSameListSoCallerSkipsTimestamp() {
         val projector = AgentRunMessageProjector { 1_000L }
         val messages = projector.appendTextDelta("run", 1, 0, "回答", emptyList())
@@ -36,9 +50,11 @@ class AgentRunMessageProjectorTest {
         val projector = AgentRunMessageProjector { 1_000L }
         val streaming = projector.appendTextDelta("run", 1, 0, "回答", emptyList())
         val finished = projector.finalizeTextBlock("run", 1, 0, null, streaming)
-        val withUsage = projector.applyEvent("run", AgentEvent.UsageReceived(1, AgentTokenUsage(100, 80, 20, null, null)), finished)
+        val withUsage = projector.applyEvent("run", AgentEvent.UsageReceived(1, AgentTokenUsage(100, 80, 20, null, null, requestDurationMs = 1_250)), finished)
         val message = withUsage.filterIsInstance<AgentMessageUi>().single()
         assertEquals(100, message.usage?.contextTokens)
+        assertEquals(1_250L, message.usage?.requestDurationMs)
+        assertEquals(16.0, message.usage!!.averageTokensPerSecond!!, 0.001)
         assertFalse(message.isStreaming)
     }
 

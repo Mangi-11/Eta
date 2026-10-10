@@ -8,6 +8,11 @@ import org.json.JSONObject
 internal class AgentTraceFormatter {
     fun summarizeArguments(toolCall: AgentModelClient.ToolCall): String =
         when (toolCall.name) {
+            "batch" -> runCatching {
+                val json = JSONObject(toolCall.argumentsJson)
+                val mode = json.optString("mode", "auto")
+                "批量${if (mode == "sequential") "顺序执行" else "查询"} · ${json.getJSONArray("calls").length()} 项"
+            }.getOrDefault("批量执行")
             BROWSER_TOOL_NAME -> summarizeBrowserArguments(toolCall.argumentsJson)
             "web_search" -> "搜索网页"
             "fetch_url" -> summarizeFetchArguments(toolCall.argumentsJson)
@@ -31,6 +36,8 @@ internal class AgentTraceFormatter {
             "get_clipboard" -> "读取剪贴板"
             "search_apps" -> summarizeQueryArguments("搜索应用", toolCall.argumentsJson)
             "launch_app" -> "打开应用"
+            "virtual_screen" -> if (runCatching { JSONObject(toolCall.argumentsJson).optString("action") }.getOrNull() == "restart")
+                "重启虚拟屏应用" else "操作虚拟屏"
             "get_current_context" -> "读取当前上下文"
             "observe_screen" -> summarizeObservationArguments(toolCall.argumentsJson)
             "tap" -> summarizePointArguments("点击屏幕", toolCall.argumentsJson)
@@ -266,6 +273,11 @@ internal class AgentTraceFormatter {
         result: AgentModelClient.ToolResult,
     ): String {
         val json = parseResultJson(result)
+        if (toolName == AgentBatchToolCatalog.NAME && json?.has("results") == true) {
+            val items = json.getJSONArray("results")
+            val succeeded = (0 until items.length()).count { items.optJSONObject(it)?.optBoolean("ok") == true }
+            return "批量执行 · $succeeded/${items.length()} 项成功"
+        }
         if (toolName == "web_search" || toolName == "fetch_url") return summarizeWebResult(toolName, json)
         // 终端 exit_code != 0 时 ok=false 但没有 code 字段，必须走专用分支保留退出码与输出
         if (toolName == "terminal" || toolName == "run_command") {

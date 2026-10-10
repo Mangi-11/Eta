@@ -6,7 +6,14 @@ internal data class AgentTokenUsage(
     val outputTokens: Int? = null,
     val reasoningTokens: Int? = null,
     val cachedTokens: Int? = null,
+    val requestDurationMs: Long? = null,
 ) {
+    fun merge(other: AgentTokenUsage): AgentTokenUsage = AgentTokenUsage(
+        other.contextTokens ?: contextTokens, other.inputTokens ?: inputTokens,
+        other.outputTokens ?: outputTokens, other.reasoningTokens ?: reasoningTokens,
+        other.cachedTokens ?: cachedTokens, other.requestDurationMs ?: requestDurationMs,
+    )
+
     val isEmpty: Boolean
         get() = contextTokens == null &&
             inputTokens == null &&

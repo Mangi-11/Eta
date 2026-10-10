@@ -1,6 +1,8 @@
 package io.github.mangi.eta.agent.model
 
 import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
+import io.github.mangi.eta.agent.runtime.AgentEvent
+import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import org.json.JSONArray
 import org.json.JSONObject
@@ -87,11 +89,36 @@ class AgentModelRetryTest {
         assertFalse(AgentModelFailure.http(503, "secret request text").message.orEmpty().contains("secret"))
     }
 
+    @Test
+    fun averageDurationAndUsageBelongOnlyToTheLatestSuccessfulAttempt() {
+        var now = 0L
+        var attempts = 0
+        val events = mutableListOf<AgentEvent>()
+        val retry = AgentModelRetry(nanoTime = { now }, waitBeforeRetry = { _, _ -> now += 8_000_000_000L })
+        complete(retry, provider { _, emit ->
+            emit(ProviderEvent.RequestStarted)
+            emit(ProviderEvent.Usage(AgentTokenUsage(inputTokens = 120, contextTokens = 120)))
+            if (attempts++ == 0) {
+                now += 5_000_000_000L
+                throw SocketTimeoutException()
+            }
+            now += 2_000_000_000L
+            emit(ProviderEvent.Usage(AgentTokenUsage(outputTokens = 80)))
+            response()
+        }, onEvent = { events += it })
+        val usage = events.filterIsInstance<AgentEvent.UsageReceived>().single()
+        assertEquals(2, usage.round)
+        assertEquals(2000L, usage.usage.requestDurationMs)
+        assertEquals(120, usage.usage.inputTokens)
+        assertEquals(80, usage.usage.outputTokens)
+    }
+
     private fun complete(
         retry: AgentModelRetry,
         provider: AgentProviderClient,
         controller: AgentRunController = AgentRunController(),
         onProviderEvent: (Int, ProviderEvent) -> Unit = { _, _ -> },
+        onEvent: (AgentEvent) -> Unit = {},
     ) = retry.complete(
         initialRound = 1,
         request = ProviderRequest(
@@ -100,7 +127,7 @@ class AgentModelRetryTest {
         ),
         provider = provider,
         controller = controller,
-        onEvent = {},
+        onEvent = onEvent,
         onProviderEvent = onProviderEvent,
         discardAttemptReasoning = {},
     )

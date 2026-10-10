@@ -10,6 +10,7 @@ internal class AgentContextSummarizer(
     private val provider: AgentProviderClient,
     private val controller: AgentRunController,
     private val roleplay: Boolean,
+    private val onUsage: (io.github.mangi.eta.agent.runtime.AgentTokenUsage) -> Unit = {},
 ) {
     fun summarize(history: List<AgentModelClient.ConversationMessage>): String {
         controller.throwIfCancelled()
@@ -23,10 +24,14 @@ internal class AgentContextSummarizer(
                 append("待整理的历史：\n")
                 history.forEach { append(AgentConversationCodec.toJsonObject(it)).append('\n') }
             }))
+        var startedAt = System.nanoTime()
+        var usage: io.github.mangi.eta.agent.runtime.AgentTokenUsage? = null
         val response = provider.complete(
             ProviderRequest(config, messages, JSONArray(), purpose = ProviderRequestPurpose.COMPACTION),
             controller,
         ) { event ->
+            if (event == ProviderEvent.RequestStarted) startedAt = System.nanoTime()
+            if (event is ProviderEvent.Usage) usage = (usage ?: io.github.mangi.eta.agent.runtime.AgentTokenUsage()).merge(event.usage)
             if (event is ProviderEvent.HostedToolStarted ||
                 event is ProviderEvent.BlockStart && event.kind == AssistantBlockKind.TOOL_CALL) {
                 throw invalidSummary()
@@ -39,6 +44,8 @@ internal class AgentContextSummarizer(
             summary.isBlank() || summary == "null" || summary.length > MAX_SUMMARY_CHARS) {
             throw invalidSummary()
         }
+        usage?.let { onUsage(it.copy(contextTokens = null,
+            requestDurationMs = ((System.nanoTime() - startedAt) / 1_000_000).coerceAtLeast(1))) }
         return summary
     }
 

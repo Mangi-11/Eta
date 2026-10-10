@@ -105,6 +105,8 @@ internal object AgentModelClient {
         assistantScreenContext: String = "",
         onContextSnapshot: (AgentContextSnapshot) -> Unit = {},
         onTranscript: (List<ConversationMessage>) -> Unit = {},
+        restrictedToolNames: Set<String>? = null,
+        recoverVirtualUi: ((ToolStop) -> ToolResult)? = null,
         onEvent: (AgentEvent) -> Unit = {}
     ): ModelResponse.Text {
         config.validate()
@@ -118,6 +120,8 @@ internal object AgentModelClient {
             memoryContext,
             rootAvailable = initialCapabilities.rootAvailable,
             roleplayContext = roleplayContext,
+            virtualScreenEnabled = initialCapabilities.virtualScreenEnabled,
+            virtualScreenFallbackEnabled = initialCapabilities.virtualScreenFallbackEnabled,
         )
         if (rewriteReply) {
             messages.put(messages.length() - 1, AgentConversationCodec.userTextMessage(
@@ -133,7 +137,7 @@ internal object AgentModelClient {
         val transcript = JSONArray()
         // 旧 history 中的无效消息可能在组装时被跳过，系统边界不能由 history 条数倒推。
         val systemCount = AgentPromptBuilder.buildSystemMessages(
-            config, skillContext, memoryContext, initialCapabilities.rootAvailable, roleplayContext,
+            config, skillContext, memoryContext, initialCapabilities.rootAvailable, roleplayContext, initialCapabilities.virtualScreenEnabled, initialCapabilities.virtualScreenFallbackEnabled,
         ).length()
         fun toolsFor(capabilities: AgentToolCapabilities): JSONArray {
             if (rewriteReply) return JSONArray()
@@ -153,7 +157,16 @@ internal object AgentModelClient {
             for (index in 0 until additionalTools.length()) {
                 tools.put(additionalTools.opt(index))
             }
-            return tools
+            val filtered = if (restrictedToolNames == null) tools else JSONArray().also { filtered ->
+                for (index in 0 until tools.length()) {
+                    val schema = tools.getJSONObject(index)
+                    if (schema.optJSONObject("function")?.optString("name") in restrictedToolNames) filtered.put(schema)
+                }
+            }
+            return AgentBatchToolCatalog.project(
+                filtered,
+                enabled = restrictedToolNames == null || AgentBatchToolCatalog.NAME in restrictedToolNames,
+            )
         }
         val tools = toolsFor(initialCapabilities)
         onEvent(
@@ -165,6 +178,8 @@ internal object AgentModelClient {
             )
         )
         var promptRootAvailable = initialCapabilities.rootAvailable
+        var promptVirtualScreenEnabled = initialCapabilities.virtualScreenEnabled
+        var promptVirtualScreenFallbackEnabled = initialCapabilities.virtualScreenFallbackEnabled
         val loop = AgentLoop(
             transcript = transcript,
             systemCount = systemCount,
@@ -176,23 +191,31 @@ internal object AgentModelClient {
             messages = messages,
             tools = tools,
             provider = provider,
-            toolExecutor = toolExecutor,
+            toolExecutor = if (restrictedToolNames == null) toolExecutor else ToolExecutor { call ->
+                if (call.name in restrictedToolNames) toolExecutor.execute(call)
+                else ToolResult(JSONObject().put("ok", false).put("code", "REVIEW_TOOL_DENIED")
+                    .put("message", "此工具不属于自动复盘能力").toString())
+            },
             runController = runController,
             traceFormatter = traceFormatter,
             onEvent = onEvent,
             purpose = if (rewriteReply) ProviderRequestPurpose.REPLY_REWRITE else ProviderRequestPurpose.CHAT,
             roleplayContext = roleplayContext,
             initialSupplementIndex = initialSupplementIndex,
+            recoverVirtualUi = recoverVirtualUi.takeIf { !rewriteReply && restrictedToolNames == null },
             toolsForRound = {
                 val capabilities = capabilitiesProvider()
-                if (capabilities.rootAvailable != promptRootAvailable) {
+                if (capabilities.rootAvailable != promptRootAvailable || capabilities.virtualScreenEnabled != promptVirtualScreenEnabled ||
+                    capabilities.virtualScreenFallbackEnabled != promptVirtualScreenFallbackEnabled) {
                     val systemMessages = AgentPromptBuilder.buildSystemMessages(
-                        config, skillContext, memoryContext, capabilities.rootAvailable, roleplayContext,
+                        config, skillContext, memoryContext, capabilities.rootAvailable, roleplayContext, capabilities.virtualScreenEnabled, capabilities.virtualScreenFallbackEnabled,
                     )
                     for (index in 0 until systemMessages.length()) {
                         messages.put(index, systemMessages.getJSONObject(index))
                     }
                     promptRootAvailable = capabilities.rootAvailable
+                    promptVirtualScreenEnabled = capabilities.virtualScreenEnabled
+                    promptVirtualScreenFallbackEnabled = capabilities.virtualScreenFallbackEnabled
                 }
                 toolsFor(capabilities)
             },
@@ -204,11 +227,7 @@ internal object AgentModelClient {
                 cause = throwable,
                 contextSnapshot = if (rewriteReply) null else loop.contextSnapshot(),
                 reasoningContent = loop.reasoningSnapshot(),
-                transcript = AgentToolBatchRecovery.completeInterrupted(AgentConversationCodec.transcript(
-                    transcript,
-                    0,
-                    loop.sensitiveToolCallIdsSnapshot(),
-                )),
+                transcript = AgentToolBatchRecovery.completeInterrupted(loop.transcriptSnapshot()),
             )
         }
         return ModelResponse.Text(
@@ -326,7 +345,16 @@ internal object AgentModelClient {
          * 最终 assistant 自己组织的答复不受此标记影响。
          */
         val sensitive: Boolean = false,
+        /** Trusted executor control, never inferred from model-visible JSON. */
+        val stop: ToolStop? = null,
+        /** Set only by the loop when a call was rejected before invoking its executor. */
+        val executionSkipped: Boolean = false,
     )
+
+    data class ToolStop(val code: String, val message: String) {
+        val isVirtualUiPause: Boolean
+            get() = code in setOf("UI_NO_PROGRESS", "UI_APP_UNRESPONSIVE", "UI_INPUT_TIMEOUT")
+    }
 
     /** 图片引用：入口侧可为本地 URI/路径，进入模型协议前必须解析为远程 URL 或 data URL。 */
     data class ModelImage(
@@ -357,3 +385,6 @@ internal class AgentModelExecutionException(
     val transcript: List<AgentModelClient.ConversationMessage>,
     val contextSnapshot: AgentContextSnapshot? = null,
 ) : RuntimeException(cause.message ?: cause.javaClass.simpleName, cause)
+
+internal class AgentUiExecutionPausedException(val stop: AgentModelClient.ToolStop) :
+    IllegalStateException(stop.message)

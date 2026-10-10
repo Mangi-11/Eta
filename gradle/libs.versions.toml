@@ -34,6 +34,7 @@ libxposed-api = { group = "io.github.libxposed", name = "api", version.ref = "li
 libxposed-service = { group = "io.github.libxposed", name = "service", version.ref = "libxposedService" }
 dexkit = { group = "org.luckypray", name = "dexkit", version.ref = "dexkit" }
 miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui-android", version.ref = "miuix" }
+miuix-icons = { group = "top.yukonga.miuix.kmp", name = "miuix-icons-android", version.ref = "miuix" }
 miuix-blur = { group = "top.yukonga.miuix.kmp", name = "miuix-blur-android", version.ref = "miuix" }
 miuix-nav = { group = "top.yukonga.miuix.kmp", name = "miuix-nav-android", version.ref = "miuix" }
 miuix-preference = { group = "top.yukonga.miuix.kmp", name = "miuix-preference-android", version.ref = "miuix" }

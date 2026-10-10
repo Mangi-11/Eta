@@ -93,6 +93,14 @@ adb shell settings delete global eta_app_signer_sha256
 
 消息处理、文本入口、聊天派发、当前房间、Agent、快速模式和历史序列化等目标按语义定位；历史读取、写入及指令派发按唯一签名定位。快速模式与深度思考保持取反关系，不把其他布尔状态当作思考开关。交付结果所需接口不完整时，不认领请求，避免请求被接管后无法回写小布。
 
+## vivo 小 V
+
+模块允许按系统选择推荐作用域，vivo 此功能只需勾选 `com.vivo.ai.copilot`。适配器仅在该包主进程加载，并在 `CopilotApp.onCreate` 完成后校验 versionCode `68503`（蓝心小 V `6.8.5.3`）。安装期完整解析 `CopilotSpeechGptLinker.sendChat(MessageParams)`、取消入口及内部事件协议；缺少目标或版本不匹配时保留原生行为。
+
+仅认领 `main_type=data`、`subs_type=ask` 的普通文字请求，拒绝图片与文件，使用独立的 `VIVO_CUSTOM_MODEL` / `VIVO_REQUIRE_PREFIX` 配置。默认要求 `/agent` 前缀。完整回答通道与有界后台队列就绪后才跳过原方法；认领后错误不再回退提交，避免重复请求。
+
+通过 `vt2.a` 的 `ICopilotEventCenter.post(ut2)` 派发 `yd` 状态 1/2/3/5，并保留原请求、trace ID、request ID 和 sid。结果 JSON 使用原生 `talk` 卡片与终态 `is_last`，在主线程写回最终回答；只有成功派发结果后才确认 Runtime outbox。新请求和 GPT/GPTONLY 取消动作中断旧 Runtime。最近六轮已完成的 Eta 对话按 sid 在内存中隔离，任务使用独立 `vivo` source 归档，不查询原生聊天数据库。实时语音通话、图片、文件、流式卡片和 TTS 尚未适配，详见 [vivo 小 V](VIVO_XIAOV.md)。
+
 ## 小布记忆
 
 ColorOS 系统记忆存在 `com.oplus.aimemory` 的 `ai_memory` 数据库中。Eta 只在小布记忆默认进程保留模块生命周期，Hook 其 `DataShareProvider.call(String, String, Bundle)` 安装内部查询桥。Runtime 通过 Root 以固定 method 调用该 Provider，Hook 在拥有数据库权限的目标进程内执行固定只读查询。非 Eta method 会原样进入小布记忆自身逻辑；内部 method 只接受 UID 0，校验后以宿主身份查询，不向模型暴露任意 URI、表名或 SQL。
@@ -169,6 +177,7 @@ Runtime 提示要求模型在用户目标会明显受益于本机上下文时主
 
 - 标准 Android Provider：相册图片、音频、共享文件、日历、通讯录、通话记录、短信和下载记录。
 - ColorOS 数据源：通过固定 Provider 读取便签正文、待办、普通录音、通话录音与录音摘要；系统记忆优先由小布记忆进程内的只读 Hook 桥查询，再在桥不可用时回退到包含 SQLite 边车文件的 Root 临时快照。两条路径共用固定查询引擎，可检索记忆正文及其账单、日程、取件码、快递、地点和附件。
+- vivo 数据源：`PhoneCommandMain` 的 `vivo_personal` 后端通过 Root Provider 桥读取原子笔记与待办；固定字段与保护条件，输出 live 数据和 `eta-vivo:` 只读引用。读取详情时重新检查保护状态；接口缺列时关闭该来源。系统记忆及录音摘要仍未适配，详见 [vivo 个人上下文](VIVO_PERSONAL_CONTEXT.md)。
 - 个人上下文：位置按需读取最近系统位置；应用活动与使用时长依赖用户授予的使用情况访问权；闹钟、计时器、输入法剪贴板历史和 Health Connect 聚合值通过固定数据库只读快照查询。健康工具只返回指定时间窗口的汇总，不返回原始测量序列。
 - 通知历史：系统自身没有可用历史时不伪造旧记录。用户授予通知使用权后，Eta 从授权时点开始在独立本机数据库中保存标题、正文、来源包和时间，保留 7 天且最多 1000 条；查询结果仍按敏感工具规则从持久会话移除。
 - 个人订单：优先检索系统记忆已经识别的外卖、购物、快递、票券和出行信息。第三方应用导出的进程通信 Provider 不等于订单查询合同，Eta 不依赖其易变私有订单库。

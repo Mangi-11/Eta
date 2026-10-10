@@ -19,6 +19,8 @@ internal class AgentRuntimeSession(
     resultSink: ((AgentRuntimeWire.RunResult) -> Unit)? = null,
     private val operation: String = AgentRuntimeWire.OP_CHAT,
 ) {
+    val virtualUiRouted = java.util.concurrent.atomic.AtomicBoolean(false)
+    val mainScreenFallbackApproved = java.util.concurrent.atomic.AtomicBoolean(false)
     private enum class State {
         RUNNING,
         COMMITTING,

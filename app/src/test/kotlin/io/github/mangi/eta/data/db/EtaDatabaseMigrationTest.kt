@@ -21,7 +21,84 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class EtaDatabaseMigrationTest {
     @Test
-    fun migration6To22PreservesDataAndMovesCompleteConversationContext() {
+    fun upstream22MigrationPreservesModelBindingAndAddsForkTables() = verifyForkMergeMigration(upstream = true)
+
+    @Test
+    fun fork25MigrationPreservesUsageAndErrorsAndAddsModelBinding() = verifyForkMergeMigration(upstream = false)
+
+    @Test
+    fun contribution25MigrationPreservesModelTasksAndUsageWhileAddingRuntimeErrors() =
+        verifyForkMergeMigration(upstream = false, contribution = true)
+
+    private fun verifyForkMergeMigration(upstream: Boolean, contribution: Boolean = false) {
+        val context = RuntimeEnvironment.getApplication() as Context
+        val name = "merge-migration-${UUID.randomUUID()}.db"
+        createVersion6Database(context, name)
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context).name(name).callback(
+                object : SupportSQLiteOpenHelper.Callback(6) {
+                    override fun onCreate(db: SupportSQLiteDatabase) = error("Existing database expected")
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+                },
+            ).build(),
+        )
+        try {
+            val db = helper.writableDatabase
+            listOf(
+                EtaDatabase.MIGRATION_6_7, EtaDatabase.MIGRATION_7_8, EtaDatabase.MIGRATION_8_9,
+                EtaDatabase.MIGRATION_9_10, EtaDatabase.MIGRATION_10_11, EtaDatabase.MIGRATION_11_12,
+                EtaDatabase.MIGRATION_12_13, EtaDatabase.MIGRATION_13_14, EtaDatabase.MIGRATION_14_15,
+                EtaDatabase.MIGRATION_15_16, EtaDatabase.MIGRATION_16_17, EtaDatabase.MIGRATION_17_18,
+                EtaDatabase.MIGRATION_18_19, EtaDatabase.MIGRATION_19_20, EtaDatabase.MIGRATION_20_21,
+            ).forEach { it.migrate(db) }
+            if (upstream) {
+                db.execSQL("ALTER TABLE conversations ADD COLUMN model_id TEXT")
+                db.execSQL("UPDATE conversations SET model_id='kept-model' WHERE id='conv-1'")
+                db.version = 22
+            } else {
+                listOf(EtaDatabase.MIGRATION_21_22, EtaDatabase.MIGRATION_22_23,
+                    EtaDatabase.MIGRATION_23_24, EtaDatabase.MIGRATION_24_25).forEach { it.migrate(db) }
+                db.execSQL("UPDATE conversations SET last_model_usage_json='{\"inputTokens\":42}' WHERE id='conv-1'")
+                db.execSQL("UPDATE runtime_results SET error_code='UI_EXECUTION_PAUSED'")
+                db.execSQL("INSERT INTO agent_tasks (id,name,prompt,triggerJson,enabled,cooldownSeconds," +
+                    "maxRuns,runCount,lastStatus,createdAt,updatedAt) VALUES " +
+                    "('kept-task','Retained task','Summarize','{}',0,900,10,2,'completed',1,2)")
+                if (contribution) {
+                    db.execSQL("ALTER TABLE conversations ADD COLUMN model_id TEXT")
+                    db.execSQL("UPDATE conversations SET model_id='kept-model' WHERE id='conv-1'")
+                    db.execSQL("ALTER TABLE runtime_results DROP COLUMN error_code")
+                    db.execSQL("ALTER TABLE runtime_archive_runs DROP COLUMN error_code")
+                }
+                db.version = 25
+            }
+        } finally {
+            helper.close()
+        }
+        val database = Room.databaseBuilder(context, EtaDatabase::class.java, name)
+            .addMigrations(EtaDatabase.MIGRATION_22_23, EtaDatabase.MIGRATION_23_24,
+                EtaDatabase.MIGRATION_24_25, EtaDatabase.MIGRATION_25_26, EtaDatabase.MIGRATION_26_27).build()
+        try {
+            runBlocking(Dispatchers.IO) {
+                val conversation = database.conversationDao().conversations().first { it.id == "conv-1" }
+                assertEquals("保留的对话", conversation.title)
+                assertEquals(if (upstream || contribution) "kept-model" else null, conversation.modelId)
+                assertEquals(if (upstream) "" else "{\"inputTokens\":42}", conversation.lastModelUsageJson)
+                assertEquals(if (upstream || contribution) "" else "UI_EXECUTION_PAUSED",
+                    database.runtimeRunDao().runtimeResults().single().errorCode)
+                val tasks = database.agentTaskDao().tasks()
+                assertEquals(if (upstream) emptyList<String>() else listOf("kept-task"), tasks.map { it.id })
+                if (!upstream) assertEquals(2, tasks.single().runCount)
+                assertEquals("", database.runtimeRunDao().archivedRuns().single().run.errorCode)
+                assertEquals("旧消息", database.conversationDao().messages().single().content)
+            }
+        } finally {
+            database.close()
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test
+    fun migration6To27PreservesDataAndMovesCompleteConversationContext() {
         val context = RuntimeEnvironment.getApplication() as Context
         val databaseName = "migration-${UUID.randomUUID()}.db"
         createVersion6Database(context, databaseName)
@@ -55,6 +132,11 @@ class EtaDatabaseMigrationTest {
                 EtaDatabase.MIGRATION_19_20,
                 EtaDatabase.MIGRATION_20_21,
                 EtaDatabase.MIGRATION_21_22,
+                EtaDatabase.MIGRATION_22_23,
+                EtaDatabase.MIGRATION_23_24,
+                EtaDatabase.MIGRATION_24_25,
+                EtaDatabase.MIGRATION_25_26,
+                EtaDatabase.MIGRATION_26_27,
             )
             .build()
         try {
@@ -63,6 +145,7 @@ class EtaDatabaseMigrationTest {
             }
             assertEquals("", result.contextSnapshotJson)
             assertEquals("chat", result.operation)
+            assertEquals("", result.errorCode)
             val archive = runBlocking(Dispatchers.IO) {
                 database.runtimeRunDao().archivedRuns().single().run
             }
@@ -97,6 +180,7 @@ class EtaDatabaseMigrationTest {
             assertEquals("保留的结果", result.content)
             assertEquals("[]", result.transcriptJson)
             assertEquals("保留的归档", archive.content)
+            assertEquals("", archive.errorCode)
             assertEquals("[]", archive.transcriptJson)
             assertEquals("[]", archive.userImagePreviewsJson)
             assertEquals(

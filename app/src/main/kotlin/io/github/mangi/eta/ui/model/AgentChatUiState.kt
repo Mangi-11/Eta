@@ -25,6 +25,7 @@ internal data class AgentChatUiState(
     val messageEdit: MessageEditUiState? = null,
     val roleplay: RoleplayBinding? = null,
     val roleplayMessages: RoleplayMessageState = RoleplayMessageState(),
+    val lastModelUsage: TokenUsageUi? = null,
     /** 会话最近一次发送使用的本地 Model.id；null 表示尚未绑定，跟随默认模型。 */
     val modelId: String? = null,
 ) {
@@ -62,6 +63,7 @@ enum class SystemNoticeCode(val wireValue: String) {
     Stopped("stopped"),
     EmptyResult("empty_result"),
     RuntimeFailed("runtime_failed"),
+    UiPaused("ui_paused"),
     ModelRetry("model_retry"),
     ContextCompaction("context_compaction"),
     Interrupted("interrupted");
@@ -85,13 +87,21 @@ data class SystemNoticeMessageUi(
 ) : AgentChatMessageUi
 
 @Immutable
+@kotlinx.serialization.Serializable
 data class TokenUsageUi(
     val contextTokens: Int? = null,
     val inputTokens: Int? = null,
     val outputTokens: Int? = null,
     val reasoningTokens: Int? = null,
     val cachedTokens: Int? = null,
+    val requestDurationMs: Long? = null,
 ) {
+    /** Request average includes time to the first token, but excludes tools and earlier retries. */
+    val averageTokensPerSecond: Double?
+        get() = outputTokens?.takeIf { it >= 0 }?.let { tokens ->
+            requestDurationMs?.takeIf { it > 0 }?.let { tokens * 1000.0 / it }
+        }
+
     val isEmpty: Boolean
         get() = contextTokens == null &&
             inputTokens == null &&

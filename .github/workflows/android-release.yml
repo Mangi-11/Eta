@@ -59,6 +59,34 @@ jobs:
       - name: 配置构建环境
         uses: ./.github/actions/setup-build
 
+      - name: 构建 Debug APK
+        run: |
+          metadata_arg=()
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            metadata_arg=("-Peta.buildMetadata=${GITHUB_SHA::7}")
+          fi
+          ./gradlew --no-daemon --no-configuration-cache "${metadata_arg[@]}" \
+            :app:assembleDebug
+
+      - name: 验证并整理 Debug APK
+        id: debug-apk
+        run: |
+          shopt -s nullglob
+          debug_apks=(app/build/outputs/apk/debug/Eta-v*.apk)
+          if [[ ${#debug_apks[@]} -ne 1 ]]; then
+            echo "::error::Debug APK 数量异常（${#debug_apks[@]}）。"
+            exit 1
+          fi
+          echo "debug_path=${debug_apks[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: 上传 Debug APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          path: ${{ steps.debug-apk.outputs.debug_path }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+
       - name: 还原发布证书
         env:
           ETA_RELEASE_KEYSTORE_BASE64: ${{ secrets.ETA_RELEASE_KEYSTORE_BASE64 }}
@@ -77,7 +105,7 @@ jobs:
             | base64 --decode \
             > "$RUNNER_TEMP/eta-release.jks"
 
-      - name: 构建 Debug 与 Release APK
+      - name: 构建 Release APK
         env:
           ETA_RELEASE_STORE_FILE: ${{ runner.temp }}/eta-release.jks
           ETA_RELEASE_STORE_PASSWORD: ${{ secrets.ETA_RELEASE_STORE_PASSWORD }}
@@ -90,9 +118,9 @@ jobs:
             metadata_arg=("-Peta.buildMetadata=${GITHUB_SHA::7}")
           fi
           ./gradlew --no-daemon --no-configuration-cache "${metadata_arg[@]}" \
-            :app:assembleDebug :app:assembleRelease
+            :app:assembleRelease
 
-      - name: 验证并整理 APK
+      - name: 验证并整理 Release APK
         id: apk
         run: |
           # 文件名由 Gradle 按 versionName 生成，例如 Eta-vX.Y.Z.apk、Eta-vX.Y.Z-debug+<sha>.apk
@@ -129,14 +157,6 @@ jobs:
           echo "debug_path=${debug_apks[0]}" >> "$GITHUB_OUTPUT"
           echo "release_path=${release_apks[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: 上传 Debug APK
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          path: ${{ steps.apk.outputs.debug_path }}
-          archive: false
-          if-no-files-found: error
-          retention-days: 14
-
       - name: 上传 Release APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -144,6 +164,10 @@ jobs:
           archive: false
           if-no-files-found: error
           retention-days: 14
+
+      - name: 清理发布证书
+        if: always()
+        run: rm -f "$RUNNER_TEMP/eta-release.jks"
 
   # 构建 job 持有签名 Secrets，写 Release 的权限单独放在这里，且只在发版标签上运行
   draft-release:
@@ -170,10 +194,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           APK_PATH: ${{ runner.temp }}/release/Eta-${{ github.ref_name }}.apk
-        run: >-
-          gh release create "$GITHUB_REF_NAME" "$APK_PATH"
-          --repo "$GITHUB_REPOSITORY"
-          --draft
-          --verify-tag
-          --title "$GITHUB_REF_NAME"
-          --generate-notes
+        run: |
+          release_args=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            release_args=(--prerelease --latest=false)
+          fi
+          gh release create "$GITHUB_REF_NAME" "$APK_PATH" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes \
+            "${release_args[@]}"

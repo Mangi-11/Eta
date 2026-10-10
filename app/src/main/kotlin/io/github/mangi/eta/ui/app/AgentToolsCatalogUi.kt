@@ -46,6 +46,7 @@ internal fun buildToolsState(context: Context): AgentToolsUiState =
                 title = context.getString(R.string.state_applications_and_systems_9624e6),
                 tools = listOf(
                     ToolItemUi("search_apps", context.getString(R.string.tool_ui_search_apps_897fdf), context.getString(R.string.tool_ui_query_installed_applications_by_name_or_package__32b004)),
+                    ToolItemUi("batch", context.getString(R.string.tool_batch), context.getString(R.string.tool_batch_description)),
                     ToolItemUi("get_current_context", context.getString(R.string.tool_ui_time_and_location_693893), context.getString(R.string.tool_ui_read_system_time_and_recent_location_b9f4ae)),
                     ToolItemUi("launch_app", context.getString(R.string.tool_ui_open_app_7c65e7), context.getString(R.string.tool_ui_start_the_specified_package_name_or_application__beabff)),
                     ToolItemUi("open_uri", context.getString(R.string.tool_ui_open_with_app_32c24e), context.getString(R.string.tool_ui_explicitly_hand_over_links_or_deep_links_to_exte_35ff26)),

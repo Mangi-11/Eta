@@ -12,6 +12,19 @@ class AgentNotificationHistoryService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         record(sbn)
+        publishTrigger("notification_posted", sbn)
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        publishTrigger("notification_removed", sbn)
+    }
+
+    private fun publishTrigger(type: String, sbn: StatusBarNotification) {
+        if (sbn.packageName == packageName) return
+        val extras = sbn.notification.extras
+        io.github.mangi.eta.agent.automation.AgentTaskScheduler.publish(this, type, "${sbn.key}:${sbn.postTime}", org.json.JSONObject()
+            .put("packageName", sbn.packageName).put("title", extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.take(1000).orEmpty())
+            .put("text", extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.take(2000).orEmpty()))
     }
 
     override fun onListenerConnected() {

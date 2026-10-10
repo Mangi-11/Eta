@@ -18,7 +18,7 @@ internal object AgentToolCatalog {
         capabilities: AgentToolCapabilities = AgentToolCapabilities(rootAvailable = true),
         localWebSearch: Boolean = true,
     ): JSONArray =
-        capabilities.project(JSONArray().also { tools ->
+        AgentBatchToolCatalog.project(capabilities.project(JSONArray().also { tools ->
             AgentContextAppToolCatalog.appendTo(tools)
             AgentGestureToolCatalog.appendTo(tools)
             AgentTextSystemToolCatalog.appendTo(tools)
@@ -36,12 +36,15 @@ internal object AgentToolCatalog {
                 tools,
                 githubDiscovery = skillGitHubDiscovery,
                 githubInstall = skillGitHubInstall,
+                authoring = memoryWritable,
             )
             if (memoryTools) AgentMemoryToolCatalog.appendTo(tools, writable = memoryWritable)
+            if (memoryWritable) AgentTaskToolCatalog.appendTo(tools)
+            if (deviceDirectTools) AgentVirtualScreenToolCatalog.appendTo(tools)
             if (terminalTools) {
                 AgentFileVisionToolCatalog.appendTo(tools)
                 AgentTerminalToolCatalog.appendTo(tools)
                 AgentFileToolCatalog.appendTo(tools)
             }
-        })
+        }))
 }

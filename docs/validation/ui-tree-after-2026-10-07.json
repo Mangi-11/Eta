@@ -1,0 +1,797 @@
+{
+  "results": [
+    {
+      "package": "io.github.mangi.eta.test",
+      "display_id": 80,
+      "launch_ok": true,
+      "launch_code": "",
+      "samples": [
+        {
+          "eta_service_connected": false,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 0,
+          "automation_roots": [],
+          "elapsed_ms": 5,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 0,
+          "tool_disabled": false
+        },
+        {
+          "eta_service_connected": false,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 72,
+              "labeled_nodes": 64,
+              "action_nodes": 3,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 564,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": false,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 72,
+              "labeled_nodes": 64,
+              "action_nodes": 3,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 1505,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": false,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 72,
+              "labeled_nodes": 64,
+              "action_nodes": 3,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 4007,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 0,
+          "tool_disabled": false
+        }
+      ]
+    },
+    {
+      "package": "com.android.settings",
+      "version": "16.0",
+      "display_id": 81,
+      "launch_ok": false,
+      "launch_code": "APP_RESTART_UNSUPPORTED"
+    },
+    {
+      "package": "com.android.bbkcalculator",
+      "version": "16.0.1.2",
+      "display_id": 82,
+      "launch_ok": true,
+      "launch_code": "",
+      "samples": [
+        {
+          "eta_service_connected": true,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 0,
+          "automation_roots": [],
+          "elapsed_ms": 2,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 0,
+          "tool_disabled": false
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 0,
+          "automation_roots": [],
+          "elapsed_ms": 501,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 2,
+          "eta_root": true,
+          "eta_nodes": 33,
+          "eta_package_matches": true,
+          "automation_windows": 2,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": false,
+              "nodes": 10,
+              "labeled_nodes": 2,
+              "action_nodes": 1,
+              "truncated": false
+            },
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 53,
+              "labeled_nodes": 32,
+              "action_nodes": 7,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 1634,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 2,
+          "eta_root": true,
+          "eta_nodes": 33,
+          "eta_package_matches": true,
+          "automation_windows": 2,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": false,
+              "nodes": 10,
+              "labeled_nodes": 2,
+              "action_nodes": 1,
+              "truncated": false
+            },
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 53,
+              "labeled_nodes": 32,
+              "action_nodes": 7,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 4032,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 33,
+          "tool_disabled": false
+        }
+      ]
+    },
+    {
+      "package": "com.tencent.mm",
+      "version": "8.0.78",
+      "display_id": 83,
+      "launch_ok": true,
+      "launch_code": "",
+      "samples": [
+        {
+          "eta_service_connected": true,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 0,
+          "automation_roots": [],
+          "elapsed_ms": 1,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 0,
+          "tool_disabled": false
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 0,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 3,
+              "labeled_nodes": 0,
+              "action_nodes": 0,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 506,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 0,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 1,
+              "labeled_nodes": 0,
+              "action_nodes": 0,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 1719,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 0,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 1,
+              "labeled_nodes": 0,
+              "action_nodes": 0,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 4010,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 0,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 1,
+              "labeled_nodes": 0,
+              "action_nodes": 0,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 10013,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 0,
+          "tool_disabled": true
+        }
+      ]
+    },
+    {
+      "package": "com.tencent.mobileqq",
+      "version": "9.3.70",
+      "display_id": 84,
+      "launch_ok": true,
+      "launch_code": "",
+      "samples": [
+        {
+          "eta_service_connected": true,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 0,
+          "automation_roots": [],
+          "elapsed_ms": 3,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 0,
+          "tool_disabled": false
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 42,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 240,
+              "labeled_nodes": 52,
+              "action_nodes": 70,
+              "truncated": true
+            }
+          ],
+          "elapsed_ms": 704,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 54,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 240,
+              "labeled_nodes": 52,
+              "action_nodes": 71,
+              "truncated": true
+            }
+          ],
+          "elapsed_ms": 1635,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 54,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 240,
+              "labeled_nodes": 52,
+              "action_nodes": 71,
+              "truncated": true
+            }
+          ],
+          "elapsed_ms": 4013,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 54,
+          "tool_disabled": false
+        }
+      ]
+    },
+    {
+      "package": "mark.via",
+      "version": "7.3.4",
+      "display_id": 85,
+      "launch_ok": true,
+      "launch_code": "",
+      "samples": [
+        {
+          "eta_service_connected": true,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 0,
+          "automation_roots": [],
+          "elapsed_ms": 4,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 0,
+          "tool_disabled": false
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 9,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 25,
+              "labeled_nodes": 8,
+              "action_nodes": 9,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 532,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 12,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 34,
+              "labeled_nodes": 12,
+              "action_nodes": 10,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 1519,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 12,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 34,
+              "labeled_nodes": 12,
+              "action_nodes": 10,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 4004,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 12,
+          "tool_disabled": false
+        }
+      ]
+    },
+    {
+      "package": "ru.zdevs.zarchiver.pro",
+      "version": "1.0.9",
+      "display_id": 86,
+      "launch_ok": true,
+      "launch_code": "",
+      "samples": [
+        {
+          "eta_service_connected": true,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 0,
+          "automation_roots": [],
+          "elapsed_ms": 1,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 0,
+          "tool_disabled": false
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 78,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 95,
+              "labeled_nodes": 48,
+              "action_nodes": 35,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 651,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 78,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 95,
+              "labeled_nodes": 48,
+              "action_nodes": 35,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 1514,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 78,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 95,
+              "labeled_nodes": 48,
+              "action_nodes": 35,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 4030,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 60,
+          "tool_disabled": false
+        }
+      ]
+    },
+    {
+      "package": "com.coolapk.market",
+      "version": "16.6.2",
+      "display_id": 87,
+      "launch_ok": true,
+      "launch_code": "",
+      "samples": [
+        {
+          "eta_service_connected": true,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 0,
+          "automation_roots": [],
+          "elapsed_ms": 1,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 0,
+          "tool_disabled": false
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 8,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 138,
+              "labeled_nodes": 26,
+              "action_nodes": 32,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 583,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 8,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 138,
+              "labeled_nodes": 26,
+              "action_nodes": 32,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 1527,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 8,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 240,
+              "labeled_nodes": 48,
+              "action_nodes": 64,
+              "truncated": true
+            }
+          ],
+          "elapsed_ms": 4115,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 8,
+          "tool_disabled": false
+        }
+      ]
+    },
+    {
+      "package": "com.moonshot.kimichat",
+      "version": "3.1.3",
+      "display_id": 88,
+      "launch_ok": true,
+      "launch_code": "",
+      "samples": [
+        {
+          "eta_service_connected": true,
+          "eta_windows": 0,
+          "eta_root": false,
+          "eta_nodes": 0,
+          "eta_package_matches": false,
+          "automation_windows": 0,
+          "automation_roots": [],
+          "elapsed_ms": 9,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 0,
+          "tool_disabled": false
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 23,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 52,
+              "labeled_nodes": 13,
+              "action_nodes": 14,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 626,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 23,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 52,
+              "labeled_nodes": 13,
+              "action_nodes": 14,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 1690,
+          "focus_matches": true
+        },
+        {
+          "eta_service_connected": true,
+          "eta_windows": 1,
+          "eta_root": true,
+          "eta_nodes": 23,
+          "eta_package_matches": true,
+          "automation_windows": 1,
+          "automation_roots": [
+            {
+              "root": true,
+              "package_matches": true,
+              "focused": true,
+              "nodes": 52,
+              "labeled_nodes": 13,
+              "action_nodes": 14,
+              "truncated": false
+            }
+          ],
+          "elapsed_ms": 4033,
+          "focus_matches": true,
+          "tool_ok": true,
+          "tool_nodes": 23,
+          "tool_disabled": false
+        }
+      ]
+    },
+    {
+      "package": "io.github.mangi.eta.test",
+      "display_id": 0,
+      "sample": {
+        "eta_service_connected": true,
+        "eta_windows": 1,
+        "eta_root": true,
+        "eta_nodes": 18,
+        "eta_package_matches": true,
+        "automation_windows": 1,
+        "automation_roots": [
+          {
+            "root": true,
+            "package_matches": true,
+            "focused": true,
+            "nodes": 72,
+            "labeled_nodes": 64,
+            "action_nodes": 3,
+            "truncated": false
+          }
+        ]
+      }
+    },
+    {
+      "package": "com.tencent.mm",
+      "display_id": 0,
+      "sample": {
+        "eta_service_connected": true,
+        "eta_windows": 1,
+        "eta_root": true,
+        "eta_nodes": 0,
+        "eta_package_matches": true,
+        "automation_windows": 1,
+        "automation_roots": [
+          {
+            "root": true,
+            "package_matches": true,
+            "focused": true,
+            "nodes": 1,
+            "labeled_nodes": 0,
+            "action_nodes": 0,
+            "truncated": false
+          }
+        ]
+      }
+    }
+  ]
+}

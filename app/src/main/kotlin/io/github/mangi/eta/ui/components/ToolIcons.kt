@@ -58,6 +58,7 @@ import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.ui.graphics.vector.ImageVector
 
 internal fun iconForTool(toolId: String): ImageVector = when (toolId) {
+    "batch" -> Icons.Rounded.Layers
     "observe", "observe_screen" -> Icons.Rounded.DocumentScanner
     "click", "tap", "tap_element" -> Icons.Rounded.AdsClick
     "tap_area" -> Icons.Rounded.MyLocation
@@ -83,6 +84,8 @@ internal fun iconForTool(toolId: String): ImageVector = when (toolId) {
     "file_search", "file_search_call", "文件搜索" -> Icons.AutoMirrored.Rounded.ManageSearch
     "code_interpreter", "code_interpreter_call", "代码执行" -> Icons.Rounded.Terminal
     "computer", "computer_call", "计算机操作" -> Icons.Rounded.Computer
+    "virtual_screen" -> Icons.Rounded.ScreenshotMonitor
+    "tasks_triggers", "tasks_list", "tasks_create", "tasks_update", "tasks_delete", "tasks_run", "tasks_cancel", "tasks_history" -> Icons.Rounded.Schedule
     "image_generation", "image_generation_call", "图像生成" -> Icons.Rounded.Image
     "mcp_call", "MCP 工具" -> Icons.Rounded.Extension
     "memory_get", "memory_write", "character_memory_get", "character_memory_write" ->
@@ -91,7 +94,7 @@ internal fun iconForTool(toolId: String): ImageVector = when (toolId) {
     "open_system_panel" -> Icons.Rounded.WebAsset
     "read_image" -> Icons.Rounded.Image
     "skills_list", "skills_read", "skills_read_resource",
-    "skills_list_curated", "skills_inspect_github", "skills_install_from_github",
+    "skills_list_curated", "skills_inspect_github", "skills_install_from_github", "skills_manage",
         -> Icons.Rounded.Extension
     "set_alarm", "set_timer", "list_alarms", "list_active_timers" ->
         Icons.Rounded.Alarm

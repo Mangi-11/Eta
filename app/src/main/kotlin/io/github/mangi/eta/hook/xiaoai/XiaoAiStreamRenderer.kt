@@ -32,6 +32,10 @@ internal class XiaoAiStreamRenderer(
 
     fun onEvent(event: AgentEvent) {
         when (event) {
+            is AgentEvent.ModelRequestInterrupted -> {
+                synchronized(streamedText) { streamedText.setLength(0) }
+                render(text(R.string.overlay_supplement_received, "Message received; adapting"), immediate = true)
+            }
             is AgentEvent.ModelRetryScheduled -> render(event.displayMessage)
 
             is AgentEvent.RunStarted,

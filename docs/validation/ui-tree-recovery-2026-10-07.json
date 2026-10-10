@@ -1,0 +1,59 @@
+{
+  "results": [
+    {
+      "stage": "wechat_first",
+      "display_id": 90,
+      "ok": true,
+      "nodes": 0,
+      "disabled": false,
+      "pending": true,
+      "eta_service_connected": true,
+      "eta_root": false,
+      "window_id": null
+    },
+    {
+      "stage": "wechat_confirmed",
+      "display_id": 90,
+      "ok": true,
+      "nodes": 0,
+      "disabled": true,
+      "pending": false,
+      "eta_service_connected": true,
+      "eta_root": true,
+      "window_id": 4531
+    },
+    {
+      "stage": "qq_after_wechat",
+      "display_id": 90,
+      "ok": true,
+      "nodes": 42,
+      "disabled": false,
+      "pending": false,
+      "eta_service_connected": true,
+      "eta_root": true,
+      "window_id": 4532
+    },
+    {
+      "stage": "wechat_again",
+      "display_id": 90,
+      "ok": true,
+      "nodes": 0,
+      "disabled": true,
+      "pending": false,
+      "eta_service_connected": true,
+      "eta_root": true,
+      "window_id": 4533
+    },
+    {
+      "stage": "qq_again",
+      "display_id": 90,
+      "ok": true,
+      "nodes": 42,
+      "disabled": false,
+      "pending": false,
+      "eta_service_connected": true,
+      "eta_root": true,
+      "window_id": 4534
+    }
+  ]
+}

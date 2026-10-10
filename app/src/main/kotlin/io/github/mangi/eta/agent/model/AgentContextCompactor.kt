@@ -10,6 +10,7 @@ internal class AgentContextCompactor(
     private val provider: AgentProviderClient,
     private val controller: AgentRunController,
     private val roleplay: Boolean = false,
+    private val onUsage: (io.github.mangi.eta.agent.runtime.AgentTokenUsage) -> Unit = {},
 ) {
     fun compact(
         messages: JSONArray,
@@ -42,7 +43,7 @@ internal class AgentContextCompactor(
             } else message.content
             message.copy(content = text, contentJson = "", reasoningContent = "")
         }
-        val summary = AgentContextSummarizer(config, provider, controller, roleplay)
+        val summary = AgentContextSummarizer(config, provider, controller, roleplay, onUsage)
             .summarize(safe)
         val covered = safe.sumOf { it.compactedUserTurns + if (it.role == "user") 1 else 0 }
         val result = JSONArray()

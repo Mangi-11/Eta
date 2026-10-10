@@ -48,8 +48,17 @@ internal object SettingsDataStore {
 
     private val SELECTED_PROVIDER_ID = stringPreferencesKey("selected_provider_id")
     private val SELECTED_MODEL_ID = stringPreferencesKey("selected_model_id")
+    private val DEFAULT_ASSISTANT_SYSTEM_PROMPT = stringPreferencesKey("default_assistant_system_prompt")
     private val OFFICIAL_MODEL_CATALOG_REVISION = intPreferencesKey("official_model_catalog_revision")
     private val MEMORY_ENABLED = booleanPreferencesKey("memory_enabled")
+    private val AUTO_MEMORY_ENABLED = booleanPreferencesKey("auto_memory_enabled")
+    private val AUTO_SKILLS_ENABLED = booleanPreferencesKey("auto_skills_enabled")
+    private val VIRTUAL_SCREEN_ENABLED = booleanPreferencesKey("virtual_screen_enabled")
+    private val VIRTUAL_SCREEN_FLOATING_PREVIEW = booleanPreferencesKey("virtual_screen_floating_preview")
+    private val VIRTUAL_SCREEN_OFF_ENABLED = booleanPreferencesKey("virtual_screen_off_enabled")
+    private val VIRTUAL_SCREEN_FALLBACK_ENABLED = booleanPreferencesKey("virtual_screen_fallback_enabled")
+    private val VIRTUAL_SCREEN_AUTO_RESTART_APPS = booleanPreferencesKey("virtual_screen_auto_restart_apps")
+    private val VIRTUAL_SCREEN_IDLE_TIMEOUT = intPreferencesKey("virtual_screen_idle_timeout_minutes")
     private val LINUX_DISTRIBUTION = stringPreferencesKey("linux_distribution")
     private val APPEARANCE_THEME_MODE = stringPreferencesKey("appearance_theme_mode")
     private val APPEARANCE_MONET_ENABLED = booleanPreferencesKey("appearance_monet_enabled")
@@ -108,9 +117,20 @@ internal object SettingsDataStore {
         dataStore.edit { prefs ->
             val current = prefs.toSettings()
             val updated = transform(current)
+            require(updated.defaultAssistantSystemPrompt.length <= 32_000 && '\u0000' !in updated.defaultAssistantSystemPrompt)
+            prefs.putOrRemove(DEFAULT_ASSISTANT_SYSTEM_PROMPT, updated.defaultAssistantSystemPrompt)
             prefs.putOrRemove(SELECTED_PROVIDER_ID, updated.selectedProviderId)
             prefs.putOrRemove(SELECTED_MODEL_ID, updated.selectedModelId)
             prefs[MEMORY_ENABLED] = updated.memoryEnabled
+            prefs[AUTO_MEMORY_ENABLED] = updated.autoMemoryEnabled
+            prefs[AUTO_SKILLS_ENABLED] = updated.autoSkillsEnabled
+            prefs[VIRTUAL_SCREEN_ENABLED] = updated.virtualScreenEnabled
+            prefs[VIRTUAL_SCREEN_FLOATING_PREVIEW] = updated.virtualScreenFloatingPreviewEnabled
+            prefs[VIRTUAL_SCREEN_OFF_ENABLED] = updated.virtualScreenOffEnabled
+            prefs[VIRTUAL_SCREEN_FALLBACK_ENABLED] = updated.virtualScreenFallbackEnabled
+            prefs[VIRTUAL_SCREEN_AUTO_RESTART_APPS] = updated.virtualScreenAutoRestartApps
+            prefs[VIRTUAL_SCREEN_IDLE_TIMEOUT] = io.github.mangi.eta.data.model.VirtualScreenIdleTimeout.normalize(updated.virtualScreenIdleTimeoutMinutes)
+            prefs.remove(stringPreferencesKey("vivo_atomic_scene"))
             prefs.putAppearance(updated.appearance.normalized())
         }
     }
@@ -236,7 +256,16 @@ internal object SettingsDataStore {
     private fun Preferences.toSettings(): Settings = Settings(
         selectedProviderId = this[SELECTED_PROVIDER_ID],
         selectedModelId = this[SELECTED_MODEL_ID],
+        defaultAssistantSystemPrompt = this[DEFAULT_ASSISTANT_SYSTEM_PROMPT].orEmpty(),
         memoryEnabled = this[MEMORY_ENABLED] ?: true,
+        autoMemoryEnabled = this[AUTO_MEMORY_ENABLED] ?: true,
+        autoSkillsEnabled = this[AUTO_SKILLS_ENABLED] ?: true,
+        virtualScreenEnabled = this[VIRTUAL_SCREEN_ENABLED] ?: false,
+        virtualScreenFloatingPreviewEnabled = this[VIRTUAL_SCREEN_FLOATING_PREVIEW] ?: false,
+        virtualScreenOffEnabled = this[VIRTUAL_SCREEN_OFF_ENABLED] ?: false,
+        virtualScreenFallbackEnabled = this[VIRTUAL_SCREEN_FALLBACK_ENABLED] ?: false,
+        virtualScreenAutoRestartApps = this[VIRTUAL_SCREEN_AUTO_RESTART_APPS] ?: false,
+        virtualScreenIdleTimeoutMinutes = io.github.mangi.eta.data.model.VirtualScreenIdleTimeout.normalize(this[VIRTUAL_SCREEN_IDLE_TIMEOUT] ?: 20),
         appearance = AppearanceSettings(
             themeMode = AppearanceThemeMode.fromPersistedValue(this[APPEARANCE_THEME_MODE]),
             monetEnabled = this[APPEARANCE_MONET_ENABLED] ?: false,

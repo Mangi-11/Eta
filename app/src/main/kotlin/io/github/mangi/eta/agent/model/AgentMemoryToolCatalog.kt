@@ -47,7 +47,7 @@ internal object AgentMemoryToolCatalog {
             .put(
                 AgentToolSchema.function(
                     name = "memory_write",
-                    description = "Atomically update persistent MEMORY.md. Store only durable cross-conversation facts, preferences, relationships, and ongoing project context; never store secrets, credentials, verification codes, or transient requests. Keep '# 核心记忆' concise, correct stale facts, and prefer replacing an existing section over blindly appending duplicates. Use the revision supplied in the run-start memory context or the latest memory_get result.",
+                    description = "Submit a proposed update to persistent MEMORY.md for user review in the notification center. A pending proposal does not change active memory; only user approval applies the exact revision. Do not repeat submissions while awaiting approval. Store only durable cross-conversation facts, preferences, relationships, and ongoing project context; never store secrets, credentials, verification codes, or transient requests. Keep '# 核心记忆' concise, correct stale facts, and prefer replacing an existing section over blindly appending duplicates. Use the revision supplied in the run-start memory context or the latest memory_get result.",
                     parameters = JSONObject()
                         .put("type", "object")
                         .put(

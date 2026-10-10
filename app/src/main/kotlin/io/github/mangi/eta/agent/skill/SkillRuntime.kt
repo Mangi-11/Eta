@@ -612,6 +612,7 @@ class SkillLoader(private val skillsRoot: File) {
             scriptsDir = File(skillDir, "scripts").takeIf { it.isDirectory }?.absolutePath,
             assetsDir = File(skillDir, "assets").takeIf { it.isDirectory }?.absolutePath,
             triggerReason = triggerReason,
+            revision = parsed.revision,
         )
     }
 }

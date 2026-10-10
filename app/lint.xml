@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- yyyyMMddNN is the repository's release version convention and still fits Android's limit. -->
+    <issue id="HighAppVersionCode">
+        <ignore path="build.gradle.kts" />
+    </issue>
+</lint>

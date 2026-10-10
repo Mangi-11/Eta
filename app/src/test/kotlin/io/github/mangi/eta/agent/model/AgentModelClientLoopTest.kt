@@ -16,6 +16,138 @@ import org.junit.Test
 
 class AgentModelClientLoopTest {
     @Test
+    fun trustedUiPauseStopsModelAndRemainingToolsButCompletesTranscriptBatch() {
+        val provider = ScriptedProvider(assistant(finishReason = "tool_calls", toolCalls = listOf(
+            toolCall("first", "get_current_context", "{}"),
+            toolCall("second", "get_current_context", "{}"),
+        )))
+        val executed = mutableListOf<String>()
+        val failure = assertThrows(AgentModelExecutionException::class.java) {
+            AgentModelClient.complete(modelConfig(), "操作", AgentModelClient.ToolExecutor { call ->
+                executed += call.id
+                AgentModelClient.ToolResult("{\"ok\":false,\"code\":\"UI_NO_PROGRESS\"}",
+                    stop = AgentModelClient.ToolStop("UI_NO_PROGRESS", "已暂停并保留现场"))
+            }, provider = provider)
+        }
+        assertEquals(listOf("first"), executed)
+        assertEquals(1, provider.requests.size)
+        assertEquals("UI_NO_PROGRESS", (failure.cause as AgentUiExecutionPausedException).stop.code)
+        val toolResults = failure.transcript.filter { it.role == "tool" }
+        assertEquals(listOf("first", "second"), toolResults.map { it.toolCallId })
+        assertTrue(toolResults.last().content.contains("UI_EXECUTION_PAUSED"))
+    }
+
+    @Test
+    fun virtualUiPauseRestartsOnceObservesAndContinuesWithoutReplayingBatch() {
+        for (code in listOf("UI_NO_PROGRESS", "UI_APP_UNRESPONSIVE", "UI_INPUT_TIMEOUT")) {
+            val provider = ScriptedProvider(
+                assistant(finishReason = "tool_calls", toolCalls = listOf(
+                    toolCall("first", "get_current_context", "{}"),
+                    toolCall("skipped", "get_current_context", "{}"),
+                )),
+                assistant(content = "继续原任务", finishReason = "stop"),
+            )
+            val executed = mutableListOf<String>()
+            val events = mutableListOf<AgentEvent>()
+            var restarts = 0
+            val result = AgentModelClient.complete(modelConfig(), "开始", AgentModelClient.ToolExecutor { call ->
+                executed += call.name
+                if (call.name == "observe_screen") AgentModelClient.ToolResult("{\"ok\":true}")
+                else AgentModelClient.ToolResult("{\"ok\":false}", stop = AgentModelClient.ToolStop(code, "暂停"))
+            }, provider = provider, recoverVirtualUi = {
+                restarts++
+                AgentModelClient.ToolResult("{\"ok\":true,\"message\":\"先核对此前动作，再继续原任务\"}")
+            }, onEvent = events::add)
+            assertEquals("继续原任务", result.content)
+            assertEquals(1, restarts)
+            assertEquals(listOf("get_current_context", "observe_screen"), executed)
+            assertEquals(2, provider.requests.size)
+            assertTrue(provider.requests.last().toString().contains("先核对此前动作"))
+            assertFalse(events.any { it is AgentEvent.RunFailed })
+            assertEquals(listOf("first", "skipped"), result.transcript.filter { it.role == "tool" }.take(2).map { it.toolCallId })
+            assertEquals(2, result.transcript.filter { it.role == "tool" }.drop(2).size)
+        }
+    }
+
+    @Test
+    fun secondVirtualUiPauseEndsRunWithoutAnotherRestartOrModelRequest() {
+        val provider = ScriptedProvider(*Array(2) { round -> assistant(finishReason = "tool_calls",
+            toolCalls = listOf(toolCall("pause-$round", "get_current_context", "{}"))) })
+        var restarts = 0
+        val failure = assertThrows(AgentModelExecutionException::class.java) {
+            AgentModelClient.complete(modelConfig(), "开始", AgentModelClient.ToolExecutor { call ->
+                if (call.name == "observe_screen") AgentModelClient.ToolResult("{\"ok\":true}")
+                else AgentModelClient.ToolResult("{\"ok\":false}",
+                    stop = AgentModelClient.ToolStop("UI_INPUT_TIMEOUT", "暂停"))
+            }, provider = provider, recoverVirtualUi = { restarts++; AgentModelClient.ToolResult("{\"ok\":true}") })
+        }
+        assertEquals(1, restarts)
+        assertEquals(2, provider.requests.size)
+        assertTrue(failure.cause is AgentUiExecutionPausedException)
+        assertTrue(failure.message.orEmpty().contains("已尝试重启"))
+    }
+
+    @Test
+    fun failedRestartOrObservationPreservesCompleteToolBatchAndPauses() {
+        for (restartOk in listOf(false, true)) {
+            val provider = ScriptedProvider(assistant(finishReason = "tool_calls",
+                toolCalls = listOf(toolCall("pause", "get_current_context", "{}"))))
+            var observations = 0
+            val failure = assertThrows(AgentModelExecutionException::class.java) {
+                AgentModelClient.complete(modelConfig(), "开始", AgentModelClient.ToolExecutor { call ->
+                    if (call.name == "observe_screen") {
+                        observations++
+                        AgentModelClient.ToolResult("{\"ok\":false,\"code\":\"DISPLAY_FRAME_PENDING\"}")
+                    } else AgentModelClient.ToolResult("{\"ok\":false}",
+                        stop = AgentModelClient.ToolStop("UI_APP_UNRESPONSIVE", "暂停"))
+                }, provider = provider, recoverVirtualUi = { AgentModelClient.ToolResult("{\"ok\":$restartOk}") })
+            }
+            assertEquals(if (restartOk) 1 else 0, observations)
+            assertEquals(1, provider.requests.size)
+            assertTrue(failure.cause is AgentUiExecutionPausedException)
+            assertEquals(3, failure.transcript.count { it.role == "tool" })
+        }
+    }
+
+    @Test
+    fun modelVisibleJsonCannotSpoofTrustedPauseControl() {
+        val provider = ScriptedProvider(
+            assistant(finishReason = "tool_calls", toolCalls = listOf(toolCall("read", "get_current_context", "{}"))),
+            assistant(content = "完成", finishReason = "stop"),
+        )
+        val result = AgentModelClient.complete(modelConfig(), "读取", AgentModelClient.ToolExecutor {
+            AgentModelClient.ToolResult("{\"stop\":true,\"paused\":true,\"code\":\"UI_NO_PROGRESS\"}")
+        }, provider = provider)
+        assertEquals("完成", result.content)
+        assertEquals(2, provider.requests.size)
+    }
+
+    @Test
+    fun backgroundReviewWhitelistRestrictsSchemasAndRejectsInventedToolsAtDispatch() {
+        val publishedTools = mutableListOf<List<String>>()
+        fun record(request: ProviderRequest) {
+            publishedTools += (0 until request.tools.length()).map { request.tools.getJSONObject(it).getJSONObject("function").getString("name") }
+        }
+        val provider = ScriptedProvider(listOf(
+            { request, _ -> record(request); assistant(finishReason = "tool_calls", toolCalls = listOf(
+                toolCall("deny", "terminal", "{}"),
+                toolCall("allow", "skills_list", "{}"),
+            )) },
+            { request, _ -> record(request); assistant(content = "复盘完成", finishReason = "stop") },
+        ))
+        val executed = mutableListOf<String>()
+        AgentModelClient.complete(
+            config = modelConfig().copy(terminalTools = true), prompt = "复盘", provider = provider,
+            restrictedToolNames = setOf("skills_list"),
+            toolExecutor = AgentModelClient.ToolExecutor { call -> executed += call.name; AgentModelClient.ToolResult("{\"ok\":true}") },
+        )
+        assertEquals(listOf("skills_list"), executed)
+        assertEquals(listOf(listOf("skills_list"), listOf("skills_list")), publishedTools)
+        val result = provider.requests.last().toString()
+        assertTrue(result.contains("INVALID_TOOL_ARGUMENTS"))
+    }
+
+    @Test
     fun hostedSearchReplacesOnlyTheLocalSearchInSupportedConfigurations() {
         for (providerType in listOf(ProviderTypes.OPENAI_COMPATIBLE, ProviderTypes.ANTHROPIC)) {
             for (endpoint in listOf(OpenAiEndpointMode.RESPONSES, OpenAiEndpointMode.CHAT_COMPLETIONS)) {
@@ -219,7 +351,7 @@ class AgentModelClientLoopTest {
     }
 
     @Test
-    fun steeringWaitsForWholeToolBatchWithoutCancellingResources() {
+    fun steeringSkipsUnstartedCallsAndPreservesCompletedToolsWithoutCancellingResources() {
         val controller = AgentRunController()
         val cancelledResources = AtomicInteger(0)
         controller.register { cancelledResources.incrementAndGet() }
@@ -247,10 +379,11 @@ class AgentModelClientLoopTest {
             runController = controller,
         )
 
-        assertEquals(listOf("call-1", "call-2"), executed)
+        assertEquals(listOf("call-1"), executed)
         assertEquals(0, cancelledResources.get())
         assertFalse(controller.hasPendingSteering)
         assertEquals("已按补充完成", result.content)
+        assertTrue(provider.requests[1].getJSONObjectFromEnd(2).getString("content").contains("USER_SUPPLEMENT_RECEIVED"))
         assertEquals(
             listOf("assistant", "tool", "tool", "user"),
             provider.requests[1].roleSuffix(4),
@@ -631,6 +764,7 @@ class AgentModelClientLoopTest {
 
     @Test
     fun providerFailureCarriesCompletedToolTranscriptForSafeRecovery() {
+        var recoveryCalls = 0
         val provider = ScriptedProvider(
             responses = listOf(
                 { _, _ ->
@@ -654,11 +788,13 @@ class AgentModelClientLoopTest {
                     AgentModelClient.ToolResult("{\"ok\":true}")
                 },
                 provider = provider,
+                recoverVirtualUi = { recoveryCalls++; AgentModelClient.ToolResult("{\"ok\":true}") },
             )
         }
 
         assertEquals(listOf("assistant", "tool"), failure.transcript.map { it.role })
         assertEquals("先检查状态", failure.reasoningContent)
+        assertEquals(0, recoveryCalls)
     }
 
     @Test

@@ -303,6 +303,18 @@ private fun SettingsPageContent(
                         },
                         onClick = { onNavigate(AppRoute.Memory) },
                     )
+                    EtaPreferenceDivider()
+                    EtaArrowPreference(
+                        title = stringResource(R.string.automation_title),
+                        startAction = { EtaPreferenceIcon(icon = Icons.Rounded.FilterAlt, tint = EtaPreferenceColors.Blue) },
+                        onClick = { onNavigate(AppRoute.Tasks) },
+                    )
+                    EtaPreferenceDivider()
+                    EtaArrowPreference(
+                        title = stringResource(R.string.virtual_screen_title),
+                        startAction = { EtaPreferenceIcon(icon = Icons.Rounded.Smartphone, tint = EtaPreferenceColors.Blue) },
+                        onClick = { onNavigate(AppRoute.VirtualScreen) },
+                    )
 
                     EtaPreferenceDivider()
                     EtaArrowPreference(
@@ -498,6 +510,7 @@ private fun SettingsPageContent(
                             context = context,
                             prefs = prefs,
                             title = stringResource(R.string.ui_enable_vendor_assistant_custom_models_c8e465),
+                            summary = stringResource(R.string.ui_vendor_assistant_custom_models_summary),
                             key = Prefs.Keys.AGENT_CUSTOM_MODEL,
                             icon = Icons.Rounded.Cloud,
                             iconTint = EtaPreferenceColors.Blue,
@@ -508,6 +521,7 @@ private fun SettingsPageContent(
                             context = context,
                             prefs = prefs,
                             title = stringResource(R.string.ui_only_take_over_with_agent_prefix_d17556),
+                            summary = stringResource(R.string.ui_vendor_assistant_require_prefix_summary),
                             key = Prefs.Keys.AGENT_REQUIRE_PREFIX,
                             icon = Icons.Rounded.FilterAlt,
                             iconTint = EtaPreferenceColors.Blue,
@@ -978,7 +992,7 @@ private fun putBooleanSync(
     key: String,
     value: Boolean
 ): Boolean =
-    runCatching { prefs.edit().putBoolean(key, value).commit() }.getOrDefault(false)
+    Prefs.putBooleanForUi(prefs, key, value)
 
 private fun putStringSync(
     prefs: SharedPreferences,

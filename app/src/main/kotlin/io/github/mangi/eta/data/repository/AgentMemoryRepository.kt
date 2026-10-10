@@ -82,6 +82,17 @@ internal class AgentMemoryStore(
     }
 
     fun mutate(mutation: AgentMemoryMutation): AgentMemoryWriteResult = synchronized(lock) {
+        when (val preview = preview(mutation)) {
+            is AgentMemoryWriteResult.Conflict -> preview
+            is AgentMemoryWriteResult.Success -> {
+                writeLocked(preview.snapshot.content)
+                preview
+            }
+        }
+    }
+
+    /** Validate the exact revision, range and size without changing persistent memory. */
+    fun preview(mutation: AgentMemoryMutation): AgentMemoryWriteResult = synchronized(lock) {
         val current = snapshotLocked()
         if (mutation.revision != current.revision) {
             return@synchronized AgentMemoryWriteResult.Conflict(current)
@@ -91,7 +102,7 @@ internal class AgentMemoryStore(
             is AgentMemoryMutation.Append -> append(current, mutation.content)
             is AgentMemoryMutation.Clear -> ""
         }
-        writeLocked(updated)
+        requireSize(updated)
         AgentMemoryWriteResult.Success(snapshotOf(updated))
     }
 
@@ -131,12 +142,7 @@ internal class AgentMemoryStore(
 
     private fun writeLocked(content: String) {
         val bytes = content.toByteArray(Charsets.UTF_8)
-        if (bytes.size > MAX_FILE_BYTES) {
-            throw AgentMemoryException(
-                code = "MEMORY_TOO_LARGE",
-                message = "记忆文件不能超过 1 MiB UTF-8 字节",
-            )
-        }
+        requireSize(content)
         if (!memoryDir.exists() && !memoryDir.mkdirs() && !memoryDir.isDirectory) {
             throw AgentMemoryException(
                 code = "MEMORY_WRITE_FAILED",
@@ -161,6 +167,16 @@ internal class AgentMemoryStore(
                 code = "MEMORY_WRITE_FAILED",
                 message = "无法保存记忆文件",
                 cause = throwable,
+            )
+        }
+    }
+
+    private fun requireSize(content: String) {
+        val bytes = content.toByteArray(Charsets.UTF_8)
+        if (bytes.size > MAX_FILE_BYTES) {
+            throw AgentMemoryException(
+                code = "MEMORY_TOO_LARGE",
+                message = "记忆文件不能超过 1 MiB UTF-8 字节",
             )
         }
     }
@@ -329,6 +345,11 @@ internal object AgentMemoryRepository {
     fun mutate(mutation: AgentMemoryMutation): AgentMemoryWriteResult {
         ensureInitialized()
         return store.mutate(mutation)
+    }
+
+    fun preview(mutation: AgentMemoryMutation): AgentMemoryWriteResult {
+        ensureInitialized()
+        return store.preview(mutation)
     }
 
     fun replaceAll(content: String): AgentMemorySnapshot {

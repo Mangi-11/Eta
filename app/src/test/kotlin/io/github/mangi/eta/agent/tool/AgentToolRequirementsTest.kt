@@ -99,6 +99,18 @@ class AgentToolRequirementsTest {
             .unavailableCode("search_bills"))
     }
 
+    @Test
+    fun vivoExposesOnlyAdaptedPersonalSourcesAndStillRequiresRoot() {
+        val vivo = AgentToolCapabilities(rootAvailable = true, colorOs = false, vivo = true)
+        for (name in listOf("search_notes", "search_todos", "read_personal_item")) {
+            assertEquals(null, vivo.unavailableCode(name))
+            assertEquals("ROOT_REQUIRED", vivo.copy(rootAvailable = false).unavailableCode(name))
+        }
+        for (name in listOf("search_bills", "search_system_memories", "search_coloros_recordings", "create_note", "delete_note")) {
+            assertEquals("DEVICE_UNSUPPORTED", vivo.unavailableCode(name))
+        }
+    }
+
     private fun catalog(root: Boolean) = AgentToolCatalog.build(
         terminalTools = true, browserTools = true, deviceDirectTools = true,
         deviceSensitiveReadTools = true, deviceSensitiveActionTools = true,

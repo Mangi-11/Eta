@@ -36,6 +36,7 @@ data class ResolvedSkillContext(
     val scriptsDir: String? = null,
     val assetsDir: String? = null,
     val triggerReason: String,
+    val revision: String = "",
 )
 
 @Immutable
@@ -60,4 +61,5 @@ data class SkillContext(
 internal data class ParsedSkillFile(
     val frontmatter: Map<String, String>,
     val body: String,
+    val revision: String = "",
 )

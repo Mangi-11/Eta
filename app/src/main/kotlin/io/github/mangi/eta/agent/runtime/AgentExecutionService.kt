@@ -28,6 +28,9 @@ internal class AgentExecutionService : Service() {
     private val owner = ownerSequence.incrementAndGet()
     private var foregroundActive = false
     @Volatile private var startRejected = false
+    private var progress: String = ""
+    private var progressOwner: String = ""
+    private var floatingPreview: io.github.mangi.eta.agent.display.VirtualScreenFloatingPreviewHost? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -38,6 +41,7 @@ internal class AgentExecutionService : Service() {
             NotificationChannel(CHANNEL, getString(R.string.execution_channel), NotificationManager.IMPORTANCE_LOW),
         )
         ensureForeground()
+        if (!startRejected) floatingPreview = io.github.mangi.eta.agent.display.VirtualScreenFloatingPreviewHost(this)
     }
 
     private fun ensureForeground() {
@@ -70,6 +74,7 @@ internal class AgentExecutionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        floatingPreview?.close(); floatingPreview = null
         if (instance === this) instance = null
         // 销毁时同样收回本服务拥有的任务。回收在独立有界工作线程上完成，不阻塞 Main。
         stopQueue.close(leases.drainOwner(owner))
@@ -96,7 +101,7 @@ internal class AgentExecutionService : Service() {
     private fun notification(): Notification {
         val status = runStatus
         val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java),
+            this, 0, Intent(this, if (io.github.mangi.eta.agent.display.VirtualScreenSession.isActive()) io.github.mangi.eta.agent.display.VirtualScreenViewerActivity::class.java else MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val stop = PendingIntent.getService(
@@ -107,10 +112,8 @@ internal class AgentExecutionService : Service() {
         val builder = Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.execution_title))
-            .setContentText(
-                status?.localizedText(resources)
-                    ?: resources.getQuantityString(R.plurals.execution_summary, taskCount, taskCount)
-            )
+            .setContentText(progress.ifBlank { status?.localizedText(resources)
+                ?: resources.getQuantityString(R.plurals.execution_summary, taskCount, taskCount) })
             .setContentIntent(open)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -180,7 +183,22 @@ internal class AgentExecutionService : Service() {
 
         fun release(id: String) {
             leases.release(id)
-            mainHandler.post { instance?.refreshNotification() }
+            mainHandler.post { instance?.let { service -> if (service.progressOwner == id) { service.progress = ""; service.progressOwner = "" }; service.refreshNotification() } }
+        }
+
+        fun updateProgress(id: String, event: AgentEvent) {
+            val tool = when (event) {
+                is AgentEvent.ToolStarted -> event.name
+                is AgentEvent.ToolFinished -> ""
+                else -> return
+            }
+            mainHandler.post { instance?.let { service ->
+                if (tool.isNotBlank() || service.progressOwner == id) {
+                    service.progressOwner = id
+                    service.progress = tool.take(80)
+                    service.refreshNotification()
+                }
+            } }
         }
     }
 }

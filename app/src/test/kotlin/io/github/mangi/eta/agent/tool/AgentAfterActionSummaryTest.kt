@@ -39,6 +39,18 @@ class AgentAfterActionSummaryTest {
     }
 
     @Test
+    fun stateChangesWithoutTextOrPositionChangesCountAsProgress() {
+        val before = node(0, "蓝牙").copy(checked = false)
+        for (changed in listOf(
+            before.copy(checked = true), before.copy(selected = true), before.copy(focused = true),
+            before.copy(enabled = false), before.copy(hint = "可用设备"),
+        )) {
+            assertTrue(AgentAfterActionSummary.build(observation("o1", "app", listOf(before)),
+                observation("o2", "app", listOf(changed))).getBoolean("screen_changed"))
+        }
+    }
+
+    @Test
     fun toggleStateAndHintAreVisibleToTheModel() {
         val toggle = node(0, "蓝牙").copy(checked = false)
         val field = node(1, "").copy(editable = true, hint = "搜索联系人")

@@ -27,6 +27,7 @@ internal object OpenAiRequestMessages {
                     remove("_eta_summary_through_user")
                     remove("_eta_observation")
                     remove("_eta_message_id")
+                    remove("_eta_batch_checkpoint")
                     remove("_eta_character_profile")
                 })
             }

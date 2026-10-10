@@ -8,6 +8,7 @@ import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.ProviderTypes
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.provider.BuiltinProviders
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -15,6 +16,20 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class RuntimeConfigRepositoryTest {
+    @Test
+    fun editedDefaultAppliesToBuiltinAndEmptyPromptsButPreservesProviderOverride() {
+        val provider = OpenAiCompatibleProviderSetting(id = "p1", name = "Provider", baseUrl = "https://example.invalid")
+        val model = Model(id = "m1", modelId = "fixture", displayName = "Fixture")
+        for (prompt in listOf(null, " ", BuiltinProviders.DEFAULT_SYSTEM_PROMPT)) {
+            assertEquals("edited-default", RuntimeConfigRepository.buildRuntimeConfig(
+                provider.copy(systemPrompt = prompt), model, "  edited-default  ").systemPrompt)
+        }
+        assertEquals("provider-override", RuntimeConfigRepository.buildRuntimeConfig(
+            provider.copy(systemPrompt = "provider-override"), model, "edited-default").systemPrompt)
+        assertEquals(BuiltinProviders.DEFAULT_SYSTEM_PROMPT, RuntimeConfigRepository.buildRuntimeConfig(
+            provider, model, " ").systemPrompt)
+    }
+
     @Test
     fun buildsStructuredRuntimeConfigFromProviderAndModel() {
         val provider = OpenAiCompatibleProviderSetting(

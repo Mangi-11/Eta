@@ -1,6 +1,14 @@
 package io.github.mangi.eta.agent.tool
 
 import android.content.Context
+import io.github.mangi.eta.agent.automation.AgentTaskTools
+import io.github.mangi.eta.agent.display.VirtualScreenRoutingPolicy
+import io.github.mangi.eta.agent.display.VirtualScreenUiTools
+import io.github.mangi.eta.agent.display.MainScreenFallbackApproval
+import io.github.mangi.eta.agent.display.MainScreenFallbackDecision
+import io.github.mangi.eta.agent.display.VirtualScreenSession
+import io.github.mangi.eta.data.datastore.SettingsDataStore
+import io.github.mangi.eta.data.model.Settings
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
@@ -23,6 +31,7 @@ import io.github.mangi.eta.agent.overlay.AgentHapticFeedback
 import io.github.mangi.eta.agent.overlay.GestureIndicator
 import io.github.mangi.eta.agent.runtime.AgentAppContext
 import io.github.mangi.eta.agent.skill.SkillCompatibilityChecker
+import io.github.mangi.eta.agent.skill.SkillAuthoringService
 import io.github.mangi.eta.agent.skill.SkillIndexService
 import io.github.mangi.eta.agent.skill.SkillInstallErrorCode
 import io.github.mangi.eta.agent.skill.SkillInstallResult
@@ -96,9 +105,27 @@ internal class AgentLocalTools(
     runAvailableSkillIds: Set<String> = emptySet(),
     pendingSkillConflict: PendingSkillConflictCapability? = null,
     private val rootAvailable: () -> Boolean = { RootAccess.isGranted },
+    private val skillAuthoringService: SkillAuthoringService? = null,
+    private val learningProposalWriter: ((String, JSONObject) -> JSONObject)? = null,
+    private val virtualScreenSettings: () -> Settings = { runBlocking { SettingsDataStore.settings() } },
+    private val virtualUiExecutor: ((String, JSONObject) -> AgentModelClient.ToolResult)? = null,
+    private val fallbackApproval: ((String, String) -> MainScreenFallbackDecision)? = null,
+    private val onMainScreenFallback: () -> Unit = {},
+    private val onVirtualTaskCancelled: () -> Unit = {},
+    private val virtualScreenOwner: String = browserRunId,
+    private val isRunCancelled: () -> Boolean = { false },
 ) : AgentModelClient.ToolExecutor, AutoCloseable {
 
     private val closed = AtomicBoolean(false)
+    private val retainVirtualScreen = AtomicBoolean(false)
+    private val pausedVirtualScreen = AtomicBoolean(false)
+    private val virtualRouting = VirtualScreenRoutingPolicy(VirtualScreenSession.isOwnedBy(virtualScreenOwner))
+    private val primaryObserved = AtomicBoolean(false)
+    private val fallbackLock = Any()
+    private var fallbackDeclined: MainScreenFallbackDecision? = null
+    private var primaryApprovalFromAppConflict = false
+    private val virtualUiTools by lazy { VirtualScreenUiTools(context, virtualScreenOwner, closed::get,
+        { args -> textResult(launchApp(args)) }, { args -> textResult(openUri(args)) }, browserRunId) }
     private val deviceController = RootShellDeviceController(logger, screenshotExcludedPackages, rootAvailable)
     private val rootCommandExecutor = BoundedRootCommandExecutor(logger, rootAvailable = rootAvailable)
     private val structuredDeviceTools = AgentStructuredDeviceTools(
@@ -148,7 +175,16 @@ internal class AgentLocalTools(
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        MainScreenFallbackApproval.cancelOwner(browserRunId)
+        val cancelled = isRunCancelled()
+        val retain = VirtualScreenSession.isOwnedBy(virtualScreenOwner) && !virtualRouting.usesPrimary &&
+            runCatching { deviceDirectToolsEnabled() && rootAvailable() && virtualScreenSettings().virtualScreenEnabled }
+                .getOrDefault(false)
+        VirtualScreenSession.releaseRun(virtualScreenOwner, browserRunId, retain,
+            cancelled, paused = pausedVirtualScreen.get() && !cancelled,
+            completed = retainVirtualScreen.get() && !pausedVirtualScreen.get())
         publishedObservation.set(PublishedObservation())
+        virtualUiTools.invalidateObservation()
         AgentBrowserSession.interruptAgentAction(browserRunId)
         webTools.close()
         terminalController.interruptAll()
@@ -157,17 +193,135 @@ internal class AgentLocalTools(
         inspectedGitHubSnapshots.clear()
     }
 
+    fun capabilitiesForRun(capabilities: AgentToolCapabilities): AgentToolCapabilities =
+        if (virtualRouting.usesPrimary) capabilities.copy(virtualScreenEnabled = false)
+        else capabilities.copy(virtualUiTreeAvailable = !virtualUiTools.uiTreeUnavailable)
+
+    fun retainVirtualScreenOnSuccess() { retainVirtualScreen.set(true) }
+
+    fun retainVirtualScreenOnPause() {
+        pausedVirtualScreen.set(true)
+        retainVirtualScreen.set(true)
+    }
+
+    fun recoverVirtualUi(stop: AgentModelClient.ToolStop): AgentModelClient.ToolResult {
+        if (!stop.isVirtualUiPause || virtualRouting.usesPrimary || closed.get() || isRunCancelled() ||
+            !deviceDirectToolsEnabled() || !rootAvailable() || !virtualScreenSettings().virtualScreenEnabled) {
+            return textResult(errorResult("UI_RECOVERY_UNAVAILABLE", "任务或虚拟屏许可已失效，应用未重启"))
+        }
+        when (val decision = beforeToolExecution("virtual_screen")) {
+            ToolExecutionDecision.Allow -> Unit
+            is ToolExecutionDecision.Reject -> return textResult(errorResult(decision.code, decision.message))
+        }
+        val restarted = virtualUiExecutor?.invoke("virtual_screen", JSONObject().put("action", "restart"))
+            ?: VirtualScreenSession.restartPausedApp(context, virtualScreenOwner, browserRunId,
+                { closed.get() || isRunCancelled() })
+        val response = JSONObject(restarted.content)
+        VirtualScreenSession.recordOperation(virtualScreenOwner, browserRunId, "restart_app", response.optBoolean("ok"))
+        if (response.optBoolean("ok") && restarted.stop == null) {
+            virtualUiTools.invalidateObservation()
+            pausedVirtualScreen.set(false)
+            retainVirtualScreen.set(false)
+            response.put("message", "已尝试重启当前虚拟屏应用，接下来重新观察。保留已完成的任务步骤；先核对此前未确认的动作，不要直接重复发送、发布或支付。若仍无响应，本轮不再重启。")
+        }
+        return restarted.copy(content = response.toString(), sensitive = true)
+    }
+
+    private fun handleVirtualResult(name: String, original: AgentModelClient.ToolResult): AgentModelClient.ToolResult = synchronized(fallbackLock) {
+        val result = VirtualScreenSession.attachStop(virtualScreenOwner, original)
+        if (result.stop != null) {
+            return@synchronized result
+        }
+        val response = JSONObject(result.content)
+        val reason = response.optString("code")
+        if (response.optBoolean("ok") || reason !in VirtualScreenRoutingPolicy.fallbackErrors) return@synchronized result
+        val appConflict = reason == "APP_ALREADY_RUNNING"
+        fun permitted(): Boolean = virtualScreenSettings().let { it.virtualScreenEnabled && (appConflict || it.virtualScreenFallbackEnabled) }
+        if (!permitted() || closed.get() || fallbackDeclined != null) return@synchronized result
+        fun restartApp(): AgentModelClient.ToolResult {
+            if (!permitted() || closed.get() || isRunCancelled() || !deviceDirectToolsEnabled()) {
+                return textResult(errorResult("DISPLAY_CANCELLED", "任务或虚拟屏许可已失效，未停止应用"))
+            }
+            val restart = JSONObject().put("action", "launch").put("component", response.optString("component"))
+                .put("uri", response.optString("uri")).put("restartApp", true)
+            val restarted = virtualUiExecutor?.invoke("virtual_screen", restart)
+                ?: VirtualScreenSession.execute(context, virtualScreenOwner, restart, { closed.get() || isRunCancelled() }, appRestartApproved = true)
+            VirtualScreenSession.recordOperation(virtualScreenOwner, browserRunId, "launch_app", JSONObject(restarted.content).optBoolean("ok"))
+            return restarted
+        }
+        if (appConflict && virtualScreenSettings().virtualScreenAutoRestartApps) return@synchronized restartApp()
+        if (virtualRouting.usesPrimary) return@synchronized primarySwitchResult()
+        val decision = fallbackApproval?.invoke(name, reason) ?: MainScreenFallbackApproval.request(
+            context, browserRunId, name, reason, { closed.get() || isRunCancelled() }, ::permitted,
+        )
+        if (appConflict && decision == MainScreenFallbackDecision.RESTART_VIRTUAL) return@synchronized restartApp()
+        if (appConflict && decision == MainScreenFallbackDecision.TASK_CANCELLED) {
+            onVirtualTaskCancelled()
+            close()
+            return@synchronized textResult(errorResult("DISPLAY_CANCELLED", "用户已取消本次任务，未操作主屏或停止应用"))
+        }
+        if (decision != MainScreenFallbackDecision.ALLOWED) {
+            fallbackDeclined = decision
+            return@synchronized AgentModelClient.ToolResult(JSONObject().put("ok", false)
+                .put("code", "MAIN_SCREEN_FALLBACK_${decision.name}").put("virtual_error", reason)
+                .put("message", if (decision == MainScreenFallbackDecision.UNAVAILABLE)
+                    "无法显示授权通知，请检查 Eta 通知权限及主屏回退授权通知渠道；本次未操作主屏。"
+                    else "主屏回退未获允许，本次未操作主屏；拒绝、超时或取消不会自动重试。").toString())
+        }
+        if (!permitted() || closed.get() || isRunCancelled() || !deviceDirectToolsEnabled()) {
+            return@synchronized textResult(errorResult("MAIN_SCREEN_FALLBACK_DISABLED", "回退许可或任务已失效，本次未操作主屏"))
+        }
+        // Approval changes the run's route, never replays virtual coordinates or node handles.
+        VirtualScreenSession.closeOwner(virtualScreenOwner)
+        publishedObservation.set(PublishedObservation())
+        primaryObserved.set(false)
+        primaryApprovalFromAppConflict = appConflict
+        virtualRouting.approvePrimary()
+        onMainScreenFallback()
+        primarySwitchResult()
+    }
+
+    private fun primarySwitchResult() = AgentModelClient.ToolResult(JSONObject().put("ok", false).put("code", "UI_DISPLAY_SWITCHED")
+            .put("display", "primary").put("requires_observation", true)
+            .put("message", "用户已通过通知允许本次任务改用主屏。刚才的操作没有重放；需要时重新启动应用，并调用 observe_screen 获取主屏的新观察后再操作。").toString())
+
     override fun execute(toolCall: AgentModelClient.ToolCall): AgentModelClient.ToolResult =
         runCatching {
+            if (closed.get()) return@runCatching textResult(errorResult("DISPLAY_CANCELLED", "任务已结束，本次工具未执行"))
             val args = JSONObject(toolCall.argumentsJson.ifBlank { "{}" })
+            val virtualSettings = if (toolCall.name in VirtualScreenRoutingPolicy.uiTools) virtualScreenSettings() else null
+            val virtualUi = virtualRouting.shouldRoute(toolCall.name, virtualSettings?.virtualScreenEnabled == true)
+            if (virtualRouting.usesPrimary && virtualSettings != null) {
+                if (!virtualSettings.virtualScreenEnabled || (!primaryApprovalFromAppConflict && !virtualSettings.virtualScreenFallbackEnabled)) {
+                    return@runCatching textResult(errorResult("MAIN_SCREEN_FALLBACK_DISABLED", "本次主屏回退许可已关闭，后续界面操作停止"))
+                }
+                if (!primaryObserved.get() && toolCall.name !in VirtualScreenRoutingPolicy.allowedBeforePrimaryObservation) {
+                    return@runCatching textResult(errorResult("MAIN_SCREEN_OBSERVATION_REQUIRED", "切换屏幕后必须先调用 observe_screen；旧虚拟屏坐标和节点不能用于主屏"))
+                }
+            }
+            if (virtualUi && virtualSettings?.virtualScreenEnabled != true) {
+                return@runCatching textResult(errorResult("VIRTUAL_SCREEN_DISABLED", "本次运行已使用虚拟屏；权限关闭后不切换主屏"))
+            }
+            if (virtualUi && !rootAvailable()) {
+                deviceToolPermissionError("virtual_screen")?.let { return@runCatching it }
+                return@runCatching handleVirtualResult(toolCall.name, textResult(errorResult("ROOT_REQUIRED", "启用虚拟屏后 UI 操作需要 Root")))
+            }
             if (AgentToolRequirements.find(toolCall.name) != null &&
                 AgentToolRequirements.rootDenied(toolCall.name, args, rootAvailable())
             ) {
+                if (toolCall.name == "virtual_screen" && args.optString("action") != "close") {
+                    deviceToolPermissionError("virtual_screen")?.let { return@runCatching it }
+                    return@runCatching handleVirtualResult(toolCall.name, textResult(errorResult("ROOT_REQUIRED", "虚拟屏需要 Root 授权")))
+                }
                 return@runCatching textResult(errorResult("ROOT_REQUIRED", "此操作需要 Root 授权，本次未执行"))
             }
             deviceToolPermissionError(toolCall.name)?.let { return@runCatching it }
+            if (virtualUi) deviceToolPermissionError("virtual_screen")?.let { return@runCatching it }
             memoryToolPermissionError(toolCall.name)?.let { return@runCatching it }
-            when (val decision = beforeToolExecution(toolCall.name)) {
+            if (toolCall.name in AgentTaskTools.names) {
+                if (!memoryWritable) return@runCatching textResult(errorResult("TASKS_READ_ONLY", "角色会话不能管理自动任务"))
+            }
+            when (val decision = beforeToolExecution(if (virtualUi) "virtual_screen" else toolCall.name)) {
                 ToolExecutionDecision.Allow -> Unit
                 is ToolExecutionDecision.Reject -> {
                     if (decision.code.startsWith("ACCESSIBILITY_")) publishedObservation.set(PublishedObservation())
@@ -179,7 +333,21 @@ internal class AgentLocalTools(
                     )
                 }
             }
+            if (virtualUi) {
+                if (!VirtualScreenSession.prepareForRun(virtualScreenOwner, browserRunId)) {
+                    return@runCatching textResult(errorResult("DISPLAY_BUSY", "虚拟屏正被其他任务使用"))
+                }
+                val result = virtualUiExecutor?.invoke(toolCall.name, args) ?: virtualUiTools.execute(toolCall.name, args)
+                VirtualScreenSession.recordOperation(virtualScreenOwner, browserRunId, toolCall.name, JSONObject(result.content).optBoolean("ok"))
+                return@runCatching handleVirtualResult(toolCall.name, result)
+            }
             when (toolCall.name) {
+                "virtual_screen" -> if (virtualRouting.usesPrimary) textResult(errorResult("MAIN_SCREEN_ROUTE_ACTIVE", "本次任务已获准改用主屏，请使用普通 UI 工具并重新观察"))
+                    else if (!VirtualScreenSession.prepareForRun(virtualScreenOwner, browserRunId)) textResult(errorResult("DISPLAY_BUSY", "虚拟屏正被其他任务使用"))
+                    else VirtualScreenSession.execute(context, virtualScreenOwner, args, closed::get, browserRunId).let { result ->
+                        if (args.optString("action") == "close") result else handleVirtualResult(toolCall.name, result)
+                    }
+                in AgentTaskTools.names -> AgentModelClient.ToolResult(AgentTaskTools(context).execute(toolCall.name, args), sensitive = true)
                 "get_current_context" -> textResult(DeviceContextTool.current(context))
                 "search_apps" -> textResult(searchApps(args))
                 "launch_app" -> textResult(launchApp(args))
@@ -189,7 +357,9 @@ internal class AgentLocalTools(
                     if (!browserToolsEnabled()) textResult(errorResult("BROWSER_TOOLS_DISABLED", "请先启用网页搜索、读取与浏览器工具"))
                     else textResult(webTools.execute(toolCall.name, args))
                 }
-                "observe_screen" -> observeScreen(args)
+                "observe_screen" -> observeScreen(args).also { result ->
+                    if (virtualRouting.usesPrimary && JSONObject(result.content).optBoolean("ok")) primaryObserved.set(true)
+                }
                 "tap" -> afterAction(tap(args))
                 "tap_area" -> afterAction(tapArea(args))
                 "tap_element" -> afterAction(tapElement(args))
@@ -219,8 +389,9 @@ internal class AgentLocalTools(
                 "run_command" -> textResult(terminalTool { runCommand(args) })
                 in AgentFileToolCatalog.names -> textResult(terminalTool { terminalController.fileTool(toolCall.name, args) })
                 "memory_get" -> textResult(memoryGet(args))
-                "memory_write" -> textResult(memoryWrite(args))
+                "memory_write" -> textResult(learningProposalWriter?.invoke("memory_write", args)?.toString() ?: memoryWrite(args))
                 "skills_list" -> textResult(skillsList(args))
+                "skills_manage" -> textResult(skillsManage(args))
                 "skills_read" -> textResult(skillsRead(args))
                 "skills_read_resource" -> textResult(skillsReadResource(args))
                 "skills_list_curated" -> textResult(skillsListCurated())
@@ -245,6 +416,10 @@ internal class AgentLocalTools(
                 )
             )
         }.let { result ->
+            if (result.stop != null) {
+                pausedVirtualScreen.set(true)
+                retainVirtualScreen.set(true)
+            }
             if (result.sensitive || !AgentSensitiveToolPolicy.isSensitive(toolCall.name)) {
                 result
             } else {
@@ -342,6 +517,7 @@ internal class AgentLocalTools(
                 .put("revision", result.snapshot.revision)
                 .put("bytes", result.snapshot.byteSize)
                 .put("line_count", result.snapshot.lineCount)
+                .also { io.github.mangi.eta.agent.automation.AgentTaskScheduler.publish(context, "memory_updated", result.snapshot.revision) }
                 .toString()
             is AgentMemoryWriteResult.Conflict -> JSONObject()
                 .put("ok", false)
@@ -704,7 +880,8 @@ internal class AgentLocalTools(
         val appName = args.optString("app_name").trim().ifBlank { null }
 
         val app = if (packageName != null) {
-            findAppByPackage(packageName) ?: AppInfo(packageName = packageName, appName = appName ?: packageName)
+            // An exact package does not require enumerating all installed apps.
+            AppInfo(packageName = packageName, appName = appName ?: packageName)
         } else {
             if (appName == null) {
                 return errorResult("INVALID_ARGUMENT", "package_name 和 app_name 至少提供一个")
@@ -735,6 +912,10 @@ internal class AgentLocalTools(
                 message = "应用不可启动或未安装：${app.packageName}"
             )
         }
+        if (virtualRouting.shouldRoute("launch_app", virtualScreenSettings().virtualScreenEnabled)) {
+            val component = launchIntent.component ?: return errorResult("NO_ACTIVITY", "没有确定的启动 Activity")
+            return virtualUiTools.launchComponent(component.flattenToString()).content
+        }
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         context.startActivity(launchIntent)
         logger.info("Agent local tool action=launch_app outcome=started")
@@ -758,6 +939,14 @@ internal class AgentLocalTools(
         val context = requireContext()
         val intent = Intent(Intent.ACTION_VIEW, uri)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (virtualRouting.shouldRoute("open_uri", virtualScreenSettings().virtualScreenEnabled)) {
+            val target = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo
+                ?: return errorResult("NO_ACTIVITY", "没有确定的 URI 处理应用")
+            if (target.packageName == "android" || target.name.contains("ResolverActivity")) {
+                return errorResult("AMBIGUOUS_APP", "URI 没有默认处理应用，请提供具体应用入口")
+            }
+            return virtualUiTools.launchComponent(android.content.ComponentName(target.packageName, target.name).flattenToString(), uriText).content
+        }
         if (!HookSupport.resolvesActivity(context, intent)) {
             return errorResult("NO_ACTIVITY", "没有应用可以处理该 URI")
         }
@@ -783,9 +972,6 @@ internal class AgentLocalTools(
         )
 
     private fun terminal(args: JSONObject): String = terminalController.terminalAction(args)
-
-    private fun findAppByPackage(packageName: String): AppInfo? =
-        installedLauncherApps().firstOrNull { it.packageName == packageName }
 
     private fun findAppsByName(query: String, includeSystem: Boolean): List<AppInfo> {
         val normalizedQuery = query.normalized()
@@ -901,6 +1087,17 @@ internal class AgentLocalTools(
 
     // ==================== Skills tools ====================
 
+    private fun skillsManage(args: JSONObject): String {
+        if (!memoryWritable) return errorResult("SKILL_READ_ONLY", "角色会话不能改写公共技能")
+        if (skillTreeMutationUncertain.get()) return nextTurnRequired("Skill 树")
+        learningProposalWriter?.let { return it("skills_manage", args).toString() }
+        val service = skillAuthoringService ?: return errorResult("SKILLS_UNAVAILABLE", "技能编写服务未初始化")
+        val result = service.manage(args) { closed.get() }
+        if (result.optBoolean("ok")) mutatedSkillIds += SkillParser.normalizeSkillLookup(result.getString("skillId"))
+        if (result.optBoolean("recoveryRequired")) skillTreeMutationUncertain.set(true)
+        return result.toString()
+    }
+
     private fun skillsList(args: JSONObject): String {
         if (skillTreeMutationUncertain.get()) return nextTurnRequired("Skill 树")
         val indexService = skillIndexService
@@ -980,6 +1177,7 @@ internal class AgentLocalTools(
             .put("references", references)
             .put("frontmatter", frontmatter)
             .put("bodyMarkdown", body)
+            .put("revision", resolved.revision)
             .toString()
     }
 
@@ -1381,6 +1579,7 @@ internal class AgentLocalTools(
 
     private companion object {
         val DEVICE_DIRECT_TOOL_NAMES = io.github.mangi.eta.agent.model.AgentPhoneToolCatalog.direct + setOf(
+            "virtual_screen",
             "set_alarm",
             "set_timer",
             "device_status",
