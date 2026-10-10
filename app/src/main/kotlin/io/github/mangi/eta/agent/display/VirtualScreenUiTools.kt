@@ -14,6 +14,7 @@ import io.github.mangi.eta.data.datastore.SettingsDataStore
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Locale
 
 /** Normal GUI tool names keep their contract, but are bound to one owned secondary display. */
 internal class VirtualScreenUiTools(
@@ -228,7 +229,9 @@ internal class VirtualScreenUiTools(
             )
             .put(
                 "coordinate_contract",
-                JSONObject().put("default_coordinate_space", "screen").put("screen", screen)
+                JSONObject().put("coordinate_space_required", true)
+                    .put("supported_coordinate_spaces", JSONArray(listOf("normalized", "screen", "screenshot")))
+                    .put("screen", screen)
                     .put("note", "screen 与截图均为虚拟屏原始像素；所有 GUI 工具均针对该 display。")
             )
         val captureScreenshot = options.includeScreenshot ||
@@ -271,23 +274,8 @@ internal class VirtualScreenUiTools(
         info: VirtualDisplayInfo
     ): AgentModelClient.ToolResult {
         requireFreshObservation(info)
-        require(
-            args.optString("coordinate_space", "screen") in setOf(
-                "",
-                "screen",
-                "screenshot",
-                "normalized",
-            )
-        ) { "INVALID_COORDINATE_SPACE" }
         fun point(x: String, y: String): Pair<Int, Int> {
-            val sourceX = integer(args, x)
-            val sourceY = integer(args, y)
-            val normalized = args.optString("coordinate_space") == "normalized"
-            if (normalized) require(sourceX in 0..999 && sourceY in 0..999) { "INVALID_COORDINATES" }
-            val px = if (normalized) (sourceX.toLong() * (info.width - 1) / 999).toInt() else sourceX
-            val py = if (normalized) (sourceY.toLong() * (info.height - 1) / 999).toInt() else sourceY
-            require(px in 0 until info.width && py in 0 until info.height) { "INVALID_COORDINATES" }
-            return px to py
+            return coordinatePoint(integer(args, x), integer(args, y), args.optString("coordinate_space"), info.width, info.height)
         }
 
         val action = JSONObject().put(
@@ -583,11 +571,26 @@ internal class VirtualScreenUiTools(
             .put("code", code).put("message", message).toString(), sensitive = true
     )
 
-    private companion object {
-        val AFTER_ACTION_TOOLS = setOf(
+    companion object {
+        private val AFTER_ACTION_TOOLS = setOf(
             "launch_app", "open_uri", "tap", "tap_area", "tap_element", "long_press",
             "long_press_element", "swipe", "scroll", "scroll_element", "type_text",
             "input_text", "replace_text", "clear_text", "paste_text", "press_key",
         )
+
+        internal fun coordinatePoint(x: Int, y: Int, coordinateSpace: String, width: Int, height: Int): Pair<Int, Int> {
+            require(width > 0 && height > 0) { "INVALID_COORDINATES" }
+            return when (coordinateSpace.trim().lowercase(Locale.ROOT)) {
+                "normalized" -> {
+                    require(x in 0..999 && y in 0..999) { "INVALID_COORDINATES" }
+                    (x.toLong() * (width - 1) / 999).toInt() to (y.toLong() * (height - 1) / 999).toInt()
+                }
+                "screen", "screenshot" -> {
+                    require(x in 0 until width && y in 0 until height) { "INVALID_COORDINATES" }
+                    x to y
+                }
+                else -> error("INVALID_COORDINATE_SPACE")
+            }
+        }
     }
 }
