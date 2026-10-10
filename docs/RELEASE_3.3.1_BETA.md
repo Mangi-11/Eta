@@ -33,5 +33,5 @@ vivo V2419A / Android 16 / OriginOS / KernelSU + LSPosed 上完成停止续聊�
 本次本地构建 `Eta-v3.3.1-beta.1.apk` 的 SHA-256：
 
 ```text
-eeaf9d0d554da99b27b81d286352aca177b10d2f506b1ed422c7ec4de84551f0
+ab4a02233f9b9c70cd0724778990b7f20666890f4e0d94702f7c82bbd5bf7b29
 ```
