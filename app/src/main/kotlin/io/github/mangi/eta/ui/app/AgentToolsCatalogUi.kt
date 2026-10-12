@@ -57,7 +57,7 @@ internal fun buildToolsState(context: Context): AgentToolsUiState =
                 id = "device_direct",
                 title = context.getString(R.string.state_direct_access_to_equipment_eda92c),
                 tools = io.github.mangi.eta.agent.model.AgentPhoneToolCatalog.entries.filterNot { it.personal }.map {
-                    ToolItemUi(it.name, it.title, it.description)
+                    ToolItemUi(it.name, resolveToolTitle(context, it.name, it.title), resolveToolDesc(context, it.name, it.description))
                 } + listOf(
                     ToolItemUi("list_alarms", context.getString(R.string.tool_ui_alarm_clock_schedule_acae32), context.getString(R.string.tool_ui_read_the_alarm_clock_that_has_been_created_in_th_2320d6)),
                     ToolItemUi("list_active_timers", context.getString(R.string.tool_ui_activity_timer_36f107), context.getString(R.string.tool_ui_read_running_or_paused_timers_3437c8)),
@@ -81,12 +81,12 @@ internal fun buildToolsState(context: Context): AgentToolsUiState =
                 id = "personal_data",
                 title = context.getString(R.string.state_direct_access_to_personal_data_387d7b),
                 tools = io.github.mangi.eta.agent.context.PersonalSearchTools.searches.map {
-                    ToolItemUi(it.name, it.title, it.description)
+                    ToolItemUi(it.name, resolveToolTitle(context, it.name, it.title), resolveToolDesc(context, it.name, it.description))
                 } + io.github.mangi.eta.agent.model.AgentPhoneToolCatalog.entries.filter { it.personal }.map {
-                    ToolItemUi(it.name, it.title, it.description)
+                    ToolItemUi(it.name, resolveToolTitle(context, it.name, it.title), resolveToolDesc(context, it.name, it.description))
                 } + listOf(
-                    ToolItemUi("read_personal_item", "读取检索详情", "读取历史检索结果的完整条目。"),
-                    ToolItemUi("summarize_bills", "账单汇总", "按时间与关键词精确汇总账单索引。"),
+                    ToolItemUi("read_personal_item", resolveToolTitle(context, "read_personal_item", "读取检索详情"), resolveToolDesc(context, "read_personal_item", "读取历史检索结果的完整条目。")),
+                    ToolItemUi("summarize_bills", resolveToolTitle(context, "summarize_bills", "账单汇总"), resolveToolDesc(context, "summarize_bills", "按时间与关键词精确汇总账单索引。")),
                     ToolItemUi("read_sms_code", context.getString(R.string.tool_ui_read_verification_code_7d1121), context.getString(R.string.tool_ui_only_extract_verification_codes_from_recent_sms__0fb8c1)),
                     ToolItemUi("recent_notifications", context.getString(R.string.tool_ui_read_notification_7fdc09), context.getString(R.string.tool_ui_read_the_current_notification_title_and_text_0faee7)),
                     ToolItemUi("search_notification_history", context.getString(R.string.tool_ui_notification_history_95d015), context.getString(R.string.tool_ui_retrieve_the_last_7_days_of_notifications_saved__643e43)),
@@ -129,8 +129,8 @@ internal fun buildToolsState(context: Context): AgentToolsUiState =
                 tools = listOf(
                     ToolItemUi("memory_get", context.getString(R.string.tool_ui_read_memory_979135), context.getString(R.string.tool_ui_paged_to_read_or_retrieve_long_term_memory_in_me_88afc4)),
                     ToolItemUi("memory_write", context.getString(R.string.tool_ui_organize_memory_2b08eb), context.getString(R.string.tool_ui_partially_update_append_or_clear_long_term_memor_c1bab6)),
-                    ToolItemUi("character_memory_get", "读取剧情记忆", "仅角色会话可用，读取当前角色的长期剧情和关系。"),
-                    ToolItemUi("character_memory_write", "整理剧情记忆", "仅角色会话可用，更新当前角色的剧情记忆，不写入现实 MEMORY.md。"),
+                    ToolItemUi("character_memory_get", resolveToolTitle(context, "character_memory_get", "读取剧情记忆"), resolveToolDesc(context, "character_memory_get", "仅角色会话可用，读取当前角色的长期剧情和关系。")),
+                    ToolItemUi("character_memory_write", resolveToolTitle(context, "character_memory_write", "整理剧情记忆"), resolveToolDesc(context, "character_memory_write", "仅角色会话可用，更新当前角色的剧情记忆，不写入现实 MEMORY.md。")),
                 ),
             ),
             ToolGroupUi(
@@ -149,3 +149,13 @@ internal fun buildToolsState(context: Context): AgentToolsUiState =
             ),
         )
     )
+
+private fun resolveToolTitle(context: Context, name: String, fallback: String): String {
+    val resId = context.resources.getIdentifier("tool_${name}_title", "string", context.packageName)
+    return if (resId != 0) context.getString(resId) else fallback
+}
+
+private fun resolveToolDesc(context: Context, name: String, fallback: String): String {
+    val resId = context.resources.getIdentifier("tool_${name}_desc", "string", context.packageName)
+    return if (resId != 0) context.getString(resId) else fallback
+}

@@ -88,8 +88,8 @@ internal fun ModelProviderListScreen(
         item(key = "create_section") {
             ProviderSection(title = stringResource(R.string.ui_add_new_provider_74df54)) {
                 EtaArrowPreference(
-                    title = "从目录添加",
-                    summary = "浏览可用提供商并选择模型",
+                    title = stringResource(R.string.route_community_catalog),
+                    summary = stringResource(R.string.catalog_browse_providers_summary),
                     onClick = { onNavigate(AppRoute.CommunityCatalog) },
                 )
 
