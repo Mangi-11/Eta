@@ -1,4 +1,6 @@
 package io.github.mangi.eta.ui.screens.characters
+import io.github.mangi.eta.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -64,9 +66,9 @@ internal fun CharacterDetailScreen(
         if (it != null) store.export(id, CharacterCardFormat.JSON, it)
     }
     val profile = store.selected?.takeIf { it.id == id }
-    MiuixScaffoldPage(title = profile?.card?.name ?: "角色详情", onBack = onBack) {
+    MiuixScaffoldPage(title = profile?.card?.name ?: stringResource(R.string.character_details), onBack = onBack) {
         if (profile == null) {
-            item { CharacterPageMessage(if (store.busy) "正在读取角色…" else "无法读取角色，请返回后重试") }
+            item { CharacterPageMessage(if (store.busy) stringResource(R.string.character_reading) else stringResource(R.string.character_load_failed_go_back)) }
             return@MiuixScaffoldPage
         }
         item(key = "profile") {
@@ -96,13 +98,13 @@ internal fun CharacterDetailScreen(
                     )
                     if (profile.card.description.length > DescriptionPreviewChars) {
                         Text(
-                            text = "阅读全文",
+                            text = stringResource(R.string.character_read_full_text),
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.primary,
                             modifier = Modifier
                                 .padding(top = 6.dp)
                                 .clickable {
-                                    preview = CharacterTextPreview("角色设定", profile.card.description)
+                                    preview = CharacterTextPreview(stringResource(R.string.character_definition), profile.card.description)
                                 },
                         )
                     }
@@ -111,7 +113,7 @@ internal fun CharacterDetailScreen(
         }
         item(key = "start") {
             EtaTextButton(
-                text = "开始新对话",
+                text = stringResource(R.string.character_start_new_chat),
                 enabled = !store.busy,
                 onClick = { store.startConversation(id, onStart) },
                 modifier = Modifier
@@ -125,39 +127,39 @@ internal fun CharacterDetailScreen(
                 modifier = Modifier.padding(horizontal = CharacterCardPadding, vertical = 8.dp),
             ) {
                 EtaSwitchPreference(
-                    title = "使用我的人设",
-                    summary = store.persona.name.ifBlank { "未设置称呼" },
+                    title = stringResource(R.string.character_use_my_persona),
+                    summary = store.persona.name.ifBlank { stringResource(R.string.character_call_name_not_set) },
                     checked = store.usePersona,
                     onCheckedChange = { store.usePersona = it },
                 )
                 EtaPreferenceDivider(hasLeading = false)
-                EtaArrowPreference(title = "编辑我的人设", onClick = { onNavigate(AppRoute.CharacterPersona) })
+                EtaArrowPreference(title = stringResource(R.string.character_edit_user_persona), onClick = { onNavigate(AppRoute.CharacterPersona) })
             }
         }
-        item(key = "greetings-title") { EtaPreferenceGroupTitle("开场白") }
+        item(key = "greetings-title") { EtaPreferenceGroupTitle(stringResource(R.string.character_greeting)) }
         item(key = "greetings") {
             EtaPreferenceGroup(modifier = Modifier.padding(horizontal = CharacterCardPadding)) {
                 val greetings = listOf(profile.card.firstMessage) + profile.card.alternateGreetings
                 greetings.forEachIndexed { index, greeting ->
                     if (index > 0) EtaPreferenceDivider(hasLeading = false)
                     EtaRadioButtonPreference(
-                        title = if (index == 0) "默认开场白" else "开场白 ${index + 1}",
+                        title = if (index == 0) stringResource(R.string.character_default_greeting) else stringResource(R.string.character_indexed_greeting, index + 1),
                         summary = greeting.take(GreetingPreviewChars)
                             .let { if (greeting.length > GreetingPreviewChars) "$it…" else it }
-                            .ifBlank { "没有预设开场白，由你先开口" },
+                            .ifBlank { stringResource(R.string.character_greeting_none_you_start) },
                         selected = store.greetingIndex == index,
                         onClick = { store.greetingIndex = index },
                         bottomAction = if (greeting.length > GreetingPreviewChars) {
                             {
                                 Text(
-                                    text = "阅读全文",
+                                    text = stringResource(R.string.character_read_full_text),
                                     style = MiuixTheme.textStyles.footnote1,
                                     color = MiuixTheme.colorScheme.primary,
                                     modifier = Modifier
                                         .padding(start = 16.dp, bottom = 10.dp)
                                         .clickable {
                                             preview = CharacterTextPreview(
-                                                if (index == 0) "默认开场白" else "开场白 ${index + 1}",
+                                                if (index == 0) stringResource(R.string.character_default_greeting) else stringResource(R.string.character_indexed_greeting, index + 1),
                                                 greeting,
                                             )
                                         },
@@ -170,24 +172,24 @@ internal fun CharacterDetailScreen(
                 }
             }
         }
-        item(key = "management-title") { EtaPreferenceGroupTitle("管理") }
+        item(key = "management-title") { EtaPreferenceGroupTitle(stringResource(R.string.character_manage)) }
         item(key = "management") {
             EtaPreferenceGroup(modifier = Modifier.padding(horizontal = CharacterCardPadding)) {
-                EtaArrowPreference(title = "编辑角色", enabled = !store.busy, onClick = {
+                EtaArrowPreference(title = stringResource(R.string.character_edit), enabled = !store.busy, onClick = {
                     store.discardEditor()
                     onNavigate(AppRoute.CharacterEditor(id))
                 })
                 EtaPreferenceDivider(hasLeading = false)
-                EtaArrowPreference(title = "剧情记忆", summary = "此角色各次对话共享的故事与关系记录", onClick = {
+                EtaArrowPreference(title = stringResource(R.string.character_plot_memory), summary = stringResource(R.string.character_shared_story_and_relationship_notes), onClick = {
                     onNavigate(AppRoute.CharacterMemory(id))
                 })
                 EtaPreferenceDivider(hasLeading = false)
-                EtaArrowPreference(title = "复制角色", enabled = !store.busy, onClick = {
+                EtaArrowPreference(title = stringResource(R.string.character_duplicate), enabled = !store.busy, onClick = {
                     store.duplicate(id) { onNavigate(AppRoute.CharacterDetail(it)) }
                 })
                 EtaPreferenceDivider(hasLeading = false)
                 EtaArrowPreference(
-                    title = "删除角色",
+                    title = stringResource(R.string.character_delete_title),
                     titleColor = BasicComponentColors(
                         color = MiuixTheme.colorScheme.error,
                         disabledColor = MiuixTheme.colorScheme.disabledOnSurface,
@@ -202,13 +204,13 @@ internal fun CharacterDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     EtaTextButton(
-                        text = "导出 PNG",
+                        text = stringResource(R.string.character_export_png),
                         onClick = { pngExporter.launch(characterExportName(profile.card.name, "png")) },
                         enabled = !store.busy,
                         modifier = Modifier.weight(1f),
                     )
                     EtaTextButton(
-                        text = "导出 JSON",
+                        text = stringResource(R.string.character_export_json),
                         onClick = { jsonExporter.launch(characterExportName(profile.card.name, "json")) },
                         enabled = !store.busy,
                         modifier = Modifier.weight(1f),
@@ -224,8 +226,8 @@ internal fun CharacterDetailScreen(
                         .padding(top = 12.dp),
                 ) {
                     EtaArrowPreference(
-                        title = "兼容说明",
-                        summary = "${store.compatibilityWarnings.size} 项内容按兼容范围处理",
+                        title = stringResource(R.string.catalog_compatibility_notes),
+                        summary = stringResource(R.string.character_compatibility_warning_count, store.compatibilityWarnings.size),
                         onClick = { showCompatibility = !showCompatibility },
                     )
                     if (showCompatibility) {
@@ -246,12 +248,12 @@ internal fun CharacterDetailScreen(
     if (showDeleteConfirm && profile != null) {
         EtaWindowDialog(
             show = true,
-            title = "删除角色",
-            summary = "「${profile.card.name}」将从角色库移除，角色图片与剧情记忆一并删除；已有对话保留。此操作无法撤销。",
+            title = stringResource(R.string.character_delete_title),
+            summary = stringResource(R.string.character_delete_confirm_desc, profile.card.name),
             onDismissRequest = { showDeleteConfirm = false },
         ) {
             MiuixDialogActions(
-                confirmText = "删除",
+                confirmText = stringResource(R.string.character_delete),
                 destructive = true,
                 confirmEnabled = !store.busy,
                 onCancel = { showDeleteConfirm = false },
@@ -277,7 +279,7 @@ internal fun CharacterDetailScreen(
                 Text(current.text, style = MiuixTheme.textStyles.body2)
             }
             EtaTextButton(
-                text = "关闭",
+                text = stringResource(R.string.character_close),
                 onClick = { preview = null },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -290,6 +292,6 @@ internal fun CharacterDetailScreen(
 
 private fun characterExportName(name: String, extension: String): String {
     val basename = name.map { if (it.isISOControl() || it in "\\/:*?\"<>|") '_' else it }
-        .joinToString("").trim().trimEnd('.').take(64).ifBlank { "角色" }
+        .joinToString("").trim().trimEnd('.').take(64).ifBlank { stringResource(R.string.character_label) }
     return "$basename.$extension"
 }
