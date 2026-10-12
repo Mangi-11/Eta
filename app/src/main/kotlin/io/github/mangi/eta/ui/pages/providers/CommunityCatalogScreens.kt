@@ -1,4 +1,5 @@
 package io.github.mangi.eta.ui.pages.providers
+import android.content.Context
 import io.github.mangi.eta.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
@@ -59,6 +60,7 @@ internal fun CommunityCatalogScreen(
     onNavigate: (AppRoute) -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     var query by rememberSaveable { mutableStateOf("") }
     val catalog = store.catalog
     val providers = remember(catalog, query) {
@@ -112,8 +114,8 @@ internal fun CommunityCatalogScreen(
                 )
                 EtaPreferenceDivider(hasLeading = false)
                 EtaPreference(
-                    title = catalog?.sourceLabel() ?: if (store.loading) stringResource(R.string.catalog_reading_local) else stringResource(R.string.catalog_currently_unavailable),
-                    summary = catalog?.let(::catalogSummary),
+                    title = catalog?.sourceLabel(context) ?: if (store.loading) stringResource(R.string.catalog_reading_local) else stringResource(R.string.catalog_currently_unavailable),
+                    summary = catalog?.let { catalogSummary(context, it) },
                 )
                 if (store.refreshing) {
                     EtaPreferenceDivider(hasLeading = false)
@@ -378,18 +380,16 @@ private fun CatalogLoadingState() {
     }
 }
 
-@Composable
-private fun CommunityCatalog.sourceLabel(): String = when (source) {
-    CommunityCatalogSource.SNAPSHOT -> stringResource(R.string.catalog_builtin_snapshot)
-    CommunityCatalogSource.CACHE -> stringResource(R.string.catalog_local_cache)
-    CommunityCatalogSource.ONLINE -> stringResource(R.string.catalog_online)
+private fun CommunityCatalog.sourceLabel(context: Context): String = when (source) {
+    CommunityCatalogSource.SNAPSHOT -> context.getString(R.string.catalog_builtin_snapshot)
+    CommunityCatalogSource.CACHE -> context.getString(R.string.catalog_local_cache)
+    CommunityCatalogSource.ONLINE -> context.getString(R.string.catalog_online)
 }
 
-@Composable
-private fun catalogSummary(catalog: CommunityCatalog): String {
+private fun catalogSummary(context: Context, catalog: CommunityCatalog): String {
     val updated = catalog.fetchedAt?.let { timestamp ->
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(timestamp))
     }
-    return listOfNotNull("${catalog.providers.size} " + stringResource(R.string.catalog_providers_count_summary, catalog.providers.size), updated?.let { stringResource(R.string.catalog_updated_at, it) })
+    return listOfNotNull("${catalog.providers.size} " + context.getString(R.string.catalog_providers_count_summary, catalog.providers.size), updated?.let { context.getString(R.string.catalog_updated_at, it) })
         .joinToString(" · ")
 }
