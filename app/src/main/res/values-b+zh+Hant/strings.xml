@@ -46,6 +46,11 @@
   <string name="route_memory">記憶</string>
   <string name="route_linux_environment">Linux 工具環境</string>
   <string name="route_terminal">終端機</string>
+  <string name="route_characters">角色</string>
+  <string name="route_character_detail">角色詳情</string>
+  <string name="route_character_editor">編輯角色</string>
+  <string name="route_character_persona">我的人設</string>
+  <string name="route_character_memory">劇情記憶</string>
   <string name="terminal_input_hint">輸入指令</string>
   <string name="terminal_input_running_hint">向執行中的指令發送輸入</string>
   <string name="terminal_send">傳送</string>
@@ -119,6 +124,8 @@
   <string name="route_model_providers">模型供應商</string>
   <string name="route_provider_details">Provider 詳細資料</string>
   <string name="route_new_provider">新增供應商</string>
+  <string name="route_community_catalog">從目錄新增</string>
+  <string name="route_community_catalog_provider">選擇模型</string>
   <string name="settings_general">一般</string>
   <string name="appearance_title">外觀與主題</string>
   <string name="appearance_group_color">顏色與主題</string>

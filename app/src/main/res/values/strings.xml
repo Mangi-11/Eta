@@ -49,6 +49,11 @@
   <string name="route_memory">Memory</string>
   <string name="route_linux_environment">Linux environment</string>
   <string name="route_terminal">Terminal</string>
+  <string name="route_characters">Characters</string>
+  <string name="route_character_detail">Character details</string>
+  <string name="route_character_editor">Edit character</string>
+  <string name="route_character_persona">My persona</string>
+  <string name="route_character_memory">Story memory</string>
   <string name="terminal_input_hint">Enter a command</string>
   <string name="terminal_input_running_hint">Send input to the running command</string>
   <string name="terminal_send">Send</string>
@@ -122,6 +127,8 @@
   <string name="route_model_providers">Model providers</string>
   <string name="route_provider_details">Provider details</string>
   <string name="route_new_provider">New provider</string>
+  <string name="route_community_catalog">Add from catalog</string>
+  <string name="route_community_catalog_provider">Select models</string>
   <string name="settings_general">General</string>
   <string name="appearance_title">Appearance &amp; Theme</string>
   <string name="appearance_group_color">Colors &amp; Theme</string>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_view_description">Посмотреть описание</string>
+    <string name="ui_description_named">Посмотреть описание для %1$s</string>
+    <string name="skills_more_named">Другие действия для %1$s</string>
+    <string name="tools_manage_permissions">Управление разрешениями</string>
+    <string name="tools_view_enhancements">Системные расширения</string>
+</resources>
