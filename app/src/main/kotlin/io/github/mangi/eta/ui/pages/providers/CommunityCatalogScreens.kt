@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.pages.providers
 import io.github.mangi.eta.R
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -186,6 +187,7 @@ internal fun CommunityCatalogProviderScreen(
     onImported: (String) -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by rememberSaveable(catalogId) { mutableStateOf("") }
     var selectedIds by rememberSaveable(catalogId) { mutableStateOf(arrayListOf<String>()) }
@@ -226,9 +228,9 @@ internal fun CommunityCatalogProviderScreen(
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (_: IllegalArgumentException) {
-                            importError = stringResource(R.string.catalog_model_selection_invalid)
+                            importError = context.getString(R.string.catalog_model_selection_invalid)
                         } catch (_: Throwable) {
-                            importError = stringResource(R.string.catalog_save_provider_failed)
+                            importError = context.getString(R.string.catalog_save_provider_failed)
                         } finally {
                             importInFlight = false
                         }
@@ -376,12 +378,14 @@ private fun CatalogLoadingState() {
     }
 }
 
+@Composable
 private fun CommunityCatalog.sourceLabel(): String = when (source) {
     CommunityCatalogSource.SNAPSHOT -> stringResource(R.string.catalog_builtin_snapshot)
     CommunityCatalogSource.CACHE -> stringResource(R.string.catalog_local_cache)
     CommunityCatalogSource.ONLINE -> stringResource(R.string.catalog_online)
 }
 
+@Composable
 private fun catalogSummary(catalog: CommunityCatalog): String {
     val updated = catalog.fetchedAt?.let { timestamp ->
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(timestamp))

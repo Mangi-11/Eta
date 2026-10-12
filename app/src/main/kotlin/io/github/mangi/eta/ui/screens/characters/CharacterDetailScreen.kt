@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.screens.characters
 import io.github.mangi.eta.R
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -56,6 +57,10 @@ internal fun CharacterDetailScreen(
     onBack: () -> Unit,
     onStart: (RoleplayBinding, String) -> Unit,
 ) {
+    val context = LocalContext.current
+    val characterDefinitionTitle = stringResource(R.string.character_definition)
+    val defaultGreetingTitle = stringResource(R.string.character_default_greeting)
+
     var showCompatibility by rememberSaveable(id) { mutableStateOf(false) }
     var showDeleteConfirm by rememberSaveable(id) { mutableStateOf(false) }
     var preview by remember(id) { mutableStateOf<CharacterTextPreview?>(null) }
@@ -104,7 +109,7 @@ internal fun CharacterDetailScreen(
                             modifier = Modifier
                                 .padding(top = 6.dp)
                                 .clickable {
-                                    preview = CharacterTextPreview(stringResource(R.string.character_definition), profile.card.description)
+                                    preview = CharacterTextPreview(characterDefinitionTitle, profile.card.description)
                                 },
                         )
                     }
@@ -159,7 +164,7 @@ internal fun CharacterDetailScreen(
                                         .padding(start = 16.dp, bottom = 10.dp)
                                         .clickable {
                                             preview = CharacterTextPreview(
-                                                if (index == 0) stringResource(R.string.character_default_greeting) else stringResource(R.string.character_indexed_greeting, index + 1),
+                                                if (index == 0) defaultGreetingTitle else context.getString(R.string.character_indexed_greeting, index + 1),
                                                 greeting,
                                             )
                                         },
@@ -292,6 +297,6 @@ internal fun CharacterDetailScreen(
 
 private fun characterExportName(name: String, extension: String): String {
     val basename = name.map { if (it.isISOControl() || it in "\\/:*?\"<>|") '_' else it }
-        .joinToString("").trim().trimEnd('.').take(64).ifBlank { stringResource(R.string.character_label) }
+        .joinToString("").trim().trimEnd('.').take(64).ifBlank { "character" }
     return "$basename.$extension"
 }
