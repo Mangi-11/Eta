@@ -6,47 +6,56 @@ import org.json.JSONObject
 
 /** 工具摘要面向用户展示，不包含敏感参数；终端命令通过独立字段提供给用户核对。 */
 internal class AgentTraceFormatter {
+
+    private val isRu: Boolean get() = Locale.getDefault().language == "ru"
+    private val isZh: Boolean get() = Locale.getDefault().language == "zh"
+    private fun t(zh: String, ru: String, en: String = zh): String = when {
+        isRu -> ru
+        isZh -> zh
+        else -> en
+    }
+
     fun summarizeArguments(toolCall: AgentModelClient.ToolCall): String =
         when (toolCall.name) {
             BROWSER_TOOL_NAME -> summarizeBrowserArguments(toolCall.argumentsJson)
-            "web_search" -> "搜索网页"
+            "web_search" -> t("搜索网页", "Поиск в сети", "Web Search")
             "fetch_url" -> summarizeFetchArguments(toolCall.argumentsJson)
             "open_uri" -> summarizeOpenUriArguments(toolCall.argumentsJson)
             "terminal" -> summarizeTerminalArguments(toolCall.argumentsJson)
-            "run_command" -> "执行命令 · Android"
-            "write_file" -> summarizeTextLength("写入文件", toolCall.argumentsJson, "content")
-            "read_file" -> "读取文件"
-            "list_directory" -> "列出目录"
-            "edit_file" -> "精确编辑文件"
-            "stat_file" -> "查看文件信息"
-            "glob_files" -> "按路径查找文件"
-            "grep_files" -> "搜索文件内容"
-            "inspect_app" -> "检查应用"
+            "run_command" -> t("执行命令 · Android", "Выполнение команды · Android", "Run command · Android")
+            "write_file" -> summarizeTextLength(t("写入文件", "Запись файла", "Write file"), toolCall.argumentsJson, "content")
+            "read_file" -> t("读取文件", "Чтение файла", "Read file")
+            "list_directory" -> t("列出目录", "Список файлов каталога", "List directory")
+            "edit_file" -> t("精确编辑文件", "Точное редактирование файла", "Edit file")
+            "stat_file" -> t("查看文件信息", "Сведения о файле", "Stat file")
+            "glob_files" -> t("按路径查找文件", "Поиск файлов по маске", "Find files by pattern")
+            "grep_files" -> t("搜索文件内容", "Поиск текста в файлах", "Grep files")
+            "inspect_app" -> t("检查应用", "Инспекция приложения", "Inspect app")
             "type_text" -> summarizeTypeText(toolCall.argumentsJson)
-            "input_text" -> summarizeTextLength("输入文本", toolCall.argumentsJson, "text")
-            "replace_text" -> summarizeTextLength("替换文本", toolCall.argumentsJson, "text")
+            "input_text" -> summarizeTextLength(t("输入文本", "Ввод текста", "Input text"), toolCall.argumentsJson, "text")
+            "replace_text" -> summarizeTextLength(t("替换文本", "Замена текста", "Replace text"), toolCall.argumentsJson, "text")
             "paste_text", "set_clipboard" ->
-                summarizeTextLength("粘贴文本", toolCall.argumentsJson, "text")
-            "clear_text" -> "清空文本"
-            "get_clipboard" -> "读取剪贴板"
-            "search_apps" -> summarizeQueryArguments("搜索应用", toolCall.argumentsJson)
-            "launch_app" -> "打开应用"
-            "get_current_context" -> "读取当前上下文"
+                summarizeTextLength(t("粘贴文本", "Вставка текста", "Paste text"), toolCall.argumentsJson, "text")
+            "clear_text" -> t("清空文本", "Очистка текста", "Clear text")
+            "get_clipboard" -> t("读取剪贴板", "Чтение буфера обмена", "Get clipboard")
+            "search_apps" -> summarizeQueryArguments(t("搜索应用", "Поиск приложений", "Search apps"), toolCall.argumentsJson)
+            "launch_app" -> t("打开应用", "Запуск приложения", "Launch app")
+            "get_current_context" -> t("读取当前上下文", "Получение текущего контекста", "Get context")
             "observe_screen" -> summarizeObservationArguments(toolCall.argumentsJson)
-            "tap" -> summarizePointArguments("点击屏幕", toolCall.argumentsJson)
-            "long_press" -> summarizePointArguments("长按屏幕", toolCall.argumentsJson)
-            "tap_area" -> "点击区域"
-            "tap_element" -> summarizeElementArguments("点击元素", toolCall.argumentsJson)
-            "long_press_element" -> summarizeElementArguments("长按元素", toolCall.argumentsJson)
-            "swipe" -> "滑动屏幕"
-            "scroll" -> summarizeScrollArguments("滚动屏幕", toolCall.argumentsJson)
+            "tap" -> summarizePointArguments(t("点击屏幕", "Нажатие на экран", "Tap screen"), toolCall.argumentsJson)
+            "long_press" -> summarizePointArguments(t("长按屏幕", "Долгое нажатие", "Long press"), toolCall.argumentsJson)
+            "tap_area" -> t("点击区域", "Нажатие по области", "Tap area")
+            "tap_element" -> summarizeElementArguments(t("点击元素", "Нажатие на элемент", "Tap element"), toolCall.argumentsJson)
+            "long_press_element" -> summarizeElementArguments(t("长按元素", "Долгое нажатие на элемент", "Long press element"), toolCall.argumentsJson)
+            "swipe" -> t("滑动屏幕", "Свайп по экрану", "Swipe screen")
+            "scroll" -> summarizeScrollArguments(t("滚动屏幕", "Прокрутка экрана", "Scroll screen"), toolCall.argumentsJson)
             "scroll_element" ->
-                summarizeScrollArguments("滚动元素", toolCall.argumentsJson, withIndex = true)
+                summarizeScrollArguments(t("滚动元素", "Прокрутка элемента", "Scroll element"), toolCall.argumentsJson, withIndex = true)
             "press_key" -> summarizePressKeyArguments(toolCall.argumentsJson)
             "wait" -> summarizeWaitArguments(toolCall.argumentsJson)
             "wait_for_text" -> "等待文本出现"
-            "wait_for_package" -> "等待应用就绪"
-            "open_system_panel" -> "打开系统面板"
+            "wait_for_package" -> t("等待应用就绪", "Ожидание готовности приложения", "Wait for app")
+            "open_system_panel" -> t("打开系统面板", "Открытие системной панели", "Open system panel")
             "read_image" -> "查看图片"
             AgentConversationToolCatalog.READ_HISTORY -> "读取当前会话历史"
             "memory_get", "character_memory_get" -> summarizeMemoryGetArguments(toolCall.argumentsJson)
@@ -130,13 +139,13 @@ internal class AgentTraceFormatter {
             val identity = arguments.optString("identity")
                 .takeIf { it == "root" || it == "user" }
             buildList {
-                add("终端")
+                add(t("终端", "Терминал", "Terminal"))
                 add(action)
                 add(environment)
                 identity?.let(::add)
-                if (arguments.optBoolean("async", false)) add("后台")
+                if (arguments.optBoolean("async", false)) add(t("后台", "Фон", "Background"))
             }.joinToString(" · ")
-        }.getOrDefault("终端")
+        }.getOrDefault(t("终端", "Терминал", "Terminal"))
 
     private fun summarizeTextLength(
         label: String,
@@ -145,7 +154,7 @@ internal class AgentTraceFormatter {
     ): String =
         runCatching {
             val chars = JSONObject(argumentsJson).optString(key).length
-            "$label · $chars 字符"
+            "$label · $chars " + t("字符", "симв.", "chars")
         }.getOrDefault(label)
 
     /** 只展示动作与长度，不回显正文：输入内容可能是密码或私人消息。 */
@@ -154,14 +163,14 @@ internal class AgentTraceFormatter {
             val args = JSONObject(argumentsJson)
             val chars = args.optString("text").length
             val label = when {
-                chars == 0 -> "清空文本"
-                args.optString("mode") == "append" -> "追加文本"
-                else -> "输入文本"
+                chars == 0 -> t("清空文本", "Очистка текста", "Clear text")
+                args.optString("mode") == "append" -> t("追加文本", "Добавление текста", "Append text")
+                else -> t("输入文本", "Ввод текста", "Input text")
             }
             buildString {
                 append(label)
-                if (chars > 0) append(" · $chars 字符")
-                if (args.optBoolean("submit")) append(" · 提交")
+                if (chars > 0) append(" · $chars " + t("字符", "симв.", "chars"))
+                if (args.optBoolean("submit")) append(" · " + t("提交", "Отправка", "Submit"))
             }
         }.getOrDefault("输入文本")
 
@@ -387,9 +396,9 @@ internal class AgentTraceFormatter {
         val exitCode = json.optInt("exit_code")
         val timedOut = json.optBoolean("timed_out", false)
         val status = when {
-            timedOut -> "失败 · 执行超时"
-            exitCode == 0 -> "执行完成"
-            else -> "失败 · 退出码 $exitCode"
+            timedOut -> t("失败 · 执行超时", "Ошибка · Превышено время ожидания", "Failed · Timed out")
+            exitCode == 0 -> t("执行完成", "Выполнено", "Completed")
+            else -> t("失败 · 退出码 $exitCode", "Ошибка · Код завершения $exitCode", "Failed · Exit code $exitCode")
         }
         val output = if (exitCode == 0) {
             json.optString("stdout")
@@ -555,16 +564,16 @@ internal class AgentTraceFormatter {
     }
 
     private fun String.terminalActionLabel(): String = when (this) {
-        "open" -> "创建会话"
-        "exec" -> "执行命令"
-        "open_and_exec" -> "单次执行"
-        "read_async_result" -> "读取后台输出"
-        "close" -> "关闭终端"
-        "daemon_start" -> "启动守护任务"
-        "daemon_list" -> "守护任务列表"
-        "daemon_logs" -> "查看守护日志"
-        "daemon_stop" -> "停止守护任务"
-        else -> "终端操作"
+        "open" -> t("创建会话", "Создание сессии", "Open session")
+        "exec" -> t("执行命令", "Выполнение команды", "Execute command")
+        "open_and_exec" -> t("单次执行", "Разовое выполнение", "Exec once")
+        "read_async_result" -> t("读取后台输出", "Чтение фонового вывода", "Read async result")
+        "close" -> t("关闭终端", "Закрытие терминала", "Close terminal")
+        "daemon_start" -> t("启动守护任务", "Запуск демона", "Start daemon")
+        "daemon_list" -> t("守护任务列表", "Список демонов", "Daemon list")
+        "daemon_logs" -> t("查看守护日志", "Логи демона", "Daemon logs")
+        "daemon_stop" -> t("停止守护任务", "Остановка демона", "Stop daemon")
+        else -> t("终端操作", "Операция терминала", "Terminal operation")
     }
 
     private fun String.terminalEnvironmentLabel(): String = when (this) {

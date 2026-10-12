@@ -48,9 +48,12 @@ internal fun AgentOverlayStatus.localizedText(resources: Resources): String = wh
 internal fun toolDisplayName(name: String): String = toolDisplayName(LocalResources.current, name)
 
 internal fun toolDisplayName(resources: Resources, name: String): String {
-    val resource = toolDisplayNameResource(name) ?: return io.github.mangi.eta.agent.model.AgentPhoneToolCatalog.entries.firstOrNull { it.name == name }?.title
+    val resource = toolDisplayNameResource(name)
+    if (resource != null) return resources.getString(resource)
+    val dynId = resources.getIdentifier("tool_${name}_title", "string", "io.github.mangi.eta")
+    if (dynId != 0) return resources.getString(dynId)
+    return io.github.mangi.eta.agent.model.AgentPhoneToolCatalog.entries.firstOrNull { it.name == name }?.title
         ?: io.github.mangi.eta.agent.context.PersonalSearchTools.searches.firstOrNull { it.name == name }?.title ?: name
-    return resources.getString(resource)
 }
 
 @StringRes

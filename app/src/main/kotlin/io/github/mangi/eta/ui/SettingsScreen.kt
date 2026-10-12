@@ -330,7 +330,7 @@ private fun SettingsPageContent(
 
                     EtaPreferenceDivider()
                     EtaArrowPreference(
-                        title = "角色",
+                        title = stringResource(R.string.route_characters),
                         startAction = {
                             EtaPreferenceIcon(
                                 icon = Icons.Rounded.SportsBar,

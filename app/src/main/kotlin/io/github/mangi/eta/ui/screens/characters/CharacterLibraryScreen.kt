@@ -1,4 +1,6 @@
 package io.github.mangi.eta.ui.screens.characters
+import io.github.mangi.eta.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -57,14 +59,14 @@ internal fun CharacterLibraryScreen(
         onNavigate(AppRoute.CharacterEditor())
     }
     MiuixScaffoldPage(
-        title = "角色",
+        title = stringResource(R.string.character_label),
         onBack = onBack,
         actions = {
             IconButton(onClick = importCard, enabled = !store.busy) {
-                Icon(Icons.Rounded.FileUpload, contentDescription = "导入角色卡")
+                Icon(Icons.Rounded.FileUpload, contentDescription = stringResource(R.string.character_import_card))
             }
             IconButton(onClick = createCharacter, enabled = !store.busy) {
-                Icon(Icons.Rounded.Add, contentDescription = "创建角色")
+                Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.character_create))
             }
         },
     ) {
@@ -82,7 +84,7 @@ internal fun CharacterLibraryScreen(
                         onSearch = { store.query = it },
                         expanded = false,
                         onExpandedChange = {},
-                        label = "搜索名称或标签",
+                        label = stringResource(R.string.catalog_search_name_or_tag),
                     )
                 },
                 content = {},
@@ -102,17 +104,17 @@ internal fun CharacterLibraryScreen(
             store.characters.isEmpty() -> {
                 item(key = "empty-library") {
                     ListEmptyState(
-                        title = "还没有角色",
-                        summary = "创建一个角色，或导入 PNG、JSON 角色卡开始对话",
+                        title = stringResource(R.string.character_list_empty),
+                        summary = stringResource(R.string.character_empty_state_desc),
                         action = {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 EtaTextButton(
-                                    text = "恢复默认角色",
+                                    text = stringResource(R.string.character_restore_default),
                                     onClick = { store.restoreDefaultCharacter() },
                                     enabled = !store.busy,
                                 )
                                 EtaTextButton(
-                                    text = "创建角色",
+                                    text = stringResource(R.string.character_create),
                                     onClick = createCharacter,
                                     colors = ButtonDefaults.textButtonColorsPrimary(),
                                 )
@@ -124,8 +126,8 @@ internal fun CharacterLibraryScreen(
             store.filteredCharacters.isEmpty() -> {
                 item(key = "empty-search") {
                     ListEmptyState(
-                        title = "没有找到匹配的角色",
-                        summary = "换个关键词试试，搜索会匹配名称与标签",
+                        title = stringResource(R.string.character_search_no_matches_found),
+                        summary = stringResource(R.string.catalog_search_empty_hint),
                     )
                 }
             }
@@ -159,7 +161,7 @@ internal fun CharacterLibraryScreen(
                 }
             }
         }
-        item(key = "persona-title") { EtaPreferenceGroupTitle("我的") }
+        item(key = "persona-title") { EtaPreferenceGroupTitle(stringResource(R.string.character_tab_mine)) }
         item(key = "persona") {
             EtaPreferenceGroup(
                 modifier = Modifier
@@ -167,8 +169,8 @@ internal fun CharacterLibraryScreen(
                     .padding(bottom = 16.dp),
             ) {
                 EtaArrowPreference(
-                    title = "我的人设",
-                    summary = "设置角色如何称呼你，以及你在故事中的身份",
+                    title = stringResource(R.string.character_user_persona),
+                    summary = stringResource(R.string.character_user_identity_desc),
                     onClick = { onNavigate(AppRoute.CharacterPersona) },
                 )
             }

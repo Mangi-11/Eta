@@ -1,4 +1,6 @@
 package io.github.mangi.eta.ui.screens.characters
+import io.github.mangi.eta.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -30,42 +32,42 @@ internal fun LazyListScope.characterWorldbookEditor(
     val card = store.draft ?: return
     val book = card.worldbookDraft()
     val enabled = !store.busy
-    item(key = "worldbook-title") { EtaPreferenceGroupTitle("世界书") }
+    item(key = "worldbook-title") { EtaPreferenceGroupTitle(stringResource(R.string.worldbook_title)) }
     item(key = "worldbook-header") {
         EtaPreferenceGroup(modifier = Modifier.padding(horizontal = CharacterCardPadding)) {
             EtaArrowPreference(
-                title = "内嵌世界书",
-                summary = "${book.entries.size} 个条目 · ${if (expanded) "收起" else "展开编辑"}",
+                title = stringResource(R.string.character_embedded_worldbook),
+                summary = stringResource(R.string.worldbook_entries_summary, book.entries.size, if (expanded) stringResource(R.string.worldbook_collapse) else stringResource(R.string.character_expand_edit)),
                 onClick = onToggleExpanded,
             )
         }
     }
     if (!expanded) return
     item(key = "worldbook-name") {
-        CharacterTextField("世界书名称", book.name, { value -> store.updateWorldbook { it.copy(name = value) } }, enabled, singleLine = true)
+        CharacterTextField(stringResource(R.string.worldbook_name_label), book.name, { value -> store.updateWorldbook { it.copy(name = value) } }, enabled, singleLine = true)
     }
     item(key = "worldbook-depth") {
-        CharacterTextField("扫描最近消息数（留空使用默认值）", book.scanDepth?.toString().orEmpty(), { value ->
+        CharacterTextField(stringResource(R.string.worldbook_scan_recent_messages_hint), book.scanDepth?.toString().orEmpty(), { value ->
             optionalNonNegativeInt(value) { number -> store.updateWorldbook { it.copy(scanDepth = number) } }
         }, enabled, singleLine = true)
     }
     item(key = "worldbook-budget") {
-        CharacterTextField("Token 预算（留空自动分配）", book.tokenBudget?.toString().orEmpty(), { value ->
+        CharacterTextField(stringResource(R.string.worldbook_token_budget_hint), book.tokenBudget?.toString().orEmpty(), { value ->
             optionalNonNegativeInt(value) { number -> store.updateWorldbook { it.copy(tokenBudget = number) } }
         }, enabled, singleLine = true)
     }
     item(key = "worldbook-recursive") {
         EtaPreferenceGroup(modifier = Modifier.padding(horizontal = CharacterCardPadding, vertical = 8.dp)) {
             EtaSwitchPreference(
-                title = "递归匹配",
-                summary = "使用已匹配条目的内容继续寻找相关条目",
+                title = stringResource(R.string.worldbook_recursive_matching),
+                summary = stringResource(R.string.worldbook_recursive_scanning_description),
                 checked = book.recursiveScanning == true,
                 enabled = enabled,
                 onCheckedChange = { value -> store.updateWorldbook { it.copy(recursiveScanning = value) } },
             )
         }
     }
-    item(key = "worldbook-entries-title") { EtaPreferenceGroupTitle("条目") }
+    item(key = "worldbook-entries-title") { EtaPreferenceGroupTitle(stringResource(R.string.worldbook_entry)) }
     val unsupported = CharacterWorldbook.unsupportedEntries(card).associate { it.index to it.reasons }
     itemsIndexed(book.entries, key = { index, _ -> "worldbook-entry-$index" }) { index, entry ->
         EtaPreferenceGroup(
@@ -73,12 +75,12 @@ internal fun LazyListScope.characterWorldbookEditor(
                 .padding(horizontal = CharacterCardPadding, vertical = 8.dp),
         ) {
             EtaArrowPreference(
-                title = entry.name.take(120).ifBlank { "条目 ${index + 1}" },
+                title = entry.name.take(120).ifBlank { stringResource(R.string.worldbook_indexed_entry, index + 1) },
                 summary = when {
-                    !entry.enabled -> "已停用"
-                    !unsupported[index].isNullOrEmpty() -> "已跳过：${unsupported[index].orEmpty().joinToString("；")}"
-                    entry.constant -> "始终参与上下文"
-                    else -> entry.keys.take(4).joinToString("、").take(160).ifBlank { "尚未设置触发关键词" }
+                    !entry.enabled -> stringResource(R.string.worldbook_status_disabled)
+                    !unsupported[index].isNullOrEmpty() -> stringResource(R.string.worldbook_skipped_unsupported, unsupported[index].orEmpty().joinToString("；"))
+                    entry.constant -> stringResource(R.string.worldbook_always_active)
+                    else -> entry.keys.take(4).joinToString("、").take(160).ifBlank { stringResource(R.string.worldbook_no_trigger_keywords_set) }
                 },
                 onClick = { onExpandEntry(if (expandedEntry == index) null else index) },
                 endActions = {
@@ -111,7 +113,7 @@ internal fun LazyListScope.characterWorldbookEditor(
     }
     item(key = "worldbook-add-entry") {
         EtaTextButton(
-            text = "添加条目",
+            text = stringResource(R.string.worldbook_add_entry),
             enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
@@ -134,43 +136,43 @@ private fun CharacterWorldbookEntryEditor(
 ) {
     if (unsupported.isNotEmpty()) {
         Text(
-            "此条目暂不参与匹配：${unsupported.joinToString("；")}",
+            stringResource(R.string.worldbook_item_unsupported, unsupported.joinToString("；")),
             style = MiuixTheme.textStyles.body2,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         )
     }
-    CharacterFieldGroupLabel("内容")
-    CharacterTextField("条目标题", entry.name, { onChange(entry.copy(name = it)) }, enabled, singleLine = true)
-    CharacterTextField("内容", entry.content, { onChange(entry.copy(content = it)) }, enabled, minLines = 4)
-    CharacterFieldGroupLabel("触发")
-    CharacterTextField("主关键词（每行一个）", entry.keys.joinToString("\n"), { onChange(entry.copy(keys = it.lines())) }, enabled)
-    CharacterTextField("次级关键词（每行一个）", entry.secondaryKeys.joinToString("\n"), { onChange(entry.copy(secondaryKeys = it.lines())) }, enabled)
+    CharacterFieldGroupLabel(stringResource(R.string.worldbook_content))
+    CharacterTextField(stringResource(R.string.worldbook_entry_title), entry.name, { onChange(entry.copy(name = it)) }, enabled, singleLine = true)
+    CharacterTextField(stringResource(R.string.worldbook_content), entry.content, { onChange(entry.copy(content = it)) }, enabled, minLines = 4)
+    CharacterFieldGroupLabel(stringResource(R.string.worldbook_trigger))
+    CharacterTextField(stringResource(R.string.worldbook_primary_keys_hint), entry.keys.joinToString("\n"), { onChange(entry.copy(keys = it.lines())) }, enabled)
+    CharacterTextField(stringResource(R.string.worldbook_secondary_keys_per_line), entry.secondaryKeys.joinToString("\n"), { onChange(entry.copy(secondaryKeys = it.lines())) }, enabled)
     EtaSwitchPreference(
-        title = "同时匹配次级关键词",
+        title = stringResource(R.string.worldbook_match_secondary_keys),
         checked = entry.selective,
         enabled = enabled,
         onCheckedChange = { onChange(entry.copy(selective = it)) },
     )
-    CharacterFieldGroupLabel("插入")
+    CharacterFieldGroupLabel(stringResource(R.string.worldbook_insert))
     EtaSwitchPreference(
-        title = "常驻上下文",
+        title = stringResource(R.string.worldbook_constant_context),
         checked = entry.constant,
         enabled = enabled,
         onCheckedChange = { onChange(entry.copy(constant = it)) },
     )
     EtaSwitchPreference(
-        title = "放在角色设定之前",
-        summary = "关闭时放在角色设定之后",
+        title = stringResource(R.string.worldbook_insert_before_character_definition),
+        summary = stringResource(R.string.worldbook_placement_after_character_when_disabled),
         checked = entry.position == "before_char",
         enabled = enabled,
         onCheckedChange = { onChange(entry.copy(position = if (it) "before_char" else "after_char")) },
     )
-    CharacterTextField("插入顺序", entry.insertionOrder.toString(), { value ->
+    CharacterTextField(stringResource(R.string.worldbook_insertion_order), entry.insertionOrder.toString(), { value ->
         value.toIntOrNull()?.takeIf { it >= 0 }?.let { onChange(entry.copy(insertionOrder = it)) }
     }, enabled, singleLine = true)
     EtaTextButton(
-        text = "移除条目",
+        text = stringResource(R.string.worldbook_remove_entry),
         enabled = enabled,
         onClick = onDelete,
         modifier = Modifier

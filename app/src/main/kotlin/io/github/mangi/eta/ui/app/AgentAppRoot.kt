@@ -714,13 +714,13 @@ fun AgentAppRoot(
     characterStore.notice?.let { notice ->
         WindowDialog(
             show = true,
-            title = "角色",
+            title = stringResource(R.string.route_characters),
             summary = notice,
             cornerRadius = DialogDefaults.CornerRadius,
             onDismissRequest = characterStore::dismissNotice,
         ) {
             top.yukonga.miuix.kmp.basic.TextButton(
-                text = "知道了", onClick = characterStore::dismissNotice, modifier = Modifier.fillMaxWidth(),
+                text = stringResource(R.string.ui_knew_cb63c6), onClick = characterStore::dismissNotice, modifier = Modifier.fillMaxWidth(),
             )
         }
     }

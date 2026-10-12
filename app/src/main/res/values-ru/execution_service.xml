@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="execution_channel">Выполняемые задачи</string>
+    <string name="execution_title">Eta выполняется</string>
+    <plurals name="execution_summary">
+        <item quantity="one">Выполняется %1$d задача. Вернитесь в Eta для проверки прогресса.</item>
+        <item quantity="few">Выполняются %1$d задачи. Вернитесь в Eta для проверки прогресса.</item>
+        <item quantity="many">Выполняется %1$d задач. Вернитесь в Eta для проверки прогресса.</item>
+        <item quantity="other">Выполняется %1$d задач. Вернитесь в Eta для проверки прогресса.</item>
+    </plurals>
+    <string name="execution_stop">Остановить задачи</string>
+    <string name="execution_chip_running">Выполняется</string>
+    <string name="execution_chip_answering">Отвечает</string>
+</resources>

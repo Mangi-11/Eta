@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="linux_environment_configuration">Конфигурация окружения</string>
+    <string name="linux_environment_files">Файлы и каталоги</string>
+    <string name="linux_environment_base_ready">Базовое окружение готово; установите базовые утилиты</string>
+    <string name="linux_environment_tools_ready">Базовые утилиты готовы; установите расширенные утилиты при необходимости</string>
+    <string name="linux_environment_shared_folders_summary">Монтирование папок Android в окружение Linux</string>
+</resources>
