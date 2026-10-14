@@ -1,7 +1,7 @@
 [versions]
 ndk = "30.0.16248370"
 agp = "9.4.1"
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 ksp = "2.3.12"
 libxposedApi = "102.0.0"
 libxposedService = "102.0.0"
