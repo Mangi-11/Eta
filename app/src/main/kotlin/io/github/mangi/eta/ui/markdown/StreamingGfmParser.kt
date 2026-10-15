@@ -59,7 +59,12 @@ internal object StreamingGfmProjection {
     fun project(source: String, isComplete: Boolean): String {
         if (isComplete || source.isEmpty()) return source
 
-        val tableSafeEnd = ambiguousTableStart(source) ?: source.length
+        // Issue #101：數學區間只算一次後傳參，避免每幀 3×protectedRanges 全掃描。
+        val needMath = source.contains('$') &&
+            (('|' in source) || ('[' in source) || source.any { it == '*' || it == '_' || it == '~' || it == '`' })
+        val math = if (needMath) mathRanges(source) else emptyList()
+
+        val tableSafeEnd = ambiguousTableStart(source, math) ?: source.length
         var projected = source.substring(0, tableSafeEnd)
 
         val openFence = findOpenFence(projected)
@@ -68,18 +73,33 @@ internal object StreamingGfmProjection {
             return projected + openFence.marker.toString().repeat(openFence.length)
         }
 
-        val pendingLinkStart = findPendingLinkStart(projected)
+        val pendingLinkStart = findPendingLinkStart(projected, mathFor(projected, source, math))
         if (pendingLinkStart != null) {
             projected = projected.substring(0, pendingLinkStart)
         }
 
-        val inlineClosures = findInlineClosures(projected)
+        val inlineClosures = findInlineClosures(projected, mathFor(projected, source, math))
         return projected + inlineClosures
     }
 
-    private fun ambiguousTableStart(source: String): Int? {
+    /**
+     * projected 恆為 source 的前綴子串（表格/連結截斷後），偏移 0..len-1 與原串 1:1。
+     * 若等長直接重用 math；被截斷則按 projected 重算（短串，最多 +1~2 次/幀，可接受）。
+     */
+    private fun mathFor(projected: String, source: String, math: List<IntRange>): List<IntRange> {
+        if (projected.length == source.length) return math
+        if (!projected.contains('$')) return emptyList()
+        return mathRanges(projected)
+    }
+
+    private fun ambiguousTableStart(source: String, math: List<IntRange>): Int? {
+        if ('|' !in source) return null
         val lines = source.toLineSlices()
         if (lines.isEmpty()) return null
+        // Issue #101：公式裡的 `|`（如 $\mid$、$\lvert x\rvert$）不能觸發表格緩衝，
+        // 否則流式期間整行公式被截斷而「直接消失」。mathRanges 基於等長歸一化源碼，偏移 1:1。
+        fun hasPipeOutsideMath(slice: LineSlice): Boolean =
+            containsUnescapedPipeOutsideMath(slice.text, slice.start, math)
 
         val blockStart = lines.indexOfLast { it.text.isBlank() }
             .let { blankIndex -> if (blankIndex == -1) 0 else blankIndex + 1 }
@@ -87,7 +107,7 @@ internal object StreamingGfmProjection {
         if (blockLines.isEmpty()) return null
 
         val confirmedTable = (1 until blockLines.size).any { index ->
-            containsUnescapedPipe(blockLines[index - 1].text) &&
+            hasPipeOutsideMath(blockLines[index - 1]) &&
                 isValidTableDelimiter(blockLines[index].text)
         }
         if (confirmedTable) return null
@@ -95,7 +115,7 @@ internal object StreamingGfmProjection {
         val current = blockLines.last()
         val previous = blockLines.getOrNull(blockLines.lastIndex - 1)
 
-        if (previous != null && containsUnescapedPipe(previous.text)) {
+        if (previous != null && hasPipeOutsideMath(previous)) {
             if (current.text.isEmpty()) {
                 return if (source.endsWith("\n\n")) null else previous.start
             }
@@ -105,7 +125,7 @@ internal object StreamingGfmProjection {
         }
 
         return current.start.takeIf {
-            current.text.isNotBlank() && containsUnescapedPipe(current.text)
+            current.text.isNotBlank() && hasPipeOutsideMath(current)
         }
     }
 
@@ -127,7 +147,10 @@ internal object StreamingGfmProjection {
         return openFence
     }
 
-    private fun findPendingLinkStart(source: String): Int? {
+    private fun findPendingLinkStart(source: String, math: List<IntRange>): Int? {
+        if ('[' !in source) return null
+        // Issue #101：公式裡的 `[0,1]`、`a[0]` 不能當未閉合連結截斷，否則流式公式後半消失。
+        fun inMath(index: Int): Boolean = math.containsSorted(index)
         val bracketStack = ArrayDeque<Int>()
         var inlineCodeTicks = 0
         var openLinkStart: Int? = null
@@ -137,6 +160,10 @@ internal object StreamingGfmProjection {
         var index = 0
 
         while (index < source.length) {
+            if (inMath(index)) {
+                index += 1
+                continue
+            }
             if (source[index] == '\\') {
                 index += 2
                 continue
@@ -191,12 +218,18 @@ internal object StreamingGfmProjection {
         }
     }
 
-    private fun findInlineClosures(source: String): String {
+    private fun findInlineClosures(source: String, math: List<IntRange>): String {
+        if (!source.any { it == '*' || it == '_' || it == '~' || it == '`' }) return ""
         var inlineCodeTicks = 0
         val delimiterStack = ArrayDeque<String>()
+        // Issue #101：公式內的 `*` / `_` 不參與寬鬆配對，否則流式會虛擬閉合出假斜體。
         var index = 0
 
         while (index < source.length) {
+            if (math.containsSorted(index)) {
+                index += 1
+                continue
+            }
             if (source[index] == '\\') {
                 index += 2
                 continue
@@ -261,13 +294,16 @@ internal object StreamingGfmProjection {
         return end - start
     }
 
-    private fun containsUnescapedPipe(line: String): Boolean {
+    private fun containsUnescapedPipeOutsideMath(line: String, lineStart: Int, math: List<IntRange>): Boolean {
         var escaped = false
-        line.forEach { char ->
+        line.forEachIndexed { offset, char ->
             when {
                 escaped -> escaped = false
                 char == '\\' -> escaped = true
-                char == '|' -> return true
+                char == '|' -> {
+                    val global = lineStart + offset
+                    if (!math.containsSorted(global)) return true
+                }
             }
         }
         return false

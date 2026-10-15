@@ -193,6 +193,22 @@ internal class MarkdownInlineBuilder(
         val openers = ArrayDeque<Run>()
         val pairs = mutableMapOf<Int, PairedInline>()
         for (run in runs) {
+            // Issue #101：单词内下划线（如 a_i、x_1）不成强调，与流式投影的守卫一致。
+            // 解析器的 '*' 與 '_' 都走 EMPH token，這裡按實際文本判斷是否含 '_'。
+            // 否則 \(a_i+b_j\) 未能成 MATH 時，下劃線會被配對消費而消失。
+            // 用 source 偏移取字符（零分配，且複合節點鄰居也能取到邊界字符，避免 fail-open）。
+            val runHasUnderscore = (run.start until run.start + run.length).any { idx ->
+                val n = nodes[idx]
+                val s = n.text()
+                '_' in s
+            }
+            if (runHasUnderscore) {
+                val prevNode = nodes.getOrNull(run.start - 1)
+                val nextNode = nodes.getOrNull(run.start + run.length)
+                val prevChar = prevNode?.let { source.getOrNull(it.endOffset - 1) }
+                val nextChar = nextNode?.let { source.getOrNull(it.startOffset) }
+                if (prevChar?.isLetterOrDigit() == true && nextChar?.isLetterOrDigit() == true) continue
+            }
             val canOpen = !nodes.getOrNull(run.start + run.length).isBlankLike()
             val canClose = !nodes.getOrNull(run.start - 1).isBlankLike()
             val opener = if (canClose) {
