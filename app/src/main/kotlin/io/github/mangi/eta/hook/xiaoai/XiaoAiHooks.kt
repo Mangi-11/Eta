@@ -53,7 +53,11 @@ internal object XiaoAiHooks {
     private const val BRIDGE_QUEUE_CAPACITY = 4
     private const val ACTIVATION_TIMEOUT_SECONDS = 3L
     private const val PENDING_DRAIN_LIMIT = 8
+    private const val OUTBOUND_EVENT_TYPES_LOG_LIMIT = 64
+    private val NON_EVENT_NAME_CHARS = Regex("[^A-Za-z0-9._-]")
 
+    // Diagnostic-only, bounded per process; never record prompts, event IDs or image paths.
+    private val observedOutboundEventTypes = linkedSetOf<String>()
     private val queryCache = XiaoAiQueryCache()
     private val turnTracker = XiaoAiTurnTracker()
     private val claimedDialogIds = XiaoAiRecentIds()
@@ -342,6 +346,7 @@ internal object XiaoAiHooks {
         ) { chain ->
             val event = chain.args.getOrNull(0)
             val claimed = try {
+                traceOutboundEvent(hooks.logger, event)
                 event != null && maybeClaimRequest(hooks.logger, classLoader, event)
             } catch (exception: Exception) {
                 hooks.logger.warnThrottled("xiaoai_claim_failed") {
@@ -423,6 +428,34 @@ internal object XiaoAiHooks {
         }
     }
 
+    /**
+     * Emit the first sighting of each outbound event type (up to a strict per-process cap).
+     * The event's payload, query text and identifiers must never enter these diagnostics.
+     */
+    private fun traceOutboundEvent(logger: ModuleLogger, event: Any?) {
+        val eventType = event?.let { invokeString(it, "getFullName") }.orEmpty()
+            .take(96)
+            .replace(NON_EVENT_NAME_CHARS, "_")
+            .ifBlank { "unknown" }
+        val firstSighting = synchronized(observedOutboundEventTypes) {
+            if (observedOutboundEventTypes.size >= OUTBOUND_EVENT_TYPES_LOG_LIMIT) {
+                false
+            } else {
+                observedOutboundEventTypes.add(eventType)
+            }
+        }
+        if (firstSighting) {
+            logger.info("诊断: C0 出站事件 type=$eventType")
+        }
+    }
+
+    private fun skipOutboundRequest(logger: ModuleLogger, reason: String): Boolean {
+        logger.warnThrottled("xiaoai_skip_$reason", windowMs = 15_000L) {
+            "诊断: Nlp.Request 未接管 reason=$reason"
+        }
+        return false
+    }
+
     private fun maybeClaimRequest(
         logger: ModuleLogger,
         classLoader: ClassLoader,
@@ -430,9 +463,10 @@ internal object XiaoAiHooks {
     ): Boolean {
         val fullName = invokeString(event, "getFullName")
         if (!XiaoAiTakeoverPolicy.matchesOutboundEvent(fullName)) return false
+        logger.debug { "诊断: Nlp.Request 已到达接管入口" }
 
         val dialogId = invokeString(event, "getId").trim()
-        if (dialogId.isBlank()) return false
+        if (dialogId.isBlank()) return skipOutboundRequest(logger, "missing_event_id")
         if (claimedDialogIds.contains(dialogId)) return true
 
         val payload = HookSupport.invokeNoArgs(event, "getPayload")
@@ -456,7 +490,7 @@ internal object XiaoAiHooks {
         if (queryInfo?.documentInput == true ||
             (queryInfo == null && sameTrackedQuery && latestTurn.documentInput)
         ) {
-            return false
+            return skipOutboundRequest(logger, "document_input")
         }
         if (queryInfo == null && sameTrackedQuery && latestTurn.hasImage) {
             logger.warnThrottled("xiaoai_image_query_uncorrelated") {
@@ -488,18 +522,28 @@ internal object XiaoAiHooks {
             return false
         }
         val image = (imageResolution as? XiaoAiImages.Resolution.Success)?.image
+        val customModelEnabled = Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL)
+        val requirePrefix = Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX)
         val decision = XiaoAiTakeoverPolicy.decide(
             query = query,
             hasImage = image != null,
-            customModelEnabled = Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL),
-            requirePrefix = Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX),
-        ) ?: return false
+            customModelEnabled = customModelEnabled,
+            requirePrefix = requirePrefix,
+        ) ?: return skipOutboundRequest(
+            logger,
+            when {
+                !customModelEnabled -> "custom_model_disabled"
+                requirePrefix -> "prefix_missing_or_empty"
+                else -> "empty_prompt"
+            },
+        )
         turnTracker.capture(
             dialogId = dialogId,
             query = query,
             hasImage = image != null,
         )
-        val context = AgentAppContext.resolve() ?: return false
+        val context = AgentAppContext.resolve()
+            ?: return skipOutboundRequest(logger, "agent_context_unavailable")
         val renderer = XiaoAiStreamRenderer(
             context = context,
             logger = logger,
@@ -521,7 +565,7 @@ internal object XiaoAiHooks {
                 executeRun(logger, context, run)
             }
         } catch (_: RejectedExecutionException) {
-            return false
+            return skipOutboundRequest(logger, "bridge_queue_full")
         }
         run.future.set(future)
         rendererSlot.attach(renderer)?.cancel()
