@@ -9,9 +9,11 @@ import org.junit.Test
 
 class XiaoAiHookStateTest {
     @Test
-    fun versionGateOnlyAcceptsTheAnalyzedApk() {
+    fun versionGateOnlyAcceptsTheAnalyzedApks() {
         assertTrue(XiaoAiTakeoverPolicy.isSupportedVersion(507013032L))
+        assertTrue(XiaoAiTakeoverPolicy.isSupportedVersion(507013034L))
         assertFalse(XiaoAiTakeoverPolicy.isSupportedVersion(507013031L))
+        assertFalse(XiaoAiTakeoverPolicy.isSupportedVersion(507013033L))
         assertFalse(XiaoAiTakeoverPolicy.isSupportedVersion(-1L))
     }
 
