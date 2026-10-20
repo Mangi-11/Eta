@@ -105,7 +105,7 @@ ColorOS 17 的小布记忆使用加密数据库时，Eta 优先校验已知 Room
 
 ## 超级小爱
 
-超级小爱入口当前锁定包名 `com.miui.voiceassist`、版本 `7.13.32.0016`（versionCode `507013032`），并且只在主进程与 `:core` 进程保留模块生命周期。版本不匹配或无法读取版本时不安装业务 Hook。
+超级小爱入口锁定包名 `com.miui.voiceassist`，允许版本 `7.13.32.0016`（versionCode `507013032`）与 `7.13.34.3812`（versionCode `507013034`），并且只在主进程与 `:core` 进程保留模块生命周期。新增版本 `7.13.34.3812` 的关键内部类及方法签名已做 APK 静态核对，实际运行时行为仍需真机验证。版本不匹配或无法读取版本时不安装业务 Hook。
 
 适配器在 `OperationManager.setQueryInfo(String, String, JSONObject)` 原方法执行前暂存对话 ID、查询文本和可选的 `extra_image_file_id`，同时从 `z10.a.processed(Instruction)` 记录终态 `SpeechRecognizer.RecognizeResult`。`y00.r0.C0(Event): boolean` 收到 `Nlp.Request` 时，小爱已经通过 `APIUtils.buildEvent` 生成了新的 Event ID，因此适配器按查询文本关联输入上下文，不能要求它与 `setQueryInfo` 的对话 ID 相等。只有配置、前缀、图片引用和后台队列全部通过检查后才认领请求并返回发送成功；否则只调用一次原方法，让超级小爱继续原生处理。
 
