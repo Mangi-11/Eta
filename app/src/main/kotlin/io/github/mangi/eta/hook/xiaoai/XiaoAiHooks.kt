@@ -346,8 +346,9 @@ internal object XiaoAiHooks {
         ) { chain ->
             val event = chain.args.getOrNull(0)
             val claimed = try {
-                traceOutboundEvent(hooks.logger, event)
-                event != null && maybeClaimRequest(hooks.logger, classLoader, event)
+                val eventType = event?.let { invokeString(it, "getFullName") }.orEmpty()
+                traceOutboundEvent(hooks.logger, eventType)
+                event != null && maybeClaimRequest(hooks.logger, classLoader, event, eventType)
             } catch (exception: Exception) {
                 hooks.logger.warnThrottled("xiaoai_claim_failed") {
                     "小爱请求认领失败，保持原生行为: type=${exception.safeLogType()}"
@@ -432,9 +433,8 @@ internal object XiaoAiHooks {
      * Emit the first sighting of each outbound event type (up to a strict per-process cap).
      * The event's payload, query text and identifiers must never enter these diagnostics.
      */
-    private fun traceOutboundEvent(logger: ModuleLogger, event: Any?) {
-        val eventType = event?.let { invokeString(it, "getFullName") }.orEmpty()
-            .take(96)
+    private fun traceOutboundEvent(logger: ModuleLogger, rawEventType: String) {
+        val eventType = rawEventType.take(96)
             .replace(NON_EVENT_NAME_CHARS, "_")
             .ifBlank { "unknown" }
         val firstSighting = synchronized(observedOutboundEventTypes) {
@@ -460,8 +460,8 @@ internal object XiaoAiHooks {
         logger: ModuleLogger,
         classLoader: ClassLoader,
         event: Any,
+        fullName: String,
     ): Boolean {
-        val fullName = invokeString(event, "getFullName")
         if (!XiaoAiTakeoverPolicy.matchesOutboundEvent(fullName)) return false
         logger.debug { "诊断: Nlp.Request 已到达接管入口" }
 
