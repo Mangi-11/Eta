@@ -1,6 +1,8 @@
 package io.github.mangi.eta.hook.xiaoai
 
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.config.XiaoAiContinuityMode
+import io.github.mangi.eta.config.XiaoAiContinuitySettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -142,4 +144,78 @@ class XiaoAiVoiceConversationTest {
         assertEquals(next.sessionId, again.sessionId)
         assertTrue(again.history.isEmpty())
     }
+    @Test
+    fun independentModeNeverReusesPreviousVoiceHistory() {
+        var sequence = 0
+        val conversation = XiaoAiVoiceConversation(
+            newSessionId = { "voice-${++sequence}" },
+        )
+        val first = conversation.snapshot(XiaoAiContinuityMode.INDEPENDENT)
+        assertTrue(conversation.recordSuccess(first, "问题一", "回答一", emptyList()))
+        val next = conversation.snapshot(XiaoAiContinuityMode.INDEPENDENT)
+        assertEquals("voice-2", next.sessionId)
+        assertTrue(next.history.isEmpty())
+    }
+
+    @Test
+    fun manualModeSurvivesIdleTimeoutUntilExplicitClear() {
+        var now = 1_000L
+        var sequence = 0
+        val conversation = XiaoAiVoiceConversation(
+            clock = { now },
+            newSessionId = { "voice-${++sequence}" },
+        )
+        val first = conversation.snapshot(XiaoAiContinuityMode.MANUAL)
+        assertTrue(conversation.recordSuccess(first, "暗号", "蓝色企鹅", emptyList()))
+        now += 86_400_000L
+        val second = conversation.snapshot(XiaoAiContinuityMode.MANUAL)
+        assertEquals(first.sessionId, second.sessionId)
+        assertEquals(2, second.history.size)
+        conversation.clear()
+        val third = conversation.snapshot(XiaoAiContinuityMode.MANUAL)
+        assertEquals("voice-2", third.sessionId)
+        assertTrue(third.history.isEmpty())
+    }
+
+    @Test
+    fun changingPolicyOrTimedTimeoutStartsFreshSession() {
+        var sequence = 0
+        val conversation = XiaoAiVoiceConversation(newSessionId = { "voice-${++sequence}" })
+        val first = conversation.snapshot(XiaoAiContinuityMode.TIMED, timeoutMillis = 180_000L)
+        val second = conversation.snapshot(XiaoAiContinuityMode.TIMED, timeoutMillis = 60_000L)
+        assertEquals("voice-2", second.sessionId)
+        val manual = conversation.snapshot(XiaoAiContinuityMode.MANUAL)
+        assertEquals("voice-3", manual.sessionId)
+        assertFalse(conversation.recordSuccess(first, "旧问题", "旧回答", emptyList()))
+    }
+
+    @Test
+    fun configurableTimeoutExpiresOnlyTimedMode() {
+        var now = 1_000L
+        var sequence = 0
+        val conversation = XiaoAiVoiceConversation(
+            clock = { now },
+            newSessionId = { "voice-${++sequence}" },
+        )
+        val first = conversation.snapshot(XiaoAiContinuityMode.TIMED, timeoutMillis = 60_000L)
+        now += 59_000L
+        val second = conversation.snapshot(XiaoAiContinuityMode.TIMED, timeoutMillis = 60_000L)
+        assertEquals(first.sessionId, second.sessionId)
+        now += 61_000L
+        assertEquals("voice-2", conversation.snapshot(
+            XiaoAiContinuityMode.TIMED, timeoutMillis = 60_000L
+        ).sessionId)
+    }
+
+    @Test
+    fun onlyExplicitConversationResetPhrasesAreInterpretedAsCommands() {
+        assertTrue(XiaoAiContinuitySettings.isNewConversationCommand("小爱同学，开始一个新对话。"))
+        assertTrue(XiaoAiContinuitySettings.isNewConversationCommand("开始新对话"))
+        assertFalse(XiaoAiContinuitySettings.isNewConversationCommand("如何开始新对话？"))
+        assertFalse(XiaoAiContinuitySettings.isNewConversationCommand("帮我写一个开始新对话的程序"))
+        assertEquals(3, XiaoAiContinuitySettings.parseMinutes("invalid"))
+        assertEquals(3, XiaoAiContinuitySettings.parseMinutes("30"))
+        assertEquals(10, XiaoAiContinuitySettings.parseMinutes("10"))
+    }
+
 }
