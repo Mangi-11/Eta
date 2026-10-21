@@ -63,6 +63,7 @@ internal object XiaoAiHooks {
     private val observedOutboundEventTypes = linkedSetOf<String>()
     private val queryCache = XiaoAiQueryCache()
     private val turnTracker = XiaoAiTurnTracker()
+    private val voiceConversation = XiaoAiVoiceConversation()
     private val claimedDialogIds = XiaoAiRecentIds()
     private val activeRun = XiaoAiRunSlot<ActiveRun>()
     private val latestFloatManager = AtomicReference<Any?>()
@@ -749,16 +750,23 @@ internal object XiaoAiHooks {
                 latestFloatManager.get() ?: resolveFloatManager(classLoader, context)
             },
         )
+        val conversationSnapshot = voiceConversation.snapshot()
         val run = ActiveRun(
             runId = UUID.randomUUID().toString(),
             dialogId = dialogId,
             prompt = decision.prompt,
             image = null,
             renderer = renderer,
+            voiceConversationSnapshot = conversationSnapshot,
         )
+        logger.debug {
+            "诊断: ASR-only 模型会话已准备: priorTurns=${conversationSnapshot.priorTurns}, " +
+                "historyMessages=${conversationSnapshot.history.size}"
+        }
         val future = try {
             executor.submit { executeRun(logger, context, run) }
         } catch (_: RejectedExecutionException) {
+            voiceConversation.abandon(conversationSnapshot)
             logger.warn("诊断: ASR-only Agent 队列已满")
             return
         }
@@ -797,6 +805,8 @@ internal object XiaoAiHooks {
                     prompt = run.prompt,
                     config = AgentModelClient.loadConfig(),
                     images = listOfNotNull(run.image),
+                    history = run.voiceConversationSnapshot?.history.orEmpty(),
+                    modelSessionId = run.voiceConversationSnapshot?.sessionId.orEmpty(),
                     handoff = run.toHandoff(),
                 ),
                 onEvent = { event ->
@@ -808,6 +818,20 @@ internal object XiaoAiHooks {
             resultRunId = result.runId.ifBlank { run.runId }
             if (activeRun.get() !== run || run.cancelled.get()) return
             if (result.ok) {
+                run.voiceConversationSnapshot?.let { snapshot ->
+                    val recorded = voiceConversation.recordSuccess(
+                        snapshot = snapshot,
+                        prompt = run.prompt,
+                        reply = result.content,
+                        transcript = result.transcript,
+                        contextMessages = result.contextSnapshot?.messages,
+                    )
+                    logger.debug {
+                        "诊断: ASR-only 上下文提交: accepted=$recorded, " +
+                            "transcriptMessages=${result.transcript.size}, " +
+                            "compacted=${result.contextSnapshot != null}"
+                    }
+                }
                 run.renderer.complete(result.content)
             } else {
                 logger.warnThrottled("xiaoai_runtime_failed") {
@@ -823,6 +847,7 @@ internal object XiaoAiHooks {
                 run.renderer.fail()
             }
         } finally {
+            run.voiceConversationSnapshot?.let(voiceConversation::abandon)
             resultRunId?.let { client.ackResult(it) }
             activeRun.clear(run)
         }
@@ -956,6 +981,7 @@ internal object XiaoAiHooks {
         val prompt: String,
         val image: AgentModelClient.ModelImage?,
         val renderer: XiaoAiStreamRenderer,
+        val voiceConversationSnapshot: XiaoAiVoiceConversation.Snapshot? = null,
         val activation: CountDownLatch = CountDownLatch(1),
         val cancelled: AtomicBoolean = AtomicBoolean(false),
         val client: AtomicReference<AgentRuntimeClient?> = AtomicReference(),
@@ -982,6 +1008,7 @@ internal object XiaoAiHooks {
                 runId = runId,
                 dialogId = dialogId,
                 prompt = prompt,
+                conversationKey = voiceConversationSnapshot?.sessionId ?: dialogId,
             )
     }
 }
