@@ -117,6 +117,14 @@ ColorOS 17 的小布记忆使用加密数据库时，Eta 优先校验已知 Room
 
 该版本已通过小米真机验证。系统或 App 大版本更新后，仍需重新确认目标签名与完整链路。
 
+### 实验性语音 ASR-only 接管（仅 7.13.34.3812）
+
+根据 7.13.34.3812 APK 的 DEX 反汇编，`y00.r0.P(y00.x0$d)` 在全双工模式下调用 `T0(y00.x0$d): boolean`，创建 `SpeechRecognizer.DuplexRecognizeStarted` 并通过 `E0(Event)` → `C0(Event)` 发送；此时没有供文字适配器认领的独立 `Nlp.Request`。同一类提供 `R0(y00.x0$d): void`，发出普通 `SpeechRecognizer.Recognize`，同时加入 `buildDisableTtsAndNlpContext()`。
+
+本分支新增 **默认关闭** 的「实验性小爱语音接管（仅 ASR）」开关。开启后，针对 `7.13.34.3812`，将 `T0` 切换为调用 `R0`，把这一轮终态 ASR 文本转交已有 Eta Runtime；文本输入仍使用原 `Nlp.Request` 拦截逻辑。开启实验功能需要启用厂商自定义模型，同时关闭「仅以 /agent 前缀接管」（此时尚未识别文字，无法预先判定前缀）。
+
+这是**未经真机功能测试**的实验路径。虽然使用小爱自带的「禁用 TTS/NLP」上下文，仍需验证 ROM/云端是否实际遵守、原生 UI 是否提前结束、终态 ASR 是否到达同一进程、是否产生重复播报及 TTS 回退。禁用实验开关即可恢复原来的全双工请求分发。云端 ASR 仍可能上传原始语音到小米。
+
 ## Google App
 
 伪装设备为 Samsung S24 Ultra，使 Google 启用一圈即搜能力；同时拦截 `SystemProperties` 和 `PackageManager.hasSystemFeature()` 的关键查询，让 Google App 看到 `ro.opa.eligible_device=true`、`GOOGLE_BUILD` 与 `GOOGLE_EXPERIENCE`。这对应现成 Google App Magisk 模块和 OpenGApps 常用的 OPA eligibility 做法，但限定在 Google App 进程内，不改系统文件。机型伪装与资格补齐作为一圈即搜的底层依赖始终执行，不可关闭。
