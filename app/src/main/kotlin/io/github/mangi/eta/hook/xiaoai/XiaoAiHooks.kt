@@ -295,65 +295,101 @@ internal object XiaoAiHooks {
     }
 
     /**
-     * Experimental 7.13.34.3812 path:
-     * T0 starts SpeechRecognizer.DuplexRecognizeStarted (ASR + native NLP/TTS).
-     * R0 on the same engine builds SpeechRecognizer.Recognize with Xiaomi's own
-     * buildDisableTtsAndNlpContext(), retaining cloud ASR but disabling native NLP.
-     * This is opt-in and never affects the ordinary text Nlp.Request path.
+     * 7.13.34.3812 has several voice modes selected by P(x0$d):
+     * T0 = ASR + NLP + TTS + duplex
+     * S0 = ASR + NLP + TTS
+     * Q0 = ASR + NLP
+     *
+     * When explicitly enabled, redirect only those ASR+NLP modes through Xiaomi's
+     * own R0 (ASR only with buildDisableTtsAndNlpContext). Preserve all NLP-only,
+     * TTS-only, text, and event-only paths.
      */
     private fun hookDuplexAsrOnly(
         hooks: HookRegistrar,
         classLoader: ClassLoader,
     ) {
         val engineClass = HookSupport.findClassOrNull(classLoader, ENGINE_CLASS)
-        val duplexMethod = engineClass?.let { clazz ->
-            HookSupport.findDeclaredMethods(clazz, makeAccessible = true) {
-                it.name == "T0" &&
-                    it.parameterCount == 1 &&
-                    it.returnType == Boolean::class.javaPrimitiveType
-            }.singleOrNull()
-        }
-        val asrMethod = if (engineClass != null && duplexMethod != null) {
-            HookSupport.findMethod(engineClass, "R0", duplexMethod.parameterTypes[0])
-                ?.takeIf { it.returnType == Void.TYPE }
-        } else {
-            null
-        }
-        if (duplexMethod == null || asrMethod == null) {
+        if (engineClass == null) {
             hooks.missing(
                 id = "xiaoai.voice-asr-only",
-                description = "MiSpeechEngine.T0 to R0",
-                detail = "找不到签名兼容的全双工 / ASR-only 入口",
+                description = "MiSpeechEngine ASR+NLP to R0",
+                detail = "未找到小爱语音引擎",
             )
             return
         }
-        hooks.intercept(
-            id = "xiaoai.voice-asr-only",
-            executable = duplexMethod,
-            description = "XiaoAi experimental duplex ASR-only",
-        ) { chain ->
-            val enabled = Prefs.isEnabled(Prefs.Keys.XIAOAI_VOICE_ASR_ONLY) &&
-                Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL) &&
-                !Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX)
-            val receiver = chain.thisObject
-            val options = chain.args.firstOrNull()
-            if (!enabled || receiver == null || options == null) {
-                chain.proceed()
-            } else {
-                // Set the token before ASR starts in case callbacks arrive promptly.
-                voiceAsrPendingSince.set(SystemClock.elapsedRealtime().coerceAtLeast(1L))
-                try {
-                    asrMethod.invoke(receiver, options)
-                    hooks.logger.info("诊断: 全双工 T0 已切换到原生 ASR-only R0")
-                    true // Original T0 returns boolean; P(x0$d) expects success.
-                } catch (exception: Exception) {
-                    voiceAsrPendingSince.set(0L)
-                    hooks.logger.warnThrottled("xiaoai_asr_only_redirect_failed") {
-                        "实验性 ASR-only 切换失败，尝试原生全双工: type=${exception.safeLogType()}"
-                    }
+        val requestClass = HookSupport.findDeclaredMethods(engineClass, makeAccessible = true) {
+            it.name == "R0" && it.parameterCount == 1 && it.returnType == Void.TYPE
+        }.singleOrNull()?.parameterTypes?.firstOrNull()
+        val asrMethod = requestClass?.let {
+            HookSupport.findMethod(engineClass, "R0", it)?.takeIf { method ->
+                method.returnType == Void.TYPE
+            }
+        }
+        if (requestClass == null || asrMethod == null) {
+            hooks.missing(
+                id = "xiaoai.voice-asr-only",
+                description = "MiSpeechEngine ASR+NLP to R0",
+                detail = "未找到签名兼容的 ASR-only R0 入口",
+            )
+            return
+        }
+
+        listOf("T0", "S0", "Q0").forEach { name ->
+            val method = HookSupport.findMethod(engineClass, name, requestClass)
+                ?.takeIf { it.returnType == Boolean::class.javaPrimitiveType }
+            if (method == null) {
+                hooks.missing(
+                    id = "xiaoai.voice-asr-only.${name.lowercase()}",
+                    description = "MiSpeechEngine.$name to R0",
+                    detail = "未找到签名兼容的语音请求入口 $name",
+                )
+                return@forEach
+            }
+            hooks.intercept(
+                id = "xiaoai.voice-asr-only.${name.lowercase()}",
+                executable = method,
+                description = "XiaoAi experimental $name ASR-only",
+            ) { chain ->
+                val enabled = Prefs.isEnabled(Prefs.Keys.XIAOAI_VOICE_ASR_ONLY) &&
+                    Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL) &&
+                    !Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX)
+                val receiver = chain.thisObject
+                val options = chain.args.firstOrNull()
+                if (!enabled || receiver == null || options == null) {
                     chain.proceed()
+                } else {
+                    // Re-arm on each voice request, including follow-up turns.
+                    voiceAsrPendingSince.set(SystemClock.elapsedRealtime().coerceAtLeast(1L))
+                    try {
+                        asrMethod.invoke(receiver, options)
+                        hooks.logger.info("诊断: 语音 $name 已切换到 ASR-only R0")
+                        true
+                    } catch (exception: Exception) {
+                        voiceAsrPendingSince.set(0L)
+                        hooks.logger.warnThrottled("xiaoai_asr_only_redirect_failed_${name.lowercase()}") {
+                            "语音 $name 切换 ASR-only 失败，保持原生行为: type=${exception.safeLogType()}"
+                        }
+                        chain.proceed()
+                    }
                 }
             }
+        }
+
+        // Read-only diagnostic: a second ASR round may invoke R0 directly without
+        // visiting P/T0/S0/Q0. Detect it before attempting a more invasive fix.
+        hooks.intercept(
+            id = "xiaoai.voice-asr-only.direct",
+            executable = asrMethod,
+            description = "XiaoAi ASR-only R0 observer",
+        ) { chain ->
+            if (Prefs.isEnabled(Prefs.Keys.XIAOAI_VOICE_ASR_ONLY) &&
+                voiceAsrPendingSince.get() == 0L
+            ) {
+                hooks.logger.warnThrottled("xiaoai_asr_only_direct_r0") {
+                    "诊断: R0 直接启动，未发现 Eta 待处理语音轮次"
+                }
+            }
+            chain.proceed()
         }
     }
 
