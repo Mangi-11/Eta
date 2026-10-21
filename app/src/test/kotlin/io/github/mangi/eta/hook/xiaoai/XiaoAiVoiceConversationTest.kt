@@ -137,5 +137,9 @@ class XiaoAiVoiceConversationTest {
         val next = conversation.snapshot()
         assertEquals("voice-2", next.sessionId)
         assertTrue(next.history.isEmpty())
+        // A reset must not immediately expire again on the next snapshot.
+        val again = conversation.snapshot()
+        assertEquals(next.sessionId, again.sessionId)
+        assertTrue(again.history.isEmpty())
     }
 }
