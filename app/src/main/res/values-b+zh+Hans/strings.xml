@@ -1368,7 +1368,7 @@
   <string name="xiaoai_voice_asr_only_experimental_summary">保留小爱语音识别，禁用原生 NLP/TTS，将最终识别文字交给 Eta；默认关闭，与仅 /agent 前缀接管模式不兼容。</string>
   <string name="xiaoai_continuity_mode_title">跨唤醒连续会话</string>
   <string name="xiaoai_continuity_mode_summary">设置再次唤醒小爱后是否继承此前的语音对话。</string>
-  <string name="xiaoai_continuity_independent">独立会话（每次新建）</string>
+  <string name="xiaoai_continuity_independent">独立提问（每句话新会话）</string>
   <string name="xiaoai_continuity_timed">限时续聊</string>
   <string name="xiaoai_continuity_manual">手动结束</string>
   <string name="xiaoai_continuity_timeout_title">续聊空闲超时</string>
