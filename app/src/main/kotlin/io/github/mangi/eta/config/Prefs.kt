@@ -204,7 +204,7 @@ internal object XiaoAiContinuitySettings {
     fun parseMinutes(value: String?): Int =
         value?.toIntOrNull()?.takeIf { it in ALLOWED_MINUTES } ?: DEFAULT_MINUTES
 
-    private val PUNCTUATION = Regex("[\\\\s，。！？!?、,.]+")
+    private val PUNCTUATION = Regex("""[\s，。！？!?、,.]+""")
     private val NEW_CONVERSATION_COMMANDS = setOf(
         "开始新对话", "开始一个新对话", "开启新对话",
         "新建对话", "重新开始对话", "清除当前对话",
