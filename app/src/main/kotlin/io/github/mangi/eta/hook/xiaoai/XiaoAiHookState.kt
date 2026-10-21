@@ -167,7 +167,9 @@ internal class XiaoAiVoiceConversation(
         sessionId = nextId
         history = emptyList()
         completedTurns = 0
-        touchedAt = 0L
+        // Reset establishes a new session *now*. Leaving this at zero makes
+        // the next snapshot() expire and regenerate the same session again.
+        touchedAt = clock()
         activeToken = 0L
     }
 
