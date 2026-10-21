@@ -499,7 +499,9 @@ internal object XiaoAiHooks {
             queryCache.clear()
             turnTracker.clear()
             claimedDialogIds.clear()
-            voiceAsrPendingSince.set(0L)
+            if (voiceAsrPendingSince.getAndSet(0L) != 0L) {
+                hooks.logger.info("诊断: ASR-only 会话在终态 ASR 到达前被清理")
+            }
             chain.proceed()
         }
     }
