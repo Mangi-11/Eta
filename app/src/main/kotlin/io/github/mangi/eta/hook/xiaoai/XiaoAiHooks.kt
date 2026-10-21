@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.runtime.AgentAppContext
 import io.github.mangi.eta.agent.runtime.AgentRuntimeClient
@@ -26,6 +27,7 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
 
@@ -53,6 +55,7 @@ internal object XiaoAiHooks {
     private const val BRIDGE_QUEUE_CAPACITY = 4
     private const val ACTIVATION_TIMEOUT_SECONDS = 3L
     private const val PENDING_DRAIN_LIMIT = 8
+    private const val VOICE_ASR_PENDING_TTL_MS = 90_000L
     private const val OUTBOUND_EVENT_TYPES_LOG_LIMIT = 64
     private val NON_EVENT_NAME_CHARS = Regex("[^A-Za-z0-9._-]")
 
@@ -66,6 +69,8 @@ internal object XiaoAiHooks {
     private val rendererSlot = XiaoAiRendererSlot<XiaoAiStreamRenderer>()
     private val bridgeThreadId = AtomicInteger()
     private val businessHooksInstalled = AtomicBoolean(false)
+    // Nonzero only after a successful opt-in conversion from duplex to ASR-only.
+    private val voiceAsrPendingSince = AtomicLong(0L)
     private val deferredHookHandles = CopyOnWriteArrayList<HookHandle>()
     private val executor = ThreadPoolExecutor(
         1,
@@ -128,6 +133,7 @@ internal object XiaoAiHooks {
                     module = module,
                     rootLogger = rootLogger,
                     classLoader = classLoader,
+                    versionCode = versionCode,
                 )
             } else {
                 hooks.logger.warnThrottled("xiaoai_unsupported_version") {
@@ -142,12 +148,14 @@ internal object XiaoAiHooks {
         module: XposedModule,
         rootLogger: ModuleLogger,
         classLoader: ClassLoader,
+        versionCode: Long,
     ) {
         if (!businessHooksInstalled.compareAndSet(false, true)) return
         val hooks = HookRegistrar(module, rootLogger, "XiaoAi")
         val installation = hooks.install {
             hookQueryCapture(this, classLoader)
             hookAsrFinalResult(this, classLoader)
+            if (versionCode == 507013034L) hookDuplexAsrOnly(this, classLoader)
             hookFloatManagerCapture(this, classLoader)
             hookAgentActions(this, classLoader)
             hookOutboundRequest(this, classLoader)
@@ -256,31 +264,34 @@ internal object XiaoAiHooks {
             description = "XiaoAi final ASR result",
         ) { chain ->
             val instruction = chain.args.firstOrNull()
-            if (instruction != null) {
-                captureFinalAsr(hooks.logger, instruction)
+            val finalAsr = instruction?.let { captureFinalAsr(hooks.logger, it) }
+            val result = chain.proceed()
+            if (finalAsr != null) {
+                maybeStartVoiceRun(hooks.logger, classLoader, finalAsr.first, finalAsr.second)
             }
-            chain.proceed()
+            result
         }
     }
 
     private fun captureFinalAsr(
         logger: ModuleLogger,
         instruction: Any,
-    ) {
-        if (invokeString(instruction, "getFullName") != ASR_RESULT_FULL_NAME) return
-        val payload = HookSupport.invokeNoArgs(instruction, "getPayload") ?: return
-        if (HookSupport.invokeNoArgs(payload, "isFinal") != true) return
-        val results = HookSupport.invokeNoArgs(payload, "getResults") as? Iterable<*> ?: return
+    ): Pair<String, String>? {
+        if (invokeString(instruction, "getFullName") != ASR_RESULT_FULL_NAME) return null
+        val payload = HookSupport.invokeNoArgs(instruction, "getPayload") ?: return null
+        if (HookSupport.invokeNoArgs(payload, "isFinal") != true) return null
+        val results = HookSupport.invokeNoArgs(payload, "getResults") as? Iterable<*> ?: return null
         val query = results.joinToString(separator = "") { item ->
             item?.let { invokeString(it, "getText") }.orEmpty()
         }.trim()
-        if (query.isBlank()) return
+        if (query.isBlank()) return null
 
         val dialogId = optionalString(HookSupport.invokeNoArgs(instruction, "getDialogId"))
         turnTracker.capture(dialogId = dialogId, query = query)
         logger.debug {
             "捕获超级小爱终态 ASR: dialog=${shortId(dialogId)}, queryChars=${query.length}"
         }
+        return dialogId to query
     }
 
     private fun hookFloatManagerCapture(
@@ -425,6 +436,7 @@ internal object XiaoAiHooks {
             queryCache.clear()
             turnTracker.clear()
             claimedDialogIds.clear()
+            voiceAsrPendingSince.set(0L)
             chain.proceed()
         }
     }
