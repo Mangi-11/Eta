@@ -294,6 +294,69 @@ internal object XiaoAiHooks {
         return dialogId to query
     }
 
+    /**
+     * Experimental 7.13.34.3812 path:
+     * T0 starts SpeechRecognizer.DuplexRecognizeStarted (ASR + native NLP/TTS).
+     * R0 on the same engine builds SpeechRecognizer.Recognize with Xiaomi's own
+     * buildDisableTtsAndNlpContext(), retaining cloud ASR but disabling native NLP.
+     * This is opt-in and never affects the ordinary text Nlp.Request path.
+     */
+    private fun hookDuplexAsrOnly(
+        hooks: HookRegistrar,
+        classLoader: ClassLoader,
+    ) {
+        val engineClass = HookSupport.findClassOrNull(classLoader, ENGINE_CLASS)
+        val duplexMethod = engineClass?.let { clazz ->
+            HookSupport.findDeclaredMethods(clazz, makeAccessible = true) {
+                it.name == "T0" &&
+                    it.parameterCount == 1 &&
+                    it.returnType == Boolean::class.javaPrimitiveType
+            }.singleOrNull()
+        }
+        val asrMethod = if (engineClass != null && duplexMethod != null) {
+            HookSupport.findMethod(engineClass, "R0", duplexMethod.parameterTypes[0])
+                ?.takeIf { it.returnType == Void.TYPE }
+        } else {
+            null
+        }
+        if (duplexMethod == null || asrMethod == null) {
+            hooks.missing(
+                id = "xiaoai.voice-asr-only",
+                description = "MiSpeechEngine.T0 to R0",
+                detail = "找不到签名兼容的全双工 / ASR-only 入口",
+            )
+            return
+        }
+        hooks.intercept(
+            id = "xiaoai.voice-asr-only",
+            executable = duplexMethod,
+            description = "XiaoAi experimental duplex ASR-only",
+        ) { chain ->
+            val enabled = Prefs.isEnabled(Prefs.Keys.XIAOAI_VOICE_ASR_ONLY) &&
+                Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL) &&
+                !Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX)
+            val receiver = chain.thisObject
+            val options = chain.args.firstOrNull()
+            if (!enabled || receiver == null || options == null) {
+                chain.proceed()
+            } else {
+                // Set the token before ASR starts in case callbacks arrive promptly.
+                voiceAsrPendingSince.set(SystemClock.elapsedRealtime().coerceAtLeast(1L))
+                try {
+                    asrMethod.invoke(receiver, options)
+                    hooks.logger.info("诊断: 全双工 T0 已切换到原生 ASR-only R0")
+                    true // Original T0 returns boolean; P(x0$d) expects success.
+                } catch (exception: Exception) {
+                    voiceAsrPendingSince.set(0L)
+                    hooks.logger.warnThrottled("xiaoai_asr_only_redirect_failed") {
+                        "实验性 ASR-only 切换失败，尝试原生全双工: type=${exception.safeLogType()}"
+                    }
+                    chain.proceed()
+                }
+            }
+        }
+    }
+
     private fun hookFloatManagerCapture(
         hooks: HookRegistrar,
         classLoader: ClassLoader,
@@ -587,6 +650,73 @@ internal object XiaoAiHooks {
         run.activate()
         logger.info("已接管超级小爱请求: images=${if (image == null) 0 else 1}")
         return true
+    }
+
+    /**
+     * The ASR-only request does not emit an Nlp.Request. When its final ASR
+     * arrives, submit the recognized text to the existing Eta runtime.
+     */
+    private fun maybeStartVoiceRun(
+        logger: ModuleLogger,
+        classLoader: ClassLoader,
+        asrDialogId: String,
+        query: String,
+    ) {
+        val startedAt = voiceAsrPendingSince.get()
+        if (startedAt == 0L) return
+        if (SystemClock.elapsedRealtime() - startedAt > VOICE_ASR_PENDING_TTL_MS) {
+            voiceAsrPendingSince.compareAndSet(startedAt, 0L)
+            logger.warnThrottled("xiaoai_asr_only_expired") {
+                "诊断: ASR-only 等待最终识别超时，忽略过期请求"
+            }
+            return
+        }
+        if (!voiceAsrPendingSince.compareAndSet(startedAt, 0L)) return
+        val decision = XiaoAiTakeoverPolicy.decide(
+            query = query,
+            hasImage = false,
+            customModelEnabled = Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL),
+            requirePrefix = Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX),
+        )
+        if (decision == null) {
+            logger.warn("诊断: ASR-only 已获取文本但配置不再允许 Eta 接管")
+            return
+        }
+        val context = AgentAppContext.resolve()
+        if (context == null) {
+            logger.warn("诊断: ASR-only Eta Context 不可用")
+            return
+        }
+        val dialogId = asrDialogId.ifBlank { currentDialogId(classLoader) }
+            .ifBlank { UUID.randomUUID().toString() }
+        val renderer = XiaoAiStreamRenderer(
+            context = context,
+            logger = logger,
+            classLoader = classLoader,
+            dialogId = dialogId,
+            floatManagerProvider = {
+                latestFloatManager.get() ?: resolveFloatManager(classLoader, context)
+            },
+        )
+        val run = ActiveRun(
+            runId = UUID.randomUUID().toString(),
+            dialogId = dialogId,
+            prompt = decision.prompt,
+            image = null,
+            renderer = renderer,
+        )
+        val future = try {
+            executor.submit { executeRun(logger, context, run) }
+        } catch (_: RejectedExecutionException) {
+            logger.warn("诊断: ASR-only Agent 队列已满")
+            return
+        }
+        run.future.set(future)
+        rendererSlot.attach(renderer)?.cancel()
+        activeRun.replace(run)?.cancel(logger, classLoader)
+        claimedDialogIds.add(dialogId)
+        run.activate()
+        logger.info("已接管超级小爱 ASR-only 语音请求: images=0")
     }
 
     private fun shouldOwnLatestTurn(): Boolean {
