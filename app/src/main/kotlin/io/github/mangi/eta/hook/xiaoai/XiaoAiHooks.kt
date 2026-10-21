@@ -10,6 +10,8 @@ import io.github.mangi.eta.agent.runtime.AgentAppContext
 import io.github.mangi.eta.agent.runtime.AgentRuntimeClient
 import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
 import io.github.mangi.eta.config.Prefs
+import io.github.mangi.eta.config.XiaoAiContinuityMode
+import io.github.mangi.eta.config.XiaoAiContinuitySettings
 import io.github.mangi.eta.core.HookInstallation
 import io.github.mangi.eta.core.HookRegistrar
 import io.github.mangi.eta.core.HookSupport
@@ -64,6 +66,7 @@ internal object XiaoAiHooks {
     private val queryCache = XiaoAiQueryCache()
     private val turnTracker = XiaoAiTurnTracker()
     private val voiceConversation = XiaoAiVoiceConversation()
+    private val lastConversationResetToken = AtomicReference<String?>(null)
     private val claimedDialogIds = XiaoAiRecentIds()
     private val activeRun = XiaoAiRunSlot<ActiveRun>()
     private val latestFloatManager = AtomicReference<Any?>()
@@ -724,6 +727,11 @@ internal object XiaoAiHooks {
             return
         }
         if (!voiceAsrPendingSince.compareAndSet(startedAt, 0L)) return
+        syncConversationResetRequest()
+        if (XiaoAiContinuitySettings.isNewConversationCommand(query)) {
+            startNewVoiceConversation(logger, classLoader, asrDialogId)
+            return
+        }
         val decision = XiaoAiTakeoverPolicy.decide(
             query = query,
             hasImage = false,
@@ -750,7 +758,16 @@ internal object XiaoAiHooks {
                 latestFloatManager.get() ?: resolveFloatManager(classLoader, context)
             },
         )
-        val conversationSnapshot = voiceConversation.snapshot()
+        val mode = XiaoAiContinuityMode.from(
+            Prefs.getString(Prefs.Keys.XIAOAI_CONTINUITY_MODE)
+        )
+        val timeoutMinutes = XiaoAiContinuitySettings.parseMinutes(
+            Prefs.getString(Prefs.Keys.XIAOAI_CONTINUITY_MINUTES)
+        )
+        val conversationSnapshot = voiceConversation.snapshot(
+            mode = mode,
+            timeoutMillis = timeoutMinutes * 60_000L,
+        )
         val run = ActiveRun(
             runId = UUID.randomUUID().toString(),
             dialogId = dialogId,
@@ -776,6 +793,47 @@ internal object XiaoAiHooks {
         claimedDialogIds.add(dialogId)
         run.activate()
         logger.info("已接管超级小爱 ASR-only 语音请求: images=0")
+    }
+
+    /**
+     * The settings process cannot clear objects held in the injected XiaoAI
+     * process. It writes a unique token to RemotePreferences, observed at the
+     * next ASR-only turn without ever storing dialog text in preferences.
+     */
+    private fun syncConversationResetRequest() {
+        val token = Prefs.getString(Prefs.Keys.XIAOAI_CONVERSATION_RESET_TOKEN)
+        val previous = lastConversationResetToken.getAndSet(token)
+        if (previous != null && previous != token) {
+            voiceConversation.clear()
+        }
+    }
+
+    private fun startNewVoiceConversation(
+        logger: ModuleLogger,
+        classLoader: ClassLoader,
+        asrDialogId: String,
+    ) {
+        voiceConversation.clear()
+        activeRun.get()?.let { previous ->
+            previous.cancel(logger, classLoader)
+            activeRun.clear(previous)
+        }
+        rendererSlot.detach()?.cancel(classLoader)
+        val context = AgentAppContext.resolve() ?: return
+        val dialogId = asrDialogId.ifBlank { currentDialogId(classLoader) }
+            .ifBlank { UUID.randomUUID().toString() }
+        val renderer = XiaoAiStreamRenderer(
+            context = context,
+            logger = logger,
+            classLoader = classLoader,
+            dialogId = dialogId,
+            floatManagerProvider = {
+                latestFloatManager.get() ?: resolveFloatManager(classLoader, context)
+            },
+        )
+        rendererSlot.attach(renderer)?.cancel(classLoader)
+        renderer.complete("已开始新对话。")
+        logger.info("超级小爱语音会话已重置")
     }
 
     private fun shouldOwnLatestTurn(): Boolean {
