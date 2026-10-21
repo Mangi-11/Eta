@@ -512,6 +512,17 @@ private fun SettingsPageContent(
                             icon = Icons.Rounded.FilterAlt,
                             iconTint = EtaPreferenceColors.Blue,
                         )
+
+                        EtaPreferenceDivider()
+                        SwitchPref(
+                            context = context,
+                            prefs = prefs,
+                            title = stringResource(R.string.xiaoai_voice_asr_only_experimental),
+                            summary = stringResource(R.string.xiaoai_voice_asr_only_experimental_summary),
+                            key = Prefs.Keys.XIAOAI_VOICE_ASR_ONLY,
+                            icon = Icons.Rounded.Mic,
+                            iconTint = EtaPreferenceColors.Orange,
+                        )
                     }
                 }
             }
