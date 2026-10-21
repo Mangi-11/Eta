@@ -1390,7 +1390,7 @@
   <string name="xiaoai_voice_asr_only_experimental_summary">Use Xiaomi speech recognition without its NLP/TTS, then send final recognized text to Eta. Experimental, defaults off; incompatible with /agent-only mode.</string>
   <string name="xiaoai_continuity_mode_title">XiaoAI conversation continuity</string>
   <string name="xiaoai_continuity_mode_summary">Choose how long voice conversations remember prior turns across assistant invocations.</string>
-  <string name="xiaoai_continuity_independent">New conversation every time</string>
+  <string name="xiaoai_continuity_independent">Independent voice turns (every utterance)</string>
   <string name="xiaoai_continuity_timed">Continue for a limited time</string>
   <string name="xiaoai_continuity_manual">Keep until manually reset</string>
   <string name="xiaoai_continuity_timeout_title">Voice conversation idle timeout</string>
