@@ -127,6 +127,16 @@ ColorOS 17 的小布记忆使用加密数据库时，Eta 优先校验已知 Room
 
 这是**未经真机功能测试**的实验路径。虽然使用小爱自带的「禁用 TTS/NLP」上下文，仍需验证 ROM/云端是否实际遵守、原生 UI 是否提前结束、终态 ASR 是否到达同一进程、是否产生重复播报及 TTS 回退。禁用实验开关即可恢复原来的全双工请求分发。云端 ASR 仍可能上传原始语音到小米。
 
+### 实验性小爱连续语音的模型上下文
+
+`test/xiaoai-7.13.34.3812-context` 在语音 ASR-only 接管基础上补充 **仅存放于小爱进程内的多轮模型上下文**。小爱的 ASR dialogId 可能每句话都改变，不适合作为模型会话 ID；该分支给同一段连续语音分配稳定的 `modelSessionId`，而每次调用仍保持独立 `runId`。外部运行归档 `conversationKey` 也使用该稳定 ID，显示卡片的 `dialogId` 仍属于各轮小爱对话。
+
+首次语音请求 `history` 为空；成功完成后，优先保留 Runtime 返回的 `contextSnapshot.messages`（支持自动压缩），否则沿用 `AgentContinuationBuilder` 的规则：先前历史 + 本轮 user 消息 + Runtime 增量 `transcript`。只有最新且成功的运行才能写回缓存，失败、取消或已被后续提问取代的结果不能污染历史；历史只含模型文本/工具 transcript，不保存麦克风音频或图片正文。
+
+为了限制跨会话串联和内存占用，默认在 **3 分钟未活动、12 个已完成回合、128K 历史字符或进程重启** 后换新会话；当历史太长时整体重置，而非截断工具调用与结果的结构化消息对。小爱的 `MiSpeechEngine.V()` 可能在连续对话内部调用，因此不把它当作唯一的关窗信号。这也意味着**用户快速关闭小爱又重新唤醒（未超时）时仍可能沿用历史**；正式版还需用可靠的 UI 生命周期信号区分新会话。文字输入仍走既有 `Nlp.Request` 路径，本次先只为语音 ASR-only 保留历史。
+
+该改动尚未经过真机连续上下文测试；需要验证“先给一个事实、下一句用代词追问”、跨五分钟重启、上一轮生成未完成时立刻打断，以及压缩/工具调用后的续接。
+
 ## Google App
 
 伪装设备为 Samsung S24 Ultra，使 Google 启用一圈即搜能力；同时拦截 `SystemProperties` 和 `PackageManager.hasSystemFeature()` 的关键查询，让 Google App 看到 `ro.opa.eligible_device=true`、`GOOGLE_BUILD` 与 `GOOGLE_EXPERIENCE`。这对应现成 Google App Magisk 模块和 OpenGApps 常用的 OPA eligibility 做法，但限定在 Google App 进程内，不改系统文件。机型伪装与资格补齐作为一圈即搜的底层依赖始终执行，不可关闭。
