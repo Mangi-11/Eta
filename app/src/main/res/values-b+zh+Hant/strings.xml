@@ -1340,4 +1340,15 @@
   <string name="chat_character_typing">%1$s 正在回覆…</string>
   <string name="xiaoai_voice_asr_only_experimental">實驗性小愛語音接管（僅 ASR）</string>
   <string name="xiaoai_voice_asr_only_experimental_summary">保留小愛語音辨識，停用原生 NLP/TTS，將最終辨識文字交給 Eta；預設關閉，與僅 /agent 前綴接管模式不相容。</string>
+  <string name="xiaoai_continuity_mode_title">跨喚醒連續對話</string>
+  <string name="xiaoai_continuity_mode_summary">設定再次喚醒小愛後是否延續之前的語音對話。</string>
+  <string name="xiaoai_continuity_independent">獨立對話（每次新建）</string>
+  <string name="xiaoai_continuity_timed">限時續聊</string>
+  <string name="xiaoai_continuity_manual">手動結束</string>
+  <string name="xiaoai_continuity_timeout_title">續聊閒置逾時</string>
+  <string name="xiaoai_continuity_minutes">%1$d 分鐘</string>
+  <string name="xiaoai_new_conversation_title">開始新的小愛對話</string>
+  <string name="xiaoai_new_conversation_summary">下次語音請求不再沿用舊上下文，也可以直接說「開始新對話」。</string>
+  <string name="xiaoai_new_conversation_confirm">要在下次小愛語音請求前清除目前的語音上下文嗎？</string>
+  <string name="xiaoai_new_conversation_scheduled">已安排在下次語音請求時開始新對話</string>
 </resources>
