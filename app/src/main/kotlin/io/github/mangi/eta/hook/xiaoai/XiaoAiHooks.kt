@@ -535,6 +535,12 @@ internal object XiaoAiHooks {
             queryCache.clear()
             turnTracker.clear()
             claimedDialogIds.clear()
+            if (Prefs.isEnabled(Prefs.Keys.XIAOAI_VOICE_ASR_ONLY)) {
+                hooks.logger.info(
+                    "诊断: 语音会话 V() 清理: pending=${voiceAsrPendingSince.get() != 0L}, " +
+                        "agentActive=${activeRun.get() != null}"
+                )
+            }
             if (voiceAsrPendingSince.getAndSet(0L) != 0L) {
                 hooks.logger.info("诊断: ASR-only 会话在终态 ASR 到达前被清理")
             }
@@ -701,7 +707,14 @@ internal object XiaoAiHooks {
         query: String,
     ) {
         val startedAt = voiceAsrPendingSince.get()
-        if (startedAt == 0L) return
+        if (startedAt == 0L) {
+            if (Prefs.isEnabled(Prefs.Keys.XIAOAI_VOICE_ASR_ONLY)) {
+                logger.warnThrottled("xiaoai_asr_only_final_without_start") {
+                    "诊断: 收到终态 ASR，但没有待接管语音轮次"
+                }
+            }
+            return
+        }
         if (SystemClock.elapsedRealtime() - startedAt > VOICE_ASR_PENDING_TTL_MS) {
             voiceAsrPendingSince.compareAndSet(startedAt, 0L)
             logger.warnThrottled("xiaoai_asr_only_expired") {
