@@ -104,8 +104,6 @@ internal class SystemStateControls(
                 "location",
                 "nfc",
                 "battery_saver",
-                "auto_rotate",
-                "auto_brightness",
                 "dark_mode",
                 "night_light",
             )
@@ -119,9 +117,6 @@ internal class SystemStateControls(
                 "location" -> "cmd location set-location-enabled $enabled --user $userId"
                 "nfc" -> "cmd nfc ${if (enabled) "enable-nfc" else "disable-nfc persist"}"
                 "battery_saver" -> "cmd power set-mode $value"
-                "auto_rotate" -> "settings --user $userId put system accelerometer_rotation $value"
-                "auto_brightness" ->
-                    "settings --user $userId put system screen_brightness_mode $value"
                 "dark_mode" -> "cmd uimode night ${if (enabled) "yes" else "no"}"
                 else -> null
             }

@@ -251,7 +251,7 @@ internal object AgentDeviceToolCatalog {
             .put(
                 function(
                     "set_device_state",
-                    "直接设置 Wi‑Fi、蓝牙、移动数据、飞行模式、定位、NFC、省电、自动旋转、自动亮度和深色模式并读回状态。异步切换尚未完成时返回未确认，请检查状态，不要直接重放。",
+                    "直接设置 Wi‑Fi、蓝牙、移动数据、飞行模式、定位、NFC、省电和深色模式并读回状态。异步切换尚未完成时返回未确认，请检查状态，不要直接重放。",
                     properties(
                         "target" to JSONObject().put("type", "string").put("enum", JSONArray(io.github.mangi.eta.agent.tool.SystemStateControls.targets)),
                         "enabled" to boolean("true 启用，false 关闭"),
