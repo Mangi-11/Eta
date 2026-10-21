@@ -1,6 +1,9 @@
 package io.github.mangi.eta.hook.xiaoai
 
+import java.util.ArrayDeque
 import java.util.LinkedHashMap
+import java.util.UUID
+import io.github.mangi.eta.agent.model.AgentModelClient
 import java.util.concurrent.atomic.AtomicReference
 
 internal object XiaoAiTakeoverPolicy {
@@ -50,6 +53,98 @@ internal object XiaoAiTakeoverPolicy {
             }
         }
         return prompt.takeIf(String::isNotBlank)?.let(::Decision)
+    }
+}
+
+/**
+ * Short-lived voice conversation carried between ASR-only turns.
+ *
+ * A Xiaomi ASR dialog ID changes for every utterance and cannot identify the
+ * model conversation. Keep a separate stable session ID with bounded, text-only
+ * successful turns; failed/interrupted runs never enter the next model context.
+ *
+ * Do not reset on MiSpeechEngine.V(): Xiaomi may call it between follow-up
+ * turns. Instead expire the conversation after idle time, including across
+ * sleep/resume or clock movement. Never store audio, screenshots or tool logs.
+ */
+internal class XiaoAiVoiceConversation(
+    private val idleTimeoutMillis: Long = 180_000L,
+    private val maxTurns: Int = 8,
+    private val maxHistoryChars: Int = 12_000,
+    private val maxMessageChars: Int = 4_000,
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val newSessionId: () -> String = { UUID.randomUUID().toString() },
+) {
+    data class Snapshot(
+        val sessionId: String,
+        val history: List<AgentModelClient.ConversationMessage>,
+        val priorTurns: Int,
+    )
+
+    private data class Exchange(val user: String, val assistant: String)
+    private val exchanges = ArrayDeque<Exchange>()
+    private var sessionId: String? = null
+    private var touchedAt = 0L
+
+    init {
+        require(idleTimeoutMillis > 0L && maxTurns > 0 && maxHistoryChars > 0 && maxMessageChars > 0)
+    }
+
+    @Synchronized
+    fun snapshot(): Snapshot {
+        val now = clock()
+        val current = sessionId
+        if (current == null || now < touchedAt || now - touchedAt > idleTimeoutMillis) {
+            exchanges.clear()
+            sessionId = newSessionId()
+        }
+        touchedAt = now
+        return Snapshot(
+            sessionId = requireNotNull(sessionId),
+            history = exchanges.flatMap { exchange ->
+                listOf(
+                    AgentModelClient.ConversationMessage(role = "user", content = exchange.user),
+                    AgentModelClient.ConversationMessage(role = "assistant", content = exchange.assistant),
+                )
+            },
+            priorTurns = exchanges.size,
+        )
+    }
+
+    /** Return false when a prior, cancelled, or expired run finishes late. */
+    @Synchronized
+    fun recordSuccess(runSessionId: String, prompt: String, reply: String): Boolean {
+        val now = clock()
+        if (
+            runSessionId.isBlank() ||
+            runSessionId != sessionId ||
+            now < touchedAt ||
+            now - touchedAt > idleTimeoutMillis ||
+            prompt.isBlank() || reply.isBlank()
+        ) {
+            return false
+        }
+        exchanges.addLast(
+            Exchange(
+                user = prompt.take(maxMessageChars),
+                assistant = reply.take(maxMessageChars),
+            )
+        )
+        while (
+            exchanges.size > maxTurns ||
+            exchanges.sumOf { it.user.length + it.assistant.length } > maxHistoryChars
+        ) {
+            exchanges.removeFirst()
+        }
+        touchedAt = now
+        return true
+    }
+
+    @Synchronized
+    fun clear() {
+        sessionId = null
+        touchedAt = 0L
+        exchanges.clear()
     }
 }
 
