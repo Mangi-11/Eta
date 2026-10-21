@@ -1338,4 +1338,6 @@
   <string name="memory_discard">放棄</string>
   <string name="chat_character_input_hint">對%1$s說點什麼…</string>
   <string name="chat_character_typing">%1$s 正在回覆…</string>
+  <string name="xiaoai_voice_asr_only_experimental">實驗性小愛語音接管（僅 ASR）</string>
+  <string name="xiaoai_voice_asr_only_experimental_summary">保留小愛語音辨識，停用原生 NLP/TTS，將最終辨識文字交給 Eta；預設關閉，與僅 /agent 前綴接管模式不相容。</string>
 </resources>
