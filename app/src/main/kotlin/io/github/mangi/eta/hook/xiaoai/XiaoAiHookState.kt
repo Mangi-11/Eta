@@ -4,6 +4,7 @@ import java.util.ArrayDeque
 import java.util.LinkedHashMap
 import java.util.UUID
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.config.XiaoAiContinuityMode
 import java.util.concurrent.atomic.AtomicReference
 
 internal object XiaoAiTakeoverPolicy {
@@ -85,19 +86,35 @@ internal class XiaoAiVoiceConversation(
     private var touchedAt = 0L
     private var nextToken = 0L
     private var activeToken = 0L
+    private var lastMode: XiaoAiContinuityMode? = null
+    private var lastIdleTimeoutMillis = idleTimeoutMillis
 
     init {
         require(idleTimeoutMillis > 0L && maxTurns > 0 && maxHistoryChars > 0)
     }
 
     @Synchronized
-    fun snapshot(): Snapshot {
+    fun snapshot(
+        mode: XiaoAiContinuityMode = XiaoAiContinuityMode.TIMED,
+        timeoutMillis: Long = idleTimeoutMillis,
+    ): Snapshot {
+        require(timeoutMillis > 0L)
         val now = clock()
-        if (sessionId == null || now < touchedAt ||
-            now - touchedAt > idleTimeoutMillis || completedTurns >= maxTurns
+        // Treat a policy change as an explicit session boundary.
+        val policyChanged = lastMode != null &&
+            (lastMode != mode || (mode == XiaoAiContinuityMode.TIMED &&
+                lastIdleTimeoutMillis != timeoutMillis))
+        val idleExpired = mode == XiaoAiContinuityMode.TIMED &&
+            (now < touchedAt || now - touchedAt > timeoutMillis)
+        val turnLimitReached = mode != XiaoAiContinuityMode.MANUAL &&
+            completedTurns >= maxTurns
+        if (sessionId == null || policyChanged || idleExpired ||
+            turnLimitReached || mode == XiaoAiContinuityMode.INDEPENDENT
         ) {
             reset(newSessionId())
         }
+        lastMode = mode
+        lastIdleTimeoutMillis = timeoutMillis
         touchedAt = now
         activeToken = ++nextToken
         return Snapshot(
@@ -161,6 +178,8 @@ internal class XiaoAiVoiceConversation(
         completedTurns = 0
         touchedAt = 0L
         activeToken = 0L
+        lastMode = null
+        lastIdleTimeoutMillis = idleTimeoutMillis
     }
 
     private fun reset(nextId: String) {
