@@ -1386,4 +1386,6 @@
   <string name="memory_discard">Discard</string>
   <string name="chat_character_input_hint">Say something to %1$s…</string>
   <string name="chat_character_typing">%1$s is replying…</string>
+  <string name="xiaoai_voice_asr_only_experimental">Experimental XiaoAI voice takeover (ASR only)</string>
+  <string name="xiaoai_voice_asr_only_experimental_summary">Use Xiaomi speech recognition without its NLP/TTS, then send final recognized text to Eta. Experimental, defaults off; incompatible with /agent-only mode.</string>
 </resources>
