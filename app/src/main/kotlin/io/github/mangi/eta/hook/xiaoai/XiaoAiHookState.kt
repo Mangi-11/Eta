@@ -126,7 +126,7 @@ internal class XiaoAiVoiceConversation(
             prompt.isBlank() || reply.isBlank()
         ) return false
 
-        val nextHistory = contextMessages?.takeIf(List<*>::isNotEmpty)
+        val nextHistory = contextMessages?.takeIf { it.isNotEmpty() }
             ?: (
                 snapshot.history +
                     AgentModelClient.ConversationMessage(role = "user", content = prompt) +
