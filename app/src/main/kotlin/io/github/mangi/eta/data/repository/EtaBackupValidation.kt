@@ -1,6 +1,7 @@
 package io.github.mangi.eta.data.repository
 
 import io.github.mangi.eta.data.db.ConversationStateEntity
+import io.github.mangi.eta.data.model.ProviderAuthModes
 
 /** 校验只保留标识与角色关联所需的消息类型，正文和检查点逐条读取后释放。 */
 internal object EtaBackupValidation {
@@ -68,6 +69,9 @@ internal object EtaBackupValidation {
             throw EtaBackupException("备份中的模型提供商存在重复或无效 ID")
         }
         val modelIds = document.providers.flatMap { provider ->
+            if (provider.provider.authMode != ProviderAuthModes.API_KEY &&
+                !ProviderAuthModes.isOAuth(provider.provider.authMode)
+            ) throw EtaBackupException("备份中的服务商认证方式不受支持")
             val ids = provider.models.map { it.id }
             if (ids.size != ids.toSet().size || ids.any(String::isBlank)) throw EtaBackupException("备份中的模型存在重复或无效 ID")
             if (provider.models.any { it.providerId != provider.provider.id }) throw EtaBackupException("备份中的模型与提供商不匹配")

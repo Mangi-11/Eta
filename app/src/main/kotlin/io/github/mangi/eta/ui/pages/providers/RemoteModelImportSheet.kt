@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.Model
+import io.github.mangi.eta.data.repository.RemoteModelCatalog
 import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -42,9 +43,9 @@ import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** 一次拉取的待选结果；[fetched] 是完整的对话模型列表，确认时连同已有模型一起同步。 */
+/** 一次拉取的待选结果；确认时保留连接和账号绑定，避免将过期目录写到另一连接。 */
 internal data class RemoteModelImport(
-    val fetched: List<Model>,
+    val catalog: RemoteModelCatalog,
     val candidates: List<Model>,
 )
 
@@ -70,7 +71,7 @@ internal fun RemoteModelImportSheet(
         shown?.let { current ->
             key(current) {
                 RemoteModelImportContent(
-                    candidates = current.candidates,
+                    pending = current,
                     onConfirm = { selected -> onConfirm(current, selected) },
                 )
             }
@@ -80,9 +81,10 @@ internal fun RemoteModelImportSheet(
 
 @Composable
 private fun RemoteModelImportContent(
-    candidates: List<Model>,
+    pending: RemoteModelImport,
     onConfirm: (Set<String>) -> Unit,
 ) {
+    val candidates = pending.candidates
     var query by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf(emptySet<String>()) }
     val visible = remember(candidates, query) {
@@ -170,10 +172,9 @@ private fun RemoteModelImportContent(
             }
         }
         EtaTextButton(
-            text = if (selected.isEmpty()) {
-                stringResource(R.string.remote_model_import_pick_hint)
-            } else {
-                stringResource(R.string.remote_model_import_confirm, selected.size)
+            text = when {
+                selected.isNotEmpty() -> stringResource(R.string.remote_model_import_confirm, selected.size)
+                else -> stringResource(R.string.remote_model_import_pick_hint)
             },
             onClick = { onConfirm(selected) },
             enabled = selected.isNotEmpty(),

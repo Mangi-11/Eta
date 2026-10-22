@@ -55,6 +55,12 @@ internal interface ProviderDao {
     @Update
     suspend fun updateProvider(provider: ProviderEntity): Int
 
+    @Query(
+        "UPDATE model_providers SET auth_mode = :authMode, is_enabled = :isEnabled " +
+            "WHERE id = :providerId AND auth_mode = 'api_key' AND api_key = '' AND is_enabled = 0"
+    )
+    suspend fun activateRestoredOAuthProvider(providerId: String, authMode: String, isEnabled: Boolean): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertModels(models: List<ProviderModelEntity>)
 

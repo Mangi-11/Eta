@@ -73,31 +73,25 @@ fetch_source talloc https://www.samba.org/ftp/talloc/talloc-2.4.3.tar.gz \
 fetch_source shmem https://github.com/termux/libandroid-shmem/archive/refs/tags/v0.7.tar.gz \
     1e5ff8459bc0a8c229dd8a94b27d119987e09ef3414331c2b5ebfff20b98e867 libandroid-shmem-0.7
 
-for eta_abi in arm64-v8a x86_64 armeabi-v7a x86; do
-    case "$eta_abi" in
-        arm64-v8a) eta_target=aarch64-linux-android ;;
-        x86_64) eta_target=x86_64-linux-android ;;
-        armeabi-v7a) eta_target=armv7a-linux-androideabi ;;
-        x86) eta_target=i686-linux-android ;;
-    esac
-    eta_cc="$eta_toolchain/$eta_target$eta_api-clang"
-    eta_abi_build="$eta_build/$eta_abi"
-    mkdir -p "$eta_abi_build" "$eta_output/$eta_abi"
-    printf '编译 PTY：%s\n' "$eta_abi"
-    "$eta_cc" -O2 -Wall -Wextra -Werror -fPIE -pie \
-        -Wl,-z,max-page-size=16384 -Wl,-z,relro,-z,now \
-        -ffile-prefix-map="$eta_repo"=. \
-        "$eta_repo/app/src/main/cpp/eta_pty.c" -o "$eta_output/$eta_abi/libeta_pty.so"
-    "$eta_toolchain/llvm-strip" "$eta_output/$eta_abi/libeta_pty.so"
-    if [[ "$eta_abi" != arm64-v8a && "$eta_abi" != x86_64 ]]; then continue; fi
+eta_abi=arm64-v8a
+eta_target=aarch64-linux-android
+eta_cc="$eta_toolchain/$eta_target$eta_api-clang"
+eta_abi_build="$eta_build/$eta_abi"
+mkdir -p "$eta_abi_build" "$eta_output/$eta_abi"
+printf '编译 PTY：%s\n' "$eta_abi"
+"$eta_cc" -O2 -Wall -Wextra -Werror -fPIE -pie \
+    -Wl,-z,max-page-size=16384 -Wl,-z,relro,-z,now \
+    -ffile-prefix-map="$eta_repo"=. \
+    "$eta_repo/app/src/main/cpp/eta_pty.c" -o "$eta_output/$eta_abi/libeta_pty.so"
+"$eta_toolchain/llvm-strip" "$eta_output/$eta_abi/libeta_pty.so"
 
-    eta_prefix="$eta_abi_build/prefix"
-    mkdir -p "$eta_prefix/include/sys" "$eta_prefix/lib"
-    # 在临时构建副本生成配置，固定源码缓存保持原样。
-    if [[ ! -d "$eta_abi_build/talloc" ]]; then
-        cp -R "$eta_sources/talloc-2.4.3" "$eta_abi_build/talloc"
-    fi
-    cat > "$eta_abi_build/talloc/cross-answers.txt" <<'ANSWERS'
+eta_prefix="$eta_abi_build/prefix"
+mkdir -p "$eta_prefix/include/sys" "$eta_prefix/lib"
+# 在临时构建副本生成配置，固定源码缓存保持原样。
+if [[ ! -d "$eta_abi_build/talloc" ]]; then
+    cp -R "$eta_sources/talloc-2.4.3" "$eta_abi_build/talloc"
+fi
+cat > "$eta_abi_build/talloc/cross-answers.txt" <<'ANSWERS'
 Checking uname sysname type: "Linux"
 Checking uname machine type: "dontcare"
 Checking uname release type: "dontcare"
@@ -124,44 +118,43 @@ Checking for HAVE_MREMAP: OK
 Checking for HAVE_INCOHERENT_MMAP: OK
 Checking getconf large file support flags work: OK
 ANSWERS
-    (
-        cd "$eta_abi_build/talloc"
-        export CC="$eta_cc" AR="$eta_toolchain/llvm-ar"
-        export CFLAGS="-O2 -fPIC -D__STDC_WANT_LIB_EXT1__=1 -ffile-prefix-map=$eta_repo=."
-        ./configure --prefix="$eta_prefix" --disable-rpath --disable-python \
-            --cross-compile --cross-answers=cross-answers.txt > configure.log 2>&1
-        python3 buildtools/bin/waf build --targets=talloc > build.log 2>&1
-        "$eta_toolchain/llvm-ar" rcs "$eta_prefix/lib/libtalloc.a" bin/default/talloc.c.*.o
-        cp talloc.h "$eta_prefix/include/talloc.h"
-    )
-    mkdir -p "$eta_abi_build/shmem"
-    cp "$eta_sources/libandroid-shmem-0.7/shmem.c" "$eta_sources/libandroid-shmem-0.7/shm.h" "$eta_abi_build/shmem/"
-    patch -s -p1 -d "$eta_abi_build/shmem" < "$eta_repo/scripts/native/shmem-app-temp.patch"
-    "$eta_cc" -O2 -fPIC -std=c11 -ffile-prefix-map="$eta_repo"=. \
-        -c "$eta_abi_build/shmem/shmem.c" -o "$eta_abi_build/shmem.o"
-    "$eta_toolchain/llvm-ar" rcs "$eta_prefix/lib/libandroid-shmem.a" "$eta_abi_build/shmem.o"
-    cp "$eta_sources/libandroid-shmem-0.7/shm.h" "$eta_prefix/include/sys/shm.h"
-    mkdir -p "$eta_abi_build/proot"
-    cp -R "$eta_sources/proot-5.1.107.92/." "$eta_abi_build/proot/"
-    patch -s -p1 -d "$eta_abi_build/proot" < "$eta_repo/scripts/native/proot-bionic-headers.patch"
-    (
-        cd "$eta_abi_build/proot/src"
-        eta_loader_address=$("$eta_cc" -E -dM -DNO_LIBC_HEADER arch.h | awk '$2 == "LOADER_ADDRESS" {print $3}')
-        make -j4 \
-            CC="$eta_cc" STRIP="$eta_toolchain/llvm-strip" \
-            OBJCOPY="$eta_toolchain/llvm-objcopy" OBJDUMP="$eta_toolchain/llvm-objdump" \
-            GIT=false HAS_LOADER_32BIT= PROOT_UNBUNDLE_LOADER=/dev/null PROOT_WITH_LIBANDROID_SHMEM=1 \
-            CPPFLAGS="-D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -I. -I$eta_prefix/include" \
-            CFLAGS="-O2 -Wall -Wextra -fPIE -fno-stack-protector -ffile-prefix-map=$eta_repo=. -DWITH_LIBANDROID_SHMEM -DPROOT_UNBUNDLE_LOADER=\"\\\"/dev/null\\\"\" -DVERSION=\"\\\"5.1.107.92\\\"\"" \
-            LDFLAGS="-pie -L$eta_prefix/lib -ltalloc -landroid-shmem -landroid -llog -Wl,-z,noexecstack,-z,max-page-size=16384,-z,relro,-z,now" \
-            LOADER_LDFLAGS="-static -nostdlib -Wl,--build-id=none,-Ttext=$eta_loader_address,--rosegment,-z,noexecstack,-z,max-page-size=16384" \
-            > build.log 2>&1
-        cp proot "$eta_output/$eta_abi/libproot_exec.so"
-        cp loader/loader "$eta_output/$eta_abi/libproot_loader.so"
-        "$eta_toolchain/llvm-strip" "$eta_output/$eta_abi/libproot_exec.so" "$eta_output/$eta_abi/libproot_loader.so"
-    )
-    printf 'PRoot 与配对 loader 已生成：%s\n' "$eta_abi"
-done
+(
+    cd "$eta_abi_build/talloc"
+    export CC="$eta_cc" AR="$eta_toolchain/llvm-ar"
+    export CFLAGS="-O2 -fPIC -D__STDC_WANT_LIB_EXT1__=1 -ffile-prefix-map=$eta_repo=."
+    ./configure --prefix="$eta_prefix" --disable-rpath --disable-python \
+        --cross-compile --cross-answers=cross-answers.txt > configure.log 2>&1
+    python3 buildtools/bin/waf build --targets=talloc > build.log 2>&1
+    "$eta_toolchain/llvm-ar" rcs "$eta_prefix/lib/libtalloc.a" bin/default/talloc.c.*.o
+    cp talloc.h "$eta_prefix/include/talloc.h"
+)
+mkdir -p "$eta_abi_build/shmem"
+cp "$eta_sources/libandroid-shmem-0.7/shmem.c" "$eta_sources/libandroid-shmem-0.7/shm.h" "$eta_abi_build/shmem/"
+patch -s -p1 -d "$eta_abi_build/shmem" < "$eta_repo/scripts/native/shmem-app-temp.patch"
+"$eta_cc" -O2 -fPIC -std=c11 -ffile-prefix-map="$eta_repo"=. \
+    -c "$eta_abi_build/shmem/shmem.c" -o "$eta_abi_build/shmem.o"
+"$eta_toolchain/llvm-ar" rcs "$eta_prefix/lib/libandroid-shmem.a" "$eta_abi_build/shmem.o"
+cp "$eta_sources/libandroid-shmem-0.7/shm.h" "$eta_prefix/include/sys/shm.h"
+mkdir -p "$eta_abi_build/proot"
+cp -R "$eta_sources/proot-5.1.107.92/." "$eta_abi_build/proot/"
+patch -s -p1 -d "$eta_abi_build/proot" < "$eta_repo/scripts/native/proot-bionic-headers.patch"
+(
+    cd "$eta_abi_build/proot/src"
+    eta_loader_address=$("$eta_cc" -E -dM -DNO_LIBC_HEADER arch.h | awk '$2 == "LOADER_ADDRESS" {print $3}')
+    make -j4 \
+        CC="$eta_cc" STRIP="$eta_toolchain/llvm-strip" \
+        OBJCOPY="$eta_toolchain/llvm-objcopy" OBJDUMP="$eta_toolchain/llvm-objdump" \
+        GIT=false HAS_LOADER_32BIT= PROOT_UNBUNDLE_LOADER=/dev/null PROOT_WITH_LIBANDROID_SHMEM=1 \
+        CPPFLAGS="-D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -I. -I$eta_prefix/include" \
+        CFLAGS="-O2 -Wall -Wextra -fPIE -fno-stack-protector -ffile-prefix-map=$eta_repo=. -DWITH_LIBANDROID_SHMEM -DPROOT_UNBUNDLE_LOADER=\"\\\"/dev/null\\\"\" -DVERSION=\"\\\"5.1.107.92\\\"\"" \
+        LDFLAGS="-pie -L$eta_prefix/lib -ltalloc -landroid-shmem -landroid -llog -Wl,-z,noexecstack,-z,max-page-size=16384,-z,relro,-z,now" \
+        LOADER_LDFLAGS="-static -nostdlib -Wl,--build-id=none,-Ttext=$eta_loader_address,--rosegment,-z,noexecstack,-z,max-page-size=16384" \
+        > build.log 2>&1
+    cp proot "$eta_output/$eta_abi/libproot_exec.so"
+    cp loader/loader "$eta_output/$eta_abi/libproot_loader.so"
+    "$eta_toolchain/llvm-strip" "$eta_output/$eta_abi/libproot_exec.so" "$eta_output/$eta_abi/libproot_loader.so"
+)
+printf 'PRoot 与配对 loader 已生成：%s\n' "$eta_abi"
 
 # 源码分发包从实际构建入口生成，避免 APK 内维护另一份脚本和补丁。
 python3 - "$eta_repo" <<'PY'

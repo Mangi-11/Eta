@@ -52,6 +52,7 @@ internal fun ToolCard(
     val requirementText = toolRequirementText(tool.id, rootGranted, capabilities)
     val action = toolCardAction(tool.id, capabilities)
     val actionText = when (action) {
+        AgentToolsAction.OpenWebToolsSettings -> stringResource(R.string.web_tools_configure_action)
         AgentToolsAction.OpenBrowser -> stringResource(R.string.action_open_browser)
         AgentToolsAction.OpenPermissions -> stringResource(R.string.tools_manage_permissions)
         AgentToolsAction.OpenEnhancements -> stringResource(R.string.tools_view_enhancements)

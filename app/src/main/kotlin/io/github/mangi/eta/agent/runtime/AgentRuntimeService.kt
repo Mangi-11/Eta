@@ -58,6 +58,8 @@ import io.github.mangi.eta.core.ModuleConfig
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import kotlin.concurrent.thread
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runBlocking
 import top.yukonga.miuix.kmp.squircle.LocalSquircleEnabled
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -186,6 +188,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     }
 
     override fun onDestroy() {
+        setKeepScreenOn(false)
         startRequestGeneration++
         pendingStartRequest?.let { pending ->
             pending.incoming.close()
@@ -321,7 +324,15 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     request
                 } else {
                     val runtimeConfig = runBlocking {
-                        RuntimeConfigRepository.currentRuntimeConfig()
+                        if (AgentRuntimeRequestConfigResolver.usesDefaultRuntimeConfig(request)) {
+                            RuntimeConfigRepository.currentRuntimeConfig()
+                        } else {
+                            RuntimeConfigRepository.oauthRuntimeConfigFor(
+                                providerId = request.config.providerId,
+                                authMode = request.config.authMode,
+                                modelName = request.config.model,
+                            )
+                        }
                     } ?: throw RuntimeConfigUnavailableException()
                     AgentRuntimeRequestConfigResolver.applyRuntimeConfig(request, runtimeConfig)
                 }
@@ -421,10 +432,20 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             }
         }
 
+        updateKeepScreenOn()
+        val screenOnBinding = session.controller.register {
+            mainHandler.post {
+                if (activeSession === session) updateKeepScreenOn()
+            }
+        }
         thread(name = "agent-runtime") {
             try {
                 executeRun(session, request)
             } finally {
+                screenOnBinding.close()
+                mainHandler.post {
+                    if (activeSession === session) setKeepScreenOn(false)
+                }
                 AgentExecutionService.updateRunStatus(this, null)
                 AgentExecutionService.release("run:${request.runId}")
             }
@@ -529,6 +550,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             if (activeSession !== session) return@post
             lastCompletedRunContext = completedContext
             activeSession = null
+            setKeepScreenOn(false)
             runCatching {
                 if (result.ok) {
                     enterFinalState(
@@ -797,6 +819,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     private fun requestPause() {
         activeSession?.controller?.pause()
+        updateKeepScreenOn()
         state.value = state.value.copy(
             phase = AgentOverlayPhase.PAUSED,
             status = AgentOverlayStatus.Paused,
@@ -805,6 +828,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     private fun requestResume() {
         activeSession?.controller?.resume()
+        updateKeepScreenOn()
         state.value = state.value.copy(
             phase = AgentOverlayPhase.RUNNING,
             status = AgentOverlayStatus.Continuing,
@@ -867,6 +891,19 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         showOverlay()
     }
 
+    private fun updateKeepScreenOn() {
+        val session = activeSession
+        setKeepScreenOn(
+            session != null && !session.isTerminal &&
+                !session.controller.isCancelled && !session.controller.isPaused,
+        )
+    }
+
+    private fun setKeepScreenOn(enabled: Boolean) {
+        keepScreenOnState.value = enabled
+        capsuleView?.keepScreenOn = enabled
+    }
+
     private fun showOverlay() {
         if (capsuleView != null) return
         // TYPE_ACCESSIBILITY_OVERLAY 免 SYSTEM_ALERT_WINDOW 权限；仅回退态（无障碍未启用）才需检查
@@ -903,6 +940,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             )
         }
         val capsuleLp = capsuleLayoutParams()
+        capsule.keepScreenOn = keepScreenOn.value
         runCatching { wm.addView(capsule, capsuleLp) }.onFailure { throwable ->
             AndroidAgentLogger.warnThrottled("runtime_capsule_add_view_failed") {
                 "Agent runtime capsule addView failed: type=${throwable.safeLogType()}"
@@ -1281,11 +1319,15 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         )
     }
 
-    private companion object {
-        const val ACTION_KEEP_ALIVE = "io.github.mangi.eta.agent.runtime.KEEP_ALIVE"
-        const val HIDE_DELAY_MS = 2_500L
-        const val RESULT_REVIEW_DELAY_MS = 120_000L
-        const val RESULT_CARD_HEIGHT_RATIO = 0.5f
+    companion object {
+        // 只投影到 App 与 GUI 浮层的现有窗口，窗口不可见时由系统恢复息屏。
+        private val keepScreenOnState = MutableStateFlow(false)
+        val keepScreenOn = keepScreenOnState.asStateFlow()
+
+        private const val ACTION_KEEP_ALIVE = "io.github.mangi.eta.agent.runtime.KEEP_ALIVE"
+        private const val HIDE_DELAY_MS = 2_500L
+        private const val RESULT_REVIEW_DELAY_MS = 120_000L
+        private const val RESULT_CARD_HEIGHT_RATIO = 0.5f
         private const val RESULT_OPEN_REQUEST_CODE = 1108
         private const val CAPSULE_WINDOW_WIDTH_DP = 272
         private const val CAPSULE_COLLAPSED_HEIGHT_DP = 68
@@ -1294,7 +1336,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         /** 注入点击只是一个点，目标控件常贴着胶囊边缘，判定范围向外多留一点。 */
         private const val CAPSULE_CLEARANCE_SLOP_DP = 8
         private const val FALLBACK_SCREEN_CORNER_DP = 28
-        const val MAX_ARCHIVED_USER_IMAGE_PREVIEWS = 4
+        private const val MAX_ARCHIVED_USER_IMAGE_PREVIEWS = 4
     }
 
     private data class CompletedRunContext(

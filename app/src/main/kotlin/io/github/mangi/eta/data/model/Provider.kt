@@ -14,9 +14,18 @@ internal object OpenAiEndpointMode {
     const val RESPONSES = "responses"
 }
 
+internal object ProviderAuthModes {
+    const val API_KEY = "api_key"
+    const val OPENAI_CHATGPT = "openai_chatgpt"
+    const val XAI_GROK = "xai_grok"
+
+    fun isOAuth(mode: String): Boolean = mode == OPENAI_CHATGPT || mode == XAI_GROK
+}
+
 internal object ProviderSourceTypes {
     const val CUSTOM = "custom"
     const val OPENAI = "openai"
+    const val XAI = "xai"
     const val ANTHROPIC = "anthropic"
     const val BAILIAN = "bailian"
     const val DEEPSEEK = "deepseek"
@@ -35,6 +44,7 @@ sealed interface ProviderSetting {
     val baseUrl: String
     val sourceType: String
     val apiKey: String
+    val authMode: String
     val isEnabled: Boolean
     val isBuiltIn: Boolean
     val sortOrder: Int
@@ -65,6 +75,7 @@ data class OpenAiCompatibleProviderSetting(
     override val createdAt: Long = System.currentTimeMillis(),
     val endpointMode: String = OpenAiEndpointMode.CHAT_COMPLETIONS,
     override val hostedWebSearchEnabled: Boolean = false,
+    override val authMode: String = ProviderAuthModes.API_KEY,
 ) : ProviderSetting
 
 @Serializable
@@ -83,7 +94,8 @@ data class AnthropicProviderSetting(
     override val customHeaders: List<CustomHeader> = emptyList(),
     override val customBody: List<CustomBody> = emptyList(),
     override val createdAt: Long = System.currentTimeMillis(),
-    val anthropicVersion: String = DEFAULT_ANTHROPIC_VERSION
+    val anthropicVersion: String = DEFAULT_ANTHROPIC_VERSION,
+    override val authMode: String = ProviderAuthModes.API_KEY,
 ) : ProviderSetting {
     companion object {
         const val DEFAULT_ANTHROPIC_VERSION = "2023-06-01"
@@ -108,6 +120,7 @@ data class CustomProviderSetting(
     override val createdAt: Long = System.currentTimeMillis(),
     val endpointMode: String = OpenAiEndpointMode.CHAT_COMPLETIONS,
     override val hostedWebSearchEnabled: Boolean = false,
+    override val authMode: String = ProviderAuthModes.API_KEY,
 ) : ProviderSetting
 
 internal val ProviderSetting.runtimeProviderType: String

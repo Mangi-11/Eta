@@ -9,7 +9,7 @@ import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 
 internal object OfficialModelCatalog {
-    internal const val CURRENT_REVISION = 1
+    internal const val CURRENT_REVISION = 3
 
     // 旧安装只补入本次新增的模型，避免恢复用户主动删除的旧预设。
     private val additionsByRevision = mapOf(
@@ -22,26 +22,16 @@ internal object OfficialModelCatalog {
             ProviderSourceTypes.DEEPSEEK to setOf("deepseek-flash"),
             ProviderSourceTypes.MIMO to setOf("mimo-v2.6-pro", "mimo-v2.6-flash"),
             ProviderSourceTypes.STEPFUN to setOf("step-5-preview"),
-        )
+        ),
+        2 to mapOf(ProviderSourceTypes.OPENAI to setOf("gpt-6.1-sol")),
     )
 
     private val modelsByCatalogId: Map<String, List<Model>> = mapOf(
         ProviderSourceTypes.OPENAI to listOf(
             officialModel(
-                id = "builtin-openai-gpt-6-astra",
-                modelId = "gpt-6-astra",
-                displayName = "GPT-6 Astra",
-                ownedBy = "openai",
-                inputModalities = listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY),
-                toolCall = true,
-                reasoning = true,
-                structuredOutput = true,
-                contextWindow = 1_050_000,
-            ),
-            officialModel(
-                id = "builtin-openai-gpt-6-sol",
-                modelId = "gpt-6-sol",
-                displayName = "GPT-6 Sol",
+                id = "builtin-openai-gpt-6-1-sol",
+                modelId = "gpt-6.1-sol",
+                displayName = "GPT-6.1 Sol",
                 ownedBy = "openai",
                 inputModalities = listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY),
                 toolCall = true,
@@ -61,9 +51,9 @@ internal object OfficialModelCatalog {
                 contextWindow = 1_050_000,
             ),
             officialModel(
-                id = "builtin-openai-gpt-5-6-sol",
-                modelId = "gpt-5.6-sol",
-                displayName = "GPT-5.6 Sol",
+                id = "builtin-openai-gpt-6-astra",
+                modelId = "gpt-6-astra",
+                displayName = "GPT-6 Astra",
                 ownedBy = "openai",
                 inputModalities = listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY),
                 toolCall = true,
@@ -71,38 +61,7 @@ internal object OfficialModelCatalog {
                 structuredOutput = true,
                 contextWindow = 1_050_000,
             ),
-            officialModel(
-                id = "builtin-openai-gpt-5-6-terra",
-                modelId = "gpt-5.6-terra",
-                displayName = "GPT-5.6 Terra",
-                ownedBy = "openai",
-                inputModalities = listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY),
-                toolCall = true,
-                reasoning = true,
-                structuredOutput = true,
-                contextWindow = 1_050_000,
-            ),
-            officialModel(
-                id = "builtin-openai-gpt-5-6-luna",
-                modelId = "gpt-5.6-luna",
-                displayName = "GPT-5.6 Luna",
-                ownedBy = "openai",
-                inputModalities = listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY),
-                toolCall = true,
-                reasoning = true,
-                structuredOutput = true,
-                contextWindow = 1_050_000,
-            ),
-            officialModel(
-                id = "builtin-openai-gpt-5-5",
-                modelId = "gpt-5.5",
-                displayName = "GPT-5.5",
-                ownedBy = "openai",
-                inputModalities = listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY),
-                toolCall = true,
-                reasoning = true,
-            )
-        ),
+        ).map { it.copy(contextWindowOverride = it.contextWindow) },
         ProviderSourceTypes.ANTHROPIC to listOf(
             officialModel(
                 id = "builtin-anthropic-claude-fable-5-1",

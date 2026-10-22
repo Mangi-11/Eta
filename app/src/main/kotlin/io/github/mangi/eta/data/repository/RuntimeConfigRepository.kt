@@ -11,12 +11,14 @@ import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderSetting
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.model.runtimeProviderType
 import io.github.mangi.eta.data.model.selectedOrFirstModel
 import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.provider.ProviderSourceRegistry
+import io.github.mangi.eta.data.provider.ProviderConnectionProfile
 import io.github.mangi.eta.data.provider.ReasoningCapabilityResolver
 import io.github.libxposed.service.XposedService
 import kotlinx.serialization.encodeToString
@@ -84,6 +86,18 @@ internal object RuntimeConfigRepository {
         return currentRuntimeConfig()
     }
 
+    suspend fun oauthRuntimeConfigFor(
+        providerId: String,
+        authMode: String,
+        modelName: String,
+    ): AgentModelClient.ModelConfig? {
+        if (!ProviderAuthModes.isOAuth(authMode)) return null
+        val provider = ProviderRepository.providerById(providerId)
+            ?.takeIf { it.isEnabled && it.authMode == authMode } ?: return null
+        val model = provider.models.firstOrNull { it.isEnabled && it.modelId == modelName } ?: return null
+        return buildRuntimeConfig(provider, model)
+    }
+
     suspend fun syncToRemotePreferences(service: XposedService?): Boolean {
         val prefs = Prefs.remotePreferencesForUi(service) ?: return false
         val config = currentRuntimeConfig() ?: return clearRuntimeConfig(prefs)
@@ -97,7 +111,7 @@ internal object RuntimeConfigRepository {
     }
 
     fun runtimeConfigJson(config: AgentModelClient.ModelConfig): String =
-        json.encodeToString(config)
+        json.encodeToString(if (config.authMode == ProviderAuthModes.API_KEY) config else config.copy(apiKey = ""))
 
     fun buildRuntimeConfig(provider: ProviderSetting, model: Model): AgentModelClient.ModelConfig {
         val systemPrompt = provider.systemPrompt
@@ -105,15 +119,17 @@ internal object RuntimeConfigRepository {
             ?.takeIf { it.isNotBlank() }
             ?: BuiltinProviders.DEFAULT_SYSTEM_PROMPT
         val sourceType = ProviderSourceRegistry.resolve(provider)
-        val endpointMode = provider.endpointMode()
+        val profile = ProviderConnectionProfile.forAuthMode(provider.authMode)
+        val endpointMode = profile?.endpointMode ?: provider.endpointMode()
         val reasoningCapabilities = reasoningCapabilities(provider, model)
         return AgentModelClient.ModelConfig(
             providerId = provider.id,
             providerName = provider.name,
-            providerType = provider.runtimeProviderType,
+            providerType = profile?.providerType ?: provider.runtimeProviderType,
             providerSourceType = sourceType,
-            baseUrl = provider.baseUrl.trim(),
-            apiKey = provider.apiKey.trim(),
+            baseUrl = profile?.baseUrl ?: provider.baseUrl.trim(),
+            apiKey = provider.apiKey.trim().takeIf { provider.authMode == ProviderAuthModes.API_KEY }.orEmpty(),
+            authMode = provider.authMode,
             model = model.modelId.trim(),
             modelDisplayName = model.displayName.trim(),
             contextWindow = model.effectiveContextWindow,

@@ -17,8 +17,10 @@ import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderSetting
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderTypes
 import io.github.mangi.eta.data.provider.ProviderSourceRegistry
+import io.github.mangi.eta.data.provider.ProviderConnectionProfile
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -43,6 +45,8 @@ internal data class ProviderEntity(
     @ColumnInfo(name = "hosted_web_search_enabled", defaultValue = "0")
     val hostedWebSearchEnabled: Boolean,
     @ColumnInfo(name = "anthropic_version") val anthropicVersion: String,
+    @ColumnInfo(name = "auth_mode", defaultValue = "'api_key'")
+    val authMode: String = ProviderAuthModes.API_KEY,
 )
 
 @Serializable
@@ -105,7 +109,8 @@ internal fun ProviderSetting.toEntity(): ProviderEntity =
         type = storageType,
         name = name,
         baseUrl = baseUrl,
-        apiKey = apiKey,
+        apiKey = apiKey.takeIf { authMode == ProviderAuthModes.API_KEY }.orEmpty(),
+        authMode = authMode,
         isEnabled = isEnabled,
         isBuiltIn = isBuiltIn,
         sortOrder = sortOrder,
@@ -132,7 +137,7 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
     val domainModels = models
         .sortedBy { it.sortOrder }
         .map(ProviderModelEntity::toDomain)
-    val sourceType = ProviderSourceRegistry.resolve(
+    val sourceType = ProviderConnectionProfile.forAuthMode(provider.authMode)?.sourceType ?: ProviderSourceRegistry.resolve(
         providerId = provider.id,
         baseUrl = provider.baseUrl,
         providerType = provider.type,
@@ -143,7 +148,8 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
             name = provider.name,
             baseUrl = provider.baseUrl,
             sourceType = sourceType,
-            apiKey = provider.apiKey,
+            apiKey = provider.apiKey.takeIf { provider.authMode == ProviderAuthModes.API_KEY }.orEmpty(),
+            authMode = provider.authMode,
             isEnabled = provider.isEnabled,
             isBuiltIn = provider.isBuiltIn,
             sortOrder = provider.sortOrder,
@@ -162,7 +168,8 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
             name = provider.name,
             baseUrl = provider.baseUrl,
             sourceType = sourceType,
-            apiKey = provider.apiKey,
+            apiKey = provider.apiKey.takeIf { provider.authMode == ProviderAuthModes.API_KEY }.orEmpty(),
+            authMode = provider.authMode,
             isEnabled = provider.isEnabled,
             isBuiltIn = provider.isBuiltIn,
             sortOrder = provider.sortOrder,
@@ -180,7 +187,8 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
             name = provider.name,
             baseUrl = provider.baseUrl,
             sourceType = sourceType,
-            apiKey = provider.apiKey,
+            apiKey = provider.apiKey.takeIf { provider.authMode == ProviderAuthModes.API_KEY }.orEmpty(),
+            authMode = provider.authMode,
             isEnabled = provider.isEnabled,
             isBuiltIn = provider.isBuiltIn,
             sortOrder = provider.sortOrder,

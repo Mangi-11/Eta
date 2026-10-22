@@ -164,8 +164,14 @@ class SpeechPlaybackTest {
         } finally { release.countDown(); controller.stop() }
     }
 
-    private fun speakUntilClosed(controller: SpeechPlaybackController, output: FakeOutput, text: String) {
-        controller.speak("stream", text, SpeechSettings(tts = TtsProvider.QWEN), SpeechCredentials(qwenTts = "test-key"))
+    private fun speakUntilClosed(
+        controller: SpeechPlaybackController,
+        output: FakeOutput,
+        text: String,
+        provider: TtsProvider = TtsProvider.QWEN,
+    ) {
+        controller.speak("stream", text, SpeechSettings(tts = provider),
+            SpeechCredentials(qwenTts = "test-key", geminiTts = "test-key", minimaxTts = "test-key"))
         val deadline = System.nanoTime() + 3_000_000_000
         while (!output.closed && System.nanoTime() < deadline) {
             shadowOf(Looper.getMainLooper()).idle()
@@ -225,6 +231,51 @@ class SpeechPlaybackTest {
             assertEquals(0, segments.get())
             assertEquals("dropped", controller.state.value.error)
         } finally { controller.stop() }
+    }
+
+    @Test fun httpProvidersUseOrderedSegmentsWithoutAttemptingWebSocketSessions() {
+        for (provider in listOf(TtsProvider.GEMINI, TtsProvider.MINIMAX)) {
+            val output = FakeOutput()
+            val segments = java.util.concurrent.CopyOnWriteArrayList<String>()
+            val controller = SpeechPlaybackController(context, scope,
+                streamSynthesize = { _, _, _, _ -> fail("HTTP providers must not start a WebSocket session") },
+                synthesize = { settings, _, text, audio ->
+                    assertEquals(provider, settings.tts)
+                    segments += text
+                    audio(byteArrayOf(1, 2))
+                },
+                createOutput = { output },
+            )
+            try {
+                val text = "这是一段较长的回答。".repeat(100)
+                speakUntilClosed(controller, output, text, provider)
+                assertEquals(SpeechText.chunks(text), segments)
+                assertTrue(output.finished)
+                assertNull(controller.state.value.error)
+            } finally { controller.stop() }
+        }
+    }
+
+    @Test fun httpProviderFailureIsNotRetriedOrSentToAnotherProvider() {
+        for (provider in listOf(TtsProvider.GEMINI, TtsProvider.MINIMAX)) {
+            val output = FakeOutput()
+            var attempts = 0
+            val controller = SpeechPlaybackController(context, scope,
+                synthesize = { settings, _, _, audio ->
+                    assertEquals(provider, settings.tts)
+                    attempts++
+                    audio(byteArrayOf(1, 2))
+                    throw SpeechFailure(SpeechErrorCode.NETWORK, "连接中断")
+                },
+                createOutput = { output },
+            )
+            try {
+                speakUntilClosed(controller, output, "回答正文。".repeat(150), provider)
+                assertEquals(1, attempts)
+                assertEquals("连接中断", controller.state.value.error)
+                assertFalse(output.finished)
+            } finally { controller.stop() }
+        }
     }
 
     private class FakeOutput : SpeechAudioOutput {

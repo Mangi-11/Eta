@@ -43,39 +43,37 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
             .apply {
                 if (config.apiKey.isNotBlank()) add("Authorization", "Bearer ${config.apiKey}")
             }
-            .also { ProviderRequestHeaders.mergeInto(it, config.baseUrl, config.customHeaders, request.sessionId) }
+            .also {
+                ProviderRequestHeaders.mergeInto(
+                    it, config.baseUrl, config.customHeaders, request.sessionId, config.authMode,
+                )
+            }
             .build()
         val httpRequest = Request.Builder()
             .url(ProviderUrls.openAiResponsesUrl(config.baseUrl))
             .headers(headers)
             .post(body)
             .build()
-        val call = AgentHttpClient.modelClient(request.purpose).newCall(httpRequest)
-        val binding = runController.register(call::cancel)
-
-        try {
-            runController.throwIfCancelled()
-            onEvent(ProviderEvent.RequestStarted)
-            call.execute().use { response ->
-                onEvent(ProviderEvent.ResponseHeaders(response.code))
-                runController.throwIfCancelled()
-                if (!response.isSuccessful) {
-                    throw AgentModelFailure.http(response.code, response.peekBody(16_384).string())
-                }
-                val assistant = readStreamingResponse(
-                    stream = response.body.byteStream(),
-                    runController = runController,
-                    onEvent = onEvent,
-                )
-                onEvent(ProviderEvent.Completed(assistant.optString("finish_reason").ifBlank { null }))
-                return ProviderResponse(assistant)
+        runController.throwIfCancelled()
+        onEvent(ProviderEvent.RequestStarted)
+        return AuthorizedProviderHttp.execute(
+            client = AgentHttpClient.modelClient(request.purpose),
+            providerId = config.providerId,
+            authMode = config.authMode,
+            request = httpRequest,
+            controller = runController,
+        ) { response ->
+            onEvent(ProviderEvent.ResponseHeaders(response.code))
+            if (!response.isSuccessful) {
+                throw AgentModelFailure.http(response.code, response.peekBody(16_384).string())
             }
-        } catch (throwable: Throwable) {
-            runCatching { runController.throwIfCancelled() }
-                .getOrElse { interruption -> throw interruption }
-            throw throwable
-        } finally {
-            binding.close()
+            val assistant = readStreamingResponse(
+                stream = response.body.byteStream(),
+                runController = runController,
+                onEvent = onEvent,
+            )
+            onEvent(ProviderEvent.Completed(assistant.optString("finish_reason").ifBlank { null }))
+            ProviderResponse(assistant)
         }
     }
 
@@ -85,7 +83,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
         tools: JSONArray,
     ): JSONObject = ResponsesRequestBuilder.build(config, messages, tools)
 
-    private fun readStreamingResponse(
+    internal fun readStreamingResponse(
         stream: java.io.InputStream?,
         runController: AgentRunController,
         onEvent: (ProviderEvent) -> Unit,
@@ -334,9 +332,16 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
                     val itemId = event.hostedToolId("web_search")
                     finishHostedTool(itemId, "网页搜索", success = false)
                 }
-                "response.completed", "response.incomplete", "response.failed" -> {
-                    terminalType = type
+                "response.completed", "response.done", "response.incomplete", "response.failed" -> {
                     terminal = event.optJSONObject("response") ?: event
+                    terminalType = if (type == "response.done") {
+                        when (terminal.optString("status")) {
+                            "completed" -> "response.completed"
+                            "failed" -> "response.failed"
+                            "incomplete" -> "response.incomplete"
+                            else -> throw AgentModelFailure.incompleteStream("Codex 终止事件缺少有效状态")
+                        }
+                    } else type
                 }
                 "error" -> throwTopLevelEventError(event)
             }

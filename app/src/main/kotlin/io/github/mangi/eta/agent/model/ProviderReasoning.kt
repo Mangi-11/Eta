@@ -34,7 +34,8 @@ internal object ProviderReasoning {
             ProviderSourceTypes.MINIMAX -> unsupportedEffort("MiniMax", effort)
             ProviderSourceTypes.OPENROUTER -> applyOpenRouter(request, effort)
             ProviderSourceTypes.STEPFUN -> applyStepFun(request, config, effort)
-            ProviderSourceTypes.OPENAI -> applyOpenAi(request, config, effort)
+            ProviderSourceTypes.OPENAI -> applyNamedReasoningEffort(request, effort)
+            ProviderSourceTypes.XAI -> applyNamedReasoningEffort(request, effort)
             ProviderSourceTypes.CUSTOM -> applyNamedReasoningEffort(request, effort)
         }
     }
@@ -45,9 +46,6 @@ internal object ProviderReasoning {
     ) {
         if (config.reasoningCapabilities == null) return
         val effort = validatedEffort(config)
-        if (sourceType(config) == ProviderSourceTypes.OPENAI) {
-            validateOpenAiEffort(config.model, effort)
-        }
         request.put(
             "reasoning",
             JSONObject().apply {
@@ -283,34 +281,6 @@ internal object ProviderReasoning {
         val reasoning = request.optJSONObject("reasoning") ?: JSONObject()
         reasoning.put("effort", if (effort == ReasoningEffort.OFF) "none" else effort.wireValue)
         request.put("reasoning", reasoning)
-    }
-
-    private fun applyOpenAi(
-        request: JSONObject,
-        config: AgentModelClient.ModelConfig,
-        effort: ReasoningEffort,
-    ) {
-        validateOpenAiEffort(config.model, effort)
-        applyNamedReasoningEffort(request, effort)
-    }
-
-    private fun validateOpenAiEffort(modelId: String, effort: ReasoningEffort) {
-        when (modelId.trim().lowercase()) {
-            "gpt-6-astra" -> require(effort !in setOf(ReasoningEffort.OFF, ReasoningEffort.MINIMAL)) {
-                "GPT-6 Astra 不支持 ${effort.displayName} thinking effort"
-            }
-            "gpt-6-sol", "gpt-6-luna" -> require(effort != ReasoningEffort.MINIMAL) {
-                "GPT-6 不支持 ${effort.displayName} thinking effort"
-            }
-            "gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna" ->
-                require(effort != ReasoningEffort.MINIMAL) {
-                    "GPT-5.6 不支持 ${effort.displayName} thinking effort"
-                }
-            "gpt-5.5" -> require(effort !in setOf(ReasoningEffort.MINIMAL, ReasoningEffort.MAX)) {
-                "GPT-5.5 不支持 ${effort.displayName} thinking effort"
-            }
-            else -> if (effort == ReasoningEffort.MAX) unsupportedEffort("OpenAI", effort)
-        }
     }
 
     private fun applyNamedReasoningEffort(request: JSONObject, effort: ReasoningEffort) {

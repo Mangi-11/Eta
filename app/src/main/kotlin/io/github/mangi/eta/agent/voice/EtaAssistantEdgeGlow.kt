@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -49,8 +50,13 @@ private val bottomLineColors = listOf(
 
 /** 初次唤醒从电源键位置沿屏幕边缘进入；后续手动切回语音只恢复底部光效。 */
 @Composable
-internal fun EtaAssistantEdgeGlow(active: Boolean, modifier: Modifier = Modifier) {
+internal fun EtaAssistantEdgeGlow(
+    active: Boolean,
+    onEntranceFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var firstWakeComplete by remember { mutableStateOf(false) }
+    val entranceFinished by rememberUpdatedState(onEntranceFinished)
     val opacity = animateFloatAsState(
         targetValue = if (active || !firstWakeComplete) 1f else 0f,
         animationSpec = tween(if (active || !firstWakeComplete) 110 else 220),
@@ -64,7 +70,10 @@ internal fun EtaAssistantEdgeGlow(active: Boolean, modifier: Modifier = Modifier
             withFrameNanos { now ->
                 if (clock[0] == 0L) clock[0] = now
                 seconds = (now - clock[0]) / 1_000_000_000f
-                if (seconds >= entranceDurationSeconds) firstWakeComplete = true
+                if (!firstWakeComplete && seconds >= entranceDurationSeconds) {
+                    firstWakeComplete = true
+                    entranceFinished()
+                }
             }
             if (!active && firstWakeComplete) break
         }

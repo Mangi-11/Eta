@@ -49,7 +49,8 @@ internal fun SpeechSettingsScreen(onBack: () -> Unit, onNavigate: (AppRoute) -> 
             EtaPreferenceGroup {
                 EtaArrowPreference(
                     title = stringResource(R.string.speech_recognition_title),
-                    summary = current.asr.label(),
+                    summary = if (current.recognitionEnabled) current.asr.label()
+                        else stringResource(R.string.speech_recognition_disabled),
                     startAction = {
                         EtaPreferenceIcon(icon = Icons.Rounded.Mic, tint = EtaPreferenceColors.Blue)
                     },

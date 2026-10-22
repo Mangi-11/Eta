@@ -59,9 +59,9 @@ internal class AgentAppViewModel(application: Application) : AndroidViewModel(ap
                     KimiWebUiState(KimiWebPhase.NOT_INSTALLED)
                 } else {
                     val runtime = kimiWebLauncher.status(distribution.terminalEnvironment)
+                    // 巡检发现进程已退出不等于启动失败；失败状态只保留主动操作的结果。
                     when {
                         runtime.running -> KimiWebUiState(KimiWebPhase.RUNNING)
-                        runtime.code != null -> KimiWebUiState(KimiWebPhase.FAILED, runtime.code)
                         kimiWebState.phase == KimiWebPhase.FAILED -> kimiWebState
                         else -> KimiWebUiState(KimiWebPhase.READY)
                     }

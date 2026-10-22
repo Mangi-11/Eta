@@ -1,6 +1,7 @@
 package io.github.mangi.eta.agent.model
 
 import io.github.mangi.eta.data.model.CustomHeader
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import okhttp3.Headers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -9,6 +10,45 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProviderRequestHeadersTest {
+    @Test
+    fun codexUsesEtaOriginatorAndTheRuntimeSession() {
+        val builder = Headers.Builder()
+        ProviderRequestHeaders.mergeInto(builder, "https://chatgpt.com/backend-api/codex", emptyList(),
+            sessionId = "conversation-fixture", authMode = ProviderAuthModes.OPENAI_CHATGPT)
+        val headers = builder.build()
+        assertEquals("eta", headers["originator"])
+        assertEquals("conversation-fixture", headers["session-id"])
+        assertEquals("responses=experimental", headers["OpenAI-Beta"])
+    }
+
+    @Test
+    fun grokSubscriptionUsesManagedRoutingWithoutPretendingToBeAClientVersion() {
+        val builder = Headers.Builder()
+        ProviderRequestHeaders.mergeInto(
+            builder, "https://cli-chat-proxy.grok.com/v1", emptyList(),
+            authMode = ProviderAuthModes.XAI_GROK, model = "grok-fixture",
+        )
+        val headers = builder.build()
+        assertEquals("xai-grok-cli", headers["X-XAI-Token-Auth"])
+        assertEquals("grok-fixture", headers["x-grok-model-override"])
+        assertEquals("Eta", headers["User-Agent"])
+        assertNull(headers["x-grok-client-version"])
+    }
+
+    @Test
+    fun subscriptionRejectsCustomAuthenticationAndRoutingHeaders() {
+        listOf("Authorization", "Cookie", "X-Grok-Model-Override", "OpenAI-Project", "ChatGPT-Account-ID", "Originator", "Session-Id").forEach { name ->
+            val failure = runCatching {
+                ProviderRequestHeaders.mergeInto(
+                    Headers.Builder(), "https://api.openai.com/v1", listOf(CustomHeader(name, "secret-fixture")),
+                    authMode = ProviderAuthModes.OPENAI_CHATGPT,
+                )
+            }.exceptionOrNull()
+            assertTrue(name, failure is IllegalArgumentException)
+            assertTrue(failure?.message?.contains("secret-fixture") == false)
+        }
+    }
+
     @Test
     fun openCodeSessionIsStableAndIsolatedFromOtherConversations() {
         val first = headers("https://opencode.ai/zen/go/v1", "conversation-1")

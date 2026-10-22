@@ -73,6 +73,18 @@ Runtime 独立于 Provider 自定义提示词注入 Eta 身份，以“当前配
 
 OpenAI-compatible Provider 可在配置页选择 `Chat Completions` 或 `Responses API`。新安装和重置后的内置 OpenAI 默认使用 Responses；数据库中已有 Provider 不会被默认值覆盖。自定义 Provider 和其他内置 Provider 默认仍使用 Chat Completions。
 
+Provider 的认证方式与模型协议分别保存。API Key 保留既有兼容路径；Codex 和 Grok 订阅使用显式连接配置，固定官方地址与协议。OpenAI 使用 Codex 公共客户端的 PKCE 授权，回调监听 `127.0.0.1:1455/auth/callback`；xAI 使用设备码轮询。系统浏览器承载授权，Agent 内置 WebView 不参与账号登录。两种流程均支持取消，回调监听在结束后关闭。
+
+OAuth 凭据由主进程的 `ProviderCredentialRepository` 管理，以 Android Keystore 密钥加密后原子写入不可备份目录；Provider、RemotePreferences、IPC 和备份仅携带认证方式及稳定 Provider 标识，不携带 OAuth token。外部入口的 OAuth 配置在 Runtime 内按本地 Provider 和模型重建，不能指定凭据的目标地址。复制使用新 Provider 标识；删除、重置和切换认证方式清除旧凭据。备份先将导入的订阅连接以停用、无凭据的方式提交，成功清理旧授权后再恢复认证方式及启用状态；提交前失败不触碰原凭据，提交后清理失败明确报告部分成功并保持连接停用，恢复后需要重新登录。
+
+模型推理和远端目录请求在发送前获取有效凭据；同账号并发刷新只执行一次，刷新结果整体保存，登录与注销代次防止迟到结果覆盖当前会话。临时网络错误保留凭据，确定失效后要求重新登录。HTTP 401 仅在响应流消费前允许刷新一次；此恢复不重放模型流或工具。订阅请求禁止重定向，认证及模型路由 Header 不能被自定义请求头覆盖。Codex 退出登录清除本机令牌；Grok 同时尝试撤销远端授权。
+
+Codex 复用 Responses 编解码，使用扁平函数工具、`store: false` 与流式响应，并在后续轮次回传加密推理项。请求发送至 `https://chatgpt.com/backend-api/codex/responses`，工作区 Header 与 Bearer 从同一份令牌获取；刷新后不接受工作区变化。不支持的自定义参数在请求前明确拒绝。Grok 使用订阅代理的 Chat Completions 流。授权说明参见 [Codex 账号认证](https://developers.openai.com/codex/auth/)与 [xAI 身份认证](https://docs.x.ai/build/enterprise)。
+
+OpenAI 初始预设仅包含 GPT-6.1 Sol、GPT-6 Luna 和 GPT-6 Astra，用于尚未同步的连接。Codex 从 `/backend-api/codex/models` 拉取账号目录，查询参数 `client_version` 使用 Eta 的发行版本；解析远端 `slug`、`display_name`、可见性、输入模态、上下文窗口和推理档位，不用公共 API 预设补齐或筛选账号模型。Grok 从订阅代理拉取目录。登录成功后自动同步完整账号目录，模型页手动刷新使用同一路径；成功同步后以远端结果为准，失败保留已有配置。模型列表与默认选择由持久化配置驱动，登录状态不隐藏模型或切换到其他连接；未登录、凭据失效及额度不足在请求时报告。
+
+目录结果携带连接配置快照和非敏感的登录代次，读取结束及同步提交前均校验，模型页离开时取消读取。同步时匹配模型保留本地 ID 和用户覆盖值，自动模型标记为远端来源，并清理远端已移除的自动模型；手动配置保留。预设更新只清理旧预设并补入尚未同步连接的新预设，不覆盖远端模型，也不在保存空连接时重新填充。Grok 目录按实际推理标识、隐藏字段与明确声明的推理档位解释，不接受其中的地址或凭据覆盖；仅列入当前订阅连接采用的 Chat Completions 路由，全部可见模型声明其他协议时明确报错，不把协议不兼容当作空目录。
+
 提供商目录从固定的 `models.dev/api.json` 读取公开元数据，应用内另有随 APK 打包的压缩快照；在线目录通过大小限制、协议和 HTTPS 地址校验后原子缓存，读取失败时使用缓存或快照。目录只列出 Eta 可按 Chat Completions 接入且具有文本输出与工具调用能力的候选模型；读取目录不发送已保存的 API Key。用户选择模型并核对完整 Base URL 后，导入为默认停用、无 API Key 的自定义提供商；后续密钥由用户为该地址填写，已保存的模型和当前选择不随目录刷新改写。
 
 Chat Completions 在协议边界把当前上下文中的全部 `system` 内容按原顺序合并为首条唯一系统消息，兼容要求系统消息只能位于开头的模型 Chat Template。Responses 则把完整的 `system`/`developer` 上下文投影到 `instructions`，并将持久历史重建为带 `type: "message"` 的 input Items。
@@ -82,6 +94,8 @@ Chat Completions 流式工具调用按 `index` 聚合，后续空 ID 不覆盖�
 Responses 请求固定使用 `stream:true`、`store:false`，不发送 `previous_response_id`。Runtime 在同一次 run 的工具回合之间精确回放 Provider 返回的完整 output Items；因此 encrypted reasoning、服务端工具状态等 opaque 数据只存在于内存，不进入 IPC transcript、Room、日志或运行归档。持久会话只保留规范化回答、可见推理内容和 Eta 工具记录，后续 run 由这些稳定数据重新构建上下文。
 
 兼容接口若在 `response.completed` 中省略 `output` 或返回空数组，Runtime 只使用同一 SSE 流中已经收到的标准文本、推理摘要和函数调用增量完成当前轮次；非空终态始终是权威结果，且本地恢复结果不会冒充 Provider 的 opaque output Items。
+
+OpenAI 请求按当前模型能力配置编码思考档位，不另行维护请求层的型号白名单；Codex 使用账号目录提供的档位，服务端拒绝会如实返回。
 
 推理界面展示 Provider 返回的可见推理内容，不由 Eta 生成或补写。Responses 支持 `reasoning_summary_text.delta` 和 `reasoning_text.delta`；终态读取 reasoning item 的 `summary[]` 与 `content[].reasoning_text`，并兼容旧接口的单字段 `reasoning_text`。标准内容与旧字段同时存在时不重复追加，终态仍按 item 和内容块身份校准流式结果。Responses 只对精确命中官方目录且未被远端显式标记为 `reasoning:false` 的模型补齐推理能力，不会因 Endpoint 类型而假定所有模型支持推理。
 
@@ -129,11 +143,13 @@ Root 探测在 IO 线程执行：存在 `su` 时首次自动请求一次，最�
 
 ## 网页搜索与正文读取
 
-本地 `web_search`、`fetch_url` 与 `browser_use` 共用既有 `browserTools` 权限；Responses 托管搜索启用时，本地同名搜索不再向模型公开，正文读取与浏览器仍可用。设置文案为“启用网页搜索、读取与浏览器”，持久化 key 仍是 `agent_browser_tools`，不新增搜索服务配置、凭据或 IPC 字段。关闭后目录不公开这三个本地工具，执行入口也逐次复查开关。它们无需 Root 或无障碍服务；模型请求、MCP 和 Provider 托管搜索仍走各自的配置与授权链路。
+本地 `web_search`、`fetch_url` 与 `browser_use` 共用既有 `browserTools` 权限；Responses 托管搜索启用时，本地同名搜索不再向模型公开，正文读取与浏览器仍可用。设置文案为“启用网页搜索、读取与浏览器”，持久化 key 仍是 `agent_browser_tools`；关闭后目录不公开这三个本地工具，执行入口也逐次复查开关。它们无需 Root 或无障碍服务；模型请求、MCP 和 Provider 托管搜索仍走各自的配置与授权链路。
 
-`web_search` 通过 `PublicWebSearch` 请求 DuckDuckGo 官方公开 HTML 搜索入口，不需要额外 API Key。当前只解析首屏结果，`max_results` 默认为 5、最多 10；返回目标站点的标题、原始链接和摘要，去掉搜索跳转包装并去重。结果携带 `scope=first_page`、采集时间、截断原因和跳过数量，不能把首屏结果当作完整搜索范围。验证挑战、HTTP 限流、编码失败、过大响应或无法识别的页面结构返回明确错误；只有识别到明确的无结果提示时才返回成功的空列表。公开站点可用性及页面结构会变化，工具不绕过人工验证。
+`web_search` 与 `fetch_url` 保持统一的模型工具合同，底层执行后端可在“网页搜索与读取”设置中分别选择 **内置默认**、**DeepSeek**（`POST /v1/tools/search` 与 `POST /v1/tools/fetch`）或 **自定义接口**（支持 GET/POST、请求模板与响应 JSON 路径映射）。非敏感设置保存在 `SettingsDataStore`，独立 API Key 通过 AndroidKeyStore `AES/GCM/NoPadding` 加密保存在 `eta_web_tools_secrets`；当选择 DeepSeek 且未单独填写密钥时，自动复用模型提供商中已配置的 DeepSeek API Key 与服务地址。
 
-`fetch_url` 使用匿名 HTTP GET，HTML 解析仅处理已下载文本，不执行 JavaScript，也不加载页面子资源。除 HTML/XHTML 外，还接受 `text/*`、Markdown、JSON 与 `application/*+json`；二进制或不支持的类型明确失败。字符编码按 BOM、响应头及可用的 HTML 声明判断；正文发生替换解码时标记 `decoding_lossy`，搜索结果则拒绝不可靠的解码。HTML 会移除脚本等非正文内容并提取有限链接；它不继承共享 WebView 的 Cookie 或登录状态，需要动态渲染、登录、表单或其他网页交互时使用 `browser_use`。
+`web_search` 默认通过 `PublicWebSearch` 请求 DuckDuckGo 公开 HTML 搜索入口（`scope=first_page`），也可切换至 DeepSeek Search 或自定义搜索接口（`scope=api`）。`max_results` 默认为 5、最多 10；返回目标站点的标题、原始链接和摘要（DeepSeek 后端额外附带长摘要 `summary`、站点名称、发布时间、权威度与排序分），去掉跳转包装并去重。结果携带采集时间、截断原因和跳过数量；验证挑战、鉴权或余额失败、HTTP 限流、编码失败、过大响应或无法识别的响应结构返回明确错误。
+
+`fetch_url` 支持内置本地匿名 HTTP GET、DeepSeek Fetch（返回 Markdown）或自定义读取接口；当配置为 DeepSeek 或自定义接口且远端抓取失败（非取消、非 URL 格式错误）时，自动回退到本地静态抓取并在结果中标记 `fallback_from`。本地 HTML 解析仅处理已下载文本，不执行 JavaScript，也不加载页面子资源；除 HTML/XHTML 外，还接受 `text/*`、Markdown、JSON 与 `application/*+json`。字符编码按 BOM、响应头及可用的 HTML 声明判断；正文发生替换解码时标记 `decoding_lossy`。它不继承共享 WebView 的 Cookie 或登录状态，需要动态渲染、登录、表单或其他网页交互时使用 `browser_use`。
 
 首次读取传 `url`，续页传返回的 `document_id` 与 `next_offset_chars`，两种来源必须且只能选择一个。分页读取同一份缓存正文，不重复 HTTP 请求，也不会混入网站随后更新的内容。快照只属于当前 run，最多保留 4 份文档且正文合计不超过 600000 字符，按最近访问情况淘汰；run 关闭会清空，失效或跨 run 的 ID 返回 `WEB_DOCUMENT_EXPIRED`。字符偏移须使用工具返回值，不能落在 Unicode 代理项对中间。`has_more` 表示缓存正文仍有下一页，`source_truncated` 表示下载或提取本身已丢失内容；读完所有页也不能消除来源截断。
 
@@ -259,6 +275,8 @@ APK 分析在 Alpine 与 Debian 中都作为可选档案显示。JADX、Apktool�
 
 ## 后台执行生命周期
 
+App 本体的当前会话正在回复且处于聊天页时，以及 GUI 运行浮层正在执行时，通过 Android [`View.keepScreenOn`](https://developer.android.com/develop/background-work/background-tasks/awake/screen-on) 保持屏幕常亮，底层使用 `FLAG_KEEP_SCREEN_ON`。仅已有窗口可见时生效；暂停、停止、完成、失败或 Runtime 服务销毁时清除。任务结束后的结果卡片、设置页、空闲会话与纯后台任务不额外保持常亮，无需新增权限，也不修改系统亮度和息屏时间。用户主动锁屏不取消后台任务，但 GUI 操作通常仍需亮屏、解锁；后台执行不因常亮功能获得额外的 CPU 或网络保活保证。
+
 `AgentExecutionService` 使用 `specialUse` 前台类型，为当前 Agent 运行、普通终端和 PRoot 后台进程持有任务引用。用户退出页面只断开 UI；最后一个任务结束时服务释放，通知中的停止操作回收它实际持有的任务。普通后台任务保持宿主 tracer 与输出读取，不能像 Root daemon 那样脱离 App 生命周期。Root daemon 保持原有独立生命周期，普通任务清理不会批量停止 Root daemon。Root 用户的原有 Runtime 绑定链路在新增前台服务启动受限时仍可继续，不因新增服务阻断厂商助手入口。
 
 `terminal_daemon(action=start)` 表达跨 Agent run 的服务生命周期，不是永久存活保证；任务可能自行退出，也可能受 Android 后台限制、宿主进程回收、权限变化或设备重启影响。`terminal_daemon` 的 `list`、`logs` 与 `stop` 用于查询和管理实际任务，不以启动时拿到 `task_id` 代替后续存活检查。
@@ -280,7 +298,7 @@ App 在发起请求前已经把当前用户消息写入会话 history，因此 R
 
 完整脱敏历史 `journal`、可替换的模型上下文 `history` 和展示消息分别保存。Room 的大文本按小行分块存储，主记录仅保存分块引用；DAO 在同一事务中更新主记录与分块，读取时验证顺序与完整长度，删除所属记录时清理分块。分块大小限制单行，不限制会话总长度。数据库迁移完整搬迁现存历史，不能恢复已被旧版本丢弃的内容。
 
-App 按上次成功提交的内容比较会话变更，只更新变化的元数据、上下文字段和展示消息。追加消息保留已有记录；编辑、重排或删除时替换变化位置之后的消息，同一事务清理对应分块并更新已应用标记及会话选择。保存失败不推进比较基线，后续可以重试。消息窗口保存绝对排序起点；流式占位等未入库消息留下的排序空洞，在窗口发生变更时只重排已加载后缀，不删除更早的记录。导入备份期间暂停会话保存与加载，未保存的结果不回执；导入成功后按库内数据重载，失败时数据库已回滚，恢复保存并补写暂停期间的变更。
+App 按上次成功提交的内容比较会话变更，只更新变化的元数据、上下文字段和展示消息。追加消息保留已有记录；编辑、重排或删除时替换变化位置之后的消息，同一事务清理对应分块并更新已应用标记及会话选择。保存失败不推进比较基线，后续可以重试。消息窗口保存绝对排序起点；流式占位等未入库消息留下的排序空洞，在窗口发生变更时只重排已加载后缀，不删除更早的记录。导入备份期间暂停会话保存与加载，未保存的结果不回执；导入提交前失败时数据库回滚，恢复保存并补写暂停期间的变更；提交后即以库内数据重载，后续凭据清理失败或取消不能把导入前的内存写回新库。
 
 工作台启动只读取会话摘要和当前会话的最近一页消息；旧消息在真实上翻接近列表顶部时逐页预取，页大小以 `AgentConversationStore` 为准；重排和重新测量不会自行触发连续读取。读取失败保留当前窗口并显示重试入口，切换会话会取消旧页请求。其余会话的正文、上下文和完整日志在打开或恢复对应运行时才加载。未加载状态只可更新标题，不作为空正文覆盖存储。离开会话并保存成功后，非运行中的正文及保存基线会释放；输入草稿与附件仍保留。阅读期间保留已加载的消息后缀；回到最新位置且窗口超过保留阈值时，先保存再释放旧页，仅保留最近一页，重新上翻可从数据库读回。正在运行、编辑或继续上翻时不释放当前阅读窗口。搜索在数据库中匹配未加载的消息，单会话导出仍读取完整消息。当前会话的 `history` 与 `journal` 保持完整语义，不通过截断或清空历史降低内存；单个异常巨大的上下文仍有物化开销。
 
@@ -294,7 +312,7 @@ App 按上次成功提交的内容比较会话变更，只更新变化的元数�
 
 ### 上下文摘要
 
-模型窗口只采用设置中保存的值。从远端拉取模型时，若接口标注了窗口且该模型尚未填写，拉取会把标注值写入保存的窗口，用户可再修改；已填写的值不被覆盖，接口未标注则保持空。官方目录不参与运行窗口解析，运行时也不自动补齐缺失配置。未填写窗口时照常对话，只关闭自动压缩；手动压缩仍可用，服务商返回上下文溢出时按 `CONTEXT_OVERFLOW` 报告。记忆、世界书等按窗口比例分配的注入预算在窗口未知时以 128K 为基准。
+模型窗口只采用设置中保存的值。OpenAI 的三个初始预设将官方窗口写入配置，已有预设的空窗口在目录升级时补齐，已配置值保留；升级不新增已删除模型，也不在后续读取时恢复用户清空的窗口。Codex 同步时使用账号目录的窗口替换公共 API 的预填窗口，用户另行设置的窗口保留。从远端拉取模型时，若接口标注了窗口且该模型尚未填写，拉取会把标注值写入保存的窗口，用户可再修改；已填写的值不被覆盖，接口未标注则保持空。官方目录不参与运行窗口解析，运行时也不自动补齐缺失配置。未填写窗口时照常对话，只关闭自动压缩；手动压缩仍可用，服务商返回上下文溢出时按 `CONTEXT_OVERFLOW` 报告。记忆、世界书等按窗口比例分配的注入预算在窗口未知时以 128K 为基准。
 
 设置中的“上下文与扩展”提供“自动压缩上下文”开关，默认开启；配置保存在 App 本地，不依赖 Xposed，聊天与系统助手入口共用，从下一次运行生效。关闭后保留手动压缩。Runtime 会核对本地设置，入口请求不能重新开启已关闭的自动压缩。
 

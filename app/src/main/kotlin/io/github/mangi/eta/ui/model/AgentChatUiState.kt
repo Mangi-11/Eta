@@ -22,6 +22,8 @@ internal data class AgentChatUiState(
     val availableReasoningEfforts: List<ReasoningEffort> = emptyList(),
     val pendingImages: List<PendingImageUi> = emptyList(),
     val pendingFileReferences: List<PendingFileReferenceUi> = emptyList(),
+    val queuedMessages: List<QueuedMessageUi> = emptyList(),
+    val inputSyncVersion: Int = 0,
     val appliedRuntimeRunIds: List<String> = emptyList(),
     val messageEdit: MessageEditUiState? = null,
     val roleplay: RoleplayBinding? = null,
@@ -182,6 +184,15 @@ data class PendingImageUi(
 data class PendingFileReferenceUi(
     val id: String,
     val reference: AgentFileReference,
+)
+
+@Immutable
+internal data class QueuedMessageUi(
+    val id: String,
+    val content: String,
+    val pendingImages: List<PendingImageUi> = emptyList(),
+    val pendingFileReferences: List<PendingFileReferenceUi> = emptyList(),
+    val immediateInterrupt: Boolean = false,
 )
 
 @Immutable

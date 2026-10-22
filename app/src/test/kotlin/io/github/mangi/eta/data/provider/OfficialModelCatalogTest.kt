@@ -10,11 +10,22 @@ import org.junit.Test
 
 class OfficialModelCatalogTest {
     @Test
-    fun catalogWindowIsMetadataUntilTheUserConfiguresAWindow() {
-        val model = OfficialModelCatalog.modelsForProvider(BuiltinProviders.PROVIDERS.first()).first()
+    fun otherCatalogWindowsRemainMetadataUntilTheUserConfiguresAWindow() {
+        val model = OfficialModelCatalog.modelsForProvider(BuiltinProviders.providerById(BuiltinProviders.DEEPSEEK_ID)!!).first()
         assertTrue(model.contextWindow!! > 0)
         assertNull(model.effectiveContextWindow)
         assertEquals(64_000, model.copy(contextWindowOverride = 64_000).effectiveContextWindow)
+    }
+
+    @Test
+    fun openAiPresetsHaveTheDocumentedWindowConfiguredForRuntime() {
+        val models = OfficialModelCatalog.modelsForProvider(BuiltinProviders.providerById(BuiltinProviders.OPENAI_ID)!!)
+        assertEquals(setOf("gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"), models.mapTo(mutableSetOf()) { it.modelId })
+        models.forEach { model ->
+            assertEquals(1_050_000, model.contextWindow)
+            assertEquals(1_050_000, model.effectiveContextWindow)
+            assertEquals(64_000, model.copy(contextWindowOverride = 64_000).effectiveContextWindow)
+        }
     }
 
     @Test
@@ -37,6 +48,8 @@ class OfficialModelCatalogTest {
             BuiltinProviders.providerById(providerId)!!
         ).associateBy { it.modelId }
 
+        assertEquals(setOf("gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"), models(BuiltinProviders.OPENAI_ID).keys)
+        assertEquals(1_050_000, models(BuiltinProviders.OPENAI_ID).getValue("gpt-6.1-sol").contextWindow)
         assertEquals(1_050_000, models(BuiltinProviders.OPENAI_ID).getValue("gpt-6-astra").contextWindow)
         assertTrue(models(BuiltinProviders.ANTHROPIC_ID).getValue("claude-opus-5-5").supportsTools)
         assertTrue(models(BuiltinProviders.BAILIAN_ID).getValue("qwen3.8-flash").supportsVision)

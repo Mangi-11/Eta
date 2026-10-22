@@ -12,6 +12,12 @@ import org.json.JSONObject
 
 internal suspend fun synthesizeSpeech(settings: SpeechSettings, credentials: SpeechCredentials,
     text: String, onAudio: (ByteArray) -> Unit) = withTimeout(90_000) {
+    when (settings.tts) {
+        TtsProvider.GEMINI -> return@withTimeout synthesizeGemini(settings.geminiTts, credentials.geminiTts, text, onAudio)
+        TtsProvider.MINIMAX -> return@withTimeout synthesizeMiniMax(settings.minimaxTts, credentials.minimaxTts, text, onAudio)
+        TtsProvider.NONE -> throw SpeechFailure(SpeechErrorCode.CONFIGURATION, "请先选择语音播报服务")
+        TtsProvider.QWEN, TtsProvider.DOUBAO -> Unit
+    }
     val qwen = settings.tts == TtsProvider.QWEN
     val request = if (qwen) {
         SpeechHttp.jsonRequest(speechBaseUrl(settings.qwenTts.endpoint()) + "/api/v1/services/aigc/multimodal-generation/generation",
@@ -41,30 +47,18 @@ internal suspend fun synthesizeSpeech(settings: SpeechSettings, credentials: Spe
 
 /** SSE 事件边界与 HTTP chunk 边界无关；豆包则每行一个 JSON 对象。 */
 internal class SpeechAudioStreamDecoder(private val qwen: Boolean, onAudio: (ByteArray) -> Unit) {
-    private val event = StringBuilder()
-    private val pcm = SpeechPcmDecoder(onAudio)
+    private val sse = SpeechSseDecoder { _, value -> payload(value) }
+    private val audio = SpeechSegmentAudio(onAudio)
     var finished = false
         private set
-    private var audioBytes = 0L
 
     fun line(line: String) {
         if (finished) return
         if (!qwen) {
             if (line.isNotBlank()) payload(line)
-        } else if (line.isEmpty()) {
-            flush()
-        } else if (line.startsWith("data:")) {
-            if (event.isNotEmpty()) event.append('\n')
-            event.append(line.removePrefix("data:").removePrefix(" "))
-            if (event.length > SpeechHttp.MAX_JSON_BYTES) throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音音频块过大")
+        } else {
+            sse.line(line)
         }
-    }
-
-    private fun flush() {
-        if (event.isEmpty()) return
-        val value = event.toString()
-        event.clear()
-        payload(value)
     }
 
     private fun payload(value: String) {
@@ -86,18 +80,12 @@ internal class SpeechAudioStreamDecoder(private val qwen: Boolean, onAudio: (Byt
             encoded = message.optString("data")
         }
         if (encoded.isNotEmpty()) {
-            val bytes = Base64.getDecoder().decode(encoded)
-            audioBytes += bytes.size
-            if (audioBytes > 24_000 * 2 * 180) {
-                throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音音频格式或长度无效")
-            }
-            pcm.write(bytes)
+            audio.write(Base64.getDecoder().decode(encoded))
         }
     }
 
     fun end() {
-        if (qwen && !finished) flush()
-        if (!finished || audioBytes == 0L) throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音音频不完整，请重试")
-        pcm.end()
+        if (qwen && !finished) sse.end()
+        audio.end(finished)
     }
 }

@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.SwipeUp
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.TouchApp
+import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.runtime.Composable
@@ -382,6 +383,18 @@ private fun SettingsPageContent(
                         key = Prefs.Keys.AGENT_BROWSER_TOOLS,
                         icon = Icons.Rounded.Language,
                         iconTint = EtaPreferenceColors.Blue,
+                    )
+
+                    EtaPreferenceDivider()
+                    EtaArrowPreference(
+                        title = stringResource(R.string.web_tools_settings_title),
+                        startAction = {
+                            EtaPreferenceIcon(
+                                icon = Icons.Rounded.TravelExplore,
+                                tint = EtaPreferenceColors.Blue,
+                            )
+                        },
+                        onClick = { onNavigate(AppRoute.WebToolsSettings) },
                     )
 
                     EtaPreferenceDivider()

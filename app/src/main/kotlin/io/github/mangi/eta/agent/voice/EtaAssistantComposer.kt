@@ -1,12 +1,14 @@
 package io.github.mangi.eta.agent.voice
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,6 +35,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
@@ -47,6 +51,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -61,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
+import kotlinx.coroutines.flow.first
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -69,6 +76,9 @@ internal fun AssistantComposer(
     state: EtaVoiceUiState,
     input: String,
     speech: EtaSpeechState,
+    recognitionEnabled: Boolean,
+    inputFocusRequestKey: Int,
+    onInputFocus: () -> Unit,
     onMicrophone: (holdToTalk: Boolean) -> Unit,
     onCancelSpeech: () -> Unit,
     onFinishSpeech: () -> Unit,
@@ -77,7 +87,6 @@ internal fun AssistantComposer(
     onKeyboard: () -> Unit,
     keyboardVisible: Boolean,
     colors: EtaVoicePanelColors,
-    focusRequester: FocusRequester,
     onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onStop: () -> Unit,
@@ -86,10 +95,10 @@ internal fun AssistantComposer(
     Column(
         modifier = modifier,
     ) {
-        EtaSpeechFeedback(speech, onDownloadModel, onOpenSpeechSettings)
+        if (recognitionEnabled) EtaSpeechFeedback(speech, onDownloadModel, onOpenSpeechSettings)
         AnimatedContent(
             // 按住说话期间保持输入栏：切换布局会移除正被按住的按钮，松手事件随之丢失。
-            targetState = speech.active && !speech.holdToTalk && state.messages.isEmpty(),
+            targetState = recognitionEnabled && speech.active && !speech.holdToTalk && state.messages.isEmpty(),
             transitionSpec = {
                 fadeIn(tween(250)) togetherWith fadeOut(tween(160)) using
                     SizeTransform(clip = false)
@@ -104,12 +113,14 @@ internal fun AssistantComposer(
                     state = state,
                     input = input,
                     speech = speech,
+                    recognitionEnabled = recognitionEnabled,
+                    inputFocusRequestKey = inputFocusRequestKey,
+                    onInputFocus = onInputFocus,
                     onMicrophone = onMicrophone,
                     onCancelSpeech = onCancelSpeech,
                     onFinishSpeech = onFinishSpeech,
                     keyboardVisible = keyboardVisible,
                     colors = colors,
-                    focusRequester = focusRequester,
                     onInputChange = onInputChange,
                     onSubmit = onSubmit,
                     onStop = onStop,
@@ -125,48 +136,73 @@ private fun AssistantInputBar(
     state: EtaVoiceUiState,
     input: String,
     speech: EtaSpeechState,
+    recognitionEnabled: Boolean,
+    inputFocusRequestKey: Int,
+    onInputFocus: () -> Unit,
     onMicrophone: (holdToTalk: Boolean) -> Unit,
     onCancelSpeech: () -> Unit,
     onFinishSpeech: () -> Unit,
     keyboardVisible: Boolean,
     colors: EtaVoicePanelColors,
-    focusRequester: FocusRequester,
     onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val canSubmit = input.isNotBlank() && state.phase != EtaVoicePhase.PROCESSING
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val windowInfo = LocalWindowInfo.current
+    val inputEnabled = state.phase != EtaVoicePhase.PROCESSING && !speech.active
+    LaunchedEffect(inputFocusRequestKey, inputEnabled) {
+        if (inputFocusRequestKey < 0 || !inputEnabled) return@LaunchedEffect
+        // 输入栏挂载且浮窗取得焦点后再连接 IME，避免动画切换时请求落在尚不存在的输入框上。
+        withFrameNanos { }
+        snapshotFlow { windowInfo.isWindowFocused }.first { it }
+        focusRequester.requestFocus()
+        withFrameNanos { }
+        keyboard?.show()
+    }
     var textFocused by remember { mutableStateOf(false) }
     val inputHighlighted = textFocused || keyboardVisible
+    val inputBackground by animateColorAsState(
+        targetValue = if (inputHighlighted) colors.focusedInput else colors.input,
+        animationSpec = tween(180, easing = LinearOutSlowInEasing),
+        label = "assistant_input_background",
+    )
+    val inputBorder by animateColorAsState(
+        targetValue = colors.inputPrimary.copy(alpha = if (inputHighlighted) 0.35f else 0.12f),
+        animationSpec = tween(180, easing = LinearOutSlowInEasing),
+        label = "assistant_input_border",
+    )
     val contentColor = colors.inputPrimary
     val hintColor = colors.inputTertiary
     val inputShape = RoundedCornerShape(24.dp)
     val trailingIcon = when {
         speech.active || state.phase == EtaVoicePhase.PROCESSING -> R.drawable.ic_assistant_stop
-        canSubmit -> R.drawable.ic_assistant_send
+        canSubmit || !recognitionEnabled -> R.drawable.ic_assistant_send
         else -> R.drawable.ic_assistant_voice
     }
     val trailingDescription = when {
         speech.active -> R.string.voice_finish_speech
         state.phase == EtaVoicePhase.PROCESSING -> R.string.action_stop
-        canSubmit -> R.string.voice_send
+        canSubmit || !recognitionEnabled -> R.string.voice_send
         else -> R.string.voice_tap_to_speak
     }
     val trailingAction = when {
         speech.active -> onFinishSpeech
         state.phase == EtaVoicePhase.PROCESSING -> onStop
-        canSubmit -> onSubmit
+        canSubmit || !recognitionEnabled -> onSubmit
         else -> { { onMicrophone(false) } }
     }
     Row(
         modifier = modifier
             .heightIn(min = 50.dp)
             .clip(inputShape)
-            .background(if (inputHighlighted) colors.focusedInput else colors.input)
+            .background(inputBackground)
             .border(
                 if (inputHighlighted) 1.2.dp else 0.75.dp,
-                contentColor.copy(alpha = if (inputHighlighted) 0.35f else 0.12f),
+                inputBorder,
                 inputShape,
             )
             .clickable(
@@ -183,9 +219,12 @@ private fun AssistantInputBar(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 14.dp, end = 2.dp, top = 6.dp, bottom = 6.dp)
-                .onFocusChanged { textFocused = it.isFocused }
+                .onFocusChanged {
+                    if (it.isFocused && !textFocused) onInputFocus()
+                    textFocused = it.isFocused
+                }
                 .focusRequester(focusRequester),
-            enabled = state.phase != EtaVoicePhase.PROCESSING && !speech.active,
+            enabled = inputEnabled,
             textStyle = TextStyle(
                 color = contentColor,
                 fontSize = 16.sp,
@@ -217,8 +256,9 @@ private fun AssistantInputBar(
             iconRes = trailingIcon,
             contentDescription = stringResource(trailingDescription),
             tint = contentColor,
-            enabled = speech.phase != EtaSpeechPhase.RECOGNIZING,
-            holdToTalkAvailable = !speech.active && !canSubmit && state.phase != EtaVoicePhase.PROCESSING,
+            enabled = speech.phase != EtaSpeechPhase.RECOGNIZING &&
+                (recognitionEnabled || canSubmit || state.phase == EtaVoicePhase.PROCESSING),
+            holdToTalkAvailable = recognitionEnabled && !speech.active && !canSubmit && state.phase != EtaVoicePhase.PROCESSING,
             onClick = trailingAction,
             onHoldStart = { onMicrophone(true) },
             onHoldEnd = onFinishSpeech,

@@ -17,21 +17,26 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -43,7 +48,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -62,7 +66,7 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.ui.components.AgentConversationMessages
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import kotlin.math.abs
-import kotlin.math.max
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
@@ -145,6 +149,11 @@ internal fun EtaVoicePanel(
     state: EtaVoiceUiState,
     input: String,
     speech: EtaSpeechState,
+    recognitionEnabled: Boolean?,
+    entranceComplete: Boolean,
+    onEntranceFinished: () -> Unit,
+    onContentReady: () -> Unit,
+    onInputFocus: () -> Unit,
     onMicrophone: (holdToTalk: Boolean) -> Unit,
     onCancelSpeech: () -> Unit,
     onFinishSpeech: () -> Unit,
@@ -165,9 +174,12 @@ internal fun EtaVoicePanel(
     val colors = rememberEtaVoicePanelColors()
     val keyboard = LocalSoftwareKeyboardController.current
     val density = LocalDensity.current
-    val focusRequester = remember { FocusRequester() }
     val entryProgress = remember { Animatable(0f) }
+    val entryAlpha = remember { Animatable(0f) }
     val scrimProgress = remember { Animatable(0f) }
+    val contentVisible = recognitionEnabled != null && (recognitionEnabled || entranceComplete)
+    val contentReady by rememberUpdatedState(onContentReady)
+    val textEntryOffsetPx = with(density) { if (recognitionEnabled == false) 16.dp.toPx() else 0f }
     val exitAlpha by animateFloatAsState(
         targetValue = if (exitRequested) 0f else 1f,
         animationSpec = tween(220, easing = FastOutSlowInEasing),
@@ -175,17 +187,27 @@ internal fun EtaVoicePanel(
     )
 
     LaunchedEffect(Unit) {
-        launch { entryProgress.animateTo(1f, tween(160, easing = LinearOutSlowInEasing)) }
         delay(180)
         scrimProgress.animateTo(1f, tween(280, easing = LinearOutSlowInEasing))
     }
 
-    LaunchedEffect(inputFocusRequestKey) {
-        if (inputFocusRequestKey >= 0 && state.phase != EtaVoicePhase.PROCESSING) {
-            delay(120)
-            focusRequester.requestFocus()
-            keyboard?.show()
+    LaunchedEffect(contentVisible) {
+        if (!contentVisible) return@LaunchedEffect
+        coroutineScope {
+            launch {
+                entryAlpha.animateTo(1f, tween(
+                    durationMillis = if (recognitionEnabled == false) 360 else 220,
+                    easing = FastOutSlowInEasing,
+                ))
+            }
+            launch {
+                entryProgress.animateTo(1f,
+                    if (recognitionEnabled == false) folmeSpring(damping = 1f, response = 0.50f)
+                    else tween(220, easing = LinearOutSlowInEasing))
+            }
         }
+        // 焦点会主动唤起 IME；必须等显现和位移都结束，不能在仍透明时交出输入焦点。
+        contentReady()
     }
 
     Box(
@@ -205,26 +227,32 @@ internal fun EtaVoicePanel(
         )
 
         EtaAssistantEdgeGlow(
-            active = speech.active && !exitRequested,
+            active = (speech.active || !entranceComplete) && !exitRequested,
+            onEntranceFinished = onEntranceFinished,
         )
         EtaAssistantWave(
-            active = speech.active && !exitRequested,
+            active = (speech.active || !entranceComplete) && !exitRequested,
             level = speechLevel,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
 
-        BoxWithConstraints(
+        if (contentVisible) BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    alpha = entryProgress.value
+                    alpha = entryAlpha.value
+                    translationY = (1f - entryProgress.value) * textEntryOffsetPx
                 },
         ) {
-            val imeBottom = WindowInsets.ime.getBottom(density)
+            val imeInsets = WindowInsets.ime
+            val navigationInsets = WindowInsets.navigationBars
+            val keyboardVisible by remember(density, imeInsets, navigationInsets) {
+                derivedStateOf { imeInsets.getBottom(density) > navigationInsets.getBottom(density) }
+            }
             val navigationBottom = WindowInsets.navigationBars.getBottom(density)
             val statusTop = WindowInsets.statusBars.getTop(density)
-            val bottomInset = max(imeBottom, navigationBottom)
-            val imeOverlap = (imeBottom - navigationBottom).coerceAtLeast(0)
+            val imeOverlap = if (state.messages.isEmpty()) 0
+                else (imeInsets.getBottom(density) - navigationBottom).coerceAtLeast(0)
             val maxContentHeightPx = with(density) {
                 (maxHeight - 88.dp).toPx() - statusTop - navigationBottom
             }.coerceAtLeast(with(density) { 220.dp.toPx() })
@@ -232,14 +260,16 @@ internal fun EtaVoicePanel(
                 state = state,
                 input = input,
                 speech = speech,
+                recognitionEnabled = recognitionEnabled == true,
+                inputFocusRequestKey = inputFocusRequestKey,
+                onInputFocus = onInputFocus,
                 onMicrophone = onMicrophone,
                 onCancelSpeech = onCancelSpeech,
                 onFinishSpeech = onFinishSpeech,
                 onDownloadModel = onDownloadModel,
-            onOpenSpeechSettings = onOpenSpeechSettings,
+                onOpenSpeechSettings = onOpenSpeechSettings,
                 onKeyboard = onKeyboard,
                 colors = colors,
-                focusRequester = focusRequester,
                 canOpenConversation = canOpenConversation,
                 handoffRunning = handoffRunning,
                 baseContentHeightPx = assistantBaseHeightPx(
@@ -248,14 +278,13 @@ internal fun EtaVoicePanel(
                     density = density.density,
                 ),
                 maxContentHeightPx = maxContentHeightPx,
-                bottomInsetPx = bottomInset,
                 imeOverlapPx = imeOverlap,
                 onInputChange = onInputChange,
                 onSuggestionClick = { suggestion ->
                     keyboard?.hide()
                     onSuggestionClick(suggestion)
                 },
-                keyboardVisible = imeBottom > navigationBottom,
+                keyboardVisible = keyboardVisible,
                 onSubmit = {
                     keyboard?.hide()
                     onSubmit()
@@ -273,6 +302,9 @@ private fun BoxScope.AssistantPanel(
     state: EtaVoiceUiState,
     input: String,
     speech: EtaSpeechState,
+    recognitionEnabled: Boolean,
+    inputFocusRequestKey: Int,
+    onInputFocus: () -> Unit,
     onMicrophone: (holdToTalk: Boolean) -> Unit,
     onCancelSpeech: () -> Unit,
     onFinishSpeech: () -> Unit,
@@ -280,12 +312,10 @@ private fun BoxScope.AssistantPanel(
     onOpenSpeechSettings: () -> Unit,
     onKeyboard: () -> Unit,
     colors: EtaVoicePanelColors,
-    focusRequester: FocusRequester,
     canOpenConversation: Boolean,
     handoffRunning: Boolean,
     baseContentHeightPx: Float,
     maxContentHeightPx: Float,
-    bottomInsetPx: Int,
     imeOverlapPx: Int,
     onInputChange: (String) -> Unit,
     onSuggestionClick: (String) -> Unit,
@@ -573,13 +603,14 @@ private fun BoxScope.AssistantPanel(
         }
     }
 
-    val bottomInset = with(density) { bottomInsetPx.toDp() }
     val messageRevealOffsetPx = with(density) { 12.dp.toPx() }
     val sheetShape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
     Column(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
+            // IME 已由系统逐帧插值；布局阶段直接消费，避免组合阶段旧值或二次动画造成追赶。
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars).only(WindowInsetsSides.Bottom))
             .offset(y = with(density) { sheetTranslationPx.toDp() })
             .clip(sheetShape)
             .drawBehind {
@@ -648,6 +679,9 @@ private fun BoxScope.AssistantPanel(
             state = state,
             input = input,
             speech = speech,
+            recognitionEnabled = recognitionEnabled,
+            inputFocusRequestKey = inputFocusRequestKey,
+            onInputFocus = onInputFocus,
             onMicrophone = onMicrophone,
             onCancelSpeech = onCancelSpeech,
             onFinishSpeech = onFinishSpeech,
@@ -656,7 +690,6 @@ private fun BoxScope.AssistantPanel(
             onKeyboard = onKeyboard,
             keyboardVisible = keyboardVisible,
             colors = colors,
-            focusRequester = focusRequester,
             onInputChange = onInputChange,
             onSubmit = onSubmit,
             onStop = onStop,
@@ -666,7 +699,7 @@ private fun BoxScope.AssistantPanel(
                     start = 16.dp,
                     end = 16.dp,
                     top = 8.dp,
-                    bottom = bottomInset + 10.dp,
+                    bottom = 10.dp,
                 ),
         )
     }

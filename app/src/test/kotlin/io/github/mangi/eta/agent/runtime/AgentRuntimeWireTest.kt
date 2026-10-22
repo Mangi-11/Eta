@@ -7,6 +7,7 @@ import android.util.Base64
 import io.github.mangi.eta.agent.media.AgentImageCodec
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ReasoningEffort
 import java.io.File
 import java.io.FileOutputStream
@@ -27,6 +28,30 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33, 36])
 class AgentRuntimeWireTest {
+    @Test
+    fun oauthWireCarriesOnlyAuthenticationModeAndDropsLegacySecrets() {
+        val request = AgentRuntimeWire.RunRequest(
+            runId = "oauth-wire", prompt = "测试", images = emptyList(),
+            config = AgentModelClient.ModelConfig(
+                providerId = "oauth-provider", authMode = ProviderAuthModes.OPENAI_CHATGPT,
+                baseUrl = "https://api.openai.com/v1", apiKey = "fixture-must-not-cross-ipc",
+                model = "fixture", systemPrompt = "",
+            ),
+        )
+        val bundle = AgentRuntimeWire.toLegacyBundle(request)
+        assertEquals(ProviderAuthModes.OPENAI_CHATGPT, bundle.getString("auth_mode"))
+        assertEquals("", bundle.getString("api_key"))
+        bundle.putString("api_key", "fixture-untrusted-bundle-secret")
+        val restored = AgentRuntimeWire.runRequestFromBundle(bundle)
+        assertEquals("", restored.config.apiKey)
+        assertEquals(ProviderAuthModes.OPENAI_CHATGPT, restored.config.authMode)
+
+        bundle.remove("auth_mode")
+        val legacy = AgentRuntimeWire.runRequestFromBundle(bundle)
+        assertEquals(ProviderAuthModes.API_KEY, legacy.config.authMode)
+        assertEquals("fixture-untrusted-bundle-secret", legacy.config.apiKey)
+    }
+
     @Test
     fun automaticCompactionSettingSurvivesIpcAndDefaultsForOldRequests() {
         val config = AgentModelClient.ModelConfig(

@@ -14,6 +14,7 @@ import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.ProviderSetting
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.Settings
 import io.github.mangi.eta.data.model.selectedOrFirstModel
@@ -22,20 +23,26 @@ import io.github.mangi.eta.data.model.withModels
 import io.github.mangi.eta.data.model.withSortOrder
 import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.provider.OfficialModelCatalog
+import io.github.mangi.eta.data.provider.ProviderSourceRegistry
+import io.github.mangi.eta.data.model.ProviderSourceTypes
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 internal object ProviderRepository {
-    private val builtInMergeMutex = Mutex()
+    /** 配置与模型共用修改锁，避免旧连接的目录在认证方式切换后落库。 */
+    internal val mutationMutex = Mutex()
 
     @Volatile
     private lateinit var applicationContext: Context
 
     fun init(context: Context) {
         applicationContext = context.applicationContext
+        ProviderCredentialRepository.init(context)
     }
 
     fun providersFlow(): Flow<List<ProviderSetting>> =
@@ -63,15 +70,22 @@ internal object ProviderRepository {
         dao().providerByModelId(modelId)?.toDomain()
 
     suspend fun addProvider(provider: ProviderSetting): ProviderSetting {
-        val nextOrder = (allProviders().maxOfOrNull { it.sortOrder } ?: -1) + 1
-        val added = provider.withSortOrder(nextOrder)
-        replaceProvider(added)
+        val added = mutationMutex.withLock {
+            val nextOrder = (allProviders().maxOfOrNull { it.sortOrder } ?: -1) + 1
+            provider.withSortOrder(nextOrder).also { replaceProvider(it) }
+        }
         repairSelection()
         return added
     }
 
     suspend fun updateProvider(provider: ProviderSetting) {
-        require(dao().updateProvider(provider.toEntity()) == 1) { "Provider 不存在" }
+        mutationMutex.withLock {
+            val previous = requireNotNull(providerById(provider.id)) { "Provider 不存在" }
+            if (previous.authMode != provider.authMode) {
+                forgetCredentials(provider.id)
+            }
+            require(dao().updateProvider(provider.toEntity()) == 1) { "Provider 不存在" }
+        }
         repairSelection()
     }
 
@@ -84,68 +98,122 @@ internal object ProviderRepository {
     }
 
     suspend fun deleteProvider(id: String) {
-        val provider = providerById(id) ?: return
-        if (provider.isBuiltIn) return
-        dao().deleteProvider(id)
+        val deleted = mutationMutex.withLock {
+            val provider = providerById(id) ?: return@withLock false
+            if (provider.isBuiltIn) return@withLock false
+            forgetCredentials(id)
+            dao().deleteProvider(id)
+            true
+        }
+        if (!deleted) return
         SettingsDataStore.clearSelectedModelIdForProvider(id)
         repairSelection()
     }
 
     suspend fun copyProvider(id: String): ProviderSetting? {
-        val source = providerById(id) ?: return null
-        val nextOrder = (allProviders().maxOfOrNull { it.sortOrder } ?: -1) + 1
-        val copy = source.deepCopy(
-            id = newId(),
-            name = "${source.name} 副本",
-            sortOrder = nextOrder,
-            builtIn = false,
-        )
-        replaceProvider(copy)
+        val copy = mutationMutex.withLock {
+            val source = providerById(id) ?: return@withLock null
+            val nextOrder = (allProviders().maxOfOrNull { it.sortOrder } ?: -1) + 1
+            source.deepCopy(
+                id = newId(),
+                name = "${source.name} 副本",
+                sortOrder = nextOrder,
+                builtIn = false,
+            ).also { replaceProvider(it) }
+        } ?: return null
         repairSelection()
         return copy
     }
 
     suspend fun resetBuiltIn(id: String) {
         val builtIn = BuiltinProviders.providerById(id) ?: return
-        val current = providerById(id)
-        val restored = seedOfficialModelsIfEmpty(
-            current
-            ?.let { builtIn.withApiKey(it.apiKey).withSortOrder(it.sortOrder) }
-            ?: builtIn
-        )
-        replaceProvider(restored)
+        mutationMutex.withLock {
+            val current = providerById(id)
+            forgetCredentials(id)
+            val restored = seedOfficialModelsIfEmpty(
+                current
+                    ?.let { existing ->
+                        builtIn.withApiKey(existing.apiKey.takeIf { existing.authMode == ProviderAuthModes.API_KEY }.orEmpty())
+                            .withSortOrder(existing.sortOrder)
+                    }
+                    ?: builtIn
+            )
+            replaceProvider(restored)
+        }
         repairSelection()
     }
 
-    suspend fun ensureBuiltInsMerged(): Unit = builtInMergeMutex.withLock {
-        val current = allProviders()
-        if (current.isEmpty()) {
-            insertProviders(BuiltinProviders.PROVIDERS.map(::seedOfficialModelsIfEmpty))
-            SettingsDataStore.setOfficialModelCatalogRevision(OfficialModelCatalog.CURRENT_REVISION)
-            repairSelection()
-            return@withLock
-        }
-
-        val existingIds = current.mapTo(mutableSetOf()) { it.id }
-        val missing = BuiltinProviders.PROVIDERS.filterNot { it.id in existingIds }
-        if (missing.isNotEmpty()) {
-            insertProviders(missing.map(::seedOfficialModelsIfEmpty))
-        }
-        val appliedRevision = SettingsDataStore.officialModelCatalogRevision()
-        if (appliedRevision < OfficialModelCatalog.CURRENT_REVISION) {
-            current.filter { it.isBuiltIn && BuiltinProviders.providerById(it.id) != null }.forEach { provider ->
-                val additions = OfficialModelCatalog.modelsAddedSince(provider, appliedRevision)
-                dao().appendModelsIfAbsent(
-                    providerId = provider.id,
-                    candidates = provider.withModels(additions).toModelEntities(),
-                )
-                if (appliedRevision < 1) {
-                    refreshLegacyCatalogReasoningCapabilities(provider)
-                }
+    suspend fun ensureBuiltInsMerged() {
+        mutationMutex.withLock {
+            val current = allProviders()
+            if (current.isEmpty()) {
+                insertProviders(BuiltinProviders.PROVIDERS.map(::seedOfficialModelsIfEmpty))
+                SettingsDataStore.setOfficialModelCatalogRevision(OfficialModelCatalog.CURRENT_REVISION)
+                return@withLock
             }
-            SettingsDataStore.setOfficialModelCatalogRevision(OfficialModelCatalog.CURRENT_REVISION)
+
+            val existingIds = current.mapTo(mutableSetOf()) { it.id }
+            val missing = BuiltinProviders.PROVIDERS.filterNot { it.id in existingIds }
+            if (missing.isNotEmpty()) {
+                insertProviders(missing.map(::seedOfficialModelsIfEmpty))
+            }
+            val appliedRevision = SettingsDataStore.officialModelCatalogRevision()
+            if (appliedRevision < OfficialModelCatalog.CURRENT_REVISION) {
+                if (appliedRevision < 2) {
+                    current.filter { ProviderSourceRegistry.resolve(it) == ProviderSourceTypes.OPENAI }
+                        .forEach { refreshOpenAiPresets(it, appliedRevision) }
+                }
+                current.filter {
+                    it.isBuiltIn && it.authMode == ProviderAuthModes.API_KEY && BuiltinProviders.providerById(it.id) != null
+                }.forEach { provider ->
+                    val additions = if (ProviderSourceRegistry.resolve(provider) == ProviderSourceTypes.OPENAI) {
+                        emptyList()
+                    } else OfficialModelCatalog.modelsAddedSince(provider, appliedRevision)
+                    dao().appendModelsIfAbsent(
+                        providerId = provider.id,
+                        candidates = provider.withModels(additions).toModelEntities(),
+                    )
+                    if (appliedRevision < 1) {
+                        refreshLegacyCatalogReasoningCapabilities(provider)
+                    }
+                }
+                if (appliedRevision < 3) {
+                    current.filter { ProviderSourceRegistry.resolve(it) == ProviderSourceTypes.OPENAI }.forEach { provider ->
+                        fillOpenAiContextWindows(requireNotNull(providerById(provider.id)))
+                    }
+                }
+                SettingsDataStore.setOfficialModelCatalogRevision(OfficialModelCatalog.CURRENT_REVISION)
+            }
         }
         repairSelection()
+    }
+
+    private suspend fun refreshOpenAiPresets(provider: ProviderSetting, revision: Int) {
+        val currentPresets = OfficialModelCatalog.modelsForProvider(provider)
+        val currentIds = currentPresets.mapTo(mutableSetOf()) { it.modelId.normalizedModelId() }
+        val retained = provider.models.filter { it.source != ModelSource.CATALOG || it.modelId.normalizedModelId() in currentIds }
+        // 已有远端目录或用户清空的连接不能再由预设填充。
+        val additions = if (provider.models.any { it.source == ModelSource.CATALOG } &&
+            provider.models.none { it.source == ModelSource.REMOTE }
+        ) OfficialModelCatalog.modelsAddedSince(provider, revision) else emptyList()
+        val existingIds = retained.mapTo(mutableSetOf()) { it.modelId.normalizedModelId() }
+        val nextOrder = (retained.maxOfOrNull { it.sortOrder } ?: -1) + 1
+        val updated = retained + additions.filterNot { it.modelId.normalizedModelId() in existingIds }
+            .mapIndexed { index, model -> model.copy(id = newId(), sortOrder = nextOrder + index) }
+        if (updated != provider.models) replaceModels(provider.id, updated)
+    }
+
+    private suspend fun fillOpenAiContextWindows(provider: ProviderSetting) {
+        val presets = OfficialModelCatalog.modelsForProvider(provider).associateBy { it.modelId.normalizedModelId() }
+        val updated = provider.models.map { model ->
+            if (model.contextWindowOverride != null || model.source == ModelSource.MANUAL) return@map model
+            val preset = presets[model.modelId.normalizedModelId()] ?: return@map model
+            val window = model.contextWindow
+                ?: preset.contextWindow.takeIf { model.source == ModelSource.CATALOG }
+                ?: return@map model
+            model.copy(contextWindow = window, contextWindowOverride = window)
+        }
+        if (updated != provider.models) replaceModels(provider.id, updated)
     }
 
     suspend fun repairSelection(): Settings {
@@ -170,6 +238,10 @@ internal object ProviderRepository {
     }
 
     fun newId(): String = UUID.randomUUID().toString()
+
+    private suspend fun forgetCredentials(providerId: String) = withContext(Dispatchers.IO) {
+        ProviderCredentialRepository.forget(providerId)
+    }
 
     private fun dao() =
         EtaDatabase.get(appContext()).providerDao()
@@ -200,32 +272,13 @@ internal object ProviderRepository {
     }
 
     private fun seedOfficialModelsIfEmpty(provider: ProviderSetting): ProviderSetting {
-        if (provider.models.isNotEmpty()) return provider
+        if (provider.models.isNotEmpty() || ProviderAuthModes.isOAuth(provider.authMode)) return provider
         val seededModels = OfficialModelCatalog.modelsForProvider(provider)
         return if (seededModels.isEmpty()) provider else provider.withModels(seededModels)
     }
 
     private suspend fun refreshLegacyCatalogReasoningCapabilities(provider: ProviderSetting) {
         val legacyCapabilities = when (provider.id) {
-            BuiltinProviders.OPENAI_ID -> listOf(
-                "gpt-5.6-sol",
-                "gpt-5.6-terra",
-                "gpt-5.6-luna",
-                "gpt-5.5",
-            ).associateWith {
-                ModelReasoningCapabilities(
-                    supportedEfforts = listOf(
-                        ReasoningEffort.MINIMAL,
-                        ReasoningEffort.LOW,
-                        ReasoningEffort.MEDIUM,
-                        ReasoningEffort.HIGH,
-                        ReasoningEffort.XHIGH,
-                    ),
-                    defaultEffort = ReasoningEffort.MEDIUM,
-                    defaultEnabled = true,
-                    canDisable = true,
-                )
-            }
             BuiltinProviders.ANTHROPIC_ID -> mapOf("claude-fable-5" to ModelReasoningCapabilities(
                 supportedEfforts = listOf(
                     ReasoningEffort.LOW,

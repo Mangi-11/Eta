@@ -21,7 +21,8 @@ class SpeechSettingsRepositoryTest {
         val context = RuntimeEnvironment.getApplication()
         SettingsDataStore.init(context)
         val before = SettingsDataStore.settings()
-        val speech = SpeechSettings(asr = AsrProvider.QWEN_FLASH, tts = TtsProvider.DOUBAO, autoSpeak = true)
+        val speech = SpeechSettings(asr = AsrProvider.QWEN_FLASH, tts = TtsProvider.DOUBAO,
+            autoSpeak = true, recognitionEnabled = false)
         SpeechSettingsRepository.save(speech)
         assertEquals(speech, SpeechSettingsRepository.settings())
         SettingsDataStore.updateSettings { it.copy(memoryEnabled = !before.memoryEnabled) }

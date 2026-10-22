@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.Looper
 import android.speech.SpeechRecognizer
 import io.github.mangi.eta.data.model.SpeechCredentials
+import io.github.mangi.eta.data.model.AsrProvider
 import io.github.mangi.eta.data.model.SpeechSettings
 import java.time.Duration
 import kotlinx.coroutines.CoroutineScope
@@ -94,6 +95,32 @@ class SpeechLifecycleTest {
         shadowOf(Looper.getMainLooper()).idle()
         assertTrue(recognizer.isDestroyed)
         assertFalse(controller.state.value.active)
+    }
+
+    @Test fun disabledRecognitionDoesNotAcquireAudioOrRequireCloudCredentials() {
+        var interrupted = false
+        val lease = SpeechAudioLease(RuntimeEnvironment.getApplication()) { interrupted = true }
+        try {
+            lease.acquire(playback = false)
+            for (provider in AsrProvider.entries) {
+                controller.start(SpeechSettings(asr = provider, recognitionEnabled = false))
+                shadowOf(Looper.getMainLooper()).idle()
+                assertFalse(controller.state.value.active)
+                assertNull(controller.state.value.error)
+                assertTrue(results.isEmpty())
+                assertFalse(interrupted)
+            }
+        } finally { lease.close() }
+    }
+
+    @Test fun disablingAnActiveSessionDiscardsLateRecognitionResults() {
+        val recognizer = start()
+        controller.start(SpeechSettings(recognitionEnabled = false))
+        shadowOf(Looper.getMainLooper()).idle()
+        recognizer.triggerOnResults(text("迟到的旧识别"))
+        assertTrue(recognizer.isDestroyed)
+        assertFalse(controller.state.value.active)
+        assertTrue(results.isEmpty())
     }
     private fun overlay(refiner: SpeechTranscriptRefiner = SpeechTranscriptRefiner()) =
         SpeechInputController(RuntimeEnvironment.getApplication(), scope, automaticEndpoint = true,

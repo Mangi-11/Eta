@@ -31,5 +31,19 @@ class BuiltinProvidersTest {
         assertEquals(ProviderSourceTypes.MIMO, providers.getValue(BuiltinProviders.MIMO_ID).sourceType)
         assertEquals(ProviderSourceTypes.MINIMAX, providers.getValue(BuiltinProviders.MINIMAX_ID).sourceType)
         assertEquals(ProviderSourceTypes.STEPFUN, providers.getValue(BuiltinProviders.STEPFUN_ID).sourceType)
+        assertEquals("https://api.x.ai/v1", providers.getValue(BuiltinProviders.XAI_ID).baseUrl)
+        assertEquals(ProviderSourceTypes.XAI, providers.getValue(BuiltinProviders.XAI_ID).sourceType)
+    }
+
+    @Test
+    fun xaiBrandingUsesExactOfficialHosts() {
+        for (host in listOf("api.x.ai", "cli-chat-proxy.grok.com")) {
+            assertEquals(ProviderSourceTypes.XAI, ProviderSourceRegistry.resolve(
+                providerId = "custom", baseUrl = "https://$host/v1", providerType = "openai_compatible",
+            ))
+        }
+        assertEquals(ProviderSourceTypes.CUSTOM, ProviderSourceRegistry.resolve(
+            providerId = "custom", baseUrl = "https://api.x.ai.example.invalid/v1", providerType = "openai_compatible",
+        ))
     }
 }

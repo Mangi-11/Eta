@@ -14,6 +14,7 @@ import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.data.model.CustomBody
 import io.github.mangi.eta.data.model.CustomHeader
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ReasoningEffort
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
@@ -97,6 +98,7 @@ internal object AgentRuntimeWire {
     private const val KEY_PROVIDER_SOURCE_TYPE = "provider_source_type"
     private const val KEY_BASE_URL = "base_url"
     private const val KEY_API_KEY = "api_key"
+    private const val KEY_AUTH_MODE = "auth_mode"
     private const val KEY_MODEL = "model"
     private const val KEY_MODEL_DISPLAY_NAME = "model_display_name"
     private const val KEY_CONTEXT_WINDOW = "context_window"
@@ -295,7 +297,8 @@ internal object AgentRuntimeWire {
         putString(KEY_PROVIDER_TYPE, request.config.providerType)
         putString(KEY_PROVIDER_SOURCE_TYPE, request.config.providerSourceType)
         putString(KEY_BASE_URL, request.config.baseUrl)
-        putString(KEY_API_KEY, request.config.apiKey)
+        putString(KEY_AUTH_MODE, request.config.authMode)
+        putString(KEY_API_KEY, request.config.apiKey.takeIf { request.config.authMode == ProviderAuthModes.API_KEY }.orEmpty())
         putString(KEY_MODEL, request.config.model)
         putString(KEY_MODEL_DISPLAY_NAME, request.config.modelDisplayName)
         putString("operation", request.operation)
@@ -429,7 +432,10 @@ internal object AgentRuntimeWire {
                     .ifBlank { io.github.mangi.eta.data.model.ProviderTypes.OPENAI_COMPATIBLE },
                 providerSourceType = bundle.getString(KEY_PROVIDER_SOURCE_TYPE).orEmpty(),
                 baseUrl = bundle.getString(KEY_BASE_URL).orEmpty(),
-                apiKey = bundle.getString(KEY_API_KEY).orEmpty(),
+                apiKey = bundle.getString(KEY_API_KEY).orEmpty().takeIf {
+                    bundle.getString(KEY_AUTH_MODE, ProviderAuthModes.API_KEY) == ProviderAuthModes.API_KEY
+                }.orEmpty(),
+                authMode = bundle.getString(KEY_AUTH_MODE) ?: ProviderAuthModes.API_KEY,
                 model = bundle.getString(KEY_MODEL).orEmpty(),
                 modelDisplayName = bundle.getString(KEY_MODEL_DISPLAY_NAME).orEmpty(),
                 contextWindow = bundle.optionalInt(KEY_CONTEXT_WINDOW),

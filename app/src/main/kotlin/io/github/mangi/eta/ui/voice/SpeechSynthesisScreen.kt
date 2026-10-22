@@ -7,6 +7,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -15,6 +18,7 @@ import io.github.mangi.eta.agent.voice.validateSpeechSettings
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.ui.components.EtaOverlayDropdownPreference
 import io.github.mangi.eta.ui.components.EtaPreference
+import io.github.mangi.eta.ui.components.EtaPreferenceDivider
 import io.github.mangi.eta.ui.components.EtaPreferenceGroup
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
@@ -44,7 +48,7 @@ internal fun SpeechSynthesisScreen(onBack: () -> Unit) {
         item(key = "service") {
             EtaPreferenceGroup {
                 EtaOverlayDropdownPreference(
-                    title = stringResource(R.string.speech_service_and_model),
+                    title = stringResource(R.string.speech_tts_service),
                     items = TtsProvider.entries.map { it.label() },
                     selectedIndex = settings.tts.ordinal,
                     onSelectedIndexChange = { index ->
@@ -79,10 +83,27 @@ internal fun SpeechSynthesisScreen(onBack: () -> Unit) {
 private fun SpeechPreviewSection(store: SpeechSettingsStore) {
     val playback by store.playback.state.collectAsState()
     val playing = playback.messageId != null
+    val defaultText = stringResource(R.string.speech_preview_default_text)
+    var text by rememberSaveable { mutableStateOf(defaultText) }
 
     Column {
         EtaPreferenceGroupTitle(stringResource(R.string.speech_preview_voice))
         EtaPreferenceGroup {
+            SpeechFieldColumn {
+                SpeechField(
+                    label = stringResource(R.string.speech_preview_text),
+                    value = text,
+                    singleLine = false,
+                    enabled = !store.saving,
+                    onChange = {
+                        if (it.length <= 500) {
+                            store.playback.stop()
+                            text = it
+                        }
+                    },
+                )
+            }
+            EtaPreferenceDivider(hasLeading = false)
             EtaPreference(
                 title = stringResource(
                     if (playing) R.string.speech_preview_stop else R.string.speech_preview_voice,
@@ -97,14 +118,14 @@ private fun SpeechPreviewSection(store: SpeechSettingsStore) {
                 } else {
                     BasicComponentDefaults.summaryColor()
                 },
-                enabled = !store.saving,
+                enabled = !store.saving && text.isNotBlank(),
                 onClick = {
                     if (playing) {
                         store.playback.stop()
                     } else {
                         store.playback.speak(
                             "preview",
-                            "你好，我是 Eta。有什么可以帮你？",
+                            text,
                             store.settings,
                             store.credentials,
                         )

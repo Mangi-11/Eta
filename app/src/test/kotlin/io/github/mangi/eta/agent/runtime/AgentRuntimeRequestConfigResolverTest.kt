@@ -2,13 +2,62 @@ package io.github.mangi.eta.agent.runtime
 
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.model.ProviderAuthModes
+import io.github.mangi.eta.data.model.ModelReasoningCapabilities
+import io.github.mangi.eta.data.model.CustomHeader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class AgentRuntimeRequestConfigResolverTest {
+    @Test
+    fun oauthRequestUsesLocalConnectionAndPreservesSupportedTransientChoices() {
+        val local = modelConfig("", ReasoningEffort.DEFAULT).copy(
+            providerId = "account-provider",
+            authMode = ProviderAuthModes.OPENAI_CHATGPT,
+            baseUrl = "https://api.openai.com/v1",
+            customHeaders = listOf(CustomHeader("x-local", "fixture")),
+            reasoningCapabilities = ModelReasoningCapabilities(
+                supportedEfforts = listOf(ReasoningEffort.LOW, ReasoningEffort.HIGH), canDisable = true,
+            ),
+        )
+        val entry = local.copy(
+            apiKey = "fixture-untrusted", baseUrl = "https://untrusted.invalid",
+            customHeaders = listOf(CustomHeader("x-untrusted", "fixture")),
+            reasoningEffort = ReasoningEffort.HIGH,
+            terminalTools = true, deviceSensitiveReadTools = true,
+            autoCompactionEnabled = false,
+        )
+        val request = request("breeno", entry)
+        assertTrue(AgentRuntimeRequestConfigResolver.requiresRuntimeConfig(request))
+        val result = AgentRuntimeRequestConfigResolver.applyRuntimeConfig(request, local).config
+
+        assertEquals(local.baseUrl, result.baseUrl)
+        assertEquals("", result.apiKey)
+        assertEquals(local.customHeaders, result.customHeaders)
+        assertEquals(ReasoningEffort.HIGH, result.reasoningEffort)
+        assertTrue(result.terminalTools)
+        assertTrue(result.deviceSensitiveReadTools)
+        assertFalse(result.autoCompactionEnabled)
+    }
+
+    @Test
+    fun oauthRequestCannotChangeLocalAccountOrInjectUnsupportedReasoning() {
+        val local = modelConfig("", ReasoningEffort.DEFAULT).copy(
+            providerId = "account-provider", authMode = ProviderAuthModes.XAI_GROK,
+            reasoningCapabilities = ModelReasoningCapabilities(supportedEfforts = listOf(ReasoningEffort.LOW)),
+        )
+        val request = request("xiaoai", local.copy(reasoningEffort = ReasoningEffort.MAX))
+        assertEquals(ReasoningEffort.LOW,
+            AgentRuntimeRequestConfigResolver.applyRuntimeConfig(request, local).config.reasoningEffort)
+        assertThrows(IllegalArgumentException::class.java) {
+            AgentRuntimeRequestConfigResolver.applyRuntimeConfig(request, local.copy(providerId = "other-provider"))
+        }
+    }
+
     @Test
     fun etaVoiceRequestUsesRuntimeConfigAndUpdatesArchiveMetadata() {
         val runtimeConfig = modelConfig("runtime-key", ReasoningEffort.HIGH)

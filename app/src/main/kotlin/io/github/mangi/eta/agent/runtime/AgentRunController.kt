@@ -24,6 +24,9 @@ internal class AgentRunController {
     @Volatile
     private var paused = false
 
+    val isPaused: Boolean
+        get() = paused
+
     fun cancel() {
         lock.withLock {
             cancelled = true

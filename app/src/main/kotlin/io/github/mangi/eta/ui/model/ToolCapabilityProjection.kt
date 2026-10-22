@@ -33,6 +33,7 @@ internal fun toolCardAction(id: String, capabilities: AgentToolCapabilities): Ag
     return when (capabilities.unavailableCode(actualToolName(id))) {
         "ROOT_REQUIRED", "DEVICE_UNSUPPORTED" -> AgentToolsAction.OpenEnhancements
         null -> when {
+            id == "web_search" || id == "fetch_url" -> AgentToolsAction.OpenWebToolsSettings
             id.startsWith("browser_") -> AgentToolsAction.OpenBrowser
             !capabilities.rootAvailable && requirement.rootRequirement == RootRequirement.PARTIAL ->
                 AgentToolsAction.OpenEnhancements

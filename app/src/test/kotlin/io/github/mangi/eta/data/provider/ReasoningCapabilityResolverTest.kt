@@ -50,6 +50,7 @@ class ReasoningCapabilityResolverTest {
     fun gpt6CatalogUsesOnlySupportedEffortLevels() {
         val astra = resolve(ProviderSourceTypes.OPENAI, "gpt-6-astra")
         val sol = resolve(ProviderSourceTypes.OPENAI, "gpt-6-sol")
+        val sol61 = resolve(ProviderSourceTypes.OPENAI, "gpt-6.1-sol")
         val luna = resolve(ProviderSourceTypes.OPENAI, "gpt-6-luna")
         val named = listOf(
             ReasoningEffort.LOW,
@@ -62,6 +63,8 @@ class ReasoningCapabilityResolverTest {
         assertEquals(listOf(ReasoningEffort.DEFAULT) + named, astra.selectableEfforts)
         assertEquals(listOf(ReasoningEffort.OFF, ReasoningEffort.DEFAULT) + named, sol.selectableEfforts)
         assertEquals(sol.selectableEfforts, luna.selectableEfforts)
+        assertEquals(astra.selectableEfforts, sol61.selectableEfforts)
+        assertEquals(ReasoningEffort.MEDIUM, sol61.defaultEffort)
         assertEquals(ReasoningEffort.MEDIUM, sol.defaultEffort)
         assertEquals(ReasoningEffort.MEDIUM, luna.defaultEffort)
     }

@@ -14,6 +14,7 @@ class AppRouteSerializationTest {
             AppRoute.Browser,
             AppRoute.Terminal,
             AppRoute.Tools,
+            AppRoute.WebToolsSettings,
             AppRoute.Skills,
             AppRoute.Characters,
             AppRoute.CharacterDetail("character"),

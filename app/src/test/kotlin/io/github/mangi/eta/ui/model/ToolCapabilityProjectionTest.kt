@@ -45,6 +45,8 @@ class ToolCapabilityProjectionTest {
         assertEquals(AgentToolsAction.OpenPermissions, toolCardAction("recent_notifications", capabilities))
         assertEquals(AgentToolsAction.OpenEnhancements, toolCardAction("terminal", capabilities))
         assertEquals(AgentToolsAction.OpenBrowser, toolCardAction("browser_read", capabilities))
+        assertEquals(AgentToolsAction.OpenWebToolsSettings, toolCardAction("web_search", capabilities))
+        assertEquals(AgentToolsAction.OpenWebToolsSettings, toolCardAction("fetch_url", capabilities))
         assertEquals(AgentToolsAction.OpenEnhancements,
             toolCardAction("search_coloros_memories", capabilities.copy(rootAvailable = true, colorOs = false)))
     }

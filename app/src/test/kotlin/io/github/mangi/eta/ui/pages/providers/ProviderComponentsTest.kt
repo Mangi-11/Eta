@@ -4,8 +4,11 @@ import androidx.compose.runtime.saveable.SaverScope
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.Model
+import io.github.mangi.eta.data.model.OpenAiEndpointMode
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.provider.BuiltinProviders
+import io.github.mangi.eta.data.provider.ProviderConnectionProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -23,6 +26,7 @@ class ProviderComponentsTest {
             endpointMode = "responses",
             hostedWebSearchEnabled = true,
             anthropicVersion = "2023-06-01",
+            authMode = ProviderAuthModes.OPENAI_CHATGPT,
         )
 
         val saved = with(ProviderConfigDraftSaver) {
@@ -30,6 +34,35 @@ class ProviderComponentsTest {
         }
 
         assertEquals(draft, ProviderConfigDraftSaver.restore(requireNotNull(saved)))
+    }
+
+    @Test
+    fun oauthDraftCannotChangeOfficialDestinationOrProtocol() {
+        val provider = requireNotNull(BuiltinProviders.providerById(BuiltinProviders.OPENAI_ID))
+        val draft = ProviderConfigDraft.from(provider).copy(
+            authMode = ProviderAuthModes.OPENAI_CHATGPT,
+            baseUrl = "https://untrusted.example/v1",
+            endpointMode = OpenAiEndpointMode.CHAT_COMPLETIONS,
+        )
+
+        val updated = draft.toProvider(provider)
+
+        assertEquals(ProviderConnectionProfile.OPENAI_CODEX.baseUrl, updated.baseUrl)
+        assertEquals(ProviderAuthModes.OPENAI_CHATGPT, updated.authMode)
+        assertEquals(OpenAiEndpointMode.RESPONSES, ProviderConfigDraft.from(updated).endpointMode)
+    }
+
+    @Test
+    fun returningFromGrokLoginToApiKeyUsesTheApiEndpoint() {
+        val provider = requireNotNull(BuiltinProviders.providerById(BuiltinProviders.XAI_ID))
+        val subscription = ProviderConfigDraft.from(provider)
+            .withAuthMode(ProviderAuthModes.XAI_GROK, provider)
+            .toProvider(provider)
+
+        val apiDraft = ProviderConfigDraft.from(subscription).withAuthMode(ProviderAuthModes.API_KEY, subscription)
+
+        assertEquals(provider.baseUrl, apiDraft.baseUrl)
+        assertEquals(ProviderAuthModes.API_KEY, apiDraft.authMode)
     }
 
     @Test
@@ -44,6 +77,7 @@ class ProviderComponentsTest {
     fun knownSourcesMapToDistinctBrandLogos() {
         val expected = mapOf(
             ProviderSourceTypes.OPENAI to R.drawable.provider_logo_openai,
+            ProviderSourceTypes.XAI to R.drawable.model_logo_grok,
             ProviderSourceTypes.ANTHROPIC to R.drawable.provider_logo_anthropic,
             ProviderSourceTypes.BAILIAN to R.drawable.provider_logo_bailian,
             ProviderSourceTypes.DEEPSEEK to R.drawable.provider_logo_deepseek,

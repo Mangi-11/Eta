@@ -46,6 +46,9 @@ internal object ReasoningCapabilityResolver {
         return when (sourceType) {
             ProviderSourceTypes.OPENAI -> when {
                 model == "gpt-6-astra" -> capabilities(lowToMax, mandatory = true)
+                model == "gpt-6.1-sol" -> capabilities(
+                    lowToMax, mandatory = true, defaultEffort = ReasoningEffort.MEDIUM,
+                )
                 model == "gpt-6-sol" || model == "gpt-6-luna" -> capabilities(
                     lowToMax,
                     canDisable = true,

@@ -16,6 +16,10 @@ Eta 使用 [jsoup](https://jsoup.org/) 在本机解析已经下载的 HTML。jso
 
 Android 标准库兼容使用 [desugar_jdk_libs](https://github.com/google/desugar_jdk_libs) 的 NIO 规格，按 GNU GPL v2 with Classpath Exception 分发，许可全文保存在 [`assets/licenses/desugar-jdk-libs-LICENSE.txt`](../app/src/main/assets/licenses/desugar-jdk-libs-LICENSE.txt)。这些组件保留各自许可证权利。
 
+## 账号身份验证
+
+Eta 使用 [Nimbus JOSE + JWT](https://connect2id.com/products/nimbus-jose-jwt) 校验 OAuth 登录的签名和身份声明。该库由 Connect2id Ltd. 维护，采用 Apache License 2.0；许可全文随 APK 保存在 [`assets/licenses/nimbus-jose-jwt-Apache-2.0.txt`](../app/src/main/assets/licenses/nimbus-jose-jwt-Apache-2.0.txt)。依赖版本以 `gradle/libs.versions.toml` 为准。
+
 ## Miuix
 
 Eta 的应用界面使用 [Miuix](https://github.com/compose-miuix-ui/miuix)，其采用 [Apache License 2.0](https://github.com/compose-miuix-ui/miuix/blob/main/LICENSE)。

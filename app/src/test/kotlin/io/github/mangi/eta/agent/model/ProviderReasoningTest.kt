@@ -1,5 +1,6 @@
 package io.github.mangi.eta.agent.model
 
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.ReasoningEffort
@@ -11,6 +12,33 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ProviderReasoningTest {
+    @Test
+    fun xaiUsesAdvertisedEffortAndLeavesDefaultToTheServer() {
+        val capabilities = ModelReasoningCapabilities(
+            supportedEfforts = listOf(ReasoningEffort.LOW, ReasoningEffort.HIGH),
+            mandatory = true,
+        )
+        val selected = config(ProviderSourceTypes.XAI, ReasoningEffort.HIGH).copy(reasoningCapabilities = capabilities)
+        val request = JSONObject()
+        ProviderReasoning.applyOpenAiCompatibleRequest(request, selected)
+        assertEquals("high", request.getString("reasoning_effort"))
+        val defaultRequest = JSONObject()
+        ProviderReasoning.applyOpenAiCompatibleRequest(defaultRequest, selected.copy(reasoningEffort = ReasoningEffort.DEFAULT))
+        assertFalse(defaultRequest.has("reasoning_effort"))
+        for (effort in listOf(ReasoningEffort.OFF, ReasoningEffort.XHIGH)) {
+            assertThrows(IllegalArgumentException::class.java) {
+                ProviderReasoning.applyOpenAiCompatibleRequest(JSONObject(), selected.copy(reasoningEffort = effort))
+            }
+        }
+        val disabled = JSONObject()
+        ProviderReasoning.applyOpenAiCompatibleRequest(
+            disabled,
+            selected.copy(reasoningEffort = ReasoningEffort.OFF,
+                reasoningCapabilities = capabilities.copy(mandatory = false, canDisable = true)),
+        )
+        assertEquals("none", disabled.getString("reasoning_effort"))
+    }
+
     @Test
     fun mandatoryModelRejectsOffInsteadOfSilentlyDisablingReasoning() {
         val config = config(
@@ -57,34 +85,33 @@ class ProviderReasoningTest {
     }
 
     @Test
-    fun gpt55And56RejectUnsupportedMinimalEffort() {
-        for (model in listOf("gpt-5.5", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna")) {
-            assertThrows(IllegalArgumentException::class.java) {
-                ProviderReasoning.applyResponsesRequest(
-                    JSONObject(),
-                    config(
-                        source = ProviderSourceTypes.OPENAI,
-                        model = model,
-                        effort = ReasoningEffort.MINIMAL,
-                    ),
-                )
+    fun openAiUsesConfiguredCapabilitiesInsteadOfOverridingThemByModelName() {
+        val capabilities = ModelReasoningCapabilities(supportedEfforts = listOf(ReasoningEffort.MAX))
+        for (mode in listOf(ProviderAuthModes.API_KEY, ProviderAuthModes.OPENAI_CHATGPT)) {
+            for (model in listOf("gpt-6.1-sol", "remote-model-alias", "gpt-5.5")) {
+                val request = JSONObject()
+                ProviderReasoning.applyResponsesRequest(request,
+                    config(ProviderSourceTypes.OPENAI, ReasoningEffort.MAX, model)
+                        .copy(authMode = mode, reasoningCapabilities = capabilities))
+                assertEquals("max", request.getJSONObject("reasoning").getString("effort"))
             }
         }
     }
 
     @Test
-    fun openAiRejectsUnsupportedMaxEffort() {
-        assertThrows(IllegalArgumentException::class.java) {
-            ProviderReasoning.applyOpenAiCompatibleRequest(
-                JSONObject(),
-                config(source = ProviderSourceTypes.OPENAI, model = "gpt-5.5", effort = ReasoningEffort.MAX),
-            )
+    fun configuredEffortConstraintsDoNotDependOnModelName() {
+        val capabilities = ModelReasoningCapabilities(supportedEfforts = listOf(ReasoningEffort.LOW, ReasoningEffort.HIGH))
+        for (model in listOf("gpt-6.1-sol", "remote-model-alias")) {
+            assertThrows(IllegalArgumentException::class.java) {
+                ProviderReasoning.applyResponsesRequest(JSONObject(),
+                    config(ProviderSourceTypes.OPENAI, ReasoningEffort.MAX, model).copy(reasoningCapabilities = capabilities))
+            }
         }
     }
 
     @Test
-    fun gpt56MaxIsAcceptedByResponsesAndChatCompletions() {
-        for (model in listOf("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna")) {
+    fun configuredMaxIsEncodedByResponsesAndChatCompletions() {
+        for (model in listOf("gpt-6.1-sol", "gpt-6-astra", "gpt-6-luna", "gpt-5.6-sol", "remote-model-alias")) {
             val responses = JSONObject()
             ProviderReasoning.applyResponsesRequest(
                 responses,
@@ -114,7 +141,7 @@ class ProviderReasoningTest {
     }
 
     @Test
-    fun gpt6ResponsesUsesExactEffortAndRejectsUnsupportedLevels() {
+    fun responsesEncodesMaxAndOffWithoutModelNameRules() {
         val astra = JSONObject()
         ProviderReasoning.applyResponsesRequest(
             astra,
@@ -135,24 +162,6 @@ class ProviderReasoningTest {
             assertEquals("none", request.getJSONObject("reasoning").getString("effort"))
         }
 
-        for (effort in listOf(ReasoningEffort.OFF, ReasoningEffort.MINIMAL)) {
-            assertThrows(IllegalArgumentException::class.java) {
-                ProviderReasoning.applyResponsesRequest(
-                    JSONObject(),
-                    config(source = ProviderSourceTypes.OPENAI, model = "gpt-6-astra", effort = effort),
-                )
-            }
-        }
-        assertThrows(IllegalArgumentException::class.java) {
-            ProviderReasoning.applyResponsesRequest(
-                JSONObject(),
-                config(
-                    source = ProviderSourceTypes.OPENAI,
-                    model = "gpt-6-sol",
-                    effort = ReasoningEffort.MINIMAL,
-                ),
-            )
-        }
     }
 
     @Test

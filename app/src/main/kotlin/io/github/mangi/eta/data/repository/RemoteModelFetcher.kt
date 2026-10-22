@@ -1,8 +1,15 @@
 package io.github.mangi.eta.data.repository
 
+import io.github.mangi.eta.agent.auth.ProviderAuthException
+import io.github.mangi.eta.agent.auth.ProviderCredentialBinding
 import io.github.mangi.eta.agent.model.AgentHttpClient
+import io.github.mangi.eta.agent.model.AgentModelFailure
+import io.github.mangi.eta.agent.model.AuthorizedProviderHttp
 import io.github.mangi.eta.agent.model.ProviderRequestHeaders
 import io.github.mangi.eta.agent.model.ProviderUrls
+import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
+import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
@@ -10,77 +17,157 @@ import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.provider.OfficialModelCatalog
+import io.github.mangi.eta.data.provider.ProviderConnectionProfile
 import java.util.UUID
+import kotlin.coroutines.resume
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
+import okhttp3.OkHttpClient
 import okhttp3.Request
 
 internal object RemoteModelFetcher {
-    private const val MAX_ERROR_CHARS = 600
+    private const val MAX_CATALOG_BYTES = 4 * 1024 * 1024L
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun fetch(provider: ProviderSetting): Result<List<Model>> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                when (provider) {
-                    is AnthropicProviderSetting -> fetchAnthropic(provider)
-                    else -> fetchOpenAiCompatible(provider)
+        fetchCatalog(provider).map(RemoteModelCatalog::models)
+
+    suspend fun fetchCatalog(provider: ProviderSetting): Result<RemoteModelCatalog> =
+        fetchCatalog(provider, AgentHttpClient.client, StoredCredentials)
+
+    internal suspend fun fetchCatalog(
+        provider: ProviderSetting,
+        client: OkHttpClient,
+        credentials: Credentials,
+    ): Result<RemoteModelCatalog> = withContext(Dispatchers.IO) {
+        suspendCancellableCoroutine { continuation ->
+            val controller = AgentRunController()
+            continuation.invokeOnCancellation { controller.cancel() }
+            try {
+                controller.throwIfCancelled()
+                val profile = ProviderConnectionProfile.forAuthMode(provider.authMode)
+                val binding = profile?.let { credentials.binding(provider.id, provider.authMode) }
+                val fetched = if (profile == null && provider is AnthropicProviderSetting) {
+                    fetchAnthropic(provider, controller, client, credentials)
+                } else {
+                    fetchOpenAiCompatible(provider, controller, client, credentials)
                 }
+                val models = if (profile == ProviderConnectionProfile.OPENAI_CODEX) fetched else fetched.filter(::isChatCapableModel)
+                controller.throwIfCancelled()
+                if (binding != null && !credentials.isCurrent(binding)) {
+                    throw ProviderAuthException("oauth_session_changed", "登录账号已变更，请重新拉取模型")
+                }
+                continuation.resume(Result.success(RemoteModelCatalog(models, provider, binding)))
+            } catch (cancelled: CancellationException) {
+                continuation.cancel(cancelled)
+            } catch (cancelled: AgentRunCancelledException) {
+                continuation.cancel(CancellationException("模型目录读取已取消", cancelled))
+            } catch (failure: Exception) {
+                continuation.resume(Result.failure(failure))
             }
         }
+    }
 
-    internal fun parseOpenAiModels(body: String): List<Model> {
-        val data = json.parseToJsonElement(body)
-            .jsonObjectOrNull()
-            ?.get("data")
-            ?.jsonArrayOrNull()
-            ?: return emptyList()
-        return data.mapNotNull { element ->
+    internal interface Credentials {
+        fun binding(providerId: String, authMode: String): ProviderCredentialBinding
+        fun isCurrent(binding: ProviderCredentialBinding): Boolean
+        fun accessToken(providerId: String, authMode: String, controller: AgentRunController, rejected: String?): String
+    }
+
+    private object StoredCredentials : Credentials {
+        override fun binding(providerId: String, authMode: String) = ProviderCredentialRepository.binding(providerId, authMode)
+        override fun isCurrent(binding: ProviderCredentialBinding) = ProviderCredentialRepository.isCurrent(binding)
+        override fun accessToken(providerId: String, authMode: String, controller: AgentRunController, rejected: String?) =
+            ProviderCredentialRepository.accessToken(providerId, authMode, controller, rejected)
+    }
+
+    internal fun parseOpenAiModels(body: String): List<Model> =
+        modelArray(body, "data").map { element ->
             element.jsonObjectOrNull()?.toModel(defaultOwnedBy = null)
+                ?: error("服务商模型目录包含无效模型项")
         }
-    }
 
-    internal fun parseAnthropicModels(body: String): List<Model> {
-        val data = json.parseToJsonElement(body)
-            .jsonObjectOrNull()
-            ?.get("data")
-            ?.jsonArrayOrNull()
-            ?: return emptyList()
-        return data.mapNotNull { element ->
+    internal fun parseCodexModels(body: String): List<Model> = CodexModelCatalog.parse(modelArray(body, "models"))
+
+    internal fun parseGrokModels(body: String, onUnsupportedProtocols: (Int) -> Unit = {}): List<Model> =
+        GrokModelCatalog.parse(
+            entries = modelArray(body, "data"),
+            decode = { requireNotNull(it.toModel(defaultOwnedBy = "xai")) },
+            onUnsupportedProtocols = onUnsupportedProtocols,
+        )
+
+    internal fun parseAnthropicModels(body: String): List<Model> =
+        modelArray(body, "data").map { element ->
             element.jsonObjectOrNull()?.toAnthropicModel()
+                ?: error("Anthropic 模型目录包含无效模型项")
         }
+
+    private fun modelArray(body: String, field: String): JsonArray {
+        val root = try {
+            json.parseToJsonElement(body).jsonObjectOrNull()
+        } catch (_: SerializationException) {
+            error("服务商模型目录不是有效的 JSON")
+        }
+            ?: error("服务商模型目录格式无效")
+        require(root["error"] == null || root["error"] == JsonNull) {
+            "服务商返回了模型目录错误"
+        }
+        return root[field]?.jsonArrayOrNull() ?: error("服务商模型目录缺少 $field 列表")
     }
 
-    private fun fetchOpenAiCompatible(provider: ProviderSetting): List<Model> {
+    private fun fetchOpenAiCompatible(
+        provider: ProviderSetting,
+        controller: AgentRunController,
+        client: OkHttpClient,
+        credentials: Credentials,
+    ): List<Model> {
+        val profile = ProviderConnectionProfile.forAuthMode(provider.authMode)
+        val baseUrl = profile?.baseUrl ?: provider.baseUrl
         val request = Request.Builder()
-            .url(ProviderUrls.openAiModelsUrl(provider.baseUrl))
+            .url(profile?.modelsUrl ?: ProviderUrls.openAiModelsUrl(baseUrl))
             .headers(
                 okhttp3.Headers.Builder()
                     .add("Accept", "application/json")
                     .apply {
-                        if (provider.apiKey.isNotBlank()) {
+                        if (profile == null && provider.apiKey.isNotBlank()) {
                             add("Authorization", "Bearer ${provider.apiKey}")
                         }
-                        ProviderRequestHeaders.mergeInto(this, provider.baseUrl, provider.customHeaders)
+                        ProviderRequestHeaders.mergeInto(
+                            this, baseUrl, provider.customHeaders, authMode = provider.authMode,
+                        )
                     }
                     .build()
             )
             .get()
             .build()
-        return OfficialModelCatalog.enrich(provider, executeJson(request, "拉取模型失败").let(::parseOpenAiModels))
+        val body = executeJson(request, provider, controller, client, credentials)
+        return when (profile) {
+            ProviderConnectionProfile.OPENAI_CODEX -> parseCodexModels(body)
+            ProviderConnectionProfile.XAI_GROK -> parseGrokModels(body) { count ->
+                AndroidAgentLogger.info("Provider catalog skipped unsupported protocols: count=$count")
+            }
+            else -> OfficialModelCatalog.enrich(provider, parseOpenAiModels(body))
+        }
     }
 
-    private fun fetchAnthropic(provider: AnthropicProviderSetting): List<Model> {
+    private fun fetchAnthropic(
+        provider: AnthropicProviderSetting,
+        controller: AgentRunController,
+        client: OkHttpClient,
+        credentials: Credentials,
+    ): List<Model> {
         val request = Request.Builder()
             .url(ProviderUrls.anthropicModelsUrl(provider.baseUrl))
             .headers(
@@ -97,17 +184,30 @@ internal object RemoteModelFetcher {
             )
             .get()
             .build()
-        return OfficialModelCatalog.enrich(provider, executeJson(request, "拉取 Anthropic 模型失败").let(::parseAnthropicModels))
+        return OfficialModelCatalog.enrich(provider, executeJson(request, provider, controller, client, credentials).let(::parseAnthropicModels))
     }
 
-    private fun executeJson(request: Request, errorPrefix: String): String =
-        AgentHttpClient.client.newCall(request).execute().use { response ->
-            val body = response.body.string()
-            if (!response.isSuccessful) {
-                error("$errorPrefix HTTP ${response.code}: ${body.compactError()}")
-            }
-            body
+    private fun executeJson(
+        request: Request,
+        provider: ProviderSetting,
+        controller: AgentRunController,
+        client: OkHttpClient,
+        credentials: Credentials,
+    ): String = AuthorizedProviderHttp.execute(
+        client = client,
+        providerId = provider.id,
+        authMode = provider.authMode,
+        request = request,
+        controller = controller,
+        accessToken = credentials::accessToken,
+    ) { response ->
+        if (!response.isSuccessful) {
+            throw AgentModelFailure.http(response.code, response.peekBody(16_384).string())
         }
+        val body = response.peekBody(MAX_CATALOG_BYTES + 1).bytes()
+        require(body.size <= MAX_CATALOG_BYTES) { "服务商模型目录超过大小限制" }
+        body.toString(Charsets.UTF_8)
+    }
 
     /**
      * 判断远端目录中的模型是否可用于 Agent 对话。
@@ -337,13 +437,8 @@ internal object RemoteModelFetcher {
     }
 
     private fun JsonElement.jsonObjectOrNull(): JsonObject? =
-        runCatching { jsonObject }.getOrNull()
+        this as? JsonObject
 
     private fun JsonElement.jsonArrayOrNull(): JsonArray? =
-        runCatching { jsonArray }.getOrNull()
-
-    private fun String.compactError(): String =
-        replace('\n', ' ')
-            .replace('\r', ' ')
-            .let { if (it.length > MAX_ERROR_CHARS) it.take(MAX_ERROR_CHARS) + "..." else it }
+        this as? JsonArray
 }

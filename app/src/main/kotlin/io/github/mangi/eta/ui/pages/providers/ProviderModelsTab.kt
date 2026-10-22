@@ -47,6 +47,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,8 +69,10 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.auth.ProviderAuthException
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.repository.ModelRepository
@@ -178,6 +181,7 @@ internal fun ProviderModelsTab(
     contentSidePadding: Dp,
 ) {
     val context = LocalContext.current
+    val fetchScope = rememberCoroutineScope()
     val selectedModelId by RuntimeConfigRepository.selectedModelIdFlow().collectAsState(initial = null)
     var isFetching by remember { mutableStateOf(false) }
     var isMutatingModel by remember { mutableStateOf(false) }
@@ -262,7 +266,8 @@ internal fun ProviderModelsTab(
                 ) {
                     ProviderSection(title = stringResource(R.string.ui_model_management_183414)) {
                         EtaArrowPreference(
-                            title = if (isFetching) context.getString(R.string.page_retrieving_a880c9) else context.getString(R.string.page_automatically_pull_from_remote_f883d0),
+                            title = if (isFetching) context.getString(R.string.page_retrieving_a880c9)
+                            else context.getString(R.string.page_automatically_pull_from_remote_f883d0),
                             summary = stringResource(R.string.provider_models_endpoint_summary, provider.baseUrl),
                             enabled = !isFetching && !isMutatingModel,
                             startAction = {
@@ -273,25 +278,30 @@ internal fun ProviderModelsTab(
                                 )
                             },
                             onClick = {
-                                scope.launch {
+                                fetchScope.launch {
                                     isFetching = true
                                     message = null
                                     try {
-                                        val models = RemoteModelFetcher.fetch(provider).getOrElse { throwable ->
+                                        val catalog = RemoteModelFetcher.fetchCatalog(provider).getOrElse { throwable ->
                                             message = context.getString(
                                                 R.string.provider_error,
                                                 throwable.message ?: throwable.javaClass.simpleName,
                                             )
                                             return@launch
                                         }
-                                        val chatModels = models.filter(RemoteModelFetcher::isChatCapableModel)
-                                        val candidates = ModelRepository.newRemoteModels(provider.id, chatModels)
+                                        if (ProviderAuthModes.isOAuth(provider.authMode)) {
+                                            val sync = ModelRepository.syncRemoteCatalog(catalog)
+                                            RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                                            message = "已同步 ${sync.fetchedCount} 个远端模型"
+                                            return@launch
+                                        }
+                                        val candidates = ModelRepository.newRemoteModels(provider.id, catalog.models)
                                         if (candidates.isNotEmpty()) {
-                                            pendingImport = RemoteModelImport(chatModels, candidates)
+                                            pendingImport = RemoteModelImport(catalog, candidates)
                                             return@launch
                                         }
                                         // 没有新模型时仍同步一次，刷新已添加模型的元数据并移除远端已下线的模型。
-                                        val sync = ModelRepository.syncRemoteModels(provider.id, chatModels, emptySet())
+                                        val sync = ModelRepository.syncRemoteCatalog(catalog, emptySet())
                                         if (sync.applied) {
                                             RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
                                         }
@@ -432,8 +442,22 @@ internal fun ProviderModelsTab(
                             },
                             onSetCurrent = {
                                 scope.launch {
-                                    RuntimeConfigRepository.setSelectedModelId(model.id)
-                                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                                    try {
+                                        RuntimeConfigRepository.setSelectedModelId(model.id)
+                                        RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                                    } catch (cancelled: CancellationException) {
+                                        throw cancelled
+                                    } catch (failure: ProviderAuthException) {
+                                        message = context.getString(
+                                            R.string.provider_error,
+                                            failure.message ?: context.getString(R.string.state_ui_model_switching_failed_please_try_again_later_4af439),
+                                        )
+                                    } catch (_: Exception) {
+                                        message = context.getString(
+                                            R.string.provider_error,
+                                            context.getString(R.string.state_ui_model_switching_failed_please_try_again_later_4af439),
+                                        )
+                                    }
                                 }
                             },
                         )
@@ -599,15 +623,19 @@ internal fun ProviderModelsTab(
             scope.launch {
                 isMutatingModel = true
                 try {
-                    val sync = ModelRepository.syncRemoteModels(provider.id, pending.fetched, adopted)
+                    val sync = ModelRepository.syncRemoteCatalog(pending.catalog, adopted)
                     if (sync.applied) {
                         RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
                     }
-                    message = context.resources.getQuantityString(
-                        R.plurals.provider_models_added,
-                        sync.addedCount,
-                        sync.addedCount,
-                    )
+                    message = when {
+                        !sync.applied -> context.getString(R.string.page_the_remote_end_did_not_return_a_usable_conversation__781487)
+                        adopted.isEmpty() -> context.getString(R.string.provider_models_up_to_date)
+                        else -> context.resources.getQuantityString(
+                            R.plurals.provider_models_added,
+                            sync.addedCount,
+                            sync.addedCount,
+                        )
+                    }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (throwable: Throwable) {

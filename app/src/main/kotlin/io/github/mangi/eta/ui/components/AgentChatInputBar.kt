@@ -8,15 +8,19 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +49,7 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -61,10 +66,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -74,10 +81,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.repository.SpeechSettingsRepository
 import io.github.mangi.eta.ui.model.AgentContextUsageUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import io.github.mangi.eta.ui.model.PendingImageUi
+import io.github.mangi.eta.ui.model.QueuedMessageUi
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
@@ -101,6 +110,7 @@ private val InputContainerShape = RoundedCornerShape(20.dp)
 /**
  * Agent 输入器始终保持同一空间结构，聚焦、输入和执行过程只改变状态，不搬动操作入口。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun AgentChatInputBar(
     input: String,
@@ -113,6 +123,8 @@ internal fun AgentChatInputBar(
     availableReasoningEfforts: List<ReasoningEffort>,
     pendingImages: List<PendingImageUi>,
     pendingFileReferences: List<PendingFileReferenceUi>,
+    queuedMessages: List<QueuedMessageUi> = emptyList(),
+    inputSyncVersion: Int = 0,
     isEditingMessage: Boolean,
     editHasLaterTurns: Boolean,
     preserveFollowingMessages: Boolean,
@@ -121,6 +133,10 @@ internal fun AgentChatInputBar(
     canCompactContext: Boolean,
     onModelSelected: (String) -> Unit,
     onSubmit: (String) -> Unit,
+    onInterruptAndSubmit: (String) -> Unit = onSubmit,
+    onSteerQueuedMessage: (String) -> Unit = {},
+    onRecallQueuedMessage: (String, String) -> Unit = { _, _ -> },
+    onRemoveQueuedMessage: (String) -> Unit = {},
     onStop: () -> Unit,
     onAttachImage: (String) -> Unit,
     onRemoveImage: (String) -> Unit,
@@ -132,8 +148,11 @@ internal fun AgentChatInputBar(
     modifier: Modifier = Modifier,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
+    val hapticFeedback = LocalHapticFeedback.current
     val focusRequester = remember { FocusRequester() }
     val textFieldState = rememberTextFieldState(initialText = input)
+    val speechSettings by remember { SpeechSettingsRepository.settingsFlow() }.collectAsState(initial = null)
+    val recognitionEnabled = speechSettings?.recognitionEnabled == true
     val dictation = rememberSpeechInput { recognized ->
         textFieldState.edit {
             val range = selection
@@ -141,8 +160,9 @@ internal fun AgentChatInputBar(
             selection = TextRange(range.min + recognized.length)
         }
     }
-    LaunchedEffect(isStreaming, isEditingMessage) { dictation.cancel() }
+    LaunchedEffect(isEditingMessage, recognitionEnabled) { dictation.cancel() }
     var wasEditingMessage by remember { mutableStateOf(isEditingMessage) }
+    var syncedVersion by remember { mutableIntStateOf(inputSyncVersion) }
     val canSend = textFieldState.text.isNotBlank() ||
         pendingImages.isNotEmpty() ||
         pendingFileReferences.isNotEmpty()
@@ -154,31 +174,40 @@ internal fun AgentChatInputBar(
     }.minus(ChatInputPopupMargin * 2)
         .coerceAtLeast(ListPopupDefaults.MinPopupHeight)
 
-    LaunchedEffect(isEditingMessage) {
-        // 编辑态由外部业务状态驱动；普通输入只保留在本地，避免每个字符把聊天舞台
+    LaunchedEffect(isEditingMessage, inputSyncVersion) {
+        // 编辑态与排队消息撤回由外部业务状态驱动；普通输入只保留在本地，避免每个字符把聊天舞台
         // 的消息流、滚动和 Markdown 一起带入重组。
-        if (isEditingMessage || wasEditingMessage) {
+        val versionChanged = inputSyncVersion != syncedVersion
+        if (isEditingMessage || wasEditingMessage || versionChanged) {
             textFieldState.setTextAndPlaceCursorAtEnd(input)
         }
-        if (isEditingMessage) {
+        if (isEditingMessage || (versionChanged && input.isNotEmpty())) {
             focusRequester.requestFocus()
             keyboard?.show()
         }
         wasEditingMessage = isEditingMessage
-    }
-
-    LaunchedEffect(isStreaming, isCompacting) {
-        if (isStreaming && !isCompacting) {
-            // 发送按钮、建议词和外部恢复都可能启动流式任务，统一清掉本地草稿。
-            textFieldState.clearText()
-        }
+        syncedVersion = inputSyncVersion
     }
 
     Column(
         modifier = modifier
             .fillMaxWidth(),
     ) {
-        SpeechInputFeedback(dictation)
+        if (recognitionEnabled) SpeechInputFeedback(dictation)
+        AnimatedVisibility(
+            visible = queuedMessages.isNotEmpty(),
+            enter = fadeIn(tween(160)),
+            exit = fadeOut(tween(100)) + shrinkVertically(tween(150)),
+        ) {
+            AgentChatQueueStrip(
+                queuedMessages = queuedMessages,
+                isStreaming = isStreaming,
+                onSteer = onSteerQueuedMessage,
+                onRecall = { id -> onRecallQueuedMessage(id, textFieldState.text.toString()) },
+                onRemove = onRemoveQueuedMessage,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
         AnimatedVisibility(
             visible = pendingFileReferences.isNotEmpty(),
             enter = fadeIn(tween(160)),
@@ -340,9 +369,10 @@ internal fun AgentChatInputBar(
                             Spacer(modifier = Modifier.width(2.dp))
                         }
 
-                        SpeechDictationButton(dictation, enabled = !isStreaming)
-
-                        Spacer(modifier = Modifier.width(2.dp))
+                        if (recognitionEnabled) {
+                            SpeechDictationButton(dictation, enabled = !isCompacting)
+                            Spacer(modifier = Modifier.width(2.dp))
+                        }
 
                         AgentModelPickerButton(
                             state = modelPickerState,
@@ -352,33 +382,82 @@ internal fun AgentChatInputBar(
                             onModelSelected = onModelSelected,
                         )
 
-                        IconButton(
-                            onClick = if (isStreaming) {
-                                onStop
-                            } else {
-                                {
-                                    if (canSend) {
-                                        dictation.cancel()
-                                        val submittedText = textFieldState.text.toString()
-                                        textFieldState.clearText()
-                                        onSubmit(submittedText)
-                                    }
+                        val showStreamingSend = isStreaming && !isCompacting && canSend
+                        val submitCurrentDraft: (Boolean) -> Unit = { interrupt ->
+                            if (canSend) {
+                                dictation.cancel()
+                                val submittedText = textFieldState.text.toString()
+                                textFieldState.clearText()
+                                if (interrupt) {
+                                    onInterruptAndSubmit(submittedText)
+                                } else {
+                                    onSubmit(submittedText)
                                 }
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = showStreamingSend,
+                            enter = fadeIn(tween(140)) + scaleIn(tween(160), initialScale = 0.78f) + expandHorizontally(tween(160)),
+                            exit = fadeOut(tween(100)) + scaleOut(tween(120), targetScale = 0.78f) + shrinkHorizontally(tween(140)),
+                        ) {
+                            IconButton(
+                                onClick = onStop,
+                                minWidth = ChatInputActionSize,
+                                minHeight = ChatInputActionSize,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(SendButtonVisualSize)
+                                        .clip(CircleShape)
+                                        .background(MiuixTheme.colorScheme.surfaceContainerHigh),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Stop,
+                                        contentDescription = stringResource(R.string.chat_stop),
+                                        modifier = Modifier.size(StopIconSize),
+                                        tint = MiuixTheme.colorScheme.onSurface,
+                                    )
+                                }
+                            }
+                        }
+
+                        val showPrimaryStop = isStreaming && !showStreamingSend
+                        val sendButtonColor by animateColorAsState(
+                            targetValue = when {
+                                showPrimaryStop -> MiuixTheme.colorScheme.onSurface
+                                canSend -> MiuixTheme.colorScheme.primary
+                                else -> MiuixTheme.colorScheme.surfaceContainerHigh
                             },
-                            enabled = isStreaming || canSend,
-                            minWidth = ChatInputActionSize,
-                            minHeight = ChatInputActionSize,
+                            animationSpec = tween(durationMillis = 160),
+                            label = "send_button_color",
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(ChatInputActionSize)
+                                .clip(CircleShape)
+                                .combinedClickable(
+                                    enabled = isStreaming || canSend,
+                                    onClick = {
+                                        if (showPrimaryStop) {
+                                            onStop()
+                                        } else {
+                                            submitCurrentDraft(false)
+                                        }
+                                    },
+                                    onLongClick = if (showStreamingSend) {
+                                        {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            submitCurrentDraft(true)
+                                        }
+                                    } else {
+                                        null
+                                    },
+                                ),
+                            contentAlignment = Alignment.Center,
                         ) {
                             // 保留统一的点击区域，仅让可见圆形与相邻操作图标保持同一尺寸。
-                            val sendButtonColor by animateColorAsState(
-                                targetValue = when {
-                                    isStreaming -> MiuixTheme.colorScheme.onSurface
-                                    canSend -> MiuixTheme.colorScheme.primary
-                                    else -> MiuixTheme.colorScheme.surfaceContainerHigh
-                                },
-                                animationSpec = tween(durationMillis = 160),
-                                label = "send_button_color",
-                            )
                             Box(
                                 modifier = Modifier
                                     .size(SendButtonVisualSize)
@@ -387,7 +466,7 @@ internal fun AgentChatInputBar(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 AnimatedContent(
-                                    targetState = isStreaming,
+                                    targetState = showPrimaryStop,
                                     transitionSpec = {
                                         (fadeIn(tween(130)) + scaleIn(tween(160), initialScale = 0.72f))
                                             .togetherWith(
@@ -396,23 +475,23 @@ internal fun AgentChatInputBar(
                                             )
                                     },
                                     label = "send_stop_icon",
-                                ) { streaming ->
+                                ) { stopIcon ->
                                     Icon(
-                                        imageVector = if (streaming) {
+                                        imageVector = if (stopIcon) {
                                             Icons.Rounded.Stop
                                         } else {
                                             Icons.Rounded.ArrowUpward
                                         },
                                         contentDescription = when {
-                                            streaming -> stringResource(R.string.chat_stop)
+                                            stopIcon -> stringResource(R.string.chat_stop)
                                             isEditingMessage && preserveFollowingMessages -> stringResource(R.string.chat_save_message)
                                             else -> stringResource(R.string.chat_send)
                                         },
                                         modifier = Modifier.size(
-                                            if (streaming) StopIconSize else SendIconSize
+                                            if (stopIcon) StopIconSize else SendIconSize
                                         ),
                                         tint = when {
-                                            streaming -> MiuixTheme.colorScheme.surface
+                                            stopIcon -> MiuixTheme.colorScheme.surface
                                             canSend -> MiuixTheme.colorScheme.onPrimary
                                             else -> MiuixTheme.colorScheme.onSurfaceVariantActions
                                         },

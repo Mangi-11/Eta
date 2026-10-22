@@ -1,5 +1,6 @@
 package io.github.mangi.eta.agent.web
 
+import io.github.mangi.eta.data.model.WebToolBackend
 import java.io.Closeable
 import java.time.Instant
 import java.util.UUID
@@ -12,6 +13,7 @@ import org.json.JSONObject
 internal class AgentWebTools(
     private val transport: WebHttpTransport,
     private val localNetworkAccess: () -> String = { "unknown" },
+    private val runtimeConfig: () -> WebToolsRuntimeConfig = { WebToolsRuntimeConfig() },
     private val now: () -> Instant = Instant::now,
 ) : Closeable {
     private data class Snapshot(
@@ -21,6 +23,8 @@ internal class AgentWebTools(
         val status: Int,
         val charset: String,
         val decodingLossy: Boolean,
+        val provider: String = "builtin_local",
+        val fallbackFrom: String? = null,
     )
 
     private val closed = AtomicBoolean(false)
@@ -47,18 +51,41 @@ internal class AgentWebTools(
 
     private fun search(args: JSONObject): JSONObject {
         val limit = args.optInt("max_results", 5)
-        val url = PublicWebSearch.searchUrl(args.getString("query"), limit)
-        val response = transport.get(url)
-        if (response.status == 202) throw WebRequestException("SEARCH_CHALLENGE", "搜索站点要求人工验证，未取得搜索结果", 202)
-        if (response.status == 429) throw WebRequestException("SEARCH_RATE_LIMITED", "搜索站点限制了请求，请稍后重试", 429)
-        requireSuccess(response)
-        if (response.truncated) throw WebRequestException("SEARCH_RESPONSE_TOO_LARGE", "搜索响应超过大小限制，请缩小查询范围")
-        val decoded = WebResponseDecoder.decode(response)
-        if (decoded.lossy) throw WebRequestException("SEARCH_ENCODING_ERROR", "搜索页面包含无法可靠解码的内容")
-        val page = PublicWebSearch.parse(decoded.text, response.finalUrl, limit, ::ensureActive)
+        val query = args.getString("query")
+        val config = runtimeConfig()
+        val page = when (config.searchBackend) {
+            WebToolBackend.BUILTIN -> searchBuiltIn(query, limit)
+            WebToolBackend.DEEPSEEK -> ConfigurableWebBackends.searchDeepSeek(
+                transport = transport,
+                baseUrl = config.deepSeekBaseUrl,
+                apiKey = config.deepSeekApiKey,
+                query = query,
+                maxResults = limit,
+                ensureActive = ::ensureActive,
+            )
+            WebToolBackend.CUSTOM -> ConfigurableWebBackends.searchCustom(
+                transport = transport,
+                config = config.customSearch,
+                apiKey = config.customSearchApiKey,
+                query = query,
+                maxResults = limit,
+                ensureActive = ::ensureActive,
+            )
+        }
         val results = JSONArray()
-        page.results.forEachIndexed { index, item -> results.put(JSONObject()
-            .put("id", index + 1).put("title", item.title).put("url", item.url).put("snippet", item.snippet)) }
+        page.results.forEachIndexed { index, item ->
+            val entry = JSONObject()
+                .put("id", index + 1)
+                .put("title", item.title)
+                .put("url", item.url)
+                .put("snippet", item.snippet)
+            item.summary?.let { entry.put("summary", it) }
+            item.siteName?.let { entry.put("site_name", it) }
+            item.date?.let { entry.put("date", it) }
+            item.authority?.let { entry.put("authority", it) }
+            item.rerankScore?.let { entry.put("rerank_score", it) }
+            results.put(entry)
+        }
         ensureActive()
         return base("web_search").put("provider", page.provider).put("search_url", page.searchUrl)
             .put("retrieved_at", now().toString()).put("scope", page.scope)
@@ -66,6 +93,18 @@ internal class AgentWebTools(
             .put("limit_reasons", JSONArray(page.limitReasons)).put("skipped_results", page.skippedResults)
             .put("source_role", "untrusted_web_content")
             .put("citation_hint", "引用检索结果时使用其标题和原始 URL；摘要不等于已读取完整网页。")
+    }
+
+    private fun searchBuiltIn(query: String, limit: Int): SearchPage {
+        val url = PublicWebSearch.searchUrl(query, limit)
+        val response = transport.get(url)
+        if (response.status == 202) throw WebRequestException("SEARCH_CHALLENGE", "搜索站点要求人工验证，未取得搜索结果", 202)
+        if (response.status == 429) throw WebRequestException("SEARCH_RATE_LIMITED", "搜索站点限制了请求，请稍后重试", 429)
+        requireSuccess(response)
+        if (response.truncated) throw WebRequestException("SEARCH_RESPONSE_TOO_LARGE", "搜索响应超过大小限制，请缩小查询范围")
+        val decoded = WebResponseDecoder.decode(response)
+        if (decoded.lossy) throw WebRequestException("SEARCH_ENCODING_ERROR", "搜索页面包含无法可靠解码的内容")
+        return PublicWebSearch.parse(decoded.text, response.finalUrl, limit, ::ensureActive)
     }
 
     private fun fetch(args: JSONObject): JSONObject {
@@ -76,15 +115,52 @@ internal class AgentWebTools(
         val id: String
         val snapshot: Snapshot
         if (args.has("url")) {
-            val response = transport.get(args.getString("url"))
-            requireSuccess(response)
-            val decoded = WebResponseDecoder.decode(response)
-            ensureActive()
-            val document = WebPageContent.extract(decoded.text, decoded.contentType, response.finalUrl, response.truncated, ::ensureActive)
-            val retained = if (decoded.lossy) document.copy(
-                truncated = true, truncationReasons = document.truncationReasons + "decoding_lossy",
-            ) else document
-            snapshot = Snapshot(retained, response.requestedUrl, now().toString(), response.status, decoded.charset, decoded.lossy)
+            val rawUrl = args.getString("url")
+            val validatedUrl = WebHttpTransport.validateUrl(rawUrl).toString()
+            val config = runtimeConfig()
+            snapshot = when (config.fetchBackend) {
+                WebToolBackend.BUILTIN -> fetchLocalSnapshot(validatedUrl)
+                WebToolBackend.DEEPSEEK, WebToolBackend.CUSTOM -> {
+                    val remoteProvider = if (config.fetchBackend == WebToolBackend.DEEPSEEK) "deepseek" else "custom"
+                    try {
+                        val remote = if (config.fetchBackend == WebToolBackend.DEEPSEEK) {
+                            ConfigurableWebBackends.fetchDeepSeek(
+                                transport = transport,
+                                baseUrl = config.deepSeekBaseUrl,
+                                apiKey = config.deepSeekApiKey,
+                                targetUrl = validatedUrl,
+                                ensureActive = ::ensureActive,
+                            )
+                        } else {
+                            ConfigurableWebBackends.fetchCustom(
+                                transport = transport,
+                                config = config.customFetch,
+                                apiKey = config.customFetchApiKey,
+                                targetUrl = validatedUrl,
+                                ensureActive = ::ensureActive,
+                            )
+                        }
+                        Snapshot(
+                            document = remote.document,
+                            requestedUrl = validatedUrl,
+                            fetchedAt = now().toString(),
+                            status = remote.status,
+                            charset = remote.charset,
+                            decodingLossy = remote.decodingLossy,
+                            provider = remote.provider,
+                        )
+                    } catch (cancelled: WebRequestException) {
+                        if (cancelled.code in setOf("WEB_CANCELLED", "INVALID_URL", "URL_CREDENTIALS_UNSUPPORTED")) {
+                            throw cancelled
+                        }
+                        ensureActive()
+                        fetchLocalSnapshot(validatedUrl, fallbackFrom = remoteProvider)
+                    } catch (_: Exception) {
+                        ensureActive()
+                        fetchLocalSnapshot(validatedUrl, fallbackFrom = remoteProvider)
+                    }
+                }
+            }
             id = "web_" + UUID.randomUUID().toString()
         } else {
             id = args.getString("document_id")
@@ -124,6 +200,12 @@ internal class AgentWebTools(
         }
         ensureActive()
         return base("fetch_url").put("document_id", id).put("snapshot_scope", "current_run")
+            .apply {
+                if (snapshot.provider != "builtin_local" || snapshot.fallbackFrom != null) {
+                    put("provider", snapshot.provider)
+                }
+                snapshot.fallbackFrom?.let { put("fallback_from", it) }
+            }
             .put("requested_url", snapshot.requestedUrl).put("final_url", document.url)
             .put("retrieved_at", snapshot.fetchedAt).put("http_status", snapshot.status)
             .put("title", document.title ?: JSONObject.NULL).put("title_truncated", document.titleTruncated)
@@ -136,6 +218,27 @@ internal class AgentWebTools(
             .put("links", links).put("links_truncated", document.linksTruncated || links.length() < candidates.size)
             .put("source_role", "untrusted_web_content")
             .put("citation_hint", "引用此网页时使用 title 与 final_url；本工具只获取静态响应，需要 JavaScript、登录或交互时使用 browser_use。")
+    }
+
+    private fun fetchLocalSnapshot(url: String, fallbackFrom: String? = null): Snapshot {
+        val response = transport.get(url)
+        requireSuccess(response)
+        val decoded = WebResponseDecoder.decode(response)
+        ensureActive()
+        val document = WebPageContent.extract(decoded.text, decoded.contentType, response.finalUrl, response.truncated, ::ensureActive)
+        val retained = if (decoded.lossy) document.copy(
+            truncated = true, truncationReasons = document.truncationReasons + "decoding_lossy",
+        ) else document
+        return Snapshot(
+            document = retained,
+            requestedUrl = response.requestedUrl,
+            fetchedAt = now().toString(),
+            status = response.status,
+            charset = decoded.charset,
+            decodingLossy = decoded.lossy,
+            provider = "builtin_local",
+            fallbackFrom = fallbackFrom,
+        )
     }
 
     private fun requireSuccess(response: WebHttpResponse) {

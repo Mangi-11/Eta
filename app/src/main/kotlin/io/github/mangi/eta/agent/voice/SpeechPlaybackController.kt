@@ -102,7 +102,7 @@ internal class SpeechPlaybackController(
             try {
                 var streamed = false
                 val stream = streamSynthesize
-                if (stream != null) {
+                if (stream != null && supportsSpeechSession(config.tts)) {
                     try {
                         ahead.acquire()
                         stream(config, secrets, chunks) { bytes ->
