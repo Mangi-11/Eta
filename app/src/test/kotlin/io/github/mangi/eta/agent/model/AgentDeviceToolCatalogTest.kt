@@ -1,6 +1,7 @@
 package io.github.mangi.eta.agent.model
 
 import org.json.JSONArray
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -49,6 +50,41 @@ class AgentDeviceToolCatalogTest {
         assertFalse("personal_context" in reads)
         assertFalse("search_coloros_notes" in reads)
         assertFalse("search_coloros_memories" in reads)
+    }
+
+    @Test
+    fun setDeviceStateOmitsDisplayAutomationTargets() {
+        val tools = AgentToolCatalog.build(
+            terminalTools = false,
+            browserTools = false,
+            deviceDirectTools = false,
+            deviceSensitiveReadTools = false,
+            deviceSensitiveActionTools = true,
+        )
+        val enum = (0 until tools.length())
+            .map { tools.getJSONObject(it).getJSONObject("function") }
+            .first { it.getString("name") == "set_device_state" }
+            .getJSONObject("parameters")
+            .getJSONObject("properties")
+            .getJSONObject("target")
+            .getJSONArray("enum")
+        val names = (0 until enum.length()).map { enum.getString(it) }.toSet()
+        assertFalse("auto_rotate" in names)
+        assertFalse("auto_brightness" in names)
+        assertEquals(
+            setOf(
+                "wifi",
+                "bluetooth",
+                "mobile_data",
+                "airplane_mode",
+                "location",
+                "nfc",
+                "battery_saver",
+                "dark_mode",
+                "night_light",
+            ),
+            names,
+        )
     }
 
     private fun names(

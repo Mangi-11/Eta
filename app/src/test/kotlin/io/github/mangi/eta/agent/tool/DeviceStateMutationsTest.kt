@@ -93,5 +93,62 @@ class DeviceStateMutationsTest {
         assertFalse(result.getBoolean("changed"))
     }
 
+    @Test
+    fun displayAutomationWritesAreRejectedBeforeAnyCommand() {
+        val commands = mutableListOf<String>()
+        val mutations = DeviceStateMutations(context) {
+            commands += it
+            error("不应执行显示自动化命令")
+        }
+        listOf("auto_rotate", "auto_brightness", "Auto_Rotate", "AUTO_BRIGHTNESS").forEach { target ->
+            listOf(true, false).forEach { enabled ->
+                val result = JSONObject(mutations.setDeviceState(JSONObject().put("target", target).put("enabled", enabled)))
+                assertEquals(result.toString(), "INVALID_ARGUMENT", result.getString("code"))
+            }
+        }
+        assertTrue(commands.isEmpty())
+    }
+
+    @Test
+    fun displayAutomationCommandsStayUnavailableWhileOtherTargetsKeepUserScope() {
+        val userId = DeviceToolContract.appUserId(context)
+        assertTrue(userId >= 0)
+        listOf(true, false).forEach { enabled ->
+            assertNull(SystemStateControls.command("auto_rotate", enabled, userId))
+            assertNull(SystemStateControls.command("auto_brightness", enabled, userId))
+        }
+        assertEquals("cmd location set-location-enabled true --user $userId", SystemStateControls.command("location", true, userId))
+        assertEquals("cmd location set-location-enabled false --user $userId", SystemStateControls.command("location", false, userId))
+        assertEquals("cmd power set-mode 1", SystemStateControls.command("battery_saver", true, userId))
+        assertEquals("cmd power set-mode 0", SystemStateControls.command("battery_saver", false, userId))
+    }
+
+    @Test
+    fun displayAutomationReadsStayExplicitUserGets() {
+        listOf(
+            "auto_rotate" to "accelerometer_rotation",
+            "auto_brightness" to "screen_brightness_mode",
+        ).forEach { (target, key) ->
+            val commands = mutableListOf<String>()
+            val outputs = ArrayDeque(listOf(
+                output("1\n"),
+                output("0\n"),
+                BoundedRootCommandExecutor.Result.failed("ROOT_COMMAND_FAILED"),
+                output("null\n"),
+            ))
+            val controls = SystemStateControls(context) {
+                commands += it
+                outputs.removeFirst()
+            }
+            assertEquals(true, controls.read(target))
+            assertEquals(false, controls.read(target))
+            assertNull(controls.read(target))
+            assertNull(controls.read(target))
+            val userId = DeviceToolContract.appUserId(context)
+            assertEquals(List(4) { "settings --user $userId get system $key" }, commands)
+            assertTrue(commands.none { it.contains("put") || it.contains("--user current") })
+        }
+    }
+
     private fun output(text: String) = BoundedRootCommandExecutor.Result(0, text, "", false, false)
 }
