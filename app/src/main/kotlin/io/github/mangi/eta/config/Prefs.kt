@@ -37,6 +37,10 @@ internal object Prefs {
         const val SCREEN_ON_VOICE_COMMAND = "screen_on_voice_command"
         const val AGENT_CUSTOM_MODEL = "agent_custom_model"
         const val AGENT_REQUIRE_PREFIX = "agent_require_prefix"
+        const val XIAOAI_VOICE_ASR_ONLY = "xiaoai_voice_asr_only"
+        const val XIAOAI_CONTINUITY_MODE = "xiaoai_continuity_mode"
+        const val XIAOAI_CONTINUITY_MINUTES = "xiaoai_continuity_minutes"
+        const val XIAOAI_CONVERSATION_RESET_TOKEN = "xiaoai_conversation_reset_token"
         const val AGENT_TERMINAL_TOOLS = "agent_terminal_tools"
         const val AGENT_BROWSER_TOOLS = "agent_browser_tools"
         const val AGENT_DEVICE_DIRECT_TOOLS = "agent_device_direct_tools"
@@ -57,6 +61,7 @@ internal object Prefs {
             SCREEN_ON_VOICE_COMMAND to false,
             AGENT_CUSTOM_MODEL to true,
             AGENT_REQUIRE_PREFIX to false,
+            XIAOAI_VOICE_ASR_ONLY to false,
             AGENT_TERMINAL_TOOLS to true,
             AGENT_BROWSER_TOOLS to true,
             AGENT_DEVICE_DIRECT_TOOLS to true,
@@ -177,5 +182,39 @@ internal object Prefs {
         }
         if (updateLocal) localEditor.commit()
         if (updateRemote) runCatching { remoteEditor.commit() }
+    }
+}
+
+/** Cross-wake XiaoAI voice history policy; only consumed by XiaoAI ASR-only. */
+internal enum class XiaoAiContinuityMode(val persistedValue: String) {
+    INDEPENDENT("independent"),
+    TIMED("timed"),
+    MANUAL("manual");
+
+    companion object {
+        fun from(value: String?): XiaoAiContinuityMode =
+            entries.firstOrNull { it.persistedValue == value } ?: TIMED
+    }
+}
+
+internal object XiaoAiContinuitySettings {
+    const val DEFAULT_MINUTES = 3
+    val ALLOWED_MINUTES = listOf(1, 3, 5, 10, 15)
+
+    fun parseMinutes(value: String?): Int =
+        value?.toIntOrNull()?.takeIf { it in ALLOWED_MINUTES } ?: DEFAULT_MINUTES
+
+    private val PUNCTUATION = Regex("""[\s，。！？!?、,.]+""")
+    private val NEW_CONVERSATION_COMMANDS = setOf(
+        "开始新对话", "开始一个新对话", "开启新对话",
+        "新建对话", "重新开始对话", "清除当前对话",
+        "忘记刚才的对话", "开始新的对话",
+    )
+
+    fun isNewConversationCommand(query: String): Boolean {
+        val normalized = query.replace(PUNCTUATION, "").trim()
+            .removePrefix("小爱同学")
+            .removePrefix("小爱")
+        return normalized in NEW_CONVERSATION_COMMANDS
     }
 }

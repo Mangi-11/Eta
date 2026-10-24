@@ -1,6 +1,10 @@
 package io.github.mangi.eta.hook.xiaoai
 
+import java.util.ArrayDeque
 import java.util.LinkedHashMap
+import java.util.UUID
+import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.config.XiaoAiContinuityMode
 import java.util.concurrent.atomic.AtomicReference
 
 internal object XiaoAiTakeoverPolicy {
@@ -14,7 +18,8 @@ internal object XiaoAiTakeoverPolicy {
     )
 
     fun isSupportedVersion(versionCode: Long): Boolean =
-        versionCode == XiaoAiHooks.SUPPORTED_VERSION_CODE
+        versionCode == XiaoAiHooks.SUPPORTED_VERSION_CODE ||
+            versionCode == 507013034L // Super XiaoAI 7.13.34.3812; static signatures verified
 
     fun matchesOutboundEvent(fullName: String): Boolean =
         fullName == "Nlp.Request"
@@ -50,6 +55,147 @@ internal object XiaoAiTakeoverPolicy {
         }
         return prompt.takeIf(String::isNotBlank)?.let(::Decision)
     }
+}
+
+/**
+ * Ephemeral multi-turn context for XiaoAI's ASR-only voice path.
+ *
+ * A Xiaomi dialog ID changes between utterances. Keep an independent model
+ * session ID and the exact provider transcript / context-compaction snapshot.
+ * The bridge never persists this cache; it expires after inactivity or process
+ * death. Do not clear it merely because MiSpeechEngine.V() was invoked: Xiaomi
+ * can invoke that between consecutive voice turns.
+ */
+internal class XiaoAiVoiceConversation(
+    private val idleTimeoutMillis: Long = 180_000L,
+    private val maxTurns: Int = 12,
+    private val maxHistoryChars: Int = 128_000,
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val newSessionId: () -> String = { UUID.randomUUID().toString() },
+) {
+    data class Snapshot(
+        val sessionId: String,
+        val history: List<AgentModelClient.ConversationMessage>,
+        val priorTurns: Int,
+        val token: Long,
+    )
+
+    private var sessionId: String? = null
+    private var history: List<AgentModelClient.ConversationMessage> = emptyList()
+    private var completedTurns = 0
+    private var touchedAt = 0L
+    private var nextToken = 0L
+    private var activeToken = 0L
+    private var lastMode: XiaoAiContinuityMode? = null
+    private var lastIdleTimeoutMillis = idleTimeoutMillis
+
+    init {
+        require(idleTimeoutMillis > 0L && maxTurns > 0 && maxHistoryChars > 0)
+    }
+
+    @Synchronized
+    fun snapshot(
+        mode: XiaoAiContinuityMode = XiaoAiContinuityMode.TIMED,
+        timeoutMillis: Long = idleTimeoutMillis,
+    ): Snapshot {
+        require(timeoutMillis > 0L)
+        val now = clock()
+        // Treat a policy change as an explicit session boundary.
+        val policyChanged = lastMode != null &&
+            (lastMode != mode || (mode == XiaoAiContinuityMode.TIMED &&
+                lastIdleTimeoutMillis != timeoutMillis))
+        val idleExpired = mode == XiaoAiContinuityMode.TIMED &&
+            (now < touchedAt || now - touchedAt > timeoutMillis)
+        val turnLimitReached = mode != XiaoAiContinuityMode.MANUAL &&
+            completedTurns >= maxTurns
+        if (sessionId == null || policyChanged || idleExpired ||
+            turnLimitReached || mode == XiaoAiContinuityMode.INDEPENDENT
+        ) {
+            reset(newSessionId())
+        }
+        lastMode = mode
+        lastIdleTimeoutMillis = timeoutMillis
+        touchedAt = now
+        activeToken = ++nextToken
+        return Snapshot(
+            sessionId = requireNotNull(sessionId),
+            history = history.toList(),
+            priorTurns = completedTurns,
+            token = activeToken,
+        )
+    }
+
+    /**
+     * Commit only the most recently started, successfully completed run.
+     * Context snapshots already include a canonical, optionally compacted
+     * history. Otherwise follow AgentContinuationBuilder's history contract:
+     * previous history + current user input + returned incremental transcript.
+     */
+    @Synchronized
+    fun recordSuccess(
+        snapshot: Snapshot,
+        prompt: String,
+        reply: String,
+        transcript: List<AgentModelClient.ConversationMessage>,
+        contextMessages: List<AgentModelClient.ConversationMessage>? = null,
+    ): Boolean {
+        if (snapshot.sessionId != sessionId || snapshot.token != activeToken ||
+            prompt.isBlank() || reply.isBlank()
+        ) return false
+
+        val nextHistory = contextMessages?.takeIf { it.isNotEmpty() }
+            ?: (
+                snapshot.history +
+                    AgentModelClient.ConversationMessage(role = "user", content = prompt) +
+                    transcript.ifEmpty {
+                        listOf(AgentModelClient.ConversationMessage(role = "assistant", content = reply))
+                    }
+                )
+        if (nextHistory.sumOf(::messageSize) > maxHistoryChars) {
+            // Never cut through a tool-call/result pair or a compacted summary.
+            // Start a fresh bounded session rather than submitting broken history.
+            reset(newSessionId())
+            return false
+        }
+        history = nextHistory.toList()
+        completedTurns++
+        touchedAt = clock()
+        activeToken = 0L
+        return true
+    }
+
+    @Synchronized
+    fun abandon(snapshot: Snapshot) {
+        if (snapshot.sessionId == sessionId && snapshot.token == activeToken) {
+            activeToken = 0L
+        }
+    }
+
+    @Synchronized
+    fun clear() {
+        sessionId = null
+        history = emptyList()
+        completedTurns = 0
+        touchedAt = 0L
+        activeToken = 0L
+        lastMode = null
+        lastIdleTimeoutMillis = idleTimeoutMillis
+    }
+
+    private fun reset(nextId: String) {
+        sessionId = nextId
+        history = emptyList()
+        completedTurns = 0
+        // Reset establishes a new session *now*. Leaving this at zero makes
+        // the next snapshot() expire and regenerate the same session again.
+        touchedAt = clock()
+        activeToken = 0L
+    }
+
+    private fun messageSize(message: AgentModelClient.ConversationMessage): Int =
+        message.content.length + message.contentJson.length +
+            message.toolCallId.length + message.toolCallsJson.length +
+            message.reasoningContent.length
 }
 
 internal class XiaoAiRunSlot<T : Any> {

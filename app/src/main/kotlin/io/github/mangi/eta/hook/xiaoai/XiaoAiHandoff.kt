@@ -12,6 +12,7 @@ internal object XiaoAiHandoff {
         runId: String,
         dialogId: String,
         prompt: String,
+        conversationKey: String = dialogId,
     ): AgentRuntimeWire.EntryHandoff =
         AgentRuntimeWire.EntryHandoff(
             id = runId,
@@ -19,7 +20,7 @@ internal object XiaoAiHandoff {
             dismissEntrySurfaceOnForegroundOperation = true,
             payload = AgentExternalArchivePayload(
                 userText = prompt,
-                conversationKey = dialogId,
+                conversationKey = conversationKey,
                 title = archiveTitle(prompt),
                 adapterPayload = JSONObject().put("dialogId", dialogId),
             ).toJson(),

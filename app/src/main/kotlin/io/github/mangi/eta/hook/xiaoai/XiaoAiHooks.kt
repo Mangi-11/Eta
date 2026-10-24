@@ -4,11 +4,14 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.runtime.AgentAppContext
 import io.github.mangi.eta.agent.runtime.AgentRuntimeClient
 import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
 import io.github.mangi.eta.config.Prefs
+import io.github.mangi.eta.config.XiaoAiContinuityMode
+import io.github.mangi.eta.config.XiaoAiContinuitySettings
 import io.github.mangi.eta.core.HookInstallation
 import io.github.mangi.eta.core.HookRegistrar
 import io.github.mangi.eta.core.HookSupport
@@ -26,6 +29,7 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
 
@@ -53,15 +57,24 @@ internal object XiaoAiHooks {
     private const val BRIDGE_QUEUE_CAPACITY = 4
     private const val ACTIVATION_TIMEOUT_SECONDS = 3L
     private const val PENDING_DRAIN_LIMIT = 8
+    private const val VOICE_ASR_PENDING_TTL_MS = 90_000L
+    private const val OUTBOUND_EVENT_TYPES_LOG_LIMIT = 64
+    private val NON_EVENT_NAME_CHARS = Regex("[^A-Za-z0-9._-]")
 
+    // Diagnostic-only, bounded per process; never record prompts, event IDs or image paths.
+    private val observedOutboundEventTypes = linkedSetOf<String>()
     private val queryCache = XiaoAiQueryCache()
     private val turnTracker = XiaoAiTurnTracker()
+    private val voiceConversation = XiaoAiVoiceConversation()
+    private val lastConversationResetToken = AtomicReference<String?>(null)
     private val claimedDialogIds = XiaoAiRecentIds()
     private val activeRun = XiaoAiRunSlot<ActiveRun>()
     private val latestFloatManager = AtomicReference<Any?>()
     private val rendererSlot = XiaoAiRendererSlot<XiaoAiStreamRenderer>()
     private val bridgeThreadId = AtomicInteger()
     private val businessHooksInstalled = AtomicBoolean(false)
+    // Nonzero only after a successful opt-in conversion from duplex to ASR-only.
+    private val voiceAsrPendingSince = AtomicLong(0L)
     private val deferredHookHandles = CopyOnWriteArrayList<HookHandle>()
     private val executor = ThreadPoolExecutor(
         1,
@@ -124,6 +137,7 @@ internal object XiaoAiHooks {
                     module = module,
                     rootLogger = rootLogger,
                     classLoader = classLoader,
+                    versionCode = versionCode,
                 )
             } else {
                 hooks.logger.warnThrottled("xiaoai_unsupported_version") {
@@ -138,12 +152,14 @@ internal object XiaoAiHooks {
         module: XposedModule,
         rootLogger: ModuleLogger,
         classLoader: ClassLoader,
+        versionCode: Long,
     ) {
         if (!businessHooksInstalled.compareAndSet(false, true)) return
         val hooks = HookRegistrar(module, rootLogger, "XiaoAi")
         val installation = hooks.install {
             hookQueryCapture(this, classLoader)
             hookAsrFinalResult(this, classLoader)
+            if (versionCode == 507013034L) hookDuplexAsrOnly(this, classLoader)
             hookFloatManagerCapture(this, classLoader)
             hookAgentActions(this, classLoader)
             hookOutboundRequest(this, classLoader)
@@ -252,30 +268,132 @@ internal object XiaoAiHooks {
             description = "XiaoAi final ASR result",
         ) { chain ->
             val instruction = chain.args.firstOrNull()
-            if (instruction != null) {
-                captureFinalAsr(hooks.logger, instruction)
+            val finalAsr = instruction?.let { captureFinalAsr(hooks.logger, it) }
+            val result = chain.proceed()
+            if (finalAsr != null) {
+                maybeStartVoiceRun(hooks.logger, classLoader, finalAsr.first, finalAsr.second)
             }
-            chain.proceed()
+            result
         }
     }
 
     private fun captureFinalAsr(
         logger: ModuleLogger,
         instruction: Any,
-    ) {
-        if (invokeString(instruction, "getFullName") != ASR_RESULT_FULL_NAME) return
-        val payload = HookSupport.invokeNoArgs(instruction, "getPayload") ?: return
-        if (HookSupport.invokeNoArgs(payload, "isFinal") != true) return
-        val results = HookSupport.invokeNoArgs(payload, "getResults") as? Iterable<*> ?: return
+    ): Pair<String, String>? {
+        if (invokeString(instruction, "getFullName") != ASR_RESULT_FULL_NAME) return null
+        val payload = HookSupport.invokeNoArgs(instruction, "getPayload") ?: return null
+        if (HookSupport.invokeNoArgs(payload, "isFinal") != true) return null
+        val results = HookSupport.invokeNoArgs(payload, "getResults") as? Iterable<*> ?: return null
         val query = results.joinToString(separator = "") { item ->
             item?.let { invokeString(it, "getText") }.orEmpty()
         }.trim()
-        if (query.isBlank()) return
+        if (query.isBlank()) return null
 
         val dialogId = optionalString(HookSupport.invokeNoArgs(instruction, "getDialogId"))
         turnTracker.capture(dialogId = dialogId, query = query)
         logger.debug {
             "捕获超级小爱终态 ASR: dialog=${shortId(dialogId)}, queryChars=${query.length}"
+        }
+        return dialogId to query
+    }
+
+    /**
+     * 7.13.34.3812 has several voice modes selected by P(x0$d):
+     * T0 = ASR + NLP + TTS + duplex
+     * S0 = ASR + NLP + TTS
+     * Q0 = ASR + NLP
+     *
+     * When explicitly enabled, redirect only those ASR+NLP modes through Xiaomi's
+     * own R0 (ASR only with buildDisableTtsAndNlpContext). Preserve all NLP-only,
+     * TTS-only, text, and event-only paths.
+     */
+    private fun hookDuplexAsrOnly(
+        hooks: HookRegistrar,
+        classLoader: ClassLoader,
+    ) {
+        val engineClass = HookSupport.findClassOrNull(classLoader, ENGINE_CLASS)
+        if (engineClass == null) {
+            hooks.missing(
+                id = "xiaoai.voice-asr-only",
+                description = "MiSpeechEngine ASR+NLP to R0",
+                detail = "未找到小爱语音引擎",
+            )
+            return
+        }
+        val requestClass = HookSupport.findDeclaredMethods(engineClass, makeAccessible = true) {
+            it.name == "R0" && it.parameterCount == 1 && it.returnType == Void.TYPE
+        }.singleOrNull()?.parameterTypes?.firstOrNull()
+        val asrMethod = requestClass?.let {
+            HookSupport.findMethod(engineClass, "R0", it)?.takeIf { method ->
+                method.returnType == Void.TYPE
+            }
+        }
+        if (requestClass == null || asrMethod == null) {
+            hooks.missing(
+                id = "xiaoai.voice-asr-only",
+                description = "MiSpeechEngine ASR+NLP to R0",
+                detail = "未找到签名兼容的 ASR-only R0 入口",
+            )
+            return
+        }
+
+        listOf("T0", "S0", "Q0").forEach { name ->
+            val method = HookSupport.findMethod(engineClass, name, requestClass)
+                ?.takeIf { it.returnType == Boolean::class.javaPrimitiveType }
+            if (method == null) {
+                hooks.missing(
+                    id = "xiaoai.voice-asr-only.${name.lowercase()}",
+                    description = "MiSpeechEngine.$name to R0",
+                    detail = "未找到签名兼容的语音请求入口 $name",
+                )
+                return@forEach
+            }
+            hooks.intercept(
+                id = "xiaoai.voice-asr-only.${name.lowercase()}",
+                executable = method,
+                description = "XiaoAi experimental $name ASR-only",
+            ) { chain ->
+                val enabled = Prefs.isEnabled(Prefs.Keys.XIAOAI_VOICE_ASR_ONLY) &&
+                    Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL) &&
+                    !Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX)
+                val receiver = chain.thisObject
+                val options = chain.args.firstOrNull()
+                if (!enabled || receiver == null || options == null) {
+                    chain.proceed()
+                } else {
+                    // Re-arm on each voice request, including follow-up turns.
+                    voiceAsrPendingSince.set(SystemClock.elapsedRealtime().coerceAtLeast(1L))
+                    try {
+                        asrMethod.invoke(receiver, options)
+                        hooks.logger.info("诊断: 语音 $name 已切换到 ASR-only R0")
+                        true
+                    } catch (exception: Exception) {
+                        voiceAsrPendingSince.set(0L)
+                        hooks.logger.warnThrottled("xiaoai_asr_only_redirect_failed_${name.lowercase()}") {
+                            "语音 $name 切换 ASR-only 失败，保持原生行为: type=${exception.safeLogType()}"
+                        }
+                        chain.proceed()
+                    }
+                }
+            }
+        }
+
+        // Read-only diagnostic: a second ASR round may invoke R0 directly without
+        // visiting P/T0/S0/Q0. Detect it before attempting a more invasive fix.
+        hooks.intercept(
+            id = "xiaoai.voice-asr-only.direct",
+            executable = asrMethod,
+            description = "XiaoAi ASR-only R0 observer",
+        ) { chain ->
+            if (Prefs.isEnabled(Prefs.Keys.XIAOAI_VOICE_ASR_ONLY) &&
+                voiceAsrPendingSince.get() == 0L
+            ) {
+                hooks.logger.warnThrottled("xiaoai_asr_only_direct_r0") {
+                    "诊断: R0 直接启动，未发现 Eta 待处理语音轮次"
+                }
+            }
+            chain.proceed()
         }
     }
 
@@ -342,7 +460,9 @@ internal object XiaoAiHooks {
         ) { chain ->
             val event = chain.args.getOrNull(0)
             val claimed = try {
-                event != null && maybeClaimRequest(hooks.logger, classLoader, event)
+                val eventType = event?.let { invokeString(it, "getFullName") }.orEmpty()
+                traceOutboundEvent(hooks.logger, eventType)
+                event != null && maybeClaimRequest(hooks.logger, classLoader, event, eventType)
             } catch (exception: Exception) {
                 hooks.logger.warnThrottled("xiaoai_claim_failed") {
                     "小爱请求认领失败，保持原生行为: type=${exception.safeLogType()}"
@@ -419,20 +539,57 @@ internal object XiaoAiHooks {
             queryCache.clear()
             turnTracker.clear()
             claimedDialogIds.clear()
+            if (Prefs.isEnabled(Prefs.Keys.XIAOAI_VOICE_ASR_ONLY)) {
+                hooks.logger.info(
+                    "诊断: 语音会话 V() 清理: pending=${voiceAsrPendingSince.get() != 0L}, " +
+                        "agentActive=${activeRun.get() != null}"
+                )
+            }
+            if (voiceAsrPendingSince.getAndSet(0L) != 0L) {
+                hooks.logger.info("诊断: ASR-only 会话在终态 ASR 到达前被清理")
+            }
             chain.proceed()
         }
+    }
+
+    /**
+     * Emit the first sighting of each outbound event type (up to a strict per-process cap).
+     * The event's payload, query text and identifiers must never enter these diagnostics.
+     */
+    private fun traceOutboundEvent(logger: ModuleLogger, rawEventType: String) {
+        val eventType = rawEventType.take(96)
+            .replace(NON_EVENT_NAME_CHARS, "_")
+            .ifBlank { "unknown" }
+        val firstSighting = synchronized(observedOutboundEventTypes) {
+            if (observedOutboundEventTypes.size >= OUTBOUND_EVENT_TYPES_LOG_LIMIT) {
+                false
+            } else {
+                observedOutboundEventTypes.add(eventType)
+            }
+        }
+        if (firstSighting) {
+            logger.info("诊断: C0 出站事件 type=$eventType")
+        }
+    }
+
+    private fun skipOutboundRequest(logger: ModuleLogger, reason: String): Boolean {
+        logger.warnThrottled("xiaoai_skip_$reason", windowMs = 15_000L) {
+            "诊断: Nlp.Request 未接管 reason=$reason"
+        }
+        return false
     }
 
     private fun maybeClaimRequest(
         logger: ModuleLogger,
         classLoader: ClassLoader,
         event: Any,
+        fullName: String,
     ): Boolean {
-        val fullName = invokeString(event, "getFullName")
         if (!XiaoAiTakeoverPolicy.matchesOutboundEvent(fullName)) return false
+        logger.debug { "诊断: Nlp.Request 已到达接管入口" }
 
         val dialogId = invokeString(event, "getId").trim()
-        if (dialogId.isBlank()) return false
+        if (dialogId.isBlank()) return skipOutboundRequest(logger, "missing_event_id")
         if (claimedDialogIds.contains(dialogId)) return true
 
         val payload = HookSupport.invokeNoArgs(event, "getPayload")
@@ -456,7 +613,7 @@ internal object XiaoAiHooks {
         if (queryInfo?.documentInput == true ||
             (queryInfo == null && sameTrackedQuery && latestTurn.documentInput)
         ) {
-            return false
+            return skipOutboundRequest(logger, "document_input")
         }
         if (queryInfo == null && sameTrackedQuery && latestTurn.hasImage) {
             logger.warnThrottled("xiaoai_image_query_uncorrelated") {
@@ -488,18 +645,28 @@ internal object XiaoAiHooks {
             return false
         }
         val image = (imageResolution as? XiaoAiImages.Resolution.Success)?.image
+        val customModelEnabled = Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL)
+        val requirePrefix = Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX)
         val decision = XiaoAiTakeoverPolicy.decide(
             query = query,
             hasImage = image != null,
-            customModelEnabled = Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL),
-            requirePrefix = Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX),
-        ) ?: return false
+            customModelEnabled = customModelEnabled,
+            requirePrefix = requirePrefix,
+        ) ?: return skipOutboundRequest(
+            logger,
+            when {
+                !customModelEnabled -> "custom_model_disabled"
+                requirePrefix -> "prefix_missing_or_empty"
+                else -> "empty_prompt"
+            },
+        )
         turnTracker.capture(
             dialogId = dialogId,
             query = query,
             hasImage = image != null,
         )
-        val context = AgentAppContext.resolve() ?: return false
+        val context = AgentAppContext.resolve()
+            ?: return skipOutboundRequest(logger, "agent_context_unavailable")
         val renderer = XiaoAiStreamRenderer(
             context = context,
             logger = logger,
@@ -521,7 +688,7 @@ internal object XiaoAiHooks {
                 executeRun(logger, context, run)
             }
         } catch (_: RejectedExecutionException) {
-            return false
+            return skipOutboundRequest(logger, "bridge_queue_full")
         }
         run.future.set(future)
         rendererSlot.attach(renderer)?.cancel()
@@ -531,6 +698,142 @@ internal object XiaoAiHooks {
         run.activate()
         logger.info("已接管超级小爱请求: images=${if (image == null) 0 else 1}")
         return true
+    }
+
+    /**
+     * The ASR-only request does not emit an Nlp.Request. When its final ASR
+     * arrives, submit the recognized text to the existing Eta runtime.
+     */
+    private fun maybeStartVoiceRun(
+        logger: ModuleLogger,
+        classLoader: ClassLoader,
+        asrDialogId: String,
+        query: String,
+    ) {
+        val startedAt = voiceAsrPendingSince.get()
+        if (startedAt == 0L) {
+            if (Prefs.isEnabled(Prefs.Keys.XIAOAI_VOICE_ASR_ONLY)) {
+                logger.warnThrottled("xiaoai_asr_only_final_without_start") {
+                    "诊断: 收到终态 ASR，但没有待接管语音轮次"
+                }
+            }
+            return
+        }
+        if (SystemClock.elapsedRealtime() - startedAt > VOICE_ASR_PENDING_TTL_MS) {
+            voiceAsrPendingSince.compareAndSet(startedAt, 0L)
+            logger.warnThrottled("xiaoai_asr_only_expired") {
+                "诊断: ASR-only 等待最终识别超时，忽略过期请求"
+            }
+            return
+        }
+        if (!voiceAsrPendingSince.compareAndSet(startedAt, 0L)) return
+        syncConversationResetRequest()
+        if (XiaoAiContinuitySettings.isNewConversationCommand(query)) {
+            startNewVoiceConversation(logger, classLoader, asrDialogId)
+            return
+        }
+        val decision = XiaoAiTakeoverPolicy.decide(
+            query = query,
+            hasImage = false,
+            customModelEnabled = Prefs.isEnabled(Prefs.Keys.AGENT_CUSTOM_MODEL),
+            requirePrefix = Prefs.isEnabled(Prefs.Keys.AGENT_REQUIRE_PREFIX),
+        )
+        if (decision == null) {
+            logger.warn("诊断: ASR-only 已获取文本但配置不再允许 Eta 接管")
+            return
+        }
+        val context = AgentAppContext.resolve()
+        if (context == null) {
+            logger.warn("诊断: ASR-only Eta Context 不可用")
+            return
+        }
+        val dialogId = asrDialogId.ifBlank { currentDialogId(classLoader) }
+            .ifBlank { UUID.randomUUID().toString() }
+        val renderer = XiaoAiStreamRenderer(
+            context = context,
+            logger = logger,
+            classLoader = classLoader,
+            dialogId = dialogId,
+            floatManagerProvider = {
+                latestFloatManager.get() ?: resolveFloatManager(classLoader, context)
+            },
+        )
+        val mode = XiaoAiContinuityMode.from(
+            Prefs.getString(Prefs.Keys.XIAOAI_CONTINUITY_MODE)
+        )
+        val timeoutMinutes = XiaoAiContinuitySettings.parseMinutes(
+            Prefs.getString(Prefs.Keys.XIAOAI_CONTINUITY_MINUTES)
+        )
+        val conversationSnapshot = voiceConversation.snapshot(
+            mode = mode,
+            timeoutMillis = timeoutMinutes * 60_000L,
+        )
+        val run = ActiveRun(
+            runId = UUID.randomUUID().toString(),
+            dialogId = dialogId,
+            prompt = decision.prompt,
+            image = null,
+            renderer = renderer,
+            voiceConversationSnapshot = conversationSnapshot,
+        )
+        logger.debug {
+            "诊断: ASR-only 模型会话已准备: priorTurns=${conversationSnapshot.priorTurns}, " +
+                "historyMessages=${conversationSnapshot.history.size}"
+        }
+        val future = try {
+            executor.submit { executeRun(logger, context, run) }
+        } catch (_: RejectedExecutionException) {
+            voiceConversation.abandon(conversationSnapshot)
+            logger.warn("诊断: ASR-only Agent 队列已满")
+            return
+        }
+        run.future.set(future)
+        rendererSlot.attach(renderer)?.cancel()
+        activeRun.replace(run)?.cancel(logger, classLoader)
+        claimedDialogIds.add(dialogId)
+        run.activate()
+        logger.info("已接管超级小爱 ASR-only 语音请求: images=0")
+    }
+
+    /**
+     * The settings process cannot clear objects held in the injected XiaoAI
+     * process. It writes a unique token to RemotePreferences, observed at the
+     * next ASR-only turn without ever storing dialog text in preferences.
+     */
+    private fun syncConversationResetRequest() {
+        val token = Prefs.getString(Prefs.Keys.XIAOAI_CONVERSATION_RESET_TOKEN)
+        val previous = lastConversationResetToken.getAndSet(token)
+        if (previous != null && previous != token) {
+            voiceConversation.clear()
+        }
+    }
+
+    private fun startNewVoiceConversation(
+        logger: ModuleLogger,
+        classLoader: ClassLoader,
+        asrDialogId: String,
+    ) {
+        voiceConversation.clear()
+        activeRun.get()?.let { previous ->
+            previous.cancel(logger, classLoader)
+            activeRun.clear(previous)
+        }
+        rendererSlot.detach()?.cancel(classLoader)
+        val context = AgentAppContext.resolve() ?: return
+        val dialogId = asrDialogId.ifBlank { currentDialogId(classLoader) }
+            .ifBlank { UUID.randomUUID().toString() }
+        val renderer = XiaoAiStreamRenderer(
+            context = context,
+            logger = logger,
+            classLoader = classLoader,
+            dialogId = dialogId,
+            floatManagerProvider = {
+                latestFloatManager.get() ?: resolveFloatManager(classLoader, context)
+            },
+        )
+        rendererSlot.attach(renderer)?.cancel(classLoader)
+        renderer.complete("已开始新对话。")
+        logger.info("超级小爱语音会话已重置")
     }
 
     private fun shouldOwnLatestTurn(): Boolean {
@@ -560,6 +863,8 @@ internal object XiaoAiHooks {
                     prompt = run.prompt,
                     config = AgentModelClient.loadConfig(),
                     images = listOfNotNull(run.image),
+                    history = run.voiceConversationSnapshot?.history.orEmpty(),
+                    modelSessionId = run.voiceConversationSnapshot?.sessionId.orEmpty(),
                     handoff = run.toHandoff(),
                 ),
                 onEvent = { event ->
@@ -571,6 +876,20 @@ internal object XiaoAiHooks {
             resultRunId = result.runId.ifBlank { run.runId }
             if (activeRun.get() !== run || run.cancelled.get()) return
             if (result.ok) {
+                run.voiceConversationSnapshot?.let { snapshot ->
+                    val recorded = voiceConversation.recordSuccess(
+                        snapshot = snapshot,
+                        prompt = run.prompt,
+                        reply = result.content,
+                        transcript = result.transcript,
+                        contextMessages = result.contextSnapshot?.messages,
+                    )
+                    logger.debug {
+                        "诊断: ASR-only 上下文提交: accepted=$recorded, " +
+                            "transcriptMessages=${result.transcript.size}, " +
+                            "compacted=${result.contextSnapshot != null}"
+                    }
+                }
                 run.renderer.complete(result.content)
             } else {
                 logger.warnThrottled("xiaoai_runtime_failed") {
@@ -586,6 +905,7 @@ internal object XiaoAiHooks {
                 run.renderer.fail()
             }
         } finally {
+            run.voiceConversationSnapshot?.let(voiceConversation::abandon)
             resultRunId?.let { client.ackResult(it) }
             activeRun.clear(run)
         }
@@ -719,6 +1039,7 @@ internal object XiaoAiHooks {
         val prompt: String,
         val image: AgentModelClient.ModelImage?,
         val renderer: XiaoAiStreamRenderer,
+        val voiceConversationSnapshot: XiaoAiVoiceConversation.Snapshot? = null,
         val activation: CountDownLatch = CountDownLatch(1),
         val cancelled: AtomicBoolean = AtomicBoolean(false),
         val client: AtomicReference<AgentRuntimeClient?> = AtomicReference(),
@@ -745,6 +1066,7 @@ internal object XiaoAiHooks {
                 runId = runId,
                 dialogId = dialogId,
                 prompt = prompt,
+                conversationKey = voiceConversationSnapshot?.sessionId ?: dialogId,
             )
     }
 }

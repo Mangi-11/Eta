@@ -63,6 +63,8 @@ import io.github.mangi.eta.agent.accessibility.AccessibilityProtectionClient
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.config.PowerAssistantTarget
 import io.github.mangi.eta.config.Prefs
+import io.github.mangi.eta.config.XiaoAiContinuityMode
+import io.github.mangi.eta.config.XiaoAiContinuitySettings
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.data.update.AppLatestRelease
@@ -89,6 +91,7 @@ import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.UUID
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -121,6 +124,7 @@ private fun SettingsPageContent(
     var hasUsedSystemizer by remember { mutableStateOf(enhancementHistory.hasUsedSystemizer) }
     var showSystemizerDialog by remember { mutableStateOf(false) }
     var installingSystemizer by remember { mutableStateOf(false) }
+    var showClearXiaoAiConversationDialog by remember { mutableStateOf(false) }
 
     // 悬浮窗权限状态：授权后从系统设置返回时（ON_RESUME）刷新。
     var overlayGranted by remember {
@@ -210,6 +214,16 @@ private fun SettingsPageContent(
     // prefs 绑定到 XposedService：service 到达时切换到 RemotePreferences（跨进程提交到
     // LSPosed 数据库）；未就绪时保持 null，UI 禁止修改。
     var prefs by remember { mutableStateOf(Prefs.remotePreferencesForUi(EtaApp.serviceInstance)) }
+    var xiaoAiContinuityMode by remember(prefs) {
+        mutableStateOf(XiaoAiContinuityMode.from(
+            prefs?.getString(Prefs.Keys.XIAOAI_CONTINUITY_MODE, null)
+        ))
+    }
+    var xiaoAiContinuityMinutes by remember(prefs) {
+        mutableStateOf(XiaoAiContinuitySettings.parseMinutes(
+            prefs?.getString(Prefs.Keys.XIAOAI_CONTINUITY_MINUTES, null)
+        ))
+    }
     val agentPrefs = remember { Prefs.localAgentPreferences() }
     var powerAssistantTarget by remember(prefs) {
         mutableStateOf(prefs?.let(Prefs::powerAssistantTarget) ?: enhancementHistory.powerTarget())
@@ -217,10 +231,18 @@ private fun SettingsPageContent(
     DisposableEffect(prefs) {
         val targetPrefs = prefs ?: return@DisposableEffect onDispose {}
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { changedPrefs, key ->
-            if (key == Prefs.Keys.POWER_KEY_ASSISTANT_TARGET ||
-                key == Prefs.Keys.POWER_KEY_TAKEOVER
-            ) {
-                powerAssistantTarget = Prefs.powerAssistantTarget(changedPrefs)
+            when (key) {
+                Prefs.Keys.POWER_KEY_ASSISTANT_TARGET,
+                Prefs.Keys.POWER_KEY_TAKEOVER ->
+                    powerAssistantTarget = Prefs.powerAssistantTarget(changedPrefs)
+                Prefs.Keys.XIAOAI_CONTINUITY_MODE ->
+                    xiaoAiContinuityMode = XiaoAiContinuityMode.from(
+                        changedPrefs.getString(key, null)
+                    )
+                Prefs.Keys.XIAOAI_CONTINUITY_MINUTES ->
+                    xiaoAiContinuityMinutes = XiaoAiContinuitySettings.parseMinutes(
+                        changedPrefs.getString(key, null)
+                    )
             }
         }
         targetPrefs.registerOnSharedPreferenceChangeListener(listener)
@@ -524,6 +546,98 @@ private fun SettingsPageContent(
                             key = Prefs.Keys.AGENT_REQUIRE_PREFIX,
                             icon = Icons.Rounded.FilterAlt,
                             iconTint = EtaPreferenceColors.Blue,
+                        )
+
+                        EtaPreferenceDivider()
+                        SwitchPref(
+                            context = context,
+                            prefs = prefs,
+                            title = stringResource(R.string.xiaoai_voice_asr_only_experimental),
+                            summary = stringResource(R.string.xiaoai_voice_asr_only_experimental_summary),
+                            key = Prefs.Keys.XIAOAI_VOICE_ASR_ONLY,
+                            icon = Icons.Rounded.Mic,
+                            iconTint = EtaPreferenceColors.Orange,
+                        )
+
+                        EtaPreferenceDivider()
+                        val continuationModes = XiaoAiContinuityMode.entries
+                        val modeLabels = listOf(
+                            stringResource(R.string.xiaoai_continuity_independent),
+                            stringResource(R.string.xiaoai_continuity_timed),
+                            stringResource(R.string.xiaoai_continuity_manual),
+                        )
+                        EtaDropdownPreference(
+                            title = stringResource(R.string.xiaoai_continuity_mode_title),
+                            summary = stringResource(R.string.xiaoai_continuity_mode_summary),
+                            items = modeLabels.map { DropdownItem(text = it) },
+                            selectedIndex = continuationModes.indexOf(xiaoAiContinuityMode),
+                            onSelectedIndexChange = { index ->
+                                val selected = continuationModes.getOrNull(index)
+                                    ?: return@EtaDropdownPreference
+                                val remote = prefs ?: return@EtaDropdownPreference
+                                if (putStringSync(remote, Prefs.Keys.XIAOAI_CONTINUITY_MODE,
+                                        selected.persistedValue)) {
+                                    xiaoAiContinuityMode = selected
+                                } else {
+                                    Toast.makeText(context, R.string.settings_write_failed,
+                                        Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            startAction = {
+                                EtaPreferenceIcon(
+                                    icon = Icons.Rounded.SettingsVoice,
+                                    tint = EtaPreferenceColors.Blue,
+                                    enabled = prefs != null,
+                                )
+                            },
+                            enabled = prefs != null,
+                        )
+
+                        if (xiaoAiContinuityMode == XiaoAiContinuityMode.TIMED) {
+                            EtaPreferenceDivider()
+                            val allowedMinutes = XiaoAiContinuitySettings.ALLOWED_MINUTES
+                            EtaDropdownPreference(
+                                title = stringResource(R.string.xiaoai_continuity_timeout_title),
+                                items = allowedMinutes.map {
+                                    DropdownItem(text = stringResource(R.string.xiaoai_continuity_minutes, it))
+                                },
+                                selectedIndex = allowedMinutes.indexOf(xiaoAiContinuityMinutes),
+                                onSelectedIndexChange = { index ->
+                                    val selected = allowedMinutes.getOrNull(index)
+                                        ?: return@EtaDropdownPreference
+                                    val remote = prefs ?: return@EtaDropdownPreference
+                                    if (putStringSync(remote, Prefs.Keys.XIAOAI_CONTINUITY_MINUTES,
+                                            selected.toString())) {
+                                        xiaoAiContinuityMinutes = selected
+                                    } else {
+                                        Toast.makeText(context, R.string.settings_write_failed,
+                                            Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                startAction = {
+                                    EtaPreferenceIcon(
+                                        icon = Icons.Rounded.Mic,
+                                        tint = EtaPreferenceColors.Orange,
+                                        enabled = prefs != null,
+                                    )
+                                },
+                                enabled = prefs != null,
+                            )
+                        }
+
+                        EtaPreferenceDivider()
+                        EtaArrowPreference(
+                            title = stringResource(R.string.xiaoai_new_conversation_title),
+                            summary = stringResource(R.string.xiaoai_new_conversation_summary),
+                            startAction = {
+                                EtaPreferenceIcon(
+                                    icon = Icons.Rounded.FilterAlt,
+                                    tint = EtaPreferenceColors.Blue,
+                                    enabled = prefs != null,
+                                )
+                            },
+                            enabled = prefs != null,
+                            onClick = { showClearXiaoAiConversationDialog = true },
                         )
                     }
                 }
@@ -869,6 +983,36 @@ private fun SettingsPageContent(
                 }
             },
         )
+
+        if (showClearXiaoAiConversationDialog) {
+            EtaWindowDialog(
+                show = true,
+                title = stringResource(R.string.xiaoai_new_conversation_title),
+                summary = stringResource(R.string.xiaoai_new_conversation_confirm),
+                onDismissRequest = { showClearXiaoAiConversationDialog = false },
+            ) {
+                MiuixDialogActions(
+                    confirmText = stringResource(R.string.action_confirm),
+                    onCancel = { showClearXiaoAiConversationDialog = false },
+                    onConfirm = {
+                        showClearXiaoAiConversationDialog = false
+                        val saved = prefs?.let {
+                            putStringSync(
+                                it,
+                                Prefs.Keys.XIAOAI_CONVERSATION_RESET_TOKEN,
+                                UUID.randomUUID().toString(),
+                            )
+                        } == true
+                        Toast.makeText(
+                            context,
+                            if (saved) R.string.xiaoai_new_conversation_scheduled
+                            else R.string.settings_write_failed,
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                )
+            }
+        }
 
         availableUpdate?.let { update ->
             EtaWindowDialog(
