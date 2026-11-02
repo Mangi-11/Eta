@@ -40,61 +40,59 @@ fun MiuixScaffoldPage(
     compactTitle: Boolean = false,
     content: LazyListScope.() -> Unit,
 ) {
-    EtaPreferenceTheme {
-        val scrollBehavior = MiuixScrollBehavior()
-        val backdrop = rememberTopBarBackdrop()
-        val topBarColor = topBarContainerColor(backdrop)
+    val scrollBehavior = MiuixScrollBehavior()
+    val backdrop = rememberTopBarBackdrop()
+    val topBarColor = topBarContainerColor(backdrop)
 
-        Scaffold(
-            modifier = modifier.fillMaxSize(),
-            topBar = {
-                TopBarBackdrop(backdrop) {
-                    // 页面自带主视觉（如角色详情）时用紧凑标题，避免大标题与主视觉重复。
-                    if (compactTitle) {
-                        SmallTopAppBar(
-                            title = title,
-                            color = topBarColor,
-                            navigationIcon = { MiuixBackButton(onClick = onBack) },
-                            actions = actions,
-                            scrollBehavior = scrollBehavior,
-                        )
-                    } else {
-                        AdaptiveTopAppBar(
-                            title = title,
-                            color = topBarColor,
-                            navigationIcon = { MiuixBackButton(onClick = onBack) },
-                            actions = actions,
-                            scrollBehavior = scrollBehavior,
-                        )
-                    }
-                }
-            },
-        ) { innerPadding ->
-            WidePageContent { sidePadding ->
-                // 保留 MiuixTheme 注入的默认越界工厂，让短内容页也能回弹到顶栏采样区。
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .horizontalCutoutPadding()
-                        .captureForTopBar(backdrop)
-                        .scrollEndHaptic()
-                        .overScrollVertical()
-                        .nestedScroll(scrollBehavior.nestedScrollConnection),
-                    contentPadding = PaddingValues(
-                        start = sidePadding,
-                        top = innerPadding.calculateTopPadding(),
-                        end = sidePadding,
-                    ),
-                ) {
-                    content()
-                    item(key = "bottom_spacer") {
-                        MiuixPageBottomSpacer()
-                    }
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        topBar = {
+            TopBarBackdrop(backdrop) {
+                // 页面自带主视觉（如角色详情）时用紧凑标题，避免大标题与主视觉重复。
+                if (compactTitle) {
+                    SmallTopAppBar(
+                        title = title,
+                        color = topBarColor,
+                        navigationIcon = { MiuixBackButton(onClick = onBack) },
+                        actions = actions,
+                        scrollBehavior = scrollBehavior,
+                    )
+                } else {
+                    AdaptiveTopAppBar(
+                        title = title,
+                        color = topBarColor,
+                        navigationIcon = { MiuixBackButton(onClick = onBack) },
+                        actions = actions,
+                        scrollBehavior = scrollBehavior,
+                    )
                 }
             }
-            overlay()
+        },
+    ) { innerPadding ->
+        WidePageContent { sidePadding ->
+            // 保留 MiuixTheme 注入的默认越界工厂，让短内容页也能回弹到顶栏采样区。
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .horizontalCutoutPadding()
+                    .captureForTopBar(backdrop)
+                    .scrollEndHaptic()
+                    .overScrollVertical()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                contentPadding = PaddingValues(
+                    start = sidePadding,
+                    top = innerPadding.calculateTopPadding(),
+                    end = sidePadding,
+                ),
+            ) {
+                content()
+                item(key = "bottom_spacer") {
+                    MiuixPageBottomSpacer()
+                }
+            }
         }
+        overlay()
     }
 }
 
@@ -114,29 +112,27 @@ fun MiuixScaffold(
         sidePadding: Dp,
     ) -> Unit,
 ) {
-    EtaPreferenceTheme {
-        val scrollBehavior = MiuixScrollBehavior()
-        val backdrop = rememberTopBarBackdrop()
-        val topBarColor = topBarContainerColor(backdrop)
+    val scrollBehavior = MiuixScrollBehavior()
+    val backdrop = rememberTopBarBackdrop()
+    val topBarColor = topBarContainerColor(backdrop)
 
-        Scaffold(
-            modifier = modifier.fillMaxSize(),
-            topBar = {
-                TopBarBackdrop(backdrop) {
-                    AdaptiveTopAppBar(
-                        title = title,
-                        color = topBarColor,
-                        navigationIcon = { MiuixBackButton(onClick = onBack) },
-                        actions = actions,
-                        scrollBehavior = scrollBehavior,
-                    )
-                }
-            },
-        ) { paddingValues ->
-            Box(modifier = Modifier.fillMaxSize().captureForTopBar(backdrop)) {
-                WidePageContent { sidePadding ->
-                    content(paddingValues, scrollBehavior, sidePadding)
-                }
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        topBar = {
+            TopBarBackdrop(backdrop) {
+                AdaptiveTopAppBar(
+                    title = title,
+                    color = topBarColor,
+                    navigationIcon = { MiuixBackButton(onClick = onBack) },
+                    actions = actions,
+                    scrollBehavior = scrollBehavior,
+                )
+            }
+        },
+    ) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize().captureForTopBar(backdrop)) {
+            WidePageContent { sidePadding ->
+                content(paddingValues, scrollBehavior, sidePadding)
             }
         }
     }

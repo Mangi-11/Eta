@@ -45,12 +45,12 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.agent.roleplay.CharacterMacros
 import io.github.mangi.eta.agent.roleplay.CharacterProfile
 import io.github.mangi.eta.ui.components.CharacterAvatar
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.rememberCharacterImage
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.squircle.squircleSurface
@@ -212,7 +212,7 @@ internal fun CharacterHero(
                 )
             }
             Spacer(Modifier.height(20.dp))
-            EtaTextButton(
+            TextButton(
                 text = "开始对话",
                 enabled = !busy,
                 onClick = onStart,

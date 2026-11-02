@@ -25,8 +25,6 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AsrProvider
 import io.github.mangi.eta.data.model.TtsProvider
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
@@ -35,6 +33,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -59,14 +58,14 @@ internal fun TtsProvider.label(): String = stringResource(
     },
 )
 
-/** 卡片下方的辅助说明，与分组标题使用同一套留白。 */
+/** 卡片下方的辅助说明，与 SmallTitle 使用同一水平起点（28.dp）。 */
 @Composable
 internal fun SpeechNote(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         style = MiuixTheme.textStyles.footnote2,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        modifier = modifier.padding(horizontal = 32.dp, vertical = 8.dp),
+        modifier = modifier.padding(horizontal = 28.dp).padding(bottom = 12.dp),
     )
 }
 
@@ -131,17 +130,17 @@ internal fun SpeechField(
     )
 }
 
-/** 页面底部的保存主按钮与结果反馈，对齐 Provider 配置页的操作分层。 */
+/** 页面底部的保存主按钮与结果反馈，对齐 Miuix 标准 12.dp 水平边距。 */
 @Composable
 internal fun SpeechSaveBlock(store: SpeechSettingsStore, validate: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = EtaPreferenceDefaults.SidePadding)
-            .padding(top = 12.dp),
+            .padding(horizontal = 12.dp)
+            .padding(top = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        EtaTextButton(
+        TextButton(
             text = stringResource(if (store.saving) R.string.speech_saving else R.string.speech_save),
             enabled = store.loaded && !store.saving,
             modifier = Modifier.fillMaxWidth(),

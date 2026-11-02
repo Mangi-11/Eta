@@ -3,11 +3,10 @@ package io.github.mangi.eta.ui.screens.terminal
 import android.content.Context
 import android.text.format.Formatter
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -18,6 +17,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.AlpineEnvironmentInstaller
 import io.github.mangi.eta.agent.terminal.AlpineEnvironmentState
@@ -53,21 +53,16 @@ import io.github.mangi.eta.ui.app.launchForegroundExecution
 import io.github.mangi.eta.ui.app.message
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.app.rememberExecutionNotificationRequest
-import io.github.mangi.eta.ui.components.EtaArrowPreference
-import io.github.mangi.eta.ui.components.EtaCard
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 
 private enum class InstallTarget {
     BASE,
@@ -343,7 +338,7 @@ internal fun LinuxEnvironmentScreen(
                 },
             )
         }
-        item(key = "configuration-title") { EtaPreferenceGroupTitle(stringResource(R.string.linux_environment_configuration)) }
+        item(key = "configuration-title") { SmallTitle(stringResource(R.string.linux_environment_configuration)) }
         item(key = "configuration-card") {
             LinuxEnvironmentConfiguration(
                 distribution = selectedDistribution,
@@ -368,28 +363,27 @@ internal fun LinuxEnvironmentScreen(
                 },
             )
         }
-        item(key = "files-title") { EtaPreferenceGroupTitle(stringResource(R.string.linux_environment_files)) }
+        item(key = "files-title") { SmallTitle(stringResource(R.string.linux_environment_files)) }
         item(key = "files-card") {
-            EtaPreferenceGroup {
-                EtaArrowPreference(
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                ArrowPreference(
                     title = stringResource(R.string.capability_workspace),
                     summary = stringResource(R.string.capability_workspace_summary),
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.Folder, tint = EtaPreferenceColors.Orange) },
                     onClick = { onNavigate(AppRoute.Workspace) },
                 )
                 if (selectedBaseReady) {
-                    EtaPreferenceDivider(hasLeading = true)
-                    EtaArrowPreference(
+                    ArrowPreference(
                         title = stringResource(R.string.shared_folders_entry_title),
                         summary = stringResource(R.string.linux_environment_shared_folders_summary),
-                        startAction = { EtaPreferenceIcon(Icons.Rounded.FolderOpen, tint = EtaPreferenceColors.Orange) },
                         onClick = { onNavigate(AppRoute.SharedFolders) },
                     )
-                    EtaPreferenceDivider(hasLeading = true)
-                    EtaArrowPreference(
+                    ArrowPreference(
                         title = stringResource(R.string.linux_files_entry_title),
                         summary = stringResource(R.string.linux_files_entry_summary),
-                        startAction = { EtaPreferenceIcon(Icons.Rounded.Description, tint = EtaPreferenceColors.Blue) },
                         onClick = { onNavigate(AppRoute.LinuxFiles(selectedDistribution.wireName)) },
                     )
                 }
@@ -398,16 +392,16 @@ internal fun LinuxEnvironmentScreen(
 
         if (selectedToolsReady) {
             item(key = "optional-tools-title") {
-                EtaPreferenceGroupTitle(stringResource(R.string.ui_optional_tools_3097d6), modifier = Modifier.animateItem())
+                SmallTitle(stringResource(R.string.ui_optional_tools_3097d6), modifier = Modifier.animateItem())
             }
             item(key = "optional-tools-card") {
-                EtaPreferenceGroup(
+                Card(
                     modifier = Modifier
                         .animateItem()
-                        .padding(horizontal = EtaPreferenceDefaults.SidePadding)
-                        .padding(bottom = EtaPreferenceDefaults.GroupSpacing),
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
                 ) {
-                    packageProfileUis.forEachIndexed { index, profileUi ->
+                    packageProfileUis.forEach { profileUi ->
                         val ready = profileReady[profileUi.target] == true
                         val isKimi = profileUi.target == InstallTarget.KIMI
                         val summaryRes = if (selectedDistribution == LinuxDistribution.DEBIAN) {
@@ -420,8 +414,7 @@ internal fun LinuxEnvironmentScreen(
                         } else {
                             profileUi.readyRes
                         }
-                        if (index > 0) EtaPreferenceDivider(hasLeading = false)
-                        EtaPreference(
+                        BasicComponent(
                             title = stringResource(profileUi.titleRes),
                             summary = if (busyTarget == profileUi.target) {
                                 profileProgressSummary ?: stringResource(summaryRes)
@@ -432,9 +425,12 @@ internal fun LinuxEnvironmentScreen(
                             },
                             endActions = {
                                 if (isKimi && kimiWebRunning) {
-                                    EtaTextButton(
+                                    TextButton(
                                         text = stringResource(R.string.action_stop),
                                         enabled = !kimiWebLaunching && !requiresRoot,
+                                        minWidth = 0.dp,
+                                        minHeight = 32.dp,
+                                        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                         onClick = {
                                             coroutineScope.launch {
                                                 val stopped = kimiWebLauncher.stop(selectedDistribution.terminalEnvironment)
@@ -442,8 +438,9 @@ internal fun LinuxEnvironmentScreen(
                                             }
                                         },
                                     )
+                                    Spacer(Modifier.width(8.dp))
                                 }
-                                EtaTextButton(
+                                TextButton(
                                     text = when {
                                         isKimi && ready -> stringResource(
                                             if (kimiWebLaunching) {
@@ -463,12 +460,15 @@ internal fun LinuxEnvironmentScreen(
                                     } else {
                                         busyTarget == null && !ready
                                     },
+                                    minWidth = 0.dp,
+                                    minHeight = 32.dp,
+                                    insideMargin = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                     onClick = {
                                         if (isKimi && ready) {
                                             launchKimiWeb()
-                                            return@EtaTextButton
+                                            return@TextButton
                                         }
-                                        if (busyTarget != null || ready) return@EtaTextButton
+                                        if (busyTarget != null || ready) return@TextButton
                                         busyTarget = profileUi.target
                                         resultMessage = null
                                         val profileTitle = context.getString(profileUi.titleRes)
@@ -490,8 +490,7 @@ internal fun LinuxEnvironmentScreen(
                             },
                         )
                     }
-                    EtaPreferenceDivider(hasLeading = false)
-                    EtaPreference(
+                    BasicComponent(
                         title = stringResource(R.string.ui_apk_analysis_95ad17),
                         summary = apkAnalysisProgress?.summary(context) ?: if (apkAnalysisReady) {
                             context.getString(R.string.linux_apk_tools_ready)
@@ -499,15 +498,18 @@ internal fun LinuxEnvironmentScreen(
                             context.getString(R.string.linux_apk_tools_summary)
                         },
                         endActions = {
-                            EtaTextButton(
+                            TextButton(
                                 text = when {
                                     apkAnalysisReady -> context.getString(R.string.linux_installed)
                                     busyTarget == InstallTarget.APK_ANALYSIS -> context.getString(R.string.linux_installing)
                                     else -> context.getString(R.string.linux_install)
                                 },
                                 enabled = busyTarget == null && !requiresRoot && !apkAnalysisReady,
+                                minWidth = 0.dp,
+                                minHeight = 32.dp,
+                                insideMargin = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                 onClick = {
-                                    if (busyTarget != null || apkAnalysisReady) return@EtaTextButton
+                                    if (busyTarget != null || apkAnalysisReady) return@TextButton
                                     busyTarget = InstallTarget.APK_ANALYSIS
                                     resultMessage = null
                                     launchInstallation {

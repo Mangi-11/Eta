@@ -1,16 +1,7 @@
 package io.github.mangi.eta.ui.screens.enhance
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ManageSearch
-import androidx.compose.material.icons.rounded.AccountTree
-import androidx.compose.material.icons.rounded.AdminPanelSettings
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Terminal
-import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -19,17 +10,12 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.app.description
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
-import io.github.mangi.eta.ui.components.EtaCard
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.model.AgentSystemEnhanceAction
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.TextButton
 
 @Composable
 fun SystemEnhanceScreen(
@@ -45,18 +31,24 @@ fun SystemEnhanceScreen(
         modifier = modifier,
     ) {
         item(key = "access") {
-            EtaPreferenceGroup(modifier = Modifier.padding(horizontal = EtaPreferenceDefaults.SidePadding).padding(top = 8.dp, bottom = EtaPreferenceDefaults.GroupSpacing)) {
-                EtaPreference(
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(top = 8.dp, bottom = 12.dp),
+            ) {
+                BasicComponent(
                     title = "Root",
                     summary = capabilities.root.description(context),
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.Key, tint = EtaPreferenceColors.Yellow) },
                     endActions = {
-                        EtaTextButton(
+                        TextButton(
                             text = stringResource(
                                 if (canRequestRoot) R.string.capability_root_request
                                 else R.string.capability_root_refresh,
                             ),
                             enabled = !capabilities.root.isChecking,
+                            minWidth = 0.dp,
+                            minHeight = 32.dp,
+                            insideMargin = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                             onClick = {
                                 onAction(
                                     if (canRequestRoot) AgentSystemEnhanceAction.RequestRoot
@@ -66,67 +58,66 @@ fun SystemEnhanceScreen(
                         )
                     },
                 )
-                EtaPreferenceDivider(hasLeading = true)
-                EtaPreference(
+                BasicComponent(
                     title = stringResource(R.string.capability_xposed_service),
                     summary = stringResource(
                         if (capabilities.xposedConnected) R.string.capability_xposed_connected
                         else R.string.capability_xposed_disconnected,
                     ),
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.AccountTree, tint = EtaPreferenceColors.Blue) },
                 )
             }
         }
         item(key = "framework-help") {
-            EtaPreferenceGroup {
-                EtaPreference(
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                BasicComponent(
                     title = stringResource(R.string.capability_xposed_help),
                     summary = stringResource(R.string.capability_xposed_help_summary),
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.Info, tint = EtaPreferenceColors.Blue) },
                 )
             }
         }
-        item(key = "root-title") { EtaPreferenceGroupTitle(stringResource(R.string.capability_root_features)) }
         item(key = "root-features") {
-            EtaPreferenceGroup {
-                EtaPreference(
+            SmallTitle(stringResource(R.string.capability_root_features))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                BasicComponent(
                     title = stringResource(R.string.capability_root_device),
                     summary = stringResource(R.string.capability_root_device_summary),
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.AdminPanelSettings, tint = EtaPreferenceColors.Blue) },
                 )
-                EtaPreferenceDivider(hasLeading = true)
-                EtaPreference(
+                BasicComponent(
                     title = stringResource(R.string.capability_root_data),
                     summary = stringResource(R.string.capability_root_data_summary),
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.Lock, tint = EtaPreferenceColors.Blue) },
                 )
-                EtaPreferenceDivider(hasLeading = true)
-                EtaPreference(
+                BasicComponent(
                     title = stringResource(R.string.capability_root_linux),
                     summary = stringResource(R.string.capability_root_linux_summary),
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.Terminal, tint = EtaPreferenceColors.Green) },
                 )
             }
         }
-        item(key = "hook-title") { EtaPreferenceGroupTitle(stringResource(R.string.capability_system_features)) }
         item(key = "hook-features") {
-            EtaPreferenceGroup {
-                EtaPreference(
+            SmallTitle(stringResource(R.string.capability_system_features))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                BasicComponent(
                     title = stringResource(R.string.capability_hook_assistants),
                     summary = stringResource(R.string.capability_hook_assistants_summary),
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.AutoAwesome, tint = EtaPreferenceColors.Green) },
                 )
-                EtaPreferenceDivider(hasLeading = true)
-                EtaPreference(
+                BasicComponent(
                     title = stringResource(R.string.capability_hook_google),
                     summary = stringResource(R.string.capability_hook_google_summary),
-                    startAction = { EtaPreferenceIcon(Icons.AutoMirrored.Rounded.ManageSearch, tint = EtaPreferenceColors.Blue) },
                 )
-                EtaPreferenceDivider(hasLeading = true)
-                EtaPreference(
+                BasicComponent(
                     title = stringResource(R.string.capability_hook_accessibility),
                     summary = stringResource(R.string.capability_hook_accessibility_summary),
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.VerifiedUser, tint = EtaPreferenceColors.Blue) },
                 )
             }
         }

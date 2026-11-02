@@ -52,27 +52,22 @@ import io.github.mangi.eta.agent.terminal.TerminalEnvironment
 import io.github.mangi.eta.agent.terminal.TerminalRuntime
 import io.github.mangi.eta.agent.terminal.runOneShotShell
 import io.github.mangi.eta.agent.terminal.shellQuote
-import io.github.mangi.eta.ui.components.EtaCard
 import io.github.mangi.eta.ui.components.EtaMonospace
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
-import io.github.mangi.eta.ui.components.EtaWindowDialog
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
  * 共享文件夹管理：把 Android 目录配置为 Linux 环境 /workspace/mounts/ 下的挂载点。
@@ -125,17 +120,20 @@ internal fun SharedFoldersScreen(
         onBack = onBack,
     ) {
         item(key = "mounts-card") {
-            EtaPreferenceGroup {
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(top = 8.dp, bottom = 12.dp),
+            ) {
                 if (mounts.isEmpty()) {
-                    EtaPreference(
+                    BasicComponent(
                         title = stringResource(R.string.shared_folders_empty),
                         summary = stringResource(R.string.shared_folders_entry_summary),
                     )
                 }
-                mounts.forEachIndexed { index, mount ->
+                mounts.forEach { mount ->
                     val missing = sourceExists[mount.sourcePath] == false
-                    if (index > 0) EtaPreferenceDivider(hasLeading = false)
-                    EtaPreference(
+                    BasicComponent(
                         title = mount.name,
                         summary = buildString {
                             append(mount.sourcePath)
@@ -166,12 +164,16 @@ internal fun SharedFoldersScreen(
                         },
                     )
                 }
-                EtaPreferenceDivider(hasLeading = false)
-                EtaPreference(
+                BasicComponent(
                     title = stringResource(R.string.shared_folders_add),
                     titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.primary),
                     startAction = {
-                        EtaPreferenceIcon(Icons.Rounded.Add, tint = MiuixTheme.colorScheme.primary)
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
                     },
                     onClick = {
                         if (TerminalRuntime.rootAvailable || Environment.isExternalStorageManager()) {
@@ -193,8 +195,13 @@ internal fun SharedFoldersScreen(
         // 失败提示紧贴列表出现，比页脚说明更靠前，进出带动画避免列表跳动。
         notice?.let { message ->
             item(key = "notice-card") {
-                EtaPreferenceGroup(modifier = Modifier.animateItem().padding(horizontal = EtaPreferenceDefaults.SidePadding).padding(bottom = EtaPreferenceDefaults.GroupSpacing)) {
-                    EtaPreference(
+                Card(
+                    modifier = Modifier
+                        .animateItem()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    BasicComponent(
                         title = message,
                         titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
                         endActions = {
@@ -216,7 +223,7 @@ internal fun SharedFoldersScreen(
                 text = stringResource(R.string.shared_folders_footer),
                 style = MiuixTheme.textStyles.footnote1,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.animateItem().padding(horizontal = 32.dp),
+                modifier = Modifier.animateItem().padding(horizontal = 28.dp),
             )
         }
     }
@@ -242,7 +249,7 @@ internal fun SharedFoldersScreen(
     }
 
     removeTarget?.let { target ->
-        EtaWindowDialog(
+        WindowDialog(
             show = true,
             title = stringResource(R.string.shared_folders_remove_title),
             summary = stringResource(R.string.shared_folders_remove_message, target.name, target.sourcePath),
@@ -354,7 +361,7 @@ private fun SharedFolderPickerDialog(
         }
     }
 
-    EtaWindowDialog(
+    WindowDialog(
         show = true,
         title = stringResource(R.string.shared_folders_picker_title),
         onDismissRequest = onDismiss,
@@ -499,7 +506,7 @@ private fun PickerRow(label: String, onClick: () -> Unit) {
             imageVector = Icons.Rounded.Folder,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-            tint = EtaPreferenceColors.Orange,
+            tint = MiuixTheme.colorScheme.primary,
         )
         Text(
             text = label,

@@ -33,23 +33,21 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.WebHttpMethod
 import io.github.mangi.eta.data.model.WebToolBackend
-import io.github.mangi.eta.ui.components.EtaOverlayDropdownPreference
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -72,15 +70,17 @@ internal fun WebToolsSettingsScreen(onBack: () -> Unit) {
             item(key = "loading") { WebToolsLoadingState(store.message) }
             return@MiuixScaffoldPage
         }
-        item(key = "service_title") {
-            EtaPreferenceGroupTitle(stringResource(R.string.web_tools_group_service))
-        }
         item(key = "service") {
             val searchBackendLabels = WebToolBackend.entries.map { it.searchLabel() }
             val fetchBackendLabels = WebToolBackend.entries.map { it.fetchLabel() }
             Column {
-                EtaPreferenceGroup {
-                    EtaOverlayDropdownPreference(
+                SmallTitle(stringResource(R.string.web_tools_group_service))
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    OverlayDropdownPreference(
                         title = stringResource(R.string.web_tools_search_service),
                         items = searchBackendLabels,
                         selectedIndex = settings.searchBackend.ordinal,
@@ -90,8 +90,7 @@ internal fun WebToolsSettingsScreen(onBack: () -> Unit) {
                             }
                         },
                     )
-                    EtaPreferenceDivider(hasLeading = false)
-                    EtaOverlayDropdownPreference(
+                    OverlayDropdownPreference(
                         title = stringResource(R.string.web_tools_fetch_service),
                         items = fetchBackendLabels,
                         selectedIndex = settings.fetchBackend.ordinal,
@@ -140,8 +139,12 @@ private fun DeepSeekWebSection(store: WebToolsSettingsStore) {
     val linked = store.hasProviderDeepSeekKey && credentials.deepSeekApiKey.isBlank()
 
     Column {
-        EtaPreferenceGroupTitle(stringResource(R.string.web_tools_backend_deepseek))
-        EtaPreferenceGroup {
+        SmallTitle(stringResource(R.string.web_tools_backend_deepseek))
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp),
+        ) {
             WebToolsFieldColumn {
                 WebToolsField(
                     label = if (store.hasProviderDeepSeekKey) {
@@ -154,8 +157,7 @@ private fun DeepSeekWebSection(store: WebToolsSettingsStore) {
                     onChange = { store.editCredentials(credentials.copy(deepSeekApiKey = it.trim())) },
                 )
             }
-            EtaPreferenceDivider(hasLeading = false)
-            EtaPreference(
+            BasicComponent(
                 title = stringResource(R.string.speech_advanced),
                 endActions = {
                     Icon(
@@ -170,17 +172,14 @@ private fun DeepSeekWebSection(store: WebToolsSettingsStore) {
                 onClick = { advanced = !advanced },
             )
             AnimatedVisibility(visible = advanced) {
-                Column {
-                    EtaPreferenceDivider(hasLeading = false)
-                    WebToolsFieldColumn {
-                        WebToolsField(
-                            label = "Base URL",
-                            value = settings.deepSeek.baseUrl,
-                            onChange = {
-                                store.edit(settings.copy(deepSeek = settings.deepSeek.copy(baseUrl = it.trim())))
-                            },
-                        )
-                    }
+                WebToolsFieldColumn {
+                    WebToolsField(
+                        label = "Base URL",
+                        value = settings.deepSeek.baseUrl,
+                        onChange = {
+                            store.edit(settings.copy(deepSeek = settings.deepSeek.copy(baseUrl = it.trim())))
+                        },
+                    )
                 }
             }
         }
@@ -202,9 +201,13 @@ private fun CustomSearchSection(store: WebToolsSettingsStore) {
     val chevronRotation by animateFloatAsState(if (advanced) 180f else 0f)
 
     Column {
-        EtaPreferenceGroupTitle(stringResource(R.string.web_tools_group_custom_search))
-        EtaPreferenceGroup {
-            EtaOverlayDropdownPreference(
+        SmallTitle(stringResource(R.string.web_tools_group_custom_search))
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp),
+        ) {
+            OverlayDropdownPreference(
                 title = stringResource(R.string.web_tools_http_method),
                 items = WebHttpMethod.entries.map { it.name },
                 selectedIndex = config.method.ordinal,
@@ -214,7 +217,6 @@ private fun CustomSearchSection(store: WebToolsSettingsStore) {
                     }
                 },
             )
-            EtaPreferenceDivider(hasLeading = false)
             WebToolsFieldColumn {
                 WebToolsField(
                     label = stringResource(R.string.web_tools_endpoint_url),
@@ -228,8 +230,7 @@ private fun CustomSearchSection(store: WebToolsSettingsStore) {
                     onChange = { store.editCredentials(credentials.copy(customSearchApiKey = it.trim())) },
                 )
             }
-            EtaPreferenceDivider(hasLeading = false)
-            EtaPreference(
+            BasicComponent(
                 title = stringResource(R.string.web_tools_mapping_and_template),
                 endActions = {
                     Icon(
@@ -244,56 +245,53 @@ private fun CustomSearchSection(store: WebToolsSettingsStore) {
                 onClick = { advanced = !advanced },
             )
             AnimatedVisibility(visible = advanced) {
-                Column {
-                    EtaPreferenceDivider(hasLeading = false)
-                    WebToolsFieldColumn {
-                        if (config.method == WebHttpMethod.POST) {
-                            WebToolsField(
-                                label = stringResource(R.string.web_tools_body_template),
-                                value = config.bodyTemplate,
-                                singleLine = false,
-                                onChange = {
-                                    store.edit(settings.copy(customSearch = config.copy(bodyTemplate = it)))
-                                },
-                            )
-                        }
+                WebToolsFieldColumn {
+                    if (config.method == WebHttpMethod.POST) {
                         WebToolsField(
-                            label = stringResource(R.string.web_tools_results_path),
-                            value = config.resultsPath,
-                            onChange = {
-                                store.edit(settings.copy(customSearch = config.copy(resultsPath = it.trim())))
-                            },
-                        )
-                        WebToolsField(
-                            label = stringResource(R.string.web_tools_title_field),
-                            value = config.titleField,
-                            onChange = {
-                                store.edit(settings.copy(customSearch = config.copy(titleField = it.trim())))
-                            },
-                        )
-                        WebToolsField(
-                            label = stringResource(R.string.web_tools_url_field),
-                            value = config.urlField,
-                            onChange = {
-                                store.edit(settings.copy(customSearch = config.copy(urlField = it.trim())))
-                            },
-                        )
-                        WebToolsField(
-                            label = stringResource(R.string.web_tools_snippet_field),
-                            value = config.snippetField,
-                            onChange = {
-                                store.edit(settings.copy(customSearch = config.copy(snippetField = it.trim())))
-                            },
-                        )
-                        WebToolsField(
-                            label = stringResource(R.string.web_tools_custom_headers),
-                            value = config.headersText,
+                            label = stringResource(R.string.web_tools_body_template),
+                            value = config.bodyTemplate,
                             singleLine = false,
                             onChange = {
-                                store.edit(settings.copy(customSearch = config.copy(headersText = it)))
+                                store.edit(settings.copy(customSearch = config.copy(bodyTemplate = it)))
                             },
                         )
                     }
+                    WebToolsField(
+                        label = stringResource(R.string.web_tools_results_path),
+                        value = config.resultsPath,
+                        onChange = {
+                            store.edit(settings.copy(customSearch = config.copy(resultsPath = it.trim())))
+                        },
+                    )
+                    WebToolsField(
+                        label = stringResource(R.string.web_tools_title_field),
+                        value = config.titleField,
+                        onChange = {
+                            store.edit(settings.copy(customSearch = config.copy(titleField = it.trim())))
+                        },
+                    )
+                    WebToolsField(
+                        label = stringResource(R.string.web_tools_url_field),
+                        value = config.urlField,
+                        onChange = {
+                            store.edit(settings.copy(customSearch = config.copy(urlField = it.trim())))
+                        },
+                    )
+                    WebToolsField(
+                        label = stringResource(R.string.web_tools_snippet_field),
+                        value = config.snippetField,
+                        onChange = {
+                            store.edit(settings.copy(customSearch = config.copy(snippetField = it.trim())))
+                        },
+                    )
+                    WebToolsField(
+                        label = stringResource(R.string.web_tools_custom_headers),
+                        value = config.headersText,
+                        singleLine = false,
+                        onChange = {
+                            store.edit(settings.copy(customSearch = config.copy(headersText = it)))
+                        },
+                    )
                 }
             }
         }
@@ -310,9 +308,13 @@ private fun CustomFetchSection(store: WebToolsSettingsStore) {
     val chevronRotation by animateFloatAsState(if (advanced) 180f else 0f)
 
     Column {
-        EtaPreferenceGroupTitle(stringResource(R.string.web_tools_group_custom_fetch))
-        EtaPreferenceGroup {
-            EtaOverlayDropdownPreference(
+        SmallTitle(stringResource(R.string.web_tools_group_custom_fetch))
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp),
+        ) {
+            OverlayDropdownPreference(
                 title = stringResource(R.string.web_tools_http_method),
                 items = WebHttpMethod.entries.map { it.name },
                 selectedIndex = config.method.ordinal,
@@ -322,7 +324,6 @@ private fun CustomFetchSection(store: WebToolsSettingsStore) {
                     }
                 },
             )
-            EtaPreferenceDivider(hasLeading = false)
             WebToolsFieldColumn {
                 WebToolsField(
                     label = stringResource(R.string.web_tools_endpoint_url),
@@ -336,8 +337,7 @@ private fun CustomFetchSection(store: WebToolsSettingsStore) {
                     onChange = { store.editCredentials(credentials.copy(customFetchApiKey = it.trim())) },
                 )
             }
-            EtaPreferenceDivider(hasLeading = false)
-            EtaPreference(
+            BasicComponent(
                 title = stringResource(R.string.web_tools_mapping_and_template),
                 endActions = {
                     Icon(
@@ -352,42 +352,39 @@ private fun CustomFetchSection(store: WebToolsSettingsStore) {
                 onClick = { advanced = !advanced },
             )
             AnimatedVisibility(visible = advanced) {
-                Column {
-                    EtaPreferenceDivider(hasLeading = false)
-                    WebToolsFieldColumn {
-                        if (config.method == WebHttpMethod.POST) {
-                            WebToolsField(
-                                label = stringResource(R.string.web_tools_body_template),
-                                value = config.bodyTemplate,
-                                singleLine = false,
-                                onChange = {
-                                    store.edit(settings.copy(customFetch = config.copy(bodyTemplate = it)))
-                                },
-                            )
-                        }
+                WebToolsFieldColumn {
+                    if (config.method == WebHttpMethod.POST) {
                         WebToolsField(
-                            label = stringResource(R.string.web_tools_content_field),
-                            value = config.contentField,
-                            onChange = {
-                                store.edit(settings.copy(customFetch = config.copy(contentField = it.trim())))
-                            },
-                        )
-                        WebToolsField(
-                            label = stringResource(R.string.web_tools_title_field),
-                            value = config.titleField,
-                            onChange = {
-                                store.edit(settings.copy(customFetch = config.copy(titleField = it.trim())))
-                            },
-                        )
-                        WebToolsField(
-                            label = stringResource(R.string.web_tools_custom_headers),
-                            value = config.headersText,
+                            label = stringResource(R.string.web_tools_body_template),
+                            value = config.bodyTemplate,
                             singleLine = false,
                             onChange = {
-                                store.edit(settings.copy(customFetch = config.copy(headersText = it)))
+                                store.edit(settings.copy(customFetch = config.copy(bodyTemplate = it)))
                             },
                         )
                     }
+                    WebToolsField(
+                        label = stringResource(R.string.web_tools_content_field),
+                        value = config.contentField,
+                        onChange = {
+                            store.edit(settings.copy(customFetch = config.copy(contentField = it.trim())))
+                        },
+                    )
+                    WebToolsField(
+                        label = stringResource(R.string.web_tools_title_field),
+                        value = config.titleField,
+                        onChange = {
+                            store.edit(settings.copy(customFetch = config.copy(titleField = it.trim())))
+                        },
+                    )
+                    WebToolsField(
+                        label = stringResource(R.string.web_tools_custom_headers),
+                        value = config.headersText,
+                        singleLine = false,
+                        onChange = {
+                            store.edit(settings.copy(customFetch = config.copy(headersText = it)))
+                        },
+                    )
                 }
             }
         }
@@ -417,7 +414,7 @@ private fun WebToolsNote(text: String, modifier: Modifier = Modifier) {
         text = text,
         style = MiuixTheme.textStyles.footnote2,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        modifier = modifier.padding(horizontal = 32.dp, vertical = 8.dp),
+        modifier = modifier.padding(horizontal = 28.dp).padding(bottom = 12.dp),
     )
 }
 
@@ -485,11 +482,11 @@ private fun WebToolsSaveBlock(store: WebToolsSettingsStore) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = EtaPreferenceDefaults.SidePadding)
-            .padding(top = 12.dp),
+            .padding(horizontal = 12.dp)
+            .padding(top = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        EtaTextButton(
+        TextButton(
             text = stringResource(if (store.saving) R.string.speech_saving else R.string.speech_save),
             enabled = store.loaded && !store.saving,
             modifier = Modifier.fillMaxWidth(),

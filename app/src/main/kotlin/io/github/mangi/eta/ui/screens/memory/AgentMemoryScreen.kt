@@ -51,14 +51,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.components.EtaCard
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaSwitchPreference
-import io.github.mangi.eta.ui.components.EtaTextButton
-import io.github.mangi.eta.ui.components.EtaWindowDialog
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffold
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
@@ -67,13 +59,18 @@ import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.ui.model.AgentMemoryAction
 import io.github.mangi.eta.ui.model.AgentMemoryUiState
 import java.text.NumberFormat
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 private enum class MemoryViewMode { Preview, Edit }
 
@@ -143,7 +140,7 @@ internal fun AgentMemoryScreen(
                 onDraftChange = { onAction(AgentMemoryAction.DraftChanged(it)) },
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = EtaPreferenceDefaults.SidePadding),
+                    .padding(horizontal = 12.dp),
             )
             MemorySaveBar(
                 state = state,
@@ -155,7 +152,7 @@ internal fun AgentMemoryScreen(
     }
 
     if (showClearDialog) {
-        EtaWindowDialog(
+        WindowDialog(
             show = true,
             title = stringResource(R.string.ui_clear_all_memory_a43bd3),
             summary = stringResource(R.string.ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac),
@@ -175,13 +172,13 @@ internal fun AgentMemoryScreen(
     }
 
     state.notice?.let { notice ->
-        EtaWindowDialog(
+        WindowDialog(
             show = true,
             title = stringResource(R.string.ui_memory_b55ff5),
             summary = notice,
             onDismissRequest = { onAction(AgentMemoryAction.DismissNotice) },
         ) {
-            EtaTextButton(
+            TextButton(
                 text = stringResource(R.string.ui_knew_cb63c6),
                 onClick = { onAction(AgentMemoryAction.DismissNotice) },
                 modifier = Modifier.fillMaxWidth(),
@@ -195,20 +192,19 @@ private fun MemorySettingsGroup(
     state: AgentMemoryUiState,
     onAction: (AgentMemoryAction) -> Unit,
 ) {
-    EtaPreferenceGroup(
+    Card(
         modifier = Modifier
-            .padding(horizontal = EtaPreferenceDefaults.SidePadding)
-            .padding(top = 8.dp, bottom = EtaPreferenceDefaults.GroupSpacing),
+            .padding(horizontal = 12.dp)
+            .padding(top = 8.dp, bottom = 12.dp),
     ) {
-        EtaSwitchPreference(
+        SwitchPreference(
             title = stringResource(R.string.ui_enable_memory_4b69b7),
             summary = stringResource(R.string.ui_after_closing_no_memory_will_be_injected_and_the_mod_db3d23),
             checked = state.enabled,
             enabled = !state.isLoading,
             onCheckedChange = { onAction(AgentMemoryAction.ToggleEnabled(it)) },
         )
-        EtaPreferenceDivider(hasLeading = false)
-        EtaPreference(
+        BasicComponent(
             title = stringResource(R.string.ui_core_memory_injection_budget_48b5d5),
             summary = stringResource(R.string.memory_budget_summary, formatNumber(state.coreBudgetChars)),
         )
@@ -226,7 +222,7 @@ private fun MemoryDocumentCard(
 ) {
     val colors = MiuixTheme.colorScheme
     val overLimit = state.draftBytes > state.maxBytes
-    EtaCard(modifier = modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    Card(modifier = modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -414,10 +410,10 @@ private fun MemorySaveBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = EtaPreferenceDefaults.SidePadding)
+                .padding(horizontal = 12.dp)
                 .padding(top = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -436,20 +432,18 @@ private fun MemorySaveBar(
                     maxLines = 2,
                 )
             }
-            EtaTextButton(
+            TextButton(
                 text = stringResource(R.string.memory_discard),
                 enabled = !state.isSaving,
                 onClick = onDiscard,
-                minHeight = 40.dp,
-                cornerRadius = 20.dp,
+                minHeight = 36.dp,
                 insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             )
-            EtaTextButton(
+            TextButton(
                 text = stringResource(if (state.isSaving) R.string.memory_saving else R.string.memory_save),
                 enabled = state.canSave,
                 onClick = onSave,
-                minHeight = 40.dp,
-                cornerRadius = 20.dp,
+                minHeight = 36.dp,
                 insideMargin = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 colors = ButtonDefaults.textButtonColorsPrimary(),
             )

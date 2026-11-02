@@ -31,13 +31,7 @@ import io.github.mangi.eta.data.provider.CommunityCatalog
 import io.github.mangi.eta.data.provider.CommunityCatalogProvider
 import io.github.mangi.eta.data.provider.CommunityCatalogSource
 import io.github.mangi.eta.ui.app.CommunityCatalogStore
-import io.github.mangi.eta.ui.components.EtaCard
-import io.github.mangi.eta.ui.components.EtaCheckboxPreference
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
@@ -46,11 +40,18 @@ import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.InputField
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.CheckboxLocation
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
@@ -96,46 +97,41 @@ internal fun CommunityCatalogScreen(
                 label = "搜索提供商",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
             )
         }
 
         item(key = "catalog_status") {
             ProviderSection(title = "目录状态") {
-                EtaPreference(
+                BasicComponent(
                     title = "models.dev 社区目录",
                     summary = "读取目录不会上传 Eta 的 API Key",
                 )
-                EtaPreferenceDivider(hasLeading = false)
-                EtaPreference(
+                BasicComponent(
                     title = "模型是社区候选条目",
                     summary = "能否调用以服务商账号权限和实际接口为准",
                 )
-                EtaPreferenceDivider(hasLeading = false)
-                EtaPreference(
+                BasicComponent(
                     title = catalog?.sourceLabel() ?: if (store.loading) "正在读取本地目录" else "目录暂不可用",
                     summary = catalog?.let(::catalogSummary),
                 )
                 if (store.refreshing) {
-                    EtaPreferenceDivider(hasLeading = false)
-                    EtaPreference(title = "正在更新在线目录")
+                    BasicComponent(title = "正在更新在线目录")
                 }
                 store.refreshError?.let { error ->
-                    EtaPreferenceDivider(hasLeading = false)
-                    EtaPreference(
+                    BasicComponent(
                         title = "在线更新失败",
                         summary = if (catalog != null) "$error；仍可使用当前目录" else error,
                     )
                 }
                 if (store.loadError && catalog == null) {
-                    EtaPreferenceDivider(hasLeading = false)
-                    EtaPreference(title = "本地目录读取失败", summary = "请重试或检查应用安装包")
+                    BasicComponent(title = "本地目录读取失败", summary = "请重试或检查应用安装包")
                 }
             }
         }
 
         item(key = "results_title") {
-            EtaPreferenceGroupTitle("可导入提供商（${providers.size}）")
+            SmallTitle("可导入提供商（${providers.size}）")
         }
         if (catalog == null && store.loading) {
             item(key = "loading") { CatalogLoadingState() }
@@ -149,10 +145,10 @@ internal fun CommunityCatalogScreen(
             }
         } else {
             items(providers, key = { "provider:${it.id}" }, contentType = { "provider" }) { provider ->
-                EtaCard(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
                     insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     pressFeedbackType = PressFeedbackType.Sink,
                     onClick = { onNavigate(AppRoute.CommunityCatalogProvider(provider.id)) },
@@ -214,12 +210,12 @@ internal fun CommunityCatalogProviderScreen(
         title = provider?.name ?: "选择模型",
         onBack = onBack,
         actions = {
-            EtaTextButton(
+            TextButton(
                 text = "导入（${selectedIds.size}）",
                 enabled = provider != null && selectedIds.isNotEmpty() && !importInFlight && !store.importing,
                 onClick = {
-                    val chosen = provider ?: return@EtaTextButton
-                    if (importInFlight) return@EtaTextButton
+                    val chosen = provider ?: return@TextButton
+                    if (importInFlight) return@TextButton
                     importInFlight = true
                     importError = null
                     scope.launch {
@@ -237,7 +233,10 @@ internal fun CommunityCatalogProviderScreen(
                         }
                     }
                 },
-                insideMargin = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                minWidth = 0.dp,
+                minHeight = 32.dp,
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+                insideMargin = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
             )
         },
     ) {
@@ -257,12 +256,11 @@ internal fun CommunityCatalogProviderScreen(
 
         item(key = "provider") {
             ProviderSection(title = "提供商") {
-                EtaPreference(title = "名称", summary = provider.name)
-                EtaPreferenceDivider(hasLeading = false)
-                EtaPreference(title = null) {
+                BasicComponent(title = "名称", summary = provider.name)
+                BasicComponent {
                     Text(
                         text = "Base URL",
-                        style = MiuixTheme.textStyles.body1,
+                        fontSize = MiuixTheme.textStyles.headline1.fontSize,
                         fontWeight = FontWeight.Medium,
                     )
                     SelectionContainer {
@@ -277,7 +275,7 @@ internal fun CommunityCatalogProviderScreen(
             }
         }
         item(key = "selection_status") {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 4.dp)) {
                 Text(
                     text = "已选 ${selectedIds.size} / ${provider.models.size} 个模型",
                     style = MiuixTheme.textStyles.body2,
@@ -307,30 +305,35 @@ internal fun CommunityCatalogProviderScreen(
                 label = "搜索模型名称或 ID",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
             )
         }
         item(key = "model_actions") {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                EtaTextButton(
+                TextButton(
                     text = "全选当前结果",
                     enabled = filteredModels.isNotEmpty() && !store.importing,
+                    modifier = Modifier.weight(1f),
                     onClick = {
                         selectedIds = ArrayList((selectedIds + filteredModels.map { it.modelId }).distinct())
                     },
                 )
-                EtaTextButton(
+                TextButton(
                     text = "清空已选",
                     enabled = selectedIds.isNotEmpty() && !store.importing,
+                    modifier = Modifier.weight(1f),
                     onClick = { selectedIds = arrayListOf() },
                 )
             }
         }
         item(key = "models_title") {
-            EtaPreferenceGroupTitle("模型（${filteredModels.size}）")
+            SmallTitle("模型（${filteredModels.size}）")
         }
         if (filteredModels.isEmpty()) {
             item(key = "empty_models") {
@@ -343,7 +346,7 @@ internal fun CommunityCatalogProviderScreen(
                     isFirst = index == 0,
                     isLast = index == filteredModels.lastIndex,
                 ) {
-                    EtaCheckboxPreference(
+                    CheckboxPreference(
                         title = model.displayName,
                         summary = buildString {
                             append(model.modelId)
@@ -354,6 +357,7 @@ internal fun CommunityCatalogProviderScreen(
                         },
                         checked = model.modelId in selectedIds,
                         enabled = !store.importing,
+                        checkboxLocation = CheckboxLocation.End,
                         onCheckedChange = { checked ->
                             selectedIds = if (checked) {
                                 ArrayList(selectedIds + model.modelId)

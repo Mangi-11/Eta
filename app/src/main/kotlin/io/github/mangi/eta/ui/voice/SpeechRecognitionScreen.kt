@@ -3,8 +3,7 @@ package io.github.mangi.eta.ui.voice
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -18,18 +17,16 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.voice.validateSpeechSettings
 import io.github.mangi.eta.data.model.AsrProvider
 import io.github.mangi.eta.data.model.SpeechSettings
-import io.github.mangi.eta.ui.components.EtaArrowPreference
-import io.github.mangi.eta.ui.components.EtaOverlayDropdownPreference
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
-import io.github.mangi.eta.ui.components.EtaSwitchPreference
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.StatusError
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -50,8 +47,12 @@ internal fun SpeechRecognitionScreen(onBack: () -> Unit, onOpenOss: () -> Unit) 
             return@MiuixScaffoldPage
         }
         item(key = "recognition_enabled") {
-            EtaPreferenceGroup {
-                EtaSwitchPreference(
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                SwitchPreference(
                     title = stringResource(R.string.speech_recognition_enabled),
                     checked = settings.recognitionEnabled,
                     onCheckedChange = { store.edit(settings.copy(recognitionEnabled = it)) },
@@ -59,13 +60,15 @@ internal fun SpeechRecognitionScreen(onBack: () -> Unit, onOpenOss: () -> Unit) 
             }
         }
         if (settings.recognitionEnabled) {
-            item(key = "service_title") {
-                EtaPreferenceGroupTitle(stringResource(R.string.speech_group_service))
-            }
             item(key = "service") {
                 Column {
-                    EtaPreferenceGroup {
-                        EtaOverlayDropdownPreference(
+                    SmallTitle(stringResource(R.string.speech_group_service))
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        OverlayDropdownPreference(
                             title = stringResource(R.string.speech_service_and_model),
                             items = AsrProvider.entries.map { it.label() },
                             selectedIndex = settings.asr.ordinal,
@@ -90,7 +93,11 @@ internal fun SpeechRecognitionScreen(onBack: () -> Unit, onOpenOss: () -> Unit) 
             }
             if (settings.asr != AsrProvider.DOUBAO) {
                 item(key = "language") {
-                    EtaPreferenceGroup {
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
                         SpeechFieldColumn {
                             SpeechField(
                                 label = stringResource(R.string.speech_language_hint),
@@ -101,21 +108,20 @@ internal fun SpeechRecognitionScreen(onBack: () -> Unit, onOpenOss: () -> Unit) 
                     }
                 }
             }
-            item(key = "result_title") {
-                EtaPreferenceGroupTitle(stringResource(R.string.speech_group_result))
-            }
             item(key = "result") {
+                SmallTitle(stringResource(R.string.speech_group_result))
                 SpeechResultSection(store)
             }
             if (settings.asr == AsrProvider.QWEN_FILE) {
                 item(key = "oss") {
-                    EtaPreferenceGroup {
-                        EtaArrowPreference(
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        ArrowPreference(
                             title = stringResource(R.string.speech_oss_title),
                             summary = settings.oss.bucket.ifBlank { stringResource(R.string.speech_oss_configure) },
-                            startAction = {
-                                EtaPreferenceIcon(icon = Icons.Rounded.CloudUpload, tint = EtaPreferenceColors.Blue)
-                            },
                             onClick = onOpenOss,
                         )
                     }
@@ -144,9 +150,13 @@ private fun SpeechResultSection(store: SpeechSettingsStore) {
     val streaming = settings.asr != AsrProvider.QWEN_FLASH && settings.asr != AsrProvider.QWEN_FILE
     val options = SpeechSettings.AUTO_SEND_SILENCE_OPTIONS
     Column {
-        EtaPreferenceGroup {
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp),
+        ) {
             if (streaming) {
-                EtaOverlayDropdownPreference(
+                OverlayDropdownPreference(
                     title = stringResource(R.string.speech_auto_send_title),
                     items = options.map { millis ->
                         if (millis == 0) {
@@ -163,7 +173,7 @@ private fun SpeechResultSection(store: SpeechSettingsStore) {
                     },
                 )
             }
-            EtaSwitchPreference(
+            SwitchPreference(
                 title = stringResource(R.string.speech_refine_title),
                 summary = stringResource(R.string.speech_refine_summary),
                 checked = settings.refineTranscript,
@@ -183,9 +193,13 @@ private fun SpeechRecognitionTestSection(store: SpeechSettingsStore) {
         ?: state.preview.take(200).ifBlank { state.progress }.ifBlank { null }
 
     Column {
-        EtaPreferenceGroupTitle(stringResource(R.string.speech_test_recognition))
-        EtaPreferenceGroup {
-            EtaPreference(
+        SmallTitle(stringResource(R.string.speech_test_recognition))
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp),
+        ) {
+            BasicComponent(
                 title = stringResource(
                     if (state.active) R.string.speech_test_finish else R.string.speech_test_recognition,
                 ),
@@ -195,18 +209,17 @@ private fun SpeechRecognitionTestSection(store: SpeechSettingsStore) {
                 ),
                 enabled = !store.saving,
                 onClick = { if (state.active) store.recognition.finish() else request() },
-                endActions = {
-                    if (state.active) {
-                        EtaTextButton(
+                endActions = if (state.active) {
+                    {
+                        TextButton(
                             text = stringResource(R.string.action_cancel),
                             onClick = { store.recognition.cancel() },
                             minWidth = 0.dp,
-                            minHeight = 34.dp,
-                            cornerRadius = 17.dp,
-                            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                            minHeight = 32.dp,
+                            insideMargin = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         )
                     }
-                },
+                } else null,
             )
         }
         SpeechNote(stringResource(R.string.speech_test_note))

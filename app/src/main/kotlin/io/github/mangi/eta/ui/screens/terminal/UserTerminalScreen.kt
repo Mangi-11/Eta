@@ -60,7 +60,6 @@ import io.github.mangi.eta.agent.terminal.isLinux
 import io.github.mangi.eta.ui.app.TerminalBlockUi
 import io.github.mangi.eta.ui.app.UserTerminalStore
 import io.github.mangi.eta.ui.components.EtaMonospace
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.ansiPlainText
 import io.github.mangi.eta.ui.components.ansiToAnnotatedString
 import kotlinx.coroutines.launch
@@ -72,6 +71,7 @@ import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -529,7 +529,7 @@ internal fun TerminalPlaceholder(
             modifier = Modifier.padding(top = 14.dp),
         )
         if (actionText != null && onAction != null) {
-            EtaTextButton(
+            TextButton(
                 text = actionText,
                 onClick = onAction,
                 colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -537,10 +537,10 @@ internal fun TerminalPlaceholder(
             )
         }
         if (secondaryActionText != null && onSecondaryAction != null) {
-            EtaTextButton(
+            TextButton(
                 text = secondaryActionText,
                 onClick = onSecondaryAction,
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = 12.dp),
             )
         }
     }

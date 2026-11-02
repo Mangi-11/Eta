@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.repository.RemoteModelCatalog
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
@@ -171,7 +170,7 @@ private fun RemoteModelImportContent(
                 )
             }
         }
-        EtaTextButton(
+        TextButton(
             text = when {
                 selected.isNotEmpty() -> stringResource(R.string.remote_model_import_confirm, selected.size)
                 else -> stringResource(R.string.remote_model_import_pick_hint)

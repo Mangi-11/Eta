@@ -14,9 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.data.model.ProviderAuthModes
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaTextButton
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -37,7 +37,7 @@ internal fun ProviderAccountControls(
     val loggedIn = account != null && !account.needsReauthentication
     val needsLogin = !loggedIn || !account.planEnabled
     val brand = if (authMode == ProviderAuthModes.XAI_GROK) "Grok" else "Codex"
-    EtaPreference(
+    BasicComponent(
         title = account?.email ?: account?.displayName ?: "$brand 账号",
         summary = browserError ?: state.message ?: when (state.phase) {
             ProviderLoginPhase.Loading -> "正在读取登录状态…"
@@ -58,7 +58,7 @@ internal fun ProviderAccountControls(
             }
         },
     )
-    Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
+    Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
         prompt?.userCode?.let { userCode ->
             SelectionContainer {
                 Text(
@@ -68,27 +68,27 @@ internal fun ProviderAccountControls(
                 )
             }
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (state.isBusy) {
                 if (prompt != null) {
-                    EtaTextButton(text = "打开浏览器", onClick = onOpenBrowser, modifier = Modifier.weight(1f))
+                    TextButton(text = "打开浏览器", onClick = onOpenBrowser, modifier = Modifier.weight(1f))
                 }
                 if (state.phase in setOf(ProviderLoginPhase.Saving, ProviderLoginPhase.Authorizing, ProviderLoginPhase.SyncingModels)) {
-                    EtaTextButton(text = "取消", onClick = onCancel, modifier = Modifier.weight(1f))
+                    TextButton(text = "取消", onClick = onCancel, modifier = Modifier.weight(1f))
                 }
             } else {
                 if (needsLogin) {
-                    EtaTextButton(
+                    TextButton(
                         text = if (loggedIn) "重新授权" else "使用 $brand 登录",
                         enabled = enabled,
                         onClick = onLogin,
                         modifier = Modifier.weight(1f),
                     )
                 } else if (authMode == ProviderAuthModes.OPENAI_CHATGPT) {
-                    EtaTextButton(text = "管理用量", enabled = enabled, onClick = onManageUsage, modifier = Modifier.weight(1f))
+                    TextButton(text = "管理用量", enabled = enabled, onClick = onManageUsage, modifier = Modifier.weight(1f))
                 }
                 if (loggedIn) {
-                    EtaTextButton(text = "退出登录", enabled = enabled, onClick = onDisconnect, modifier = Modifier.weight(1f))
+                    TextButton(text = "退出登录", enabled = enabled, onClick = onDisconnect, modifier = Modifier.weight(1f))
                 }
             }
         }

@@ -24,13 +24,13 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.TerminalEnvironment
 import io.github.mangi.eta.ui.app.displayName
 import io.github.mangi.eta.ui.components.EtaMonospace
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.StatusSuccess
-import io.github.mangi.eta.ui.components.EtaWindowDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Immutable
 internal data class SessionDialogRow(
@@ -53,7 +53,7 @@ internal fun SessionListDialog(
     onClose: (String) -> Unit,
     onNew: () -> Unit,
 ) {
-    EtaWindowDialog(
+    WindowDialog(
         show = true,
         title = stringResource(R.string.terminal_sessions),
         onDismissRequest = onDismiss,
@@ -80,13 +80,13 @@ internal fun SessionListDialog(
                 }
             }
         }
-        EtaTextButton(
+        TextButton(
             text = stringResource(R.string.terminal_new_session),
             onClick = { onNew(); onDismiss() },
             colors = ButtonDefaults.textButtonColorsPrimary(),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 12.dp),
+                .padding(top = 16.dp),
         )
     }
 }

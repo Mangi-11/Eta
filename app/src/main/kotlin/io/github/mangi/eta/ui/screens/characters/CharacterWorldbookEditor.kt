@@ -10,14 +10,13 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.agent.roleplay.CharacterBookEntryDraft
 import io.github.mangi.eta.agent.roleplay.CharacterWorldbook
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
-import io.github.mangi.eta.ui.components.EtaArrowPreference
-import io.github.mangi.eta.ui.components.EtaCard
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaSwitch
-import io.github.mangi.eta.ui.components.EtaSwitchPreference
-import io.github.mangi.eta.ui.components.EtaTextButton
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal fun LazyListScope.characterWorldbookEditor(
@@ -30,10 +29,14 @@ internal fun LazyListScope.characterWorldbookEditor(
     val card = store.draft ?: return
     val book = card.worldbookDraft()
     val enabled = !store.busy
-    item(key = "worldbook-title") { EtaPreferenceGroupTitle("世界书") }
+    item(key = "worldbook-title") { SmallTitle("世界书") }
     item(key = "worldbook-header") {
-        EtaPreferenceGroup(modifier = Modifier.padding(horizontal = CharacterCardPadding)) {
-            EtaArrowPreference(
+        Card(
+            modifier = Modifier
+                .padding(horizontal = CharacterCardPadding)
+                .padding(bottom = 12.dp),
+        ) {
+            ArrowPreference(
                 title = "内嵌世界书",
                 summary = "${book.entries.size} 个条目 · ${if (expanded) "收起" else "展开编辑"}",
                 onClick = onToggleExpanded,
@@ -55,8 +58,11 @@ internal fun LazyListScope.characterWorldbookEditor(
         }, enabled, singleLine = true)
     }
     item(key = "worldbook-recursive") {
-        EtaPreferenceGroup(modifier = Modifier.padding(horizontal = CharacterCardPadding, vertical = 8.dp)) {
-            EtaSwitchPreference(
+        Card(
+            modifier = Modifier
+                .padding(horizontal = CharacterCardPadding, vertical = 6.dp),
+        ) {
+            SwitchPreference(
                 title = "递归匹配",
                 summary = "使用已匹配条目的内容继续寻找相关条目",
                 checked = book.recursiveScanning == true,
@@ -65,14 +71,14 @@ internal fun LazyListScope.characterWorldbookEditor(
             )
         }
     }
-    item(key = "worldbook-entries-title") { EtaPreferenceGroupTitle("条目") }
+    item(key = "worldbook-entries-title") { SmallTitle("条目") }
     val unsupported = CharacterWorldbook.unsupportedEntries(card).associate { it.index to it.reasons }
     itemsIndexed(book.entries, key = { index, _ -> "worldbook-entry-$index" }) { index, entry ->
-        EtaPreferenceGroup(
+        Card(
             modifier = Modifier
-                .padding(horizontal = CharacterCardPadding, vertical = 8.dp),
+                .padding(horizontal = CharacterCardPadding, vertical = 6.dp),
         ) {
-            EtaArrowPreference(
+            ArrowPreference(
                 title = entry.name.take(120).ifBlank { "条目 ${index + 1}" },
                 summary = when {
                     !entry.enabled -> "已停用"
@@ -82,7 +88,7 @@ internal fun LazyListScope.characterWorldbookEditor(
                 },
                 onClick = { onExpandEntry(if (expandedEntry == index) null else index) },
                 endActions = {
-                    EtaSwitch(
+                    Switch(
                         checked = entry.enabled,
                         enabled = enabled,
                         onCheckedChange = { value ->
@@ -110,12 +116,12 @@ internal fun LazyListScope.characterWorldbookEditor(
         }
     }
     item(key = "worldbook-add-entry") {
-        EtaTextButton(
+        TextButton(
             text = "添加条目",
             enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = CharacterCardPadding, vertical = 8.dp),
+                .padding(horizontal = CharacterCardPadding, vertical = 6.dp),
             onClick = {
                 onExpandEntry(book.entries.size)
                 store.updateWorldbook { it.copy(entries = it.entries + CharacterBookEntryDraft(insertionOrder = it.entries.size)) }
@@ -146,20 +152,20 @@ private fun CharacterWorldbookEntryEditor(
     CharacterFieldGroupLabel("触发")
     CharacterTextField("主关键词（每行一个）", entry.keys.joinToString("\n"), { onChange(entry.copy(keys = it.lines())) }, enabled)
     CharacterTextField("次级关键词（每行一个）", entry.secondaryKeys.joinToString("\n"), { onChange(entry.copy(secondaryKeys = it.lines())) }, enabled)
-    EtaSwitchPreference(
+    SwitchPreference(
         title = "同时匹配次级关键词",
         checked = entry.selective,
         enabled = enabled,
         onCheckedChange = { onChange(entry.copy(selective = it)) },
     )
     CharacterFieldGroupLabel("插入")
-    EtaSwitchPreference(
+    SwitchPreference(
         title = "常驻上下文",
         checked = entry.constant,
         enabled = enabled,
         onCheckedChange = { onChange(entry.copy(constant = it)) },
     )
-    EtaSwitchPreference(
+    SwitchPreference(
         title = "放在角色设定之前",
         summary = "关闭时放在角色设定之后",
         checked = entry.position == "before_char",
@@ -169,7 +175,7 @@ private fun CharacterWorldbookEntryEditor(
     CharacterTextField("插入顺序", entry.insertionOrder.toString(), { value ->
         value.toIntOrNull()?.takeIf { it >= 0 }?.let { onChange(entry.copy(insertionOrder = it)) }
     }, enabled, singleLine = true)
-    EtaTextButton(
+    TextButton(
         text = "移除条目",
         enabled = enabled,
         onClick = onDelete,

@@ -5,10 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DesignServices
-import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,21 +13,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
-import io.github.mangi.eta.ui.components.EtaSwitch
 import io.github.mangi.eta.ui.components.ItemDescriptionDialog
 import io.github.mangi.eta.ui.model.SkillItemUi
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.menu.OverlayIconDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -44,8 +38,9 @@ internal fun SkillSwitchRow(
 ) {
     var showDescription by remember(skill.id) { mutableStateOf(false) }
     val description = skill.description.ifBlank { stringResource(R.string.skills_no_description) }
-    EtaPreference(
-        startAction = { EtaPreferenceIcon(iconForSkill(skill.id), enabled = enabled, tint = EtaPreferenceColors.Green) },
+    BasicComponent(
+        enabled = enabled,
+        onClick = { onToggle(!skill.enabled) },
         endActions = {
             OverlayIconDropdownMenu(
                 modifier = Modifier.align(Alignment.CenterVertically),
@@ -72,8 +67,8 @@ internal fun SkillSwitchRow(
                     tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
                 )
             }
-            Spacer(modifier = Modifier.width(4.dp))
-            EtaSwitch(
+            Spacer(modifier = Modifier.width(8.dp))
+            Switch(
                 checked = skill.enabled,
                 onCheckedChange = onToggle,
                 enabled = enabled,
@@ -83,14 +78,14 @@ internal fun SkillSwitchRow(
     ) {
         Text(
             text = skill.name,
-            style = MiuixTheme.textStyles.body1,
+            fontSize = MiuixTheme.textStyles.headline1.fontSize,
             fontWeight = FontWeight.Medium,
-            color = if (enabled) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.disabledOnSurface,
+            color = if (enabled) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.disabledOnSecondaryVariant,
         )
         Text(
             text = description,
             style = MiuixTheme.textStyles.body2,
-            color = if (enabled) MiuixTheme.colorScheme.onSurfaceVariantSummary else MiuixTheme.colorScheme.disabledOnSurface,
+            color = if (enabled) MiuixTheme.colorScheme.onSurfaceVariantSummary else MiuixTheme.colorScheme.disabledOnSecondaryVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 2.dp),
@@ -103,10 +98,4 @@ internal fun SkillSwitchRow(
             onDismiss = { showDescription = false },
         )
     }
-}
-
-internal fun iconForSkill(skillId: String): ImageVector = when (skillId) {
-    "self-improving-agent" -> Icons.Rounded.Refresh
-    "skill-creator" -> Icons.Rounded.DesignServices
-    else -> Icons.Rounded.Extension
 }

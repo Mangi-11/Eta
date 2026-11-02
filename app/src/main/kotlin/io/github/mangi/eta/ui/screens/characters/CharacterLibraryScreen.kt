@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Face
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.TheaterComedy
@@ -22,25 +21,23 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.agent.roleplay.CharacterProfile
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
-import io.github.mangi.eta.ui.components.EtaArrowPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.navigation.AppRoute
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.SearchBar
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-internal val CharacterCardPadding = 16.dp
+internal val CharacterCardPadding = 12.dp
 private val CharacterGridSpacing = 12.dp
 
 @Composable
@@ -112,13 +109,13 @@ internal fun CharacterLibraryScreen(
                         summary = "创建一个角色，或导入 PNG、JSON 角色卡开始对话",
                         icon = Icons.Rounded.TheaterComedy,
                         action = {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                EtaTextButton(
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                TextButton(
                                     text = "恢复默认角色",
                                     onClick = { store.restoreDefaultCharacter() },
                                     enabled = !store.busy,
                                 )
-                                EtaTextButton(
+                                TextButton(
                                     text = "创建角色",
                                     onClick = createCharacter,
                                     colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -171,12 +168,15 @@ internal fun CharacterLibraryScreen(
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
-        item(key = "persona-title") { EtaPreferenceGroupTitle("我的") }
         item(key = "persona") {
-            EtaPreferenceGroup {
-                EtaArrowPreference(
+            SmallTitle("我的")
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                ArrowPreference(
                     title = "我的人设",
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.Face, tint = EtaPreferenceColors.Blue) },
                     summary = "角色对你的称呼与你在故事中的身份",
                     onClick = { onNavigate(AppRoute.CharacterPersona) },
                 )
@@ -190,7 +190,7 @@ internal fun CharacterPageMessage(text: String) {
     Text(
         text = text,
         style = MiuixTheme.textStyles.body2,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 8.dp),
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
     )
 }

@@ -26,8 +26,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -44,7 +43,7 @@ internal fun LazyListScope.providerHeadersEditor(
     item(key = "custom_headers") {
         ProviderSection(title = "自定义请求头") {
             val chevronRotation by animateFloatAsState(if (expanded) 180f else 0f)
-            EtaPreference(
+            BasicComponent(
                 title = if (headers.isEmpty()) "未设置" else "已设置 ${headers.size} 项",
                 summary = "可覆盖 User-Agent；认证与传输请求头由系统管理。",
                 endActions = {
@@ -59,7 +58,6 @@ internal fun LazyListScope.providerHeadersEditor(
             )
             if (expanded) {
                 headers.forEach { row ->
-                    EtaPreferenceDivider(hasLeading = false)
                     ProviderHeaderRow(
                         row = row,
                         onNameChange = { value ->
@@ -75,8 +73,7 @@ internal fun LazyListScope.providerHeadersEditor(
                         onRemove = { onHeadersChange(headers.filterNot { it.id == row.id }) },
                     )
                 }
-                EtaPreferenceDivider(hasLeading = false)
-                EtaPreference(
+                BasicComponent(
                     title = "添加请求头",
                     titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.primary),
                     startAction = {
@@ -84,6 +81,7 @@ internal fun LazyListScope.providerHeadersEditor(
                             imageVector = Icons.Rounded.Add,
                             contentDescription = null,
                             tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 8.dp),
                         )
                     },
                     onClick = { onHeadersChange(headers + ProviderHeaderDraft()) },

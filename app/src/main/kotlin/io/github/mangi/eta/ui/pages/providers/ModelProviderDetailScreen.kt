@@ -44,13 +44,6 @@ import io.github.mangi.eta.data.model.withId
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
-import io.github.mangi.eta.ui.components.EtaCard
-import io.github.mangi.eta.ui.components.EtaOverlayDialog
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaSwitchPreference
-import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixPageBottomSpacer
 import io.github.mangi.eta.ui.components.MiuixScaffold
@@ -62,11 +55,16 @@ import io.github.mangi.eta.ui.navigation.NewProviderType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -123,7 +121,7 @@ internal fun ModelProviderDetailScreen(
                 ) {
                     Text(stringResource(R.string.ui_provider_does_not_exist_83cee6))
                     Spacer(modifier = Modifier.height(12.dp))
-                    EtaTextButton(text = stringResource(R.string.ui_return_11d024), onClick = onBack)
+                    TextButton(text = stringResource(R.string.ui_return_11d024), onClick = onBack)
                 }
             }
         }
@@ -154,7 +152,7 @@ internal fun ModelProviderDetailScreen(
                     selectedTabIndex = currentTab,
                     onTabSelected = { currentTab = it },
                     modifier = Modifier.padding(
-                        horizontal = sidePadding + EtaPreferenceDefaults.SidePadding,
+                        horizontal = sidePadding + 12.dp,
                         vertical = 8.dp,
                     ),
                 )
@@ -266,8 +264,7 @@ private fun ProviderConfigTab(
                     onDisconnect = loginStore::disconnect,
                     onCancel = loginStore::cancel,
                 )
-                EtaPreferenceDivider(hasLeading = false)
-                EtaPreference(
+                BasicComponent(
                     title = stringResource(R.string.ui_test_connection_10b7d8),
                     summary = testStatus,
                     enabled = !isWorking && !loginState.isBusy,
@@ -275,7 +272,7 @@ private fun ProviderConfigTab(
                         val validationError = validateProviderDraft(context, draft)
                         if (validationError != null) {
                             testStatus = context.getString(R.string.provider_error, validationError)
-                            return@EtaPreference
+                            return@BasicComponent
                         }
                         scope.launch {
                             isWorking = true
@@ -303,12 +300,11 @@ private fun ProviderConfigTab(
 
         item(key = "preferences_and_prompt") {
             ProviderSection(title = stringResource(R.string.ui_preferences_and_strategies_2abd3c)) {
-                EtaSwitchPreference(
+                SwitchPreference(
                     title = stringResource(R.string.ui_enable_this_provider_683a76),
                     checked = draft.isEnabled,
                     onCheckedChange = { onDraftChange(draft.copy(isEnabled = it)) }
                 )
-                EtaPreferenceDivider(hasLeading = false)
                 Column(modifier = Modifier.padding(16.dp)) {
                     TextField(
                         value = draft.systemPrompt,
@@ -330,15 +326,14 @@ private fun ProviderConfigTab(
         }
 
         item(key = "actions") {
-            // 操作分层：主按钮实心独占，次要操作降级为文字按钮，与弹窗按钮语言一致
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = EtaPreferenceDefaults.SidePadding)
-                    .padding(top = 12.dp),
+                    .padding(horizontal = 12.dp)
+                    .padding(top = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                EtaTextButton(
+                TextButton(
                     text = when {
                         isWorking -> context.getString(R.string.page_saving_d70d42)
                         creationCommitted -> context.getString(R.string.page_created_62cfc5)
@@ -352,7 +347,7 @@ private fun ProviderConfigTab(
                         val validationError = validateProviderDraft(context, draft)
                         if (validationError != null) {
                             status = context.getString(R.string.provider_error, validationError)
-                            return@EtaTextButton
+                            return@TextButton
                         }
                         scope.launch {
                             isWorking = true
@@ -411,10 +406,10 @@ private fun ProviderConfigTab(
 
         if (!isNew) {
             item(key = "danger_zone") {
-                EtaCard(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = 12.dp)
                         .padding(top = 12.dp),
                     showIndication = true,
                     onClick = if (isWorking || loginState.isBusy) {
@@ -448,7 +443,7 @@ private fun ProviderConfigTab(
     }
 
     if (showDeleteDialog) {
-        EtaOverlayDialog(
+        OverlayDialog(
             show = true,
             title = stringResource(R.string.ui_remove_provider_9f848f),
             summary = stringResource(R.string.provider_delete_summary, provider.name),
@@ -486,7 +481,7 @@ private fun ProviderConfigTab(
     }
 
     if (showResetDialog) {
-        EtaOverlayDialog(
+        OverlayDialog(
             show = true,
             title = stringResource(R.string.ui_reset_built_in_configuration_35b6ec),
             summary = stringResource(R.string.provider_reset_summary, provider.name),

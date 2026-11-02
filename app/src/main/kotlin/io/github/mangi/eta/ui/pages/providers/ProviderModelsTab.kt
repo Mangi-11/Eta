@@ -80,16 +80,8 @@ import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.repository.ModelRepository
 import io.github.mangi.eta.data.repository.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
-import io.github.mangi.eta.ui.components.EtaArrowPreference
 import io.github.mangi.eta.ui.components.EtaChoiceChip
-import io.github.mangi.eta.ui.components.EtaOverlayDialog
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
-import io.github.mangi.eta.ui.components.EtaSwitch
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
@@ -103,8 +95,12 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -267,18 +263,11 @@ internal fun ProviderModelsTab(
                         fadeOut(selectionFade()),
                 ) {
                     ProviderSection(title = stringResource(R.string.ui_model_management_183414)) {
-                        EtaArrowPreference(
+                        ArrowPreference(
                             title = if (isFetching) context.getString(R.string.page_retrieving_a880c9)
                             else context.getString(R.string.page_automatically_pull_from_remote_f883d0),
                             summary = stringResource(R.string.provider_models_endpoint_summary, provider.baseUrl),
                             enabled = !isFetching && !isMutatingModel,
-                            startAction = {
-                                EtaPreferenceIcon(
-                                    icon = Icons.Rounded.CloudDownload,
-                                    enabled = !isFetching && !isMutatingModel,
-                                    tint = EtaPreferenceColors.Blue,
-                                )
-                            },
                             onClick = {
                                 fetchScope.launch {
                                     isFetching = true
@@ -326,17 +315,10 @@ internal fun ProviderModelsTab(
                             },
                         )
 
-                        EtaArrowPreference(
+                        ArrowPreference(
                             title = stringResource(R.string.ui_add_custom_model_a5ddc0),
                             summary = stringResource(R.string.ui_manually_fill_in_the_display_name_and_model_id_077a7b),
                             enabled = !isFetching && !isMutatingModel,
-                            startAction = {
-                                EtaPreferenceIcon(
-                                    icon = Icons.Rounded.Add,
-                                    enabled = !isFetching && !isMutatingModel,
-                                    tint = EtaPreferenceColors.Blue,
-                                )
-                            },
                             onClick = {
                                 editorError = null
                                 isCreatingModel = true
@@ -348,7 +330,6 @@ internal fun ProviderModelsTab(
                             },
                         )
                         message?.let {
-                            EtaPreferenceDivider(hasLeading = false)
                             Text(
                                 text = it,
                                 style = MiuixTheme.textStyles.footnote2,
@@ -370,8 +351,8 @@ internal fun ProviderModelsTab(
                     label = stringResource(R.string.ui_search_model_df5586),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(top = 12.dp, bottom = 8.dp),
+                        .padding(horizontal = 12.dp)
+                        .padding(top = 4.dp, bottom = 8.dp),
                 )
             }
 
@@ -388,8 +369,6 @@ internal fun ProviderModelsTab(
                 item(key = "models_empty", contentType = "empty") {
                     ProviderSection(
                         title = modelListTitle,
-                        // 与非空列表末尾的 24dp 间隔一致：分组自带 16dp，再补 8dp。
-                        modifier = Modifier.padding(bottom = 8.dp),
                     ) {
                         Box(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
@@ -409,7 +388,7 @@ internal fun ProviderModelsTab(
                 }
             } else {
                 item(key = "models_title", contentType = "section_title") {
-                    EtaPreferenceGroupTitle(modelListTitle)
+                    SmallTitle(modelListTitle)
                 }
                 itemsIndexed(
                     items = filteredModels,
@@ -533,7 +512,7 @@ internal fun ProviderModelsTab(
     }
 
     modelPendingDelete?.let { model ->
-        EtaOverlayDialog(
+        OverlayDialog(
             show = true,
             title = stringResource(R.string.ui_delete_model_cf24da),
             summary = stringResource(R.string.provider_model_delete_summary, model.displayName),
@@ -571,7 +550,7 @@ internal fun ProviderModelsTab(
     }
 
     if (showBatchDeleteDialog) {
-        EtaOverlayDialog(
+        OverlayDialog(
             show = true,
             title = stringResource(R.string.ui_delete_model_cf24da),
             summary = pluralStringResource(
@@ -677,7 +656,7 @@ private fun ModelSelectionHeader(
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val edge = EtaPreferenceDefaults.SidePadding + 16.dp
+    val edge = 28.dp
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -943,7 +922,7 @@ private fun ModelEditDialog(
         },
     )
 
-    EtaOverlayDialog(
+    OverlayDialog(
         show = true,
         title = if (isNew) context.getString(R.string.page_add_model_532a64) else context.getString(R.string.page_edit_model_29e31e),
         onDismissRequest = { if (!isSaving) onDismiss() },
@@ -1062,7 +1041,7 @@ private fun ModelEditDialog(
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    EtaSwitch(
+                    Switch(
                         checked = geminiCapabilities != null || reasoningEnabled,
                         onCheckedChange = { enabled ->
                             reasoningOverrideActive = true

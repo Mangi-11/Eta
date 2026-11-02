@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
-import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.EtaApp
@@ -31,22 +31,18 @@ import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.typeLabel
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
-import io.github.mangi.eta.ui.components.EtaArrowPreference
-import io.github.mangi.eta.ui.components.EtaOverlayDialog
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
-import io.github.mangi.eta.ui.components.EtaPreferenceRow
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.navigation.AppRoute
 import io.github.mangi.eta.ui.navigation.NewProviderType
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -85,21 +81,19 @@ internal fun ModelProviderListScreen(
                 label = stringResource(R.string.ui_search_provider_74e049),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = EtaPreferenceDefaults.SidePadding)
-                    .padding(top = 12.dp, bottom = 8.dp),
+                    .padding(horizontal = 12.dp)
+                    .padding(top = 8.dp, bottom = 4.dp),
             )
         }
 
         item(key = "create_section") {
             ProviderSection(title = stringResource(R.string.ui_add_new_provider_74df54)) {
-                EtaArrowPreference(
+                ArrowPreference(
                     title = "从目录添加",
                     summary = "浏览可用提供商并选择模型",
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.Storefront, tint = EtaPreferenceColors.Blue) },
                     onClick = { onNavigate(AppRoute.CommunityCatalog) },
                 )
-                EtaPreferenceDivider()
-                EtaArrowPreference(
+                ArrowPreference(
                     title = stringResource(R.string.ui_added_openai_compatible_6bd471),
                     summary = stringResource(R.string.ui_support_chatgpt_deepseek_kimi_glm_qwen_etc_b31d02),
                     startAction = {
@@ -107,8 +101,7 @@ internal fun ModelProviderListScreen(
                     },
                     onClick = { onNavigate(AppRoute.ModelProviderNew(NewProviderType.OpenAiCompatible)) },
                 )
-                EtaPreferenceDivider()
-                EtaArrowPreference(
+                ArrowPreference(
                     title = stringResource(R.string.ui_new_anthropic_db6098),
                     summary = stringResource(R.string.ui_support_anthropic_claude_official_or_compatible_api_de3f80),
                     startAction = {
@@ -116,8 +109,7 @@ internal fun ModelProviderListScreen(
                     },
                     onClick = { onNavigate(AppRoute.ModelProviderNew(NewProviderType.Anthropic)) },
                 )
-                EtaPreferenceDivider()
-                EtaArrowPreference(
+                ArrowPreference(
                     title = "新增 Gemini",
                     summary = "使用 API Key 连接原生 Interactions API",
                     startAction = { ProviderBrandIcon(ProviderSourceTypes.GEMINI) },
@@ -144,8 +136,7 @@ internal fun ModelProviderListScreen(
                         )
                     }
                 } else {
-                    filteredProviders.forEachIndexed { index, provider ->
-                        if (index > 0) EtaPreferenceDivider()
+                    filteredProviders.forEach { provider ->
                         ProviderListItem(
                             provider = provider,
                             isSelected = provider.id == selectedProviderId,
@@ -169,7 +160,7 @@ internal fun ModelProviderListScreen(
     }
 
     if (providerToDelete != null) {
-        EtaOverlayDialog(
+        OverlayDialog(
             show = true,
             title = stringResource(R.string.ui_remove_provider_9f848f),
             summary = stringResource(R.string.provider_delete_summary, providerToDelete?.name.orEmpty()),
@@ -203,48 +194,12 @@ private fun ProviderListItem(
     onSelect: () -> Unit,
 ) {
     val opacity = if (provider.isEnabled) 1f else 0.6f
-    EtaPreferenceRow(
-        title = null,
+    BasicComponent(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(onClick = onOpen, onLongClick = onDelete)
             .graphicsLayer { alpha = opacity },
         startAction = { ProviderIcon(provider) },
-        titleContent = {
-            Text(
-                text = provider.name,
-                style = MiuixTheme.textStyles.headline1,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = provider.baseUrl,
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            Text(
-                text = listOfNotNull(
-                    provider.typeLabel,
-                    pluralStringResource(R.plurals.provider_models_count, provider.models.size, provider.models.size),
-                    stringResource(R.string.ui_built_in_09ceea).takeIf { provider.isBuiltIn },
-                ).joinToString(" · "),
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-            if (!provider.isEnabled) {
-                Text(
-                    text = stringResource(R.string.ui_disabled_0fe5a9),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-        },
         endActions = {
             IconButton(onClick = onSelect) {
                 Icon(
@@ -258,5 +213,40 @@ private fun ProviderListItem(
                 )
             }
         },
-    )
+    ) {
+        Text(
+            text = provider.name,
+            fontSize = MiuixTheme.textStyles.headline1.fontSize,
+            fontWeight = FontWeight.Medium,
+            color = MiuixTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = provider.baseUrl,
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Text(
+            text = listOfNotNull(
+                provider.typeLabel,
+                pluralStringResource(R.plurals.provider_models_count, provider.models.size, provider.models.size),
+                stringResource(R.string.ui_built_in_09ceea).takeIf { provider.isBuiltIn },
+            ).joinToString(" · "),
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        if (!provider.isEnabled) {
+            Text(
+                text = stringResource(R.string.ui_disabled_0fe5a9),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+    }
 }

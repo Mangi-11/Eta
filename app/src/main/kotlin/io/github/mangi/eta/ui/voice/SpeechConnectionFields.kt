@@ -3,6 +3,7 @@ package io.github.mangi.eta.ui.voice
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.runtime.Composable
@@ -13,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AsrProvider
 import io.github.mangi.eta.data.model.DoubaoSpeechConfig
@@ -20,13 +22,12 @@ import io.github.mangi.eta.data.model.QwenSpeechConfig
 import io.github.mangi.eta.data.model.SpeechCredentialField
 import io.github.mangi.eta.data.model.SpeechRegion
 import io.github.mangi.eta.data.model.TtsProvider
-import io.github.mangi.eta.ui.components.EtaOverlayDropdownPreference
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaSwitchPreference
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -64,14 +65,18 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
     var advanced by rememberSaveable(keyField) { mutableStateOf(false) }
 
     Column {
-        EtaPreferenceGroupTitle(stringResource(R.string.speech_group_connection))
-        EtaPreferenceGroup {
+        SmallTitle(stringResource(R.string.speech_group_connection))
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp),
+        ) {
             if (qwen) {
                 val config = if (synthesis) settings.qwenTts else settings.qwenAsr
                 val change: (QwenSpeechConfig) -> Unit = {
                     store.edit(if (synthesis) settings.copy(qwenTts = it) else settings.copy(qwenAsr = it))
                 }
-                EtaOverlayDropdownPreference(
+                OverlayDropdownPreference(
                     title = stringResource(R.string.speech_region),
                     items = listOf(
                         stringResource(R.string.speech_region_beijing),
@@ -82,7 +87,6 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                         SpeechRegion.entries.getOrNull(index)?.let { change(config.copy(region = it)) }
                     },
                 )
-                EtaPreferenceDivider(hasLeading = false)
                 SpeechFieldColumn {
                     SpeechField(
                         label = "API Key",
@@ -115,9 +119,8 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                 }
             }
 
-            EtaPreferenceDivider(hasLeading = false)
             val chevronRotation by animateFloatAsState(if (advanced) 180f else 0f)
-            EtaPreference(
+            BasicComponent(
                 title = stringResource(R.string.speech_advanced),
                 endActions = {
                     Icon(
@@ -133,7 +136,6 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
             )
             AnimatedVisibility(visible = advanced) {
                 Column {
-                    EtaPreferenceDivider(hasLeading = false)
                     if (qwen) {
                         val config = if (synthesis) settings.qwenTts else settings.qwenAsr
                         SpeechFieldColumn {
@@ -150,7 +152,7 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                         }
                     } else {
                         val config = if (synthesis) settings.doubaoTts else settings.doubaoAsr
-                        EtaSwitchPreference(
+                        SwitchPreference(
                             title = stringResource(R.string.speech_legacy_auth),
                             checked = config.legacyAuth,
                             onCheckedChange = { enabled ->
@@ -160,7 +162,6 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                                 )
                             },
                         )
-                        EtaPreferenceDivider(hasLeading = false)
                         SpeechFieldColumn {
                             SpeechField(
                                 label = stringResource(R.string.speech_base_url),

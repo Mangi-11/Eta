@@ -1,17 +1,19 @@
 package io.github.mangi.eta.ui.voice
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.GeminiTtsModel
 import io.github.mangi.eta.data.model.MiniMaxTtsModel
 import io.github.mangi.eta.data.model.SpeechCredentialField
 import io.github.mangi.eta.data.model.TtsProvider
-import io.github.mangi.eta.ui.components.EtaOverlayDropdownPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 
 @Composable
 internal fun GeminiConnectionSection(store: SpeechSettingsStore) {
@@ -23,7 +25,7 @@ internal fun GeminiConnectionSection(store: SpeechSettingsStore) {
         onApiKey = { store.credential(SpeechCredentialField.GEMINI_TTS, it) },
         note = stringResource(R.string.speech_gemini_connection_note),
     ) {
-        EtaOverlayDropdownPreference(
+        OverlayDropdownPreference(
             title = stringResource(R.string.speech_tts_model),
             items = listOf(
                 stringResource(R.string.speech_gemini_flash),
@@ -49,7 +51,7 @@ internal fun MiniMaxConnectionSection(store: SpeechSettingsStore) {
         onApiKey = { store.credential(SpeechCredentialField.MINIMAX_TTS, it) },
         note = stringResource(R.string.speech_minimax_connection_note),
     ) {
-        EtaOverlayDropdownPreference(
+        OverlayDropdownPreference(
             title = stringResource(R.string.speech_tts_model),
             items = listOf(
                 stringResource(R.string.speech_minimax_turbo),
@@ -75,10 +77,13 @@ private fun SpeechApiKeyConnectionSection(
     model: @Composable () -> Unit,
 ) {
     Column {
-        EtaPreferenceGroupTitle(stringResource(R.string.speech_group_connection))
-        EtaPreferenceGroup {
+        SmallTitle(stringResource(R.string.speech_group_connection))
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp),
+        ) {
             model()
-            EtaPreferenceDivider(hasLeading = false)
             SpeechFieldColumn {
                 SpeechField("API Key", apiKey, secret = true, onChange = { onApiKey(it.trim()) })
                 SpeechField(stringResource(R.string.speech_base_url), baseUrl, onChange = { onBaseUrl(it.trim()) })
@@ -94,7 +99,6 @@ internal fun SpeechDeliveryFields(store: SpeechSettingsStore) {
     when (store.settings.tts) {
         TtsProvider.GEMINI -> {
             val config = store.settings.geminiTts
-            EtaPreferenceDivider(hasLeading = false)
             SpeechFieldColumn {
                 SpeechField(
                     label = stringResource(R.string.speech_gemini_style),
@@ -108,8 +112,7 @@ internal fun SpeechDeliveryFields(store: SpeechSettingsStore) {
             val config = store.settings.minimaxTts
             val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
                 .plus(config.speed).distinct().sorted()
-            EtaPreferenceDivider(hasLeading = false)
-            EtaOverlayDropdownPreference(
+            OverlayDropdownPreference(
                 title = stringResource(R.string.speech_speed),
                 items = speeds.map { "$it×" },
                 selectedIndex = speeds.indexOf(config.speed),

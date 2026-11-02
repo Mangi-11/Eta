@@ -2,27 +2,28 @@ package io.github.mangi.eta.ui.voice
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.voice.validateSpeechSettings
 import io.github.mangi.eta.data.model.TtsProvider
-import io.github.mangi.eta.ui.components.EtaOverlayDropdownPreference
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -42,12 +43,14 @@ internal fun SpeechSynthesisScreen(onBack: () -> Unit) {
             item(key = "loading") { SpeechLoadingState(store.message) }
             return@MiuixScaffoldPage
         }
-        item(key = "service_title") {
-            EtaPreferenceGroupTitle(stringResource(R.string.speech_group_service))
-        }
         item(key = "service") {
-            EtaPreferenceGroup {
-                EtaOverlayDropdownPreference(
+            SmallTitle(stringResource(R.string.speech_group_service))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                OverlayDropdownPreference(
                     title = stringResource(R.string.speech_tts_service),
                     items = TtsProvider.entries.map { it.label() },
                     selectedIndex = settings.tts.ordinal,
@@ -87,8 +90,12 @@ private fun SpeechPreviewSection(store: SpeechSettingsStore) {
     var text by rememberSaveable { mutableStateOf(defaultText) }
 
     Column {
-        EtaPreferenceGroupTitle(stringResource(R.string.speech_preview_voice))
-        EtaPreferenceGroup {
+        SmallTitle(stringResource(R.string.speech_preview_voice))
+        Card(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp),
+        ) {
             SpeechFieldColumn {
                 SpeechField(
                     label = stringResource(R.string.speech_preview_text),
@@ -103,8 +110,7 @@ private fun SpeechPreviewSection(store: SpeechSettingsStore) {
                     },
                 )
             }
-            EtaPreferenceDivider(hasLeading = false)
-            EtaPreference(
+            BasicComponent(
                 title = stringResource(
                     if (playing) R.string.speech_preview_stop else R.string.speech_preview_voice,
                 ),

@@ -1,28 +1,24 @@
 package io.github.mangi.eta.ui.voice
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.data.repository.SpeechSettingsRepository
-import io.github.mangi.eta.ui.components.EtaArrowPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
-import io.github.mangi.eta.ui.components.EtaSwitchPreference
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 /**
  * 语音设置总览：识别与播报各有独立子页面（预测性返回与滑动返回由 miuix-nav 提供），
@@ -42,51 +38,39 @@ internal fun SpeechSettingsScreen(onBack: () -> Unit, onNavigate: (AppRoute) -> 
             item(key = "loading") { SpeechLoadingState(failure = null) }
             return@MiuixScaffoldPage
         }
-        item(key = "service_title") {
-            EtaPreferenceGroupTitle(stringResource(R.string.speech_group_service))
-        }
         item(key = "service") {
-            EtaPreferenceGroup {
-                EtaArrowPreference(
+            SmallTitle(stringResource(R.string.speech_group_service))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                ArrowPreference(
                     title = stringResource(R.string.speech_recognition_title),
                     summary = if (current.recognitionEnabled) current.asr.label()
                         else stringResource(R.string.speech_recognition_disabled),
-                    startAction = {
-                        EtaPreferenceIcon(icon = Icons.Rounded.Mic, tint = EtaPreferenceColors.Blue)
-                    },
                     onClick = { onNavigate(AppRoute.SpeechRecognition) },
                 )
-                EtaPreferenceDivider()
-                EtaArrowPreference(
+                ArrowPreference(
                     title = stringResource(R.string.speech_synthesis_title),
                     summary = current.tts.label(),
-                    startAction = {
-                        EtaPreferenceIcon(
-                            icon = Icons.AutoMirrored.Rounded.VolumeUp,
-                            tint = EtaPreferenceColors.Orange,
-                        )
-                    },
                     onClick = { onNavigate(AppRoute.SpeechSynthesis) },
                 )
             }
         }
-        item(key = "assistant_title") {
-            EtaPreferenceGroupTitle(stringResource(R.string.speech_group_assistant))
-        }
         item(key = "assistant") {
             Column {
-                EtaPreferenceGroup {
-                    EtaSwitchPreference(
+                SmallTitle(stringResource(R.string.speech_group_assistant))
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    SwitchPreference(
                         title = stringResource(R.string.speech_auto_speak),
                         summary = stringResource(R.string.speech_auto_speak_summary),
                         checked = current.autoSpeak,
                         enabled = current.tts != TtsProvider.NONE,
-                        startAction = {
-                            EtaPreferenceIcon(
-                                icon = Icons.Rounded.RecordVoiceOver,
-                                tint = EtaPreferenceColors.Green,
-                            )
-                        },
                         onCheckedChange = { enabled ->
                             scope.launch {
                                 SpeechSettingsRepository.save(current.copy(autoSpeak = enabled))

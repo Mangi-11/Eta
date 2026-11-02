@@ -14,17 +14,14 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.LinuxDistribution
 import io.github.mangi.eta.agent.terminal.LinuxExecutionBackend
-import io.github.mangi.eta.ui.components.EtaCard
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaTextButton
-import io.github.mangi.eta.ui.components.EtaWindowSpinnerPreference
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -38,10 +35,10 @@ internal fun LinuxEnvironmentStatusCard(
     actionEnabled: Boolean,
     onAction: () -> Unit,
 ) {
-    EtaCard(
+    Card(
         modifier = Modifier
-            .padding(horizontal = EtaPreferenceDefaults.SidePadding)
-            .padding(top = 8.dp, bottom = EtaPreferenceDefaults.GroupSpacing),
+            .padding(horizontal = 12.dp)
+            .padding(top = 8.dp, bottom = 12.dp),
         insideMargin = PaddingValues(16.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -73,7 +70,7 @@ internal fun LinuxEnvironmentStatusCard(
                 )
             }
             actionText?.let {
-                EtaTextButton(
+                TextButton(
                     text = it,
                     enabled = actionEnabled,
                     onClick = onAction,
@@ -96,8 +93,12 @@ internal fun LinuxEnvironmentConfiguration(
 ) {
     val distributions = LinuxDistribution.entries
     val backends = listOf(LinuxExecutionBackend.PROOT, LinuxExecutionBackend.CHROOT)
-    EtaPreferenceGroup {
-        EtaWindowSpinnerPreference(
+    Card(
+        modifier = Modifier
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 12.dp),
+    ) {
+        WindowSpinnerPreference(
             title = stringResource(R.string.linux_distribution_title),
             items = distributions.map {
                 DropdownItem(
@@ -115,8 +116,7 @@ internal fun LinuxEnvironmentConfiguration(
             onSelectedIndexChange = { onDistributionSelected(distributions[it]) },
         )
         if (rootGranted || backend == LinuxExecutionBackend.CHROOT) {
-            EtaPreferenceDivider(hasLeading = false)
-            EtaWindowSpinnerPreference(
+            WindowSpinnerPreference(
                 title = stringResource(R.string.capability_linux_backend),
                 items = backends.map {
                     DropdownItem(
@@ -135,8 +135,7 @@ internal fun LinuxEnvironmentConfiguration(
                 onSelectedIndexChange = { onBackendSelected(backends[it]) },
             )
         } else {
-            EtaPreferenceDivider(hasLeading = false)
-            EtaPreference(
+            BasicComponent(
                 title = stringResource(R.string.capability_linux_backend),
                 endActions = {
                     Text(

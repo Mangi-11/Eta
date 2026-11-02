@@ -21,8 +21,6 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
 import io.github.mangi.eta.agent.tool.RootRequirement
 import io.github.mangi.eta.ui.components.EtaFeatureCard
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
 import io.github.mangi.eta.ui.components.ItemDescriptionDialog
 import io.github.mangi.eta.ui.components.iconForTool
 import io.github.mangi.eta.ui.model.AgentToolsAction
@@ -63,7 +61,14 @@ internal fun ToolCard(
         summary = description,
         modifier = modifier,
         onClick = { if (action != null) onAction(action) else showDescription = true },
-        icon = { EtaPreferenceIcon(icon = iconForTool(tool.id), tint = EtaPreferenceColors.Green) },
+        icon = {
+            Icon(
+                imageVector = iconForTool(tool.id),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = MiuixTheme.colorScheme.primary,
+            )
+        },
         action = if (action != null) {
             {
                 IconButton(onClick = { showDescription = true }) {

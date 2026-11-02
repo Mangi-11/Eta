@@ -18,11 +18,14 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.repository.LanguageSettingsRepository
-import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun LanguagePreference(iconTint: Color = MiuixTheme.colorScheme.onBackground) {
+internal fun LanguagePreference(
+    iconTint: Color = MiuixTheme.colorScheme.onBackground,
+    startAction: (@Composable () -> Unit)? = null,
+) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val repository = remember(context.applicationContext) {
@@ -49,12 +52,11 @@ internal fun LanguagePreference(iconTint: Color = MiuixTheme.colorScheme.onBackg
         locales.indexOfFirst { LocaleList.matchesLanguageAndScript(it, selected) } + 1
     } ?: 0
 
-    EtaDropdownPreference(
+    OverlayDropdownPreference(
         title = stringResource(R.string.settings_language),
-        items = labels.map { DropdownItem(text = it) },
-        useWindow = false,
+        items = labels,
         selectedIndex = selectedIndex,
-        startAction = { EtaPreferenceIcon(icon = Icons.Rounded.Language, tint = iconTint) },
+        startAction = startAction,
         onSelectedIndexChange = { index ->
             if (index in labels.indices) {
                 repository.selectLocale(if (index == 0) null else locales[index - 1])

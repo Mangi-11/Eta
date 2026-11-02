@@ -27,13 +27,12 @@ import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSetting
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaSwitchPreference
-import io.github.mangi.eta.ui.components.EtaWindowSpinnerPreference
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 
 @Composable
 internal fun ProviderConnectionFields(
@@ -65,8 +64,7 @@ internal fun ProviderConnectionFields(
         )
     }
     if (accountMode != null) {
-        EtaPreferenceDivider(hasLeading = false)
-        EtaWindowSpinnerPreference(
+        WindowSpinnerPreference(
             title = "认证方式",
             items = listOf(DropdownItem(text = "API Key"), DropdownItem(text = "账号登录")),
             selectedIndex = if (oauth) 1 else 0,
@@ -77,7 +75,6 @@ internal fun ProviderConnectionFields(
         )
     }
     if (oauth) {
-        EtaPreferenceDivider(hasLeading = false)
         ProviderAccountControls(
             state = loginState,
             authMode = draft.authMode,
@@ -130,8 +127,7 @@ internal fun ProviderConnectionFields(
             }
         }
         if (provider !is AnthropicProviderSetting && provider !is GeminiProviderSetting) {
-            EtaPreferenceDivider(hasLeading = false)
-            EtaWindowSpinnerPreference(
+            WindowSpinnerPreference(
                 title = stringResource(R.string.ui_endpoint_mode_3c8546),
                 items = listOf(DropdownItem(text = "Chat Completions API"), DropdownItem(text = "Responses API")),
                 selectedIndex = if (draft.endpointMode == OpenAiEndpointMode.RESPONSES) 1 else 0,
@@ -147,8 +143,7 @@ internal fun ProviderConnectionFields(
         }
     }
     if (provider is GeminiProviderSetting || (draft.endpointMode == OpenAiEndpointMode.RESPONSES && provider !is AnthropicProviderSetting)) {
-        EtaPreferenceDivider(hasLeading = false)
-        EtaSwitchPreference(
+        SwitchPreference(
             title = if (provider is GeminiProviderSetting) "Google Search" else stringResource(R.string.ui_server_side_web_search_ddb8e0),
             summary = if (provider is GeminiProviderSetting) null
                 else stringResource(R.string.ui_allows_the_model_to_call_web_searches_provided_by_th_2f752f),

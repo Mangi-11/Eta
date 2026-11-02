@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -27,9 +28,9 @@ internal fun EtaFeatureCard(
     action: (@Composable () -> Unit)? = null,
     footer: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
-    EtaCard(
+    Card(
         modifier = modifier.heightIn(min = 136.dp),
-        insideMargin = PaddingValues(EtaPreferenceDefaults.SidePadding),
+        insideMargin = PaddingValues(16.dp),
         pressFeedbackType = PressFeedbackType.Sink,
         showIndication = true,
         onClick = onClick,

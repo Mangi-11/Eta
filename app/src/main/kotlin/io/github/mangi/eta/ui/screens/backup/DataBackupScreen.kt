@@ -5,21 +5,14 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.Download
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
@@ -27,14 +20,6 @@ import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.core.safeStackTrace
 import io.github.mangi.eta.data.repository.EtaBackupSummary
-import io.github.mangi.eta.ui.components.EtaArrowPreference
-import io.github.mangi.eta.ui.components.EtaCard
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaWindowDialog
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import java.io.InputStream
@@ -44,9 +29,12 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun DataBackupScreen(
@@ -111,19 +99,25 @@ internal fun DataBackupScreen(
         onBack = onBack,
     ) {
         item(key = "warning") {
-            EtaPreferenceGroup(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                EtaPreference(
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(top = 8.dp, bottom = 12.dp),
+            ) {
+                BasicComponent(
                     title = stringResource(R.string.data_backup_warning_title),
                     summary = stringResource(R.string.data_backup_warning_summary),
                 )
             }
         }
-        item(key = "actions-title") {
-            EtaPreferenceGroupTitle(stringResource(R.string.data_backup_actions))
-        }
-        item(key = "actions-card") {
-            EtaPreferenceGroup(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-                EtaArrowPreference(
+        item(key = "actions") {
+            SmallTitle(stringResource(R.string.data_backup_actions))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                ArrowPreference(
                     title = stringResource(R.string.data_backup_export),
                     summary = if (busy) {
                         stringResource(R.string.data_backup_working)
@@ -131,27 +125,19 @@ internal fun DataBackupScreen(
                         stringResource(R.string.data_backup_export_summary)
                     },
                     enabled = !busy,
-                    startAction = {
-                        BackupIcon(
-                            icon = Icons.Rounded.Download,
-                            loading = busy,
-                        )
+                    endActions = {
+                        if (busy) {
+                            InfiniteProgressIndicator(size = 20.dp)
+                        }
                     },
                     onClick = {
                         exportLauncher.launch(defaultBackupFileName())
                     },
                 )
-                EtaPreferenceDivider(hasLeading = true)
-                EtaArrowPreference(
+                ArrowPreference(
                     title = stringResource(R.string.data_backup_import),
                     summary = stringResource(R.string.data_backup_import_summary),
                     enabled = !busy,
-                    startAction = {
-                        BackupIcon(
-                            icon = Icons.Rounded.Description,
-                            loading = false,
-                        )
-                    },
                     onClick = {
                         importLauncher.launch(arrayOf("application/json", "text/plain"))
                     },
@@ -161,7 +147,7 @@ internal fun DataBackupScreen(
     }
 
     if (showImportDialog) {
-        EtaWindowDialog(
+        WindowDialog(
             show = true,
             title = stringResource(R.string.data_backup_import_confirm_title),
             summary = stringResource(R.string.data_backup_import_confirm_summary),
@@ -211,26 +197,6 @@ internal fun DataBackupScreen(
                         }
                     }
                 },
-            )
-        }
-    }
-}
-
-@Composable
-private fun BackupIcon(icon: ImageVector, loading: Boolean) {
-    Box(
-        // 与 EtaPreferenceIcon 同宽，正文和分割线起点保持对齐。
-        modifier = Modifier.size(EtaPreferenceDefaults.IconSize),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (loading) {
-            InfiniteProgressIndicator(size = 20.dp)
-        } else {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = MiuixTheme.colorScheme.onBackground,
             )
         }
     }

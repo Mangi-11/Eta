@@ -15,19 +15,18 @@ import io.github.mangi.eta.agent.roleplay.CharacterCardFormat
 import io.github.mangi.eta.agent.roleplay.CharacterMacros
 import io.github.mangi.eta.agent.roleplay.RoleplayBinding
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
-import io.github.mangi.eta.ui.components.EtaArrowPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaSwitchPreference
-import io.github.mangi.eta.ui.components.EtaWindowDialog
 import io.github.mangi.eta.ui.components.ItemDescriptionDialog
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.navigation.AppRoute
-import top.yukonga.miuix.kmp.basic.BasicComponentColors
+import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 
 internal fun greetingTitle(index: Int) = if (index == 0) "默认开场白" else "开场白 ${index + 1}"
@@ -78,19 +77,22 @@ internal fun CharacterDetailScreen(
             )
         }
         item(key = "persona") {
-            EtaPreferenceGroup {
-                EtaSwitchPreference(
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                SwitchPreference(
                     title = "使用我的人设",
                     summary = store.persona.name.ifBlank { "未设置称呼" },
                     checked = store.usePersona,
                     onCheckedChange = { store.usePersona = it },
                 )
-                EtaPreferenceDivider(hasLeading = false)
-                EtaArrowPreference(title = "编辑我的人设", onClick = { onNavigate(AppRoute.CharacterPersona) })
+                ArrowPreference(title = "编辑我的人设", onClick = { onNavigate(AppRoute.CharacterPersona) })
             }
         }
-        item(key = "greetings-title") { EtaPreferenceGroupTitle("开场白") }
         item(key = "greetings") {
+            SmallTitle("开场白")
             // 预览与开始对话后看到的文本一致：宏按当前是否使用人设展开。
             val greetings = remember(profile.card, userName) {
                 (listOf(profile.card.firstMessage) + profile.card.alternateGreetings)
@@ -103,29 +105,29 @@ internal fun CharacterDetailScreen(
                 onRead = { index -> preview = CharacterTextPreview(greetingTitle(index), greetings[index]) },
             )
         }
-        item(key = "management-title") { EtaPreferenceGroupTitle("管理") }
         item(key = "management") {
-            EtaPreferenceGroup {
-                EtaArrowPreference(title = "编辑角色", enabled = !store.busy, onClick = {
+            SmallTitle("管理")
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                ArrowPreference(title = "编辑角色", enabled = !store.busy, onClick = {
                     store.discardEditor()
                     onNavigate(AppRoute.CharacterEditor(id))
                 })
-                EtaPreferenceDivider(hasLeading = false)
-                EtaArrowPreference(title = "剧情记忆", summary = "此角色各次对话共享的故事与关系记录", onClick = {
+                ArrowPreference(title = "剧情记忆", summary = "此角色各次对话共享的故事与关系记录", onClick = {
                     onNavigate(AppRoute.CharacterMemory(id))
                 })
-                EtaPreferenceDivider(hasLeading = false)
-                EtaArrowPreference(title = "复制角色", enabled = !store.busy, onClick = {
+                ArrowPreference(title = "复制角色", enabled = !store.busy, onClick = {
                     store.duplicate(id) { onNavigate(AppRoute.CharacterDetail(it)) }
                 })
-                EtaPreferenceDivider(hasLeading = false)
-                EtaArrowPreference(
+                ArrowPreference(
                     title = "导出 PNG 角色卡",
                     enabled = !store.busy,
                     onClick = { pngExporter.launch(characterExportName(profile.card.name, "png")) },
                 )
-                EtaPreferenceDivider(hasLeading = false)
-                EtaArrowPreference(
+                ArrowPreference(
                     title = "导出 JSON 角色卡",
                     enabled = !store.busy,
                     onClick = { jsonExporter.launch(characterExportName(profile.card.name, "json")) },
@@ -134,8 +136,12 @@ internal fun CharacterDetailScreen(
         }
         if (store.compatibilityWarnings.isNotEmpty()) {
             item(key = "compatibility") {
-                EtaPreferenceGroup {
-                    EtaArrowPreference(
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    ArrowPreference(
                         title = "兼容说明",
                         summary = "${store.compatibilityWarnings.size} 项内容按兼容范围处理",
                         onClick = { showCompatibility = !showCompatibility },
@@ -155,13 +161,14 @@ internal fun CharacterDetailScreen(
         }
         // 破坏性操作单独成组并放在页面末尾，与日常管理操作拉开距离。
         item(key = "danger") {
-            EtaPreferenceGroup {
-                EtaArrowPreference(
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                ArrowPreference(
                     title = "删除角色",
-                    titleColor = BasicComponentColors(
-                        color = MiuixTheme.colorScheme.error,
-                        disabledColor = MiuixTheme.colorScheme.disabledOnSurface,
-                    ),
+                    titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
                     enabled = !store.busy,
                     onClick = { showDeleteConfirm = true },
                 )
@@ -170,7 +177,7 @@ internal fun CharacterDetailScreen(
     }
 
     if (showDeleteConfirm && profile != null) {
-        EtaWindowDialog(
+        WindowDialog(
             show = true,
             title = "删除角色",
             summary = "「${profile.card.name}」将从角色库移除，角色图片与剧情记忆一并删除；已有对话保留。此操作无法撤销。",

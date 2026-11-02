@@ -30,12 +30,12 @@ import io.github.mangi.eta.ui.app.DaemonTaskUi
 import io.github.mangi.eta.ui.app.displayName
 import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.StatusSuccess
-import io.github.mangi.eta.ui.components.EtaWindowDialog
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 /** 守护任务列表面板；终端块视图与控制台视图共用。 */
 @Composable
@@ -45,7 +45,7 @@ internal fun DaemonTasksDialog(
     onStop: (String) -> Unit,
     onLoadLogs: suspend (String) -> String,
 ) {
-    EtaWindowDialog(
+    WindowDialog(
         show = true,
         title = stringResource(R.string.terminal_daemon_tasks),
         onDismissRequest = onDismiss,

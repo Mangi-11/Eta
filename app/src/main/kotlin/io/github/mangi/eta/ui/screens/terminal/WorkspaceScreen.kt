@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DriveFolderUpload
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.runtime.Composable
@@ -36,23 +35,19 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.app.WorkspaceEntry
 import io.github.mangi.eta.ui.app.WorkspaceFileStore
-import io.github.mangi.eta.ui.components.EtaArrowPreference
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
-import io.github.mangi.eta.ui.components.EtaPreferenceDivider
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -127,33 +122,35 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
     }
     MiuixScaffoldPage(title = stringResource(R.string.capability_workspace), onBack = onBack) {
         item(key = "workspace-info") {
-            EtaPreference(
-                title = stringResource(R.string.capability_workspace_private),
-                summary = stringResource(R.string.capability_workspace_private_summary),
-                modifier = Modifier.padding(horizontal = EtaPreferenceDefaults.SidePadding),
-            )
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(top = 8.dp, bottom = 12.dp),
+            ) {
+                BasicComponent(
+                    title = stringResource(R.string.capability_workspace_private),
+                    summary = stringResource(R.string.capability_workspace_private_summary),
+                )
+            }
         }
         item(key = "actions") {
-            EtaPreferenceGroup(modifier = Modifier.padding(horizontal = EtaPreferenceDefaults.SidePadding).padding(top = 8.dp, bottom = EtaPreferenceDefaults.GroupSpacing)) {
-                EtaArrowPreference(
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                ArrowPreference(
                     title = stringResource(R.string.capability_workspace_import),
                     enabled = !busy,
-                    startAction = {
+                    endActions = {
                         if (busy) {
-                            Box(Modifier.size(EtaPreferenceDefaults.IconSize), contentAlignment = Alignment.Center) {
-                                InfiniteProgressIndicator(size = 20.dp)
-                            }
-                        } else {
-                            EtaPreferenceIcon(Icons.Rounded.DriveFolderUpload, tint = EtaPreferenceColors.Orange)
+                            InfiniteProgressIndicator(size = 20.dp)
                         }
                     },
                     onClick = { importLauncher.launch(arrayOf("*/*")) },
                 )
-
-                EtaPreferenceDivider(hasLeading = true)
-                EtaArrowPreference(
+                ArrowPreference(
                     title = stringResource(R.string.capability_workspace_public),
-                    startAction = { EtaPreferenceIcon(Icons.Rounded.FolderOpen, tint = EtaPreferenceColors.Orange) },
                     summary = if (publicAccess) stringResource(R.string.capability_workspace_public_granted) else stringResource(R.string.capability_workspace_public_summary),
                     onClick = {
                         try {
@@ -168,8 +165,13 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
         }
         message?.let { current ->
             item(key = "message") {
-                EtaPreferenceGroup(modifier = Modifier.animateItem().padding(horizontal = EtaPreferenceDefaults.SidePadding).padding(bottom = EtaPreferenceDefaults.GroupSpacing)) {
-                    EtaPreference(
+                Card(
+                    modifier = Modifier
+                        .animateItem()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    BasicComponent(
                         title = current.text,
                         titleColor = BasicComponentDefaults.titleColor(
                             color = if (current.isError) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onBackground,
@@ -189,7 +191,7 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
             }
         }
         item(key = "path") {
-            EtaPreferenceGroupTitle(if (path.isBlank()) stringResource(R.string.capability_workspace_files) else path)
+            SmallTitle(if (path.isBlank()) stringResource(R.string.capability_workspace_files) else path)
         }
         val currentEntries = entries
         val hasParent = path.isNotBlank()
@@ -198,11 +200,17 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
                 EtaPreferenceGroupItem(
                     isFirst = true,
                     isLast = currentEntries.isNullOrEmpty(),
-                    hasLeading = true,
                 ) {
-                    EtaArrowPreference(
+                    ArrowPreference(
                         title = stringResource(R.string.capability_workspace_parent),
-                        startAction = { EtaPreferenceIcon(Icons.Rounded.FolderOpen, tint = EtaPreferenceColors.Orange) },
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.FolderOpen,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 8.dp).size(24.dp),
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        },
                         onClick = { path = path.substringBeforeLast('/', "") },
                     )
                 }
@@ -229,9 +237,8 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
                 EtaPreferenceGroupItem(
                     isFirst = index == 0 && !hasParent,
                     isLast = index == currentEntries.lastIndex,
-                    hasLeading = true,
                 ) {
-                    EtaArrowPreference(
+                    ArrowPreference(
                         title = entry.name,
                         summary = if (entry.directory) stringResource(R.string.capability_workspace_directory)
                             else stringResource(
@@ -239,10 +246,11 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
                                 Formatter.formatShortFileSize(context, entry.size),
                             ),
                         startAction = {
-                            EtaPreferenceIcon(
-                                icon = if (entry.directory) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile,
-                                enabled = !busy,
-                                tint = EtaPreferenceColors.Orange,
+                            Icon(
+                                imageVector = if (entry.directory) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 8.dp).size(24.dp),
+                                tint = if (entry.directory) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
                             )
                         },
                         enabled = !busy,

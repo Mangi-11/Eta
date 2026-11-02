@@ -1,17 +1,19 @@
 package io.github.mangi.eta.ui.voice
 
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.SpeechCredentialField
-import io.github.mangi.eta.ui.components.EtaPreferenceGroup
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupTitle
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.SmallTitle
 
 /** 自有 OSS 配置只做保存不做整体校验，允许先存存储配置再补齐识别配置。 */
 @Composable
@@ -34,11 +36,13 @@ internal fun SpeechOssScreen(onBack: () -> Unit) {
         item(key = "note") {
             SpeechNote(stringResource(R.string.speech_oss_note))
         }
-        item(key = "storage_title") {
-            EtaPreferenceGroupTitle(stringResource(R.string.speech_group_storage))
-        }
         item(key = "storage") {
-            EtaPreferenceGroup {
+            SmallTitle(stringResource(R.string.speech_group_storage))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
                 SpeechFieldColumn {
                     SpeechField(
                         label = stringResource(R.string.speech_oss_region),
@@ -63,11 +67,13 @@ internal fun SpeechOssScreen(onBack: () -> Unit) {
                 }
             }
         }
-        item(key = "credentials_title") {
-            EtaPreferenceGroupTitle(stringResource(R.string.speech_group_credentials))
-        }
         item(key = "credentials") {
-            EtaPreferenceGroup {
+            SmallTitle(stringResource(R.string.speech_group_credentials))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
                 SpeechFieldColumn {
                     SpeechField(
                         label = "AccessKey ID",

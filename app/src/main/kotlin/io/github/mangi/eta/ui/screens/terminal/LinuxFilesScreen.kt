@@ -35,17 +35,15 @@ import io.github.mangi.eta.agent.terminal.LinuxDistribution
 import io.github.mangi.eta.agent.terminal.LinuxEnvironmentPaths
 import io.github.mangi.eta.agent.terminal.LinuxFileExplorer
 import io.github.mangi.eta.agent.terminal.ShellProcessSupervisor
-import io.github.mangi.eta.ui.components.EtaCard
 import io.github.mangi.eta.ui.components.EtaMonospace
-import io.github.mangi.eta.ui.components.EtaPreference
-import io.github.mangi.eta.ui.components.EtaPreferenceColors
-import io.github.mangi.eta.ui.components.EtaPreferenceDefaults
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
-import io.github.mangi.eta.ui.components.EtaPreferenceIcon
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -148,10 +146,10 @@ internal fun LinuxFilesScreen(
                             }
                         }
                         item(key = "viewer-content") {
-                            EtaCard(
+                            Card(
                                 modifier = Modifier
-                                    .padding(horizontal = EtaPreferenceDefaults.SidePadding)
-                                    .padding(bottom = EtaPreferenceDefaults.GroupSpacing),
+                                    .padding(horizontal = 12.dp)
+                                    .padding(bottom = 12.dp),
                                 insideMargin = PaddingValues(16.dp),
                             ) {
                                 SelectionContainer {
@@ -249,7 +247,7 @@ internal fun LinuxFilesScreen(
     }
 }
 
-/** 路径与提示文字和分组标题同一起点。 */
+/** 路径与提示文字和 SmallTitle 同一起点（28.dp）。 */
 @Composable
 private fun PathBar(path: String) {
     Text(
@@ -257,7 +255,7 @@ private fun PathBar(path: String) {
         style = MiuixTheme.textStyles.body2.copy(fontFamily = EtaMonospace),
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier
-            .padding(horizontal = 32.dp)
+            .padding(horizontal = 28.dp)
             .padding(top = 4.dp, bottom = 8.dp),
     )
 }
@@ -284,7 +282,7 @@ private fun HintText(message: String) {
         style = MiuixTheme.textStyles.footnote1,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier
-            .padding(horizontal = 32.dp)
+            .padding(horizontal = 28.dp)
             .padding(bottom = 8.dp),
     )
 }
@@ -298,14 +296,16 @@ private fun FileRow(
     isLast: Boolean,
     onClick: () -> Unit,
 ) {
-    EtaPreferenceGroupItem(isFirst = isFirst, isLast = isLast, hasLeading = true) {
-        EtaPreference(
+    EtaPreferenceGroupItem(isFirst = isFirst, isLast = isLast) {
+        BasicComponent(
             title = name,
             summary = summary,
             startAction = {
-                EtaPreferenceIcon(
-                    icon = if (isDir) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile,
-                    tint = if (isDir) EtaPreferenceColors.Orange else MiuixTheme.colorScheme.onSurfaceVariantActions,
+                Icon(
+                    imageVector = if (isDir) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = 8.dp).size(24.dp),
+                    tint = if (isDir) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
                 )
             },
             onClick = onClick,
