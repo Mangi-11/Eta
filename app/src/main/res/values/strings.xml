@@ -40,6 +40,8 @@
   <string name="action_continue">Continue</string>
   <string name="action_stop">Stop</string>
   <string name="action_edit">Edit</string>
+  <string name="action_pin_conversation">Pin</string>
+  <string name="action_unpin_conversation">Unpin</string>
   <string name="action_rename">Rename</string>
   <string name="action_export">Export</string>
   <string name="action_done">Done</string>

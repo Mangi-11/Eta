@@ -22,8 +22,14 @@ internal class AgentConversationPersistence(initial: AgentConversationStore.Snap
         saved = current
     }
 
-    suspend fun adoptConversation(id: String, state: AgentChatHomeUiState, title: String, updatedAt: Long) = mutex.withLock {
-        saved = saved + (id to Content(state, title, updatedAt))
+    suspend fun adoptConversation(
+        id: String,
+        state: AgentChatHomeUiState,
+        title: String,
+        updatedAt: Long,
+        isPinned: Boolean = false,
+    ) = mutex.withLock {
+        saved = saved + (id to Content(state, title, updatedAt, isPinned))
     }
 
     suspend fun forgetConversation(id: String) = mutex.withLock {
@@ -32,12 +38,13 @@ internal class AgentConversationPersistence(initial: AgentConversationStore.Snap
 
     private fun project(snapshot: AgentConversationStore.Snapshot): Map<String, Content> =
         snapshot.conversationsById.mapValues { (id, state) ->
-            Content(state, snapshot.titles[id].orEmpty(), snapshot.updatedAt[id] ?: 0L)
+            Content(state, snapshot.titles[id].orEmpty(), snapshot.updatedAt[id] ?: 0L, id in snapshot.pinnedIds)
         }
 
     internal data class Content(
         val title: String,
         val updatedAt: Long,
+        val isPinned: Boolean,
         val reasoningEffort: ReasoningEffort,
         val appliedRuntimeRunIds: List<String>,
         val roleplay: RoleplayBinding?,
@@ -49,15 +56,21 @@ internal class AgentConversationPersistence(initial: AgentConversationStore.Snap
         val isConversationLoaded: Boolean,
         val messageStartIndex: Int,
     ) {
-        constructor(state: AgentChatHomeUiState, title: String, updatedAt: Long) : this(
-            title, updatedAt, state.reasoningEffort, state.appliedRuntimeRunIds,
+        constructor(
+            state: AgentChatHomeUiState,
+            title: String,
+            updatedAt: Long,
+            isPinned: Boolean = false,
+        ) : this(
+            title, updatedAt, isPinned, state.reasoningEffort, state.appliedRuntimeRunIds,
             state.roleplay, if (state.roleplay == null) RoleplayMessageState() else state.roleplayMessages,
             state.modelId, state.messages, state.history, state.journal.ifEmpty { state.history },
             state.isConversationLoaded, state.messageStartIndex,
         )
 
         fun sameMetadata(other: Content): Boolean =
-            title == other.title && updatedAt == other.updatedAt && reasoningEffort == other.reasoningEffort &&
+            title == other.title && updatedAt == other.updatedAt && isPinned == other.isPinned &&
+                reasoningEffort == other.reasoningEffort &&
                 appliedRuntimeRunIds == other.appliedRuntimeRunIds && roleplay == other.roleplay &&
                 roleplayMessages == other.roleplayMessages && modelId == other.modelId
     }

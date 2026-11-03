@@ -43,6 +43,8 @@
   <string name="action_continue">繼續</string>
   <string name="action_stop">停止</string>
   <string name="action_edit">編輯</string>
+  <string name="action_pin_conversation">釘選對話</string>
+  <string name="action_unpin_conversation">取消釘選</string>
   <string name="action_rename">重新命名</string>
   <string name="action_done">完成</string>
   <string name="action_add">新增</string>

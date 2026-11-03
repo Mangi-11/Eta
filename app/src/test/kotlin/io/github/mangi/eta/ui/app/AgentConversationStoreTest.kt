@@ -596,4 +596,45 @@ class AgentConversationStoreTest {
         assertTrue(snapshot.conversationsById.isEmpty())
         assertEquals(null, snapshot.selectedConversationId)
     }
+
+    @Test
+    fun pinnedConversationsRoundTripAcrossLoadedAndUnloadedStates() {
+        runBlocking {
+            val persistence = AgentConversationPersistence()
+            val firstSnapshot = AgentConversationStore.Snapshot(
+                selectedConversationId = "conv-1",
+                conversationsById = mapOf(
+                    "conv-1" to AgentChatHomeUiState(
+                        messages = listOf(UserMessageUi(id = "user-1", content = "第一条")),
+                        input = "",
+                        isStreaming = false,
+                        thinkingEnabled = false,
+                    ),
+                    "conv-2" to AgentChatHomeUiState(
+                        messages = listOf(UserMessageUi(id = "user-2", content = "第二条")),
+                        input = "",
+                        isStreaming = false,
+                        thinkingEnabled = false,
+                    ),
+                ),
+                titles = mapOf("conv-1" to "会话一", "conv-2" to "会话二"),
+                updatedAt = mapOf("conv-1" to 2L, "conv-2" to 1L),
+                pinnedIds = setOf("conv-1"),
+            )
+            persistence.save(context, firstSnapshot)
+
+            val loaded = AgentConversationStore.load(context)
+            assertEquals(setOf("conv-1"), loaded.pinnedIds)
+
+            // conv-2 处于未展开（isConversationLoaded = false）状态时切换置顶，也应正确写回数据库。
+            val secondPersistence = AgentConversationPersistence(loaded)
+            secondPersistence.save(
+                context,
+                loaded.copy(pinnedIds = setOf("conv-2")),
+            )
+
+            val reloaded = AgentConversationStore.load(context)
+            assertEquals(setOf("conv-2"), reloaded.pinnedIds)
+        }
+    }
 }

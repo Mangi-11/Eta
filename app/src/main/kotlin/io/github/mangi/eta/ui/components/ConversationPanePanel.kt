@@ -26,18 +26,17 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Cloud
-import androidx.compose.material.icons.rounded.Dashboard
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.ImportContacts
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.SportsBar
+import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.SportsBar
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,12 +62,14 @@ import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.SearchBar
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.squircle.squircleSurface
@@ -77,26 +78,30 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.window.WindowListPopup
 
+/**
+ * 会话侧边栏尺寸标尺。
+ *
+ * 外层水平边距（12.dp）+ 行内水平边距（16.dp）= 28.dp，与 Miuix 原生 [SmallTitle] 的默认内边距
+ * 及 [InputField] 内部搜索图标起点完全对齐，保证搜索框、分组标题与对话标题处于同一条垂直基准线。
+ */
 private object ConversationPanelMetrics {
-    val PaneHorizontalPadding = 16.dp
-    val TopInset = 6.dp
+    val PaneHorizontalPadding = 12.dp
+    val TopInset = 8.dp
     val AfterActionBar = 8.dp
-    val BottomInset = 2.dp
+    val BottomInset = 4.dp
     val ActionIconSize = 20.dp
-    val SectionTopPadding = 8.dp
-    val SectionBottomPadding = 10.dp
-    val SectionIconSize = 14.dp
-    val SectionIconGap = 8.dp
-    val SectionCountGap = 12.dp
-    val RowMinHeight = 48.dp
-    val RowGap = 4.dp
-    val RowCornerRadius = 12.dp
-    val RowHorizontalPadding = 12.dp
-    val RowVerticalPadding = 12.dp
+    val FirstSectionTopPadding = 8.dp
+    val SectionTopPadding = 16.dp
+    val SectionBottomPadding = 6.dp
+    val RowMinHeight = 44.dp
+    val RowGap = 2.dp
+    val RowCornerRadius = 14.dp
+    val RowHorizontalPadding = 16.dp
+    val RowVerticalPadding = 11.dp
     val ActiveDotSize = 6.dp
     val ActiveDotGap = 10.dp
     val EmptyVerticalPadding = 28.dp
-    val DockTopGap = 2.dp
+    val DockVerticalPadding = 4.dp
     val DockEntryCornerRadius = 12.dp
     val DockEntryIconSize = 20.dp
 }
@@ -120,6 +125,7 @@ internal fun ConversationPanePanel(
     listState: androidx.compose.foundation.lazy.LazyListState,
     onSearchChange: (String) -> Unit,
     onConversationSelected: (String) -> Unit,
+    onConversationTogglePin: (ConversationSummaryUi) -> Unit,
     onConversationRename: (ConversationSummaryUi) -> Unit,
     onConversationExport: (ConversationSummaryUi) -> Unit,
     onConversationDelete: (ConversationSummaryUi) -> Unit,
@@ -169,7 +175,7 @@ internal fun ConversationPanePanel(
                     .padding(horizontal = ConversationPanelMetrics.PaneHorizontalPadding)
                     .scrollEndHaptic()
                     .overScrollVertical(),
-                contentPadding = PaddingValues(vertical = 4.dp),
+                contentPadding = PaddingValues(bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(ConversationPanelMetrics.RowGap),
                 overscrollEffect = null,
             ) {
@@ -178,9 +184,12 @@ internal fun ConversationPanePanel(
                         EmptyConversations(isSearching = query.isNotBlank())
                     }
                 } else {
-                    groups.forEach { group ->
+                    groups.forEachIndexed { groupIndex, group ->
                         item(key = "section-${group.section}") {
-                            ConversationSectionHeader(group = group)
+                            ConversationSectionHeader(
+                                group = group,
+                                isFirstSection = groupIndex == 0,
+                            )
                         }
                         items(
                             items = group.items,
@@ -190,6 +199,7 @@ internal fun ConversationPanePanel(
                                 conversation = conversation,
                                 selected = conversation.id == state.selectedConversationId,
                                 onClick = { onConversationSelected(conversation.id) },
+                                onTogglePin = { onConversationTogglePin(conversation) },
                                 onRename = { onConversationRename(conversation) },
                                 onExport = { onConversationExport(conversation) },
                                 onDelete = { onConversationDelete(conversation) },
@@ -206,7 +216,11 @@ internal fun ConversationPanePanel(
                         )
                         .padding(horizontal = ConversationPanelMetrics.PaneHorizontalPadding),
                 ) {
-                    Spacer(Modifier.height(ConversationPanelMetrics.DockTopGap))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = ConversationPanelMetrics.RowHorizontalPadding),
+                        thickness = 0.5.dp,
+                    )
+                    Spacer(Modifier.height(ConversationPanelMetrics.DockVerticalPadding))
                     PaneDock(
                         onOpenSettings = onOpenSettings,
                         onOpenModelProviders = onOpenModelProviders,
@@ -225,7 +239,8 @@ internal fun ConversationPanePanel(
 @Composable
 private fun PaneFixedRegion(content: @Composable () -> Unit) {
     Box(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
             .background(conversationPaneContainerColor()),
     ) {
         content()
@@ -267,37 +282,21 @@ private fun PaneActionBar(
 @Composable
 private fun ConversationSectionHeader(
     group: ConversationDrawerGroup,
+    isFirstSection: Boolean,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                top = ConversationPanelMetrics.SectionTopPadding,
-                bottom = ConversationPanelMetrics.SectionBottomPadding,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.Schedule,
-            contentDescription = null,
-            modifier = Modifier.size(ConversationPanelMetrics.SectionIconSize),
-            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-        )
-        Spacer(modifier = Modifier.width(ConversationPanelMetrics.SectionIconGap))
-        Text(
-            text = group.localizedLabel(),
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            style = MiuixTheme.textStyles.footnote1,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(modifier = Modifier.width(ConversationPanelMetrics.SectionCountGap))
-        Text(
-            text = group.items.size.toString(),
-            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-            style = MiuixTheme.textStyles.footnote1,
-            fontWeight = FontWeight.Medium,
-        )
-    }
+    SmallTitle(
+        text = group.localizedLabel(),
+        insideMargin = PaddingValues(
+            start = ConversationPanelMetrics.RowHorizontalPadding,
+            top = if (isFirstSection) {
+                ConversationPanelMetrics.FirstSectionTopPadding
+            } else {
+                ConversationPanelMetrics.SectionTopPadding
+            },
+            end = ConversationPanelMetrics.RowHorizontalPadding,
+            bottom = ConversationPanelMetrics.SectionBottomPadding,
+        ),
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -306,6 +305,7 @@ private fun ConversationTextRow(
     conversation: ConversationSummaryUi,
     selected: Boolean,
     onClick: () -> Unit,
+    onTogglePin: () -> Unit,
     onRename: () -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit,
@@ -343,38 +343,46 @@ private fun ConversationTextRow(
                 CharacterAvatar(
                     name = name,
                     avatarPath = conversation.characterAvatarPath,
-                    size = 36.dp,
+                    size = 32.dp,
                     shape = CircleShape,
                 )
                 Spacer(Modifier.width(12.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-            val title = conversation.title.ifBlank { conversation.preview }
-            Text(
-                text = title,
-                color = if (selected) {
-                    MiuixTheme.colorScheme.onTertiaryContainer
-                } else {
-                    MiuixTheme.colorScheme.onSurface
-                },
-                style = MiuixTheme.textStyles.body1,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            // 标题与角色名相同（如未改名的角色会话）时不再重复第二行。
-            conversation.characterName?.takeIf { it != title }?.let { name ->
-                Text(name, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            conversation.runStatus?.let { status ->
+                val title = conversation.title.ifBlank { conversation.preview }
                 Text(
-                    text = status,
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    text = title,
+                    color = if (selected) {
+                        MiuixTheme.colorScheme.onTertiaryContainer
+                    } else {
+                        MiuixTheme.colorScheme.onSurface
+                    },
+                    style = MiuixTheme.textStyles.body1,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
+                // 标题与角色名相同（如未改名的角色会话）时不再重复第二行。
+                conversation.characterName?.takeIf { it != title }?.let { name ->
+                    Text(
+                        text = name,
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                conversation.runStatus?.let { status ->
+                    Text(
+                        text = status,
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
             }
             if (conversation.isActiveRun) {
                 Box(
@@ -393,15 +401,34 @@ private fun ConversationTextRow(
             alignment = PopupPositionProvider.Align.BottomEnd,
             onDismissRequest = { showActionMenu = false },
         ) {
+            val pinText = stringResource(
+                if (conversation.isPinned) {
+                    R.string.action_unpin_conversation
+                } else {
+                    R.string.action_pin_conversation
+                },
+            )
             val renameText = stringResource(R.string.action_rename)
             val exportText = stringResource(R.string.action_export)
             val deleteText = stringResource(R.string.action_delete)
+            val pinItem = remember(pinText) {
+                DropdownItem(
+                    text = pinText,
+                    icon = { modifier ->
+                        Icon(
+                            imageVector = Icons.Outlined.PushPin,
+                            contentDescription = null,
+                            modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
+                        )
+                    },
+                )
+            }
             val renameItem = remember(renameText) {
                 DropdownItem(
                     text = renameText,
                     icon = { modifier ->
                         Icon(
-                            imageVector = Icons.Rounded.Edit,
+                            imageVector = Icons.Outlined.Edit,
                             contentDescription = null,
                             modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
                         )
@@ -413,7 +440,7 @@ private fun ConversationTextRow(
                     text = exportText,
                     icon = { modifier ->
                         Icon(
-                            imageVector = Icons.Rounded.Download,
+                            imageVector = Icons.Outlined.Download,
                             contentDescription = null,
                             modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
                         )
@@ -425,7 +452,7 @@ private fun ConversationTextRow(
                     text = deleteText,
                     icon = { modifier ->
                         Icon(
-                            imageVector = Icons.Rounded.Delete,
+                            imageVector = Icons.Outlined.Delete,
                             contentDescription = null,
                             modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
                             tint = MiuixTheme.colorScheme.error,
@@ -440,10 +467,20 @@ private fun ConversationTextRow(
             )
             ListPopupColumn {
                 DropdownImpl(
-                    item = renameItem,
-                    optionSize = 3,
+                    item = pinItem,
+                    optionSize = 4,
                     isSelected = false,
                     index = 0,
+                    onSelectedIndexChange = {
+                        showActionMenu = false
+                        onTogglePin()
+                    },
+                )
+                DropdownImpl(
+                    item = renameItem,
+                    optionSize = 4,
+                    isSelected = false,
+                    index = 1,
                     onSelectedIndexChange = {
                         showActionMenu = false
                         onRename()
@@ -451,9 +488,9 @@ private fun ConversationTextRow(
                 )
                 DropdownImpl(
                     item = exportItem,
-                    optionSize = 3,
+                    optionSize = 4,
                     isSelected = false,
-                    index = 1,
+                    index = 2,
                     onSelectedIndexChange = {
                         showActionMenu = false
                         onExport()
@@ -461,9 +498,9 @@ private fun ConversationTextRow(
                 )
                 DropdownImpl(
                     item = deleteItem,
-                    optionSize = 3,
+                    optionSize = 4,
                     isSelected = false,
-                    index = 2,
+                    index = 3,
                     dropdownColors = deleteColors,
                     onSelectedIndexChange = {
                         showActionMenu = false
@@ -483,7 +520,7 @@ private fun EmptyConversations(isSearching: Boolean) {
         ),
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         style = MiuixTheme.textStyles.body2,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.Normal,
         modifier = Modifier.padding(
             horizontal = ConversationPanelMetrics.RowHorizontalPadding,
             vertical = ConversationPanelMetrics.EmptyVerticalPadding,
@@ -505,37 +542,37 @@ private fun PaneDock(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         DockEntry(
-            icon = Icons.Rounded.Settings,
+            icon = Icons.Outlined.Settings,
             label = "设置",
             onClick = onOpenSettings,
             modifier = Modifier.weight(1f),
         )
         DockEntry(
-            icon = Icons.Rounded.Cloud,
+            icon = Icons.Outlined.Cloud,
             label = "模型",
             onClick = onOpenModelProviders,
             modifier = Modifier.weight(1f),
         )
         DockEntry(
-            icon = Icons.Rounded.Dashboard,
+            icon = Icons.Outlined.Widgets,
             label = "工具",
             onClick = onOpenTools,
             modifier = Modifier.weight(1f),
         )
         DockEntry(
-            icon = Icons.Rounded.ImportContacts,
+            icon = Icons.Outlined.AutoStories,
             label = "Skills",
             onClick = onOpenSkills,
             modifier = Modifier.weight(1f),
         )
         DockEntry(
-            icon = Icons.Rounded.Lock,
+            icon = Icons.Outlined.Shield,
             label = "权限",
             onClick = onOpenPermissions,
             modifier = Modifier.weight(1f),
         )
         DockEntry(
-            icon = Icons.Rounded.SportsBar,
+            icon = Icons.Outlined.SportsBar,
             label = "角色",
             onClick = onOpenCharacters,
             modifier = Modifier.weight(1f),
@@ -552,8 +589,11 @@ private fun DockEntry(
 ) {
     Box(
         modifier = modifier
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(ConversationPanelMetrics.DockEntryCornerRadius))
+            .heightIn(min = 46.dp)
+            .squircleSurface(
+                color = Color.Transparent,
+                cornerRadius = ConversationPanelMetrics.DockEntryCornerRadius,
+            )
             .clickable(onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -561,7 +601,7 @@ private fun DockEntry(
             imageVector = icon,
             contentDescription = label,
             modifier = Modifier.size(ConversationPanelMetrics.DockEntryIconSize),
-            tint = MiuixTheme.colorScheme.onSurface,
+            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
         )
     }
 }

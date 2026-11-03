@@ -11,7 +11,7 @@ import androidx.room.Upsert
 @Dao
 internal interface ConversationDao : ChunkedTextDao {
     @Query(
-        "SELECT c.id, c.title, c.reasoning_effort, c.created_at, c.updated_at, c.model_id, " +
+        "SELECT c.id, c.title, c.reasoning_effort, c.created_at, c.updated_at, c.model_id, c.is_pinned, " +
             "(c.roleplay_json != '') AS has_roleplay, " +
             "m.id AS message_id, m.type AS message_type, m.tool_name, " +
             "COALESCE((SELECT substr(content, 1, 256) FROM agent_text_chunks " +
@@ -23,15 +23,15 @@ internal interface ConversationDao : ChunkedTextDao {
     )
     suspend fun conversationIndex(): List<ConversationIndexRow>
 
-    @Query("SELECT id, title, created_at, updated_at FROM conversations")
+    @Query("SELECT id, title, created_at, updated_at, is_pinned FROM conversations")
     suspend fun conversationIdentities(): List<ConversationIdentity>
 
-    @Query("UPDATE conversations SET title = :title, updated_at = :updatedAt WHERE id = :conversationId")
-    suspend fun updateConversationTitle(conversationId: String, title: String, updatedAt: Long)
+    @Query("UPDATE conversations SET title = :title, updated_at = :updatedAt, is_pinned = :isPinned WHERE id = :conversationId")
+    suspend fun updateConversationTitle(conversationId: String, title: String, updatedAt: Long, isPinned: Boolean = false)
 
     @Query(
         "SELECT id, title, thinking_enabled, reasoning_effort, " +
-            "applied_runtime_run_ids_json, roleplay_json, revisions_json, created_at, updated_at, model_id " +
+            "applied_runtime_run_ids_json, roleplay_json, revisions_json, created_at, updated_at, model_id, is_pinned " +
             "FROM conversations WHERE id = :conversationId"
     )
     suspend fun conversationMetadataRow(conversationId: String): ConversationMetadata?
@@ -42,7 +42,7 @@ internal interface ConversationDao : ChunkedTextDao {
 
     @Query(
         "SELECT id, title, thinking_enabled, reasoning_effort, " +
-            "applied_runtime_run_ids_json, roleplay_json, revisions_json, created_at, updated_at, model_id " +
+            "applied_runtime_run_ids_json, roleplay_json, revisions_json, created_at, updated_at, model_id, is_pinned " +
             "FROM conversations ORDER BY updated_at DESC"
     )
     suspend fun conversationMetadataRows(): List<ConversationMetadata>
@@ -52,7 +52,7 @@ internal interface ConversationDao : ChunkedTextDao {
 
     @Query(
         "SELECT id, title, thinking_enabled, reasoning_effort, " +
-            "applied_runtime_run_ids_json, roleplay_json, revisions_json, created_at, updated_at, model_id " +
+            "applied_runtime_run_ids_json, roleplay_json, revisions_json, created_at, updated_at, model_id, is_pinned " +
             "FROM conversations ORDER BY updated_at DESC LIMIT :limit OFFSET :offset"
     )
     suspend fun conversationMetadataPage(limit: Int, offset: Int): List<ConversationMetadata>

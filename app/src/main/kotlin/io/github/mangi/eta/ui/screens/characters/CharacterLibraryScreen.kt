@@ -13,7 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.SearchOff
-import androidx.compose.material.icons.rounded.TheaterComedy
+import androidx.compose.material.icons.rounded.SportsBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -107,7 +107,7 @@ internal fun CharacterLibraryScreen(
                     ListEmptyState(
                         title = "还没有角色",
                         summary = "创建一个角色，或导入 PNG、JSON 角色卡开始对话",
-                        icon = Icons.Rounded.TheaterComedy,
+                        icon = Icons.Rounded.SportsBar,
                         action = {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 TextButton(

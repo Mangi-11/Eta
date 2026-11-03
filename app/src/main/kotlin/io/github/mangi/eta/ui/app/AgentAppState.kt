@@ -137,6 +137,7 @@ internal class AgentAppState(
     private var conversationsById: Map<String, AgentChatHomeUiState> = initialConversations.conversationsById
     private var conversationTitles: Map<String, String> = initialConversations.titles
     private var conversationUpdatedAt: Map<String, Long> = initialConversations.updatedAt
+    private var conversationPinnedIds: Set<String> = initialConversations.pinnedIds
 
     var homeState by mutableStateOf(
         selectedConversationId?.let(conversationsById::get) ?: emptyChatState(defaultThinkingEnabled)
@@ -318,6 +319,7 @@ internal class AgentAppState(
             conversationsById = snapshot.conversationsById
             conversationTitles = snapshot.titles
             conversationUpdatedAt = snapshot.updatedAt
+            conversationPinnedIds = snapshot.pinnedIds
             conversationPersistence = AgentConversationPersistence(snapshot)
             fileAttachmentOwnerVersion += 1
             homeState = selectedConversationId
@@ -846,6 +848,7 @@ internal class AgentAppState(
                 conversationPersistence.adoptConversation(
                     conversationId, restored, conversationTitles[conversationId].orEmpty(),
                     conversationUpdatedAt[conversationId] ?: 0L,
+                    conversationId in conversationPinnedIds,
                 )
                 val latest = conversationsById[conversationId] ?: return@withLock false
                 updateConversation(conversationId, restored.copy(
@@ -924,6 +927,7 @@ internal class AgentAppState(
                     ))
                     conversationPersistence.adoptConversation(
                         conversationId, window, title, updatedAt,
+                        conversationId in conversationPinnedIds,
                     )
                     val latest = conversationsById[conversationId] ?: return@withLock
                     if (!latest.canReplaceMessageWindowOf(state)) return@withLock
@@ -1052,6 +1056,7 @@ internal class AgentAppState(
         conversationsById = conversationsById - conversationId
         conversationTitles = conversationTitles - conversationId
         conversationUpdatedAt = conversationUpdatedAt - conversationId
+        conversationPinnedIds = conversationPinnedIds - conversationId
         if (wasSelected) {
             conversationSelectionVersion += 1
             cancelHistoryPageLoad()
@@ -1085,6 +1090,17 @@ internal class AgentAppState(
         if (trimmed.isBlank()) return
         conversationTitles = conversationTitles + (conversationId to trimmed)
         conversationUpdatedAt = conversationUpdatedAt + (conversationId to System.currentTimeMillis())
+        refreshConversationSummaries()
+        persistConversations()
+    }
+
+    fun toggleConversationPin(conversationId: String) {
+        if (conversationId !in conversationsById) return
+        conversationPinnedIds = if (conversationId in conversationPinnedIds) {
+            conversationPinnedIds - conversationId
+        } else {
+            conversationPinnedIds + conversationId
+        }
         refreshConversationSummaries()
         persistConversations()
     }
@@ -2225,9 +2241,13 @@ internal class AgentAppState(
 
     private fun refreshConversationSummaries() {
         val summaries = conversationsById.entries
-            .sortedByDescending { (id, _) ->
-                conversationUpdatedAt[id] ?: 0L
-            }
+            .sortedWith(
+                compareByDescending<Map.Entry<String, AgentChatHomeUiState>> { (id, _) ->
+                    id in conversationPinnedIds
+                }.thenByDescending { (id, _) ->
+                    conversationUpdatedAt[id] ?: 0L
+                }
+            )
             .map { (id, state) ->
                 val lastMessage = state.messages.lastOrNull()
                 ConversationSummaryUi(
@@ -2270,6 +2290,7 @@ internal class AgentAppState(
                     },
                     updatedAtMillis = conversationUpdatedAt[id] ?: 0L,
                     mode = ConversationModeUi.Chat,
+                    isPinned = id in conversationPinnedIds,
                     characterName = state.roleplay?.characterName ?: state.conversationCharacterName,
                     characterAvatarPath = state.roleplay?.avatarPath ?: state.conversationCharacterAvatarPath,
                     isActiveRun = state.isStreaming,
@@ -2315,6 +2336,7 @@ internal class AgentAppState(
         val conversations = conversationsById
         val titles = conversationTitles
         val timestamps = conversationUpdatedAt
+        val pinned = conversationPinnedIds
         return synchronized(persistenceLock) {
             // 未保存会阻止结果回执和 write-ahead 运行，由导入后的重载或失败后的补写收尾。
             if (persistencePaused) return CompletableDeferred(false)
@@ -2324,7 +2346,7 @@ internal class AgentAppState(
                 try {
                     previous?.join()
                     persistence.save(appContext,
-                        AgentConversationStore.Snapshot(selected, conversations, titles, timestamps))
+                        AgentConversationStore.Snapshot(selected, conversations, titles, timestamps, pinned))
                     onSaved?.invoke()
                     scope.launch(Dispatchers.Main.immediate) { releaseInactiveConversations(conversations) }
                     true

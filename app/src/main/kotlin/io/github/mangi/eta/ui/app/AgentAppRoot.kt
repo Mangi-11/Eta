@@ -322,6 +322,9 @@ fun AgentAppRoot(
             onRefreshKimiWeb = appViewModel::refreshKimiWeb,
             onOpenBrowser = { openConversationBrowser() },
             onSelectConversation = { conversationId -> selectConversation(conversationId) },
+            onConversationTogglePin = { conversation ->
+                agentState.toggleConversationPin(conversation.id)
+            },
             onConversationRename = { conversation ->
                 conversationRenameTarget = conversation
             },
