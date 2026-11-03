@@ -76,6 +76,7 @@ internal object AgentMessageQueueReducer {
             pendingFileReferences = mergedFiles,
             queuedMessages = rest,
             inputSyncVersion = state.inputSyncVersion + 1,
+            focusInputOnSync = true,
         )
     }
 

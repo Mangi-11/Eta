@@ -51,6 +51,7 @@ import io.github.mangi.eta.data.repository.EtaBackupRepository
 import io.github.mangi.eta.data.repository.EtaBackupSummary
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
+import io.github.mangi.eta.ui.IncomingShareRequest
 import io.github.mangi.eta.ui.model.AgentChatHomeUiState
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
@@ -1854,6 +1855,149 @@ internal class AgentAppState(
         )
     }
 
+    fun acceptSharedContent(request: IncomingShareRequest) {
+        val canReuseCurrentDraft = homeState.isConversationLoaded &&
+            homeState.roleplay == null &&
+            selectedConversationId?.isReadOnlyExternalArchiveConversation() != true &&
+            homeState.messages.isEmpty() &&
+            !homeState.hasEarlierMessages &&
+            !homeState.isStreaming &&
+            !homeState.isCompacting &&
+            homeState.messageEdit == null &&
+            homeState.input.isBlank() &&
+            homeState.pendingImages.isEmpty() &&
+            homeState.pendingFileReferences.isEmpty() &&
+            homeState.queuedMessages.isEmpty()
+        if (!canReuseCurrentDraft) {
+            createConversation()
+        }
+        request.text?.takeIf(String::isNotBlank)?.let { sharedText ->
+            val mergedInput = when {
+                homeState.input.isBlank() -> sharedText
+                else -> homeState.input.trimEnd() + "\n" + sharedText
+            }
+            updateCurrentConversation(
+                homeState.copy(
+                    input = mergedInput,
+                    inputSyncVersion = homeState.inputSyncVersion + 1,
+                    focusInputOnSync = false,
+                ),
+                updateTimestamp = false,
+            )
+        }
+        if (request.uris.isEmpty()) return
+        val ownerVersion = fileAttachmentOwnerVersion
+        scope.launch(Dispatchers.IO) {
+            val gateway = AgentFileReferenceGateway(appContext, AndroidAgentLogger)
+            val resolvedImages = mutableListOf<PendingImageUi>()
+            val resolvedFileReferences = mutableListOf<AgentFileReference>()
+            val failures = mutableListOf<AgentFileReferenceGateway.Error>()
+            request.uris.forEach { rawUri ->
+                val uri = Uri.parse(rawUri)
+                if (isSharedImageCandidate(uri, request.mimeType, isSingleUri = request.uris.size == 1)) {
+                    val image = AgentImageCodec.fromReference(
+                        context = appContext,
+                        value = rawUri,
+                        source = "user_attach",
+                    )
+                    if (image != null) {
+                        val preview = AgentImageCodec.previewFromReference(appContext, image) ?: image
+                        resolvedImages += PendingImageUi(
+                            id = "img-${UUID.randomUUID()}",
+                            uri = image.reference,
+                            dataUrl = preview.reference,
+                            mimeType = image.mimeType,
+                        )
+                        return@forEach
+                    }
+                }
+                when (val resolution = resolveSharedFileUri(gateway, uri)) {
+                    is AgentFileReferenceGateway.Resolution.Success -> resolvedFileReferences += resolution.reference
+                    is AgentFileReferenceGateway.Resolution.Failure -> failures += resolution.error
+                }
+            }
+            withContext(Dispatchers.Main) {
+                if (ownerVersion != fileAttachmentOwnerVersion) {
+                    Toast.makeText(
+                        appContext,
+                        appContext.getString(R.string.state_ui_conversation_switched_selected_path_not_added_5bf91e),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    return@withContext
+                }
+                val existingPaths = homeState.pendingFileReferences
+                    .mapTo(mutableSetOf()) { it.reference.absolutePath }
+                val fileAdditions = resolvedFileReferences
+                    .distinctBy { it.absolutePath }
+                    .filter { existingPaths.add(it.absolutePath) }
+                    .map { reference ->
+                        PendingFileReferenceUi(
+                            id = "file-${UUID.randomUUID()}",
+                            reference = reference,
+                        )
+                    }
+                if (resolvedImages.isNotEmpty() || fileAdditions.isNotEmpty()) {
+                    updateCurrentConversation(
+                        homeState.copy(
+                            pendingImages = homeState.pendingImages + resolvedImages,
+                            pendingFileReferences = homeState.pendingFileReferences + fileAdditions,
+                        ),
+                        updateTimestamp = false,
+                    )
+                }
+                val addedCount = resolvedImages.size + fileAdditions.size
+                val message = when {
+                    failures.size == 1 && addedCount == 0 -> failures.single().userMessage
+                    failures.isNotEmpty() -> appContext.resources.getQuantityString(
+                        R.plurals.file_references_added_with_failures,
+                        failures.size,
+                        addedCount,
+                        failures.size,
+                    )
+                    addedCount == 0 && resolvedFileReferences.isNotEmpty() ->
+                        appContext.getString(R.string.state_ui_the_selected_path_has_been_added_42b432)
+                    else -> null
+                }
+                if (message != null) {
+                    Toast.makeText(appContext, message, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun isSharedImageCandidate(
+        uri: Uri,
+        intentMimeType: String?,
+        isSingleUri: Boolean,
+    ): Boolean {
+        val resolverType = if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
+            runCatching { appContext.contentResolver.getType(uri) }.getOrNull()
+        } else {
+            null
+        }
+        if (resolverType != null && resolverType != "*/*" && resolverType != "application/octet-stream") {
+            return resolverType.startsWith("image/", ignoreCase = true)
+        }
+        val path = uri.lastPathSegment ?: uri.path.orEmpty()
+        val extension = path.substringAfterLast('.', "").lowercase()
+        if (extension in SHARED_IMAGE_EXTENSIONS) return true
+        return isSingleUri && intentMimeType?.startsWith("image/", ignoreCase = true) == true
+    }
+
+    private fun resolveSharedFileUri(
+        gateway: AgentFileReferenceGateway,
+        uri: Uri,
+    ): AgentFileReferenceGateway.Resolution = when (uri.scheme) {
+        ContentResolver.SCHEME_FILE -> gateway.resolveAbsolutePath(
+            rawPath = uri.path.orEmpty(),
+            expectedKind = AgentFileReferenceKind.File,
+        )
+        else -> gateway.resolveDocumentUri(
+            uri = uri,
+            expectedKind = AgentFileReferenceKind.File,
+        )
+    }
+
     private fun resolveAndAttachFileReferences(
         resolver: () -> List<AgentFileReferenceGateway.Resolution>,
     ) {
@@ -2367,6 +2511,9 @@ internal class AgentAppState(
         const val MAX_PREVIEW_CHARS = 48
         const val LEGACY_STOPPED_ERROR = "已停止"
         const val SYNTHETIC_STATUS_STOPPED = "eta_status:stopped"
+        private val SHARED_IMAGE_EXTENSIONS = setOf(
+            "jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif",
+        )
 
         fun emptyChatState(thinkingEnabled: Boolean): AgentChatHomeUiState =
             AgentChatHomeUiState(

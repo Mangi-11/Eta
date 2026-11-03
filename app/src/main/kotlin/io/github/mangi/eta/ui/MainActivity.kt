@@ -76,6 +76,11 @@ class MainActivity : ComponentActivity() {
                             launchRequests = launchRequests.copy(archivedConversation = null)
                             intent?.action = null
                         },
+                        sharedContent = launchRequests.sharedContent,
+                        onSharedContentAccepted = {
+                            launchRequests = launchRequests.copy(sharedContent = null)
+                            intent?.action = null
+                        },
                         openSpeechSettings = launchRequests.speechSettings,
                         openTerminal = launchRequests.terminal,
                         onTerminalOpened = {

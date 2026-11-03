@@ -1,6 +1,8 @@
 package io.github.mangi.eta.ui
 
+import android.content.ClipData
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Parcel
 import io.github.mangi.eta.agent.voice.EtaAssistantOverlayService
@@ -93,6 +95,50 @@ class MainActivityLaunchRequestsTest {
                 Intent(MainActivity.ACTION_OPEN_ARCHIVED_CONVERSATION)
                     .putExtra(MainActivity.EXTRA_HANDOFF_SOURCE, "source"),
             ),
+        )
+    }
+
+    @Test
+    fun `单文件与多文件分享提取去重URI与附带文本且消费后重建不重放`() {
+        val fileUri = Uri.parse("content://provider/files/report.pdf")
+        val imageUri = Uri.parse("content://provider/images/photo.png")
+        val singleShare = Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, fileUri)
+            putExtra(Intent.EXTRA_TEXT, "帮我总结这份文档")
+        }
+        val acceptedSingle = MainActivityLaunchRequests.restore(null, singleShare)
+        assertEquals(
+            IncomingShareRequest(
+                uris = listOf(fileUri.toString()),
+                mimeType = "application/pdf",
+                text = "帮我总结这份文档",
+            ),
+            acceptedSingle.sharedContent,
+        )
+
+        val consumed = acceptedSingle.copy(sharedContent = null)
+        assertEquals(
+            MainActivityLaunchRequests(),
+            MainActivityLaunchRequests.restore(savedState(consumed), singleShare),
+        )
+
+        val multiShare = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "*/*"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(fileUri, imageUri))
+            clipData = ClipData.newRawUri("shared", fileUri).apply {
+                addItem(ClipData.Item(imageUri))
+            }
+            putExtra(Intent.EXTRA_TEXT, fileUri.toString())
+        }
+        val acceptedMulti = MainActivityLaunchRequests().accept(multiShare)
+        assertEquals(
+            IncomingShareRequest(
+                uris = listOf(fileUri.toString(), imageUri.toString()),
+                mimeType = "*/*",
+                text = null,
+            ),
+            acceptedMulti.sharedContent,
         )
     }
 

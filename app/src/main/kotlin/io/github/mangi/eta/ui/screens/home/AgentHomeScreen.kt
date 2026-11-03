@@ -64,6 +64,7 @@ internal fun AgentHomeScreen(
                     pendingFileReferences = state.pendingFileReferences,
                     queuedMessages = state.queuedMessages,
                     inputSyncVersion = state.inputSyncVersion,
+                    focusInputOnSync = state.focusInputOnSync,
                     messageEdit = state.messageEdit,
                     onReasoningEffortChange = { onAction(AgentHomeAction.ReasoningEffortChanged(it)) },
                     onCompactContext = { onAction(AgentHomeAction.CompactContext) },
