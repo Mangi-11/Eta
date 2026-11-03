@@ -109,7 +109,7 @@ internal fun SpeechField(
         onValueChange = onChange,
         label = label,
         singleLine = singleLine,
-        maxLines = if (singleLine) 1 else 5,
+        maxLines = if (singleLine) 1 else Int.MAX_VALUE,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
         visualTransformation = if (secret && !visible) PasswordVisualTransformation() else VisualTransformation.None,

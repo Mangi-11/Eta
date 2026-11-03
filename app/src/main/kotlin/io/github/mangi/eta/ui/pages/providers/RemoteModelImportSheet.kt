@@ -137,7 +137,7 @@ private fun RemoteModelImportContent(
             label = stringResource(R.string.ui_search_model_df5586),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 16.dp)
                 .padding(top = 4.dp, bottom = 6.dp),
         )
         LazyColumn(
@@ -155,7 +155,7 @@ private fun RemoteModelImportContent(
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 48.dp),
+                            .padding(horizontal = 16.dp, vertical = 48.dp),
                     )
                 }
             }
@@ -180,7 +180,7 @@ private fun RemoteModelImportContent(
             colors = ButtonDefaults.textButtonColorsPrimary(),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 16.dp)
                 .padding(top = 8.dp, bottom = 12.dp),
         )
     }

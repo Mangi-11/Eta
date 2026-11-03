@@ -573,7 +573,7 @@ private fun SubagentModelRow(
             .padding(horizontal = 12.dp, vertical = 2.dp)
             .squircleSurface(
                 color = if (selected) {
-                    MiuixTheme.colorScheme.primary.copy(alpha = 0.10f)
+                    MiuixTheme.colorScheme.tertiaryContainer
                 } else {
                     MiuixTheme.colorScheme.surface.copy(alpha = 0f)
                 },
@@ -594,7 +594,7 @@ private fun SubagentModelRow(
                 text = title,
                 style = MiuixTheme.textStyles.body1,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                color = if (selected) MiuixTheme.colorScheme.onTertiaryContainer else MiuixTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -612,7 +612,7 @@ private fun SubagentModelRow(
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary,
+                tint = MiuixTheme.colorScheme.onTertiaryContainer,
                 modifier = Modifier.size(18.dp),
             )
         }

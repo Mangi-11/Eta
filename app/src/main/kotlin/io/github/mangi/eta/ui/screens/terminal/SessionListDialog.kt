@@ -104,7 +104,7 @@ private fun SessionRow(
             .fillMaxWidth()
             .padding(vertical = 3.dp)
             .squircleBackground(
-                if (row.active) colors.primary.copy(alpha = 0.08f) else colors.surfaceContainer,
+                if (row.active) colors.tertiaryContainer else colors.surfaceContainer,
                 14.dp,
             )
             .clickable(onClick = onSelect)
@@ -128,7 +128,7 @@ private fun SessionRow(
                     text = row.environment.displayName,
                     style = MiuixTheme.textStyles.body2,
                     fontWeight = FontWeight.Medium,
-                    color = if (row.active) colors.primary else colors.onSurface,
+                    color = if (row.active) colors.onTertiaryContainer else colors.onSurface,
                 )
                 Text(
                     text = if (row.active) {

@@ -100,9 +100,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 private object SettingsIconColors {
-    val Blue = Color(0xFF0080FF)
+    val Blue = Color(0xFF4285F4)
     val Green = StatusSuccess
-    val Orange = Color(0xFFFF7700)
+    val Orange = Color(0xFFFA7B17)
     val Yellow = StatusWarning
 }
 

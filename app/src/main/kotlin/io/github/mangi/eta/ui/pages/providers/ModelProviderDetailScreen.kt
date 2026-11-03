@@ -59,6 +59,7 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -303,26 +304,22 @@ private fun ProviderConfigTab(
                 SwitchPreference(
                     title = stringResource(R.string.ui_enable_this_provider_683a76),
                     checked = draft.isEnabled,
-                    onCheckedChange = { onDraftChange(draft.copy(isEnabled = it)) }
+                    onCheckedChange = { onDraftChange(draft.copy(isEnabled = it)) },
                 )
-                Column(modifier = Modifier.padding(16.dp)) {
-                    TextField(
-                        value = draft.systemPrompt,
-                        onValueChange = { onDraftChange(draft.copy(systemPrompt = it)) },
-                        label = stringResource(R.string.ui_system_prompt_word_193981),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp),
-                        singleLine = false,
-                    )
-                    Text(
-                        text = stringResource(R.string.ui_leave_blank_to_use_the_default_mobile_agent_prompt_w_21e7c8),
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                }
             }
+            SmallTitle(text = stringResource(R.string.ui_system_prompt_word_193981))
+            TextField(
+                value = draft.systemPrompt,
+                onValueChange = { onDraftChange(draft.copy(systemPrompt = it)) },
+                label = stringResource(R.string.ui_leave_blank_to_use_the_default_mobile_agent_prompt_w_21e7c8),
+                useLabelAsPlaceholder = true,
+                singleLine = false,
+                minLines = 4,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            )
         }
 
         item(key = "actions") {
@@ -392,6 +389,24 @@ private fun ProviderConfigTab(
                         }
                     },
                 )
+                if (!isNew) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(
+                        text = if (provider.isBuiltIn) {
+                            context.getString(R.string.page_reset_built_in_configuration_35b6ec)
+                        } else {
+                            context.getString(R.string.page_remove_provider_9f848f)
+                        },
+                        enabled = !isWorking && !loginState.isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(
+                            textColor = MiuixTheme.colorScheme.error,
+                        ),
+                        onClick = {
+                            if (provider.isBuiltIn) showResetDialog = true else showDeleteDialog = true
+                        },
+                    )
+                }
                 status?.let { message ->
                     Text(
                         text = message,
@@ -400,39 +415,6 @@ private fun ProviderConfigTab(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(top = 8.dp),
                     )
-                }
-            }
-        }
-
-        if (!isNew) {
-            item(key = "danger_zone") {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .padding(top = 12.dp),
-                    showIndication = true,
-                    onClick = if (isWorking || loginState.isBusy) {
-                        null
-                    } else {
-                        {
-                            if (provider.isBuiltIn) showResetDialog = true else showDeleteDialog = true
-                        }
-                    },
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 14.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = if (provider.isBuiltIn) context.getString(R.string.page_reset_built_in_configuration_35b6ec) else context.getString(R.string.page_remove_provider_9f848f),
-                            fontSize = MiuixTheme.textStyles.headline1.fontSize,
-                            fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.error,
-                        )
-                    }
                 }
             }
         }

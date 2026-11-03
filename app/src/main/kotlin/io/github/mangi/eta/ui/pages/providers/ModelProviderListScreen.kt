@@ -2,12 +2,14 @@ package io.github.mangi.eta.ui.pages.providers
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -38,8 +40,8 @@ import io.github.mangi.eta.ui.navigation.NewProviderType
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
+import top.yukonga.miuix.kmp.basic.RadioButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -89,8 +91,23 @@ internal fun ModelProviderListScreen(
         item(key = "create_section") {
             ProviderSection(title = stringResource(R.string.ui_add_new_provider_74df54)) {
                 ArrowPreference(
-                    title = "从目录添加",
-                    summary = "浏览可用提供商并选择模型",
+                    title = "从 models.dev 添加",
+                    summary = "浏览 models.dev 社区目录并选择模型",
+                    startAction = {
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .size(24.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.TravelExplore,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp),
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        }
+                    },
                     onClick = { onNavigate(AppRoute.CommunityCatalog) },
                 )
                 ArrowPreference(
@@ -201,27 +218,30 @@ private fun ProviderListItem(
             .graphicsLayer { alpha = opacity },
         startAction = { ProviderIcon(provider) },
         endActions = {
-            IconButton(onClick = onSelect) {
-                Icon(
-                    imageVector = if (isSelected) Icons.Rounded.Check else Icons.Rounded.RadioButtonUnchecked,
-                    contentDescription = if (isSelected) {
-                        stringResource(R.string.provider_selected)
-                    } else {
-                        stringResource(R.string.provider_set_current)
-                    },
-                    tint = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
-                )
-            }
+            RadioButton(
+                selected = isSelected,
+                onClick = onSelect,
+                enabled = provider.isEnabled,
+            )
         },
     ) {
-        Text(
-            text = provider.name,
-            fontSize = MiuixTheme.textStyles.headline1.fontSize,
-            fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = provider.name,
+                fontSize = MiuixTheme.textStyles.headline1.fontSize,
+                fontWeight = FontWeight.Medium,
+                color = if (isSelected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (isSelected) {
+                TagChip(text = stringResource(R.string.ui_current_25e74d), tone = TagChipTone.Emphasized)
+            }
+        }
         Text(
             text = provider.baseUrl,
             style = MiuixTheme.textStyles.body2,
@@ -235,18 +255,11 @@ private fun ProviderListItem(
                 provider.typeLabel,
                 pluralStringResource(R.plurals.provider_models_count, provider.models.size, provider.models.size),
                 stringResource(R.string.ui_built_in_09ceea).takeIf { provider.isBuiltIn },
+                stringResource(R.string.ui_disabled_0fe5a9).takeIf { !provider.isEnabled },
             ).joinToString(" · "),
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.padding(top = 4.dp),
         )
-        if (!provider.isEnabled) {
-            Text(
-                text = stringResource(R.string.ui_disabled_0fe5a9),
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
     }
 }

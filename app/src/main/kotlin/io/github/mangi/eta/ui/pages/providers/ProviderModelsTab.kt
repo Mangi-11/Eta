@@ -22,9 +22,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -90,7 +93,10 @@ import io.github.mangi.eta.ui.model.formatCompactTokenCount
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
+import top.yukonga.miuix.kmp.basic.FloatingToolbar
+import top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
@@ -98,18 +104,16 @@ import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
-import androidx.compose.material.icons.rounded.DeleteOutline
-import top.yukonga.miuix.kmp.squircle.squircleSurface
+import androidx.compose.ui.text.font.FontWeight
 
 private val editableReasoningEfforts = listOf(
     ReasoningEffort.OFF,
@@ -222,37 +226,6 @@ internal fun ProviderModelsTab(
             ),
             overscrollEffect = null,
         ) {
-            // 多选时“模型管理”收起，换成吸顶的编辑栏：数量与全选放在这里，底部只留删除。
-            // 两个条目始终存在，只在内部做尺寸动画：下方列表随高度变化连续上移，
-            // 而不是条目增删时先跳位再补位移。
-            stickyHeader(key = "selection_header", contentType = "selection_header") {
-                AnimatedVisibility(
-                    visible = selectionMode,
-                    enter = expandVertically(selectionMotion(), expandFrom = Alignment.Top) +
-                        fadeIn(selectionFade(delayMillis = SelectionMotionMillis / 3)),
-                    exit = shrinkVertically(selectionMotion(), shrinkTowards = Alignment.Top) +
-                        fadeOut(selectionFade()),
-                ) {
-                    val visibleIds = filteredModels.mapTo(mutableSetOf()) { it.id }
-                    val allVisibleSelected = visibleIds.isNotEmpty() && selectedModelIds.containsAll(visibleIds)
-                    ModelSelectionHeader(
-                        selectedCount = selectedModelIds.size,
-                        allVisibleSelected = allVisibleSelected,
-                        enabled = !isFetching && !isMutatingModel && visibleIds.isNotEmpty(),
-                        // 全选只作用于当前搜索结果：先搜索再全选，可以一次清掉一类模型。
-                        onToggleAll = {
-                            selectedModelIds = if (allVisibleSelected) {
-                                selectedModelIds - visibleIds
-                            } else {
-                                selectedModelIds + visibleIds
-                            }
-                        },
-                        onExit = {
-                            selectionMode = false
-                        },
-                    )
-                }
-            }
             item(key = "actions", contentType = "section") {
                 AnimatedVisibility(
                     visible = !selectionMode,
@@ -388,7 +361,41 @@ internal fun ProviderModelsTab(
                 }
             } else {
                 item(key = "models_title", contentType = "section_title") {
-                    SmallTitle(modelListTitle)
+                    if (selectionMode) {
+                        val visibleIds = filteredModels.mapTo(mutableSetOf()) { it.id }
+                        val allVisibleSelected = visibleIds.isNotEmpty() && selectedModelIds.containsAll(visibleIds)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SmallTitle(
+                                text = pluralStringResource(
+                                    R.plurals.provider_models_selected,
+                                    selectedModelIds.size,
+                                    selectedModelIds.size,
+                                ),
+                                modifier = Modifier.weight(1f),
+                            )
+                            SelectionHeaderAction(
+                                text = stringResource(
+                                    if (allVisibleSelected) R.string.page_select_none_ba20eb else R.string.page_select_all_3e44b2,
+                                ),
+                                color = MiuixTheme.colorScheme.primary,
+                                enabled = !isFetching && !isMutatingModel && visibleIds.isNotEmpty(),
+                                onClick = {
+                                    selectedModelIds = if (allVisibleSelected) {
+                                        selectedModelIds - visibleIds
+                                    } else {
+                                        selectedModelIds + visibleIds
+                                    }
+                                },
+                            )
+                        }
+                    } else {
+                        SmallTitle(modelListTitle)
+                    }
                 }
                 itemsIndexed(
                     items = filteredModels,
@@ -468,6 +475,7 @@ internal fun ProviderModelsTab(
             ModelDeleteBar(
                 selectedCount = selectedModelIds.size,
                 enabled = !isFetching && !isMutatingModel,
+                onCancel = { selectionMode = false },
                 onDelete = { showBatchDeleteDialog = true },
             )
         }
@@ -642,50 +650,6 @@ private fun <T> selectionMotion() = tween<T>(SelectionMotionMillis, easing = Sel
 private fun selectionFade(delayMillis: Int = 0) =
     tween<Float>(SelectionMotionMillis / 2, delayMillis = delayMillis, easing = LinearEasing)
 
-/**
- * 多选模式的吸顶编辑栏：取消在左、已选数量居中、全选在右。
- * 两侧都用文字并与列表正文、勾选框对齐到同一左右边缘（分组外边距加行内边距）；
- * 点击区向外扩出，视觉边缘不变。
- */
-@Composable
-private fun ModelSelectionHeader(
-    selectedCount: Int,
-    allVisibleSelected: Boolean,
-    enabled: Boolean,
-    onToggleAll: () -> Unit,
-    onExit: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val edge = 28.dp
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(MiuixTheme.colorScheme.surface)
-            .padding(horizontal = edge - SelectionHeaderTouchInset, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SelectionHeaderAction(
-            text = stringResource(R.string.action_cancel),
-            color = MiuixTheme.colorScheme.onSurface,
-            enabled = true,
-            onClick = onExit,
-        )
-        Text(
-            text = pluralStringResource(R.plurals.provider_models_selected, selectedCount, selectedCount),
-            style = MiuixTheme.textStyles.headline1,
-            color = MiuixTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f),
-        )
-        SelectionHeaderAction(
-            text = stringResource(if (allVisibleSelected) R.string.page_select_none_ba20eb else R.string.page_select_all_3e44b2),
-            color = MiuixTheme.colorScheme.primary,
-            enabled = enabled,
-            onClick = onToggleAll,
-        )
-    }
-}
-
 @Composable
 private fun SelectionHeaderAction(
     text: String,
@@ -695,62 +659,65 @@ private fun SelectionHeaderAction(
 ) {
     Text(
         text = text,
-        style = MiuixTheme.textStyles.body1,
+        style = MiuixTheme.textStyles.subtitle,
         color = if (enabled) color else MiuixTheme.colorScheme.disabledOnSecondaryVariant,
         maxLines = 1,
         modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(8.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = SelectionHeaderTouchInset, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
     )
 }
 
-private val SelectionHeaderTouchInset = 8.dp
-
-/** 多选模式底部只放一个删除动作，写明数量，避免误删时看不清范围。 */
+/** 多选模式底部使用 Miuix 原生 FloatingToolbar 居中悬浮，避开手机屏幕底部大圆角裁切区。 */
 @Composable
 private fun ModelDeleteBar(
     selectedCount: Int,
     enabled: Boolean,
+    onCancel: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val active = enabled && selectedCount > 0
-    Row(
-        modifier = Modifier
-            .navigationBarsPadding()
-            .padding(horizontal = 32.dp)
-            .padding(bottom = 16.dp)
-            .fillMaxWidth()
-            .squircleSurface(
-                color = if (active) {
-                    MiuixTheme.colorScheme.error.copy(alpha = 0.12f)
-                } else {
-                    MiuixTheme.colorScheme.surfaceContainerHigh
-                },
-                cornerRadius = 26.dp,
-            )
-            .clickable(enabled = active, onClick = onDelete)
-            .padding(vertical = 15.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
+    val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomPadding = if (navBarBottom > 0.dp) 20.dp + navBarBottom else 28.dp
+    FloatingToolbar(
+        outSidePadding = PaddingValues(
+            start = 24.dp,
+            top = 8.dp,
+            end = 24.dp,
+            bottom = bottomPadding,
+        ),
+        showDivider = true,
     ) {
-        val tint = if (active) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.disabledOnSecondaryVariant
-        Icon(
-            imageVector = Icons.Rounded.DeleteOutline,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = if (selectedCount > 0) {
-                pluralStringResource(R.plurals.provider_delete_models_action, selectedCount, selectedCount)
-            } else {
-                stringResource(R.string.provider_delete_models_pick_hint)
-            },
-            style = MiuixTheme.textStyles.button,
-            color = tint,
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                text = stringResource(R.string.action_cancel),
+                onClick = onCancel,
+                cornerRadius = FloatingToolbarDefaults.CornerRadius,
+                minHeight = 38.dp,
+                insideMargin = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+            )
+            TextButton(
+                text = if (selectedCount > 0) {
+                    pluralStringResource(R.plurals.provider_delete_models_action, selectedCount, selectedCount)
+                } else {
+                    stringResource(R.string.page_delete_3755f5)
+                },
+                enabled = active,
+                onClick = onDelete,
+                cornerRadius = FloatingToolbarDefaults.CornerRadius,
+                minHeight = 38.dp,
+                insideMargin = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                colors = ButtonDefaults.textButtonColorsPrimary(
+                    color = MiuixTheme.colorScheme.error,
+                    textColor = MiuixTheme.colorScheme.onError,
+                ),
+            )
+        }
     }
 }
 
@@ -768,20 +735,9 @@ private fun ModelListItem(
     onSetCurrent: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val rowTint by animateColorAsState(
-        targetValue = if (selectionMode && checked) {
-            MiuixTheme.colorScheme.primary.copy(alpha = 0.06f)
-        } else {
-            Color.Transparent
-        },
-        animationSpec = tween(durationMillis = 160),
-        label = "model_row_tint",
-    )
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .drawBehind { drawRect(rowTint) }
             .combinedClickable(
                 enabled = enabled,
                 onClick = if (selectionMode) onToggleChecked else onSetCurrent,
@@ -795,7 +751,13 @@ private fun ModelListItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = model.displayName,
-                style = MiuixTheme.textStyles.headline1,
+                fontSize = MiuixTheme.textStyles.headline1.fontSize,
+                fontWeight = FontWeight.Medium,
+                color = if (isSelected && !selectionMode) {
+                    MiuixTheme.colorScheme.primary
+                } else {
+                    MiuixTheme.colorScheme.onSurface
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -819,6 +781,7 @@ private fun ModelListItem(
                 }
             }
         }
+        Spacer(modifier = Modifier.width(8.dp))
         if (selectionMode) {
             Checkbox(
                 state = if (checked) ToggleableState.On else ToggleableState.Off,
@@ -826,26 +789,12 @@ private fun ModelListItem(
                 enabled = enabled,
             )
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onEdit, enabled = enabled) {
-                    Icon(
-                        imageVector = Icons.Rounded.Tune,
-                        contentDescription = stringResource(R.string.ui_edit_model_parameters_ba4864),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                    )
-                }
-                IconButton(onClick = onSetCurrent, enabled = enabled) {
-                    Icon(
-                        imageVector = if (isSelected) Icons.Rounded.Check
-                            else Icons.Rounded.RadioButtonUnchecked,
-                        contentDescription = if (isSelected) context.getString(R.string.page_current_model_a0af8f) else context.getString(R.string.page_set_as_current_model_183d7d),
-                        tint = if (isSelected) {
-                            MiuixTheme.colorScheme.primary
-                        } else {
-                            MiuixTheme.colorScheme.onSurfaceVariantActions
-                        },
-                    )
-                }
+            IconButton(onClick = onEdit, enabled = enabled) {
+                Icon(
+                    imageVector = Icons.Rounded.Tune,
+                    contentDescription = stringResource(R.string.ui_edit_model_parameters_ba4864),
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                )
             }
         }
     }

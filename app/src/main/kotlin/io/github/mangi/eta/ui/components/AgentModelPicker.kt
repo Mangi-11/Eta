@@ -252,12 +252,12 @@ private fun ModelSheetContent(
             label = stringResource(R.string.ui_search_model_df5586),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 16.dp)
                 .padding(top = 4.dp, bottom = 8.dp),
         )
         if (state.providerGroups.size > 1) {
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(bottom = 6.dp),
             ) {
@@ -362,12 +362,13 @@ private fun ModelPickerRow(
     onClick: () -> Unit,
     horizontalPadding: Dp = 8.dp,
 ) {
-    val contentColor = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
+    val containerColor = if (selected) MiuixTheme.colorScheme.tertiaryContainer else Color.Transparent
+    val contentColor = if (selected) MiuixTheme.colorScheme.onTertiaryContainer else MiuixTheme.colorScheme.onSurface
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = horizontalPadding)
-            .squircleSurface(color = Color.Transparent, cornerRadius = 12.dp)
+            .padding(horizontal = horizontalPadding, vertical = 2.dp)
+            .squircleSurface(color = containerColor, cornerRadius = 12.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,

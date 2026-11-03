@@ -457,7 +457,7 @@ private fun WebToolsField(
         onValueChange = onChange,
         label = label,
         singleLine = singleLine,
-        maxLines = if (singleLine) 1 else 5,
+        maxLines = if (singleLine) 1 else Int.MAX_VALUE,
         modifier = Modifier.fillMaxWidth(),
         visualTransformation = if (secret && !visible) PasswordVisualTransformation() else VisualTransformation.None,
         trailingIcon = if (secret) {

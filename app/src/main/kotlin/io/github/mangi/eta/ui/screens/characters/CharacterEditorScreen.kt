@@ -73,9 +73,9 @@ internal fun CharacterEditorScreen(
                         store.updateDraft { it.withEdits(alternateGreetings = it.alternateGreetings.toMutableList().apply { this[index] = updated }) }
                     },
                     label = "开场白 ${index + 2}",
+                    useLabelAsPlaceholder = true,
                     enabled = !store.busy,
                     minLines = 2,
-                    maxLines = 14,
                     modifier = Modifier.weight(1f).padding(vertical = 6.dp),
                 )
                 IconButton(
@@ -159,9 +159,14 @@ internal fun CharacterTextField(
     minLines: Int = 2,
 ) {
     TextField(
-        value = value, onValueChange = onChange, label = label, enabled = enabled,
-        singleLine = singleLine, minLines = if (singleLine) 1 else minLines,
-        maxLines = if (singleLine) 1 else 14,
+        value = value,
+        onValueChange = onChange,
+        label = label,
+        useLabelAsPlaceholder = !singleLine,
+        enabled = enabled,
+        singleLine = singleLine,
+        minLines = if (singleLine) 1 else minLines,
+        maxLines = if (singleLine) 1 else Int.MAX_VALUE,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }

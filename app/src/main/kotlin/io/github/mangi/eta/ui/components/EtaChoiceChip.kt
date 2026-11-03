@@ -31,7 +31,7 @@ internal fun EtaChoiceChip(
 ) {
     val container by animateColorAsState(
         targetValue = if (selected) {
-            MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
+            MiuixTheme.colorScheme.tertiaryContainer
         } else {
             Color.Transparent
         },
@@ -41,7 +41,7 @@ internal fun EtaChoiceChip(
     val content by animateColorAsState(
         targetValue = when {
             !enabled -> MiuixTheme.colorScheme.disabledOnSecondaryVariant
-            selected -> MiuixTheme.colorScheme.primary
+            selected -> MiuixTheme.colorScheme.onTertiaryContainer
             else -> MiuixTheme.colorScheme.onSurface
         },
         animationSpec = tween(durationMillis = 160),

@@ -71,6 +71,7 @@ import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -317,14 +318,13 @@ private fun ConversationTextRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = ConversationPanelMetrics.RowMinHeight)
-                .clip(RoundedCornerShape(ConversationPanelMetrics.RowCornerRadius))
-                .background(
-                    if (selected) {
-                        // 与侧栏背景保持一档亮度差；浅色下与 surfaceContainerHigh 相同。
-                        MiuixTheme.colorScheme.surfaceContainerHighest
+                .squircleSurface(
+                    color = if (selected) {
+                        MiuixTheme.colorScheme.tertiaryContainer
                     } else {
                         Color.Transparent
                     },
+                    cornerRadius = ConversationPanelMetrics.RowCornerRadius,
                 )
                 .combinedClickable(
                     onClick = onClick,
@@ -353,7 +353,7 @@ private fun ConversationTextRow(
             Text(
                 text = title,
                 color = if (selected) {
-                    MiuixTheme.colorScheme.primary
+                    MiuixTheme.colorScheme.onTertiaryContainer
                 } else {
                     MiuixTheme.colorScheme.onSurface
                 },
