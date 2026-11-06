@@ -60,8 +60,8 @@ class AgentDeviceResultFormatterTest {
         assertEquals("媒体音量：33% → 53%", summarize("set_volume", """{"stream":"media","before":5,"after":8,"min_level":0,"max_level":15,"percent":50}"""))
         assertEquals("通话音量：0% → 50%", summarize("set_volume", """{"stream":"voice_call","before":1,"after":3,"min_level":1,"max_level":5}"""))
         assertEquals("铃声音量：2 档 → 4 档", summarize("set_volume", """{"stream":"ring","before":2,"after":4}"""))
-        assertEquals("系统音量：保持0 档", summarize("set_volume", """{"stream":"system","before":0,"after":0,"min_level":0,"max_level":0}"""))
-        assertEquals("媒体音量：已设为50%", summarize("set_volume", """{"stream":"media","before":500,"after":501,"min_level":0,"max_level":1000}"""))
+        assertEquals("系统音量：保持 0 档", summarize("set_volume", """{"stream":"system","before":0,"after":0,"min_level":0,"max_level":0}"""))
+        assertEquals("媒体音量：已设为 50%", summarize("set_volume", """{"stream":"media","before":500,"after":501,"min_level":0,"max_level":1000}"""))
         assertNull(summarize("set_volume", """{"stream":"media","percent":50,"level":7}"""))
     }
 
@@ -69,7 +69,7 @@ class AgentDeviceResultFormatterTest {
     fun numericChangesUseReadbackUnitsAndTreatMissingPreviousValuesAsUnknown() {
         assertEquals("亮度：30% → 59.5%", summarize("set_brightness", """{"before":30,"after":59.5,"expected":60}"""))
         assertEquals("自动息屏：30 秒 → 2 分钟", summarize("set_screen_timeout", """{"before":30000,"after":120000}"""))
-        assertEquals("自动息屏：已设为45 秒", summarize("set_screen_timeout", """{"before":-1,"after":45000}"""))
+        assertEquals("自动息屏：已设为 45 秒", summarize("set_screen_timeout", """{"before":-1,"after":45000}"""))
         assertNull(summarize("set_screen_timeout", """{"after":-1}"""))
         assertNull(summarize("set_brightness", """{"actual_percent":60,"expected":60}"""))
         assertEquals("响铃模式：正常 → 振动", summarize("set_sound_mode", """{"before":2,"after":1,"mode":"silent"}"""))
@@ -91,14 +91,14 @@ class AgentDeviceResultFormatterTest {
 
     @Test
     fun applicationAndMediaSummariesDoNotInventRunningOrPlaybackState() {
-        assertEquals("应用 com.example.app：未停止 → 停止", summarize("app_state_control", """{"package_name":"com.example.app","action":"force_stop","state_field":"stopped","before":false,"after":true}"""))
-        assertEquals("应用：启用 → 冻结", summarize("app_state_control", """{"package_name":"private\nbody","action":"freeze","state_field":"enabled","before":true,"after":false}"""))
+        assertEquals("已停止应用 com.example.app", summarize("app_state_control", """{"package_name":"com.example.app","action":"force_stop","state_field":"stopped","before":false,"after":true}"""))
+        assertEquals("已冻结应用", summarize("app_state_control", """{"package_name":"private\nbody","action":"freeze","state_field":"enabled","before":true,"after":false}"""))
         assertNull(summarize("app_state_control", """{"action":"force_stop","state_field":"enabled","after":true}"""))
         val longPackage = "com.example." + "a".repeat(80)
         val summary = summarize("app_state_control", JSONObject().put("package_name", longPackage)
             .put("action", "unfreeze").put("state_field", "enabled").put("before", false).put("after", true).toString())!!
         assertFalse(summary.contains(longPackage))
-        assertEquals("应用 ${longPackage.take(59)}…：冻结 → 启用", summary)
+        assertEquals("已解冻应用 ${longPackage.take(59)}…", summary)
         assertEquals("已发送暂停指令", summarize("media_control", """{"action":"pause"}"""))
         assertNull(summarize("media_control", """{"action":"private-action"}"""))
     }
@@ -111,6 +111,8 @@ class AgentDeviceResultFormatterTest {
         assertEquals("移动网络：已连接，互联网未验证", summarize("network_info", """{"connected":true,"validated":false,"transports":["cellular"]}"""))
         assertEquals("网络：未连接", summarize("network_info", """{"connected":false,"validated":false,"transports":[]}"""))
         assertEquals("电量 73% · 正在充电", summarize("device_status", """{"battery_percent":73,"charging":true}"""))
+        assertEquals("最近位置：31.23041, 121.4737（42 秒前）", summarize("get_current_location", """{"latitude":31.23041,"longitude":121.4737,"age_ms":42000}"""))
+        assertEquals("已读取设备环境", summarize("get_device_environment", """{"interactive":true}"""))
         assertNull(summarize("network_info", """{"connected":"true","validated":true,"transports":[]}"""))
         assertNull(summarize("device_status", """{"battery_percent":-1,"charging":true}"""))
         assertNull(summarize("device_status", """{"battery_percent":73}"""))

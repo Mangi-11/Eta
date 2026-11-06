@@ -13,6 +13,10 @@ internal object AgentDeviceResultFormatter {
         if (json.opt("ok") == false || json.optString("status") in setOf("unconfirmed", "failed")) return null
         when (toolName) {
             "get_current_context" -> return currentContext(json)
+            "get_current_location" -> return currentLocation(json)
+            "get_device_environment" -> return "已读取设备环境"
+            "app_usage_summary" -> return "已读取应用使用统计"
+            "recent_app_activity" -> return "已读取应用活动记录"
             "get_device_state", "get_flashlight", "get_hotspot" -> {
                 if (json.opt("ok") != true) return null
                 val label = when (toolName) {
@@ -71,6 +75,24 @@ internal object AgentDeviceResultFormatter {
             }
         }
         return "$time · 最近位置：${decimal(latitude)}, ${decimal(longitude)}" +
+            if (age != null) "（$age）" else ""
+    }
+
+    private fun currentLocation(json: JSONObject): String? {
+        val latitude = number(json, "latitude")?.takeIf { it in -90.0..90.0 }
+        val longitude = number(json, "longitude")?.takeIf { it in -180.0..180.0 }
+        if (latitude == null || longitude == null) return "位置不可用"
+        val ageMs = number(json, "age_ms")
+        val age = ageMs?.let { ms ->
+            val seconds = (ms / 1000).toLong()
+            when {
+                seconds < 60 -> "$seconds 秒前"
+                seconds < 3600 -> "${seconds / 60} 分钟前"
+                seconds < 86400 -> "${seconds / 3600} 小时前"
+                else -> "${seconds / 86400} 天前"
+            }
+        }
+        return "最近位置：${decimal(latitude)}, ${decimal(longitude)}" +
             if (age != null) "（$age）" else ""
     }
 
@@ -134,13 +156,25 @@ internal object AgentDeviceResultFormatter {
         val packageName = (json.opt("package_name") as? String)
             ?.takeIf { it.length <= 255 && PACKAGE_NAME.matches(it) }
             ?.let { if (it.length > 60) it.take(59) + "…" else it }
-        val label = packageName?.let { "应用 $it" } ?: "应用"
-        fun display(value: Boolean): String = if (field == "stopped") {
-            if (value) "停止" else "未停止"
-        } else {
-            if (value) "启用" else "冻结"
+        val target = packageName?.let { "应用 $it" } ?: "应用"
+        return when (action) {
+            "force_stop" -> when {
+                before == true && after -> "$target：保持停止"
+                after -> "已停止$target"
+                else -> "$target：未停止"
+            }
+            "freeze" -> when {
+                before == false && !after -> "$target：保持冻结"
+                !after -> "已冻结$target"
+                else -> "$target：保持启用"
+            }
+            "unfreeze" -> when {
+                before == true && after -> "$target：保持启用"
+                after -> "已解冻$target"
+                else -> "$target：保持冻结"
+            }
+            else -> null
         }
-        return change(label, before?.let(::display), display(after), withoutBefore = "已")
     }
 
     private fun setting(json: JSONObject): String? {
@@ -221,10 +255,12 @@ internal object AgentDeviceResultFormatter {
         withoutBefore: String = "已设为",
     ): String? {
         if (after == null) return null
+        val prefix = if (withoutBefore.endsWith("为") && (after.firstOrNull()?.isDigit() == true || after.endsWith("%"))) "$withoutBefore " else withoutBefore
+        val keep = if (after.firstOrNull()?.isDigit() == true || after.endsWith("%")) "保持 " else "保持"
         return when {
-            before == null -> "$label：$withoutBefore$after"
-            unchanged -> "$label：保持$after"
-            before == after -> "$label：$withoutBefore$after"
+            before == null -> "$label：$prefix$after"
+            unchanged -> "$label：$keep$after"
+            before == after -> "$label：$prefix$after"
             else -> "$label：$before → $after"
         }
     }

@@ -10,12 +10,23 @@ internal object AgentFileResultFormatter {
         "read_file" -> summarizeRead(json)
         "stat_file" -> summarizeStat(json)
         "edit_file" -> json.nonNegativeLong("replacements")?.let { "已替换 $it 处" }
-        "list_directory" -> json.optJSONArray("entries")?.let {
-            withScope("已列出 ${it.length()} 个条目", json, "可继续读取")
+        "list_directory" -> json.optJSONArray("entries")?.let { entries ->
+            if (entries.length() == 0) "目录为空"
+            else withScope("已列出 ${entries.length()} 项内容", json, "还有更多")
         }
-        "glob_files", "grep_files" -> json.optJSONArray("matches")?.let {
-            val label = if (toolName == "glob_files") "找到 ${it.length()} 个文件" else "找到 ${it.length()} 处匹配"
-            withScope(label, json, "可继续搜索")
+        "glob_files", "grep_files" -> json.optJSONArray("matches")?.let { matches ->
+            val count = matches.length()
+            val label = when {
+                count == 0 && toolName == "glob_files" -> "未找到匹配文件"
+                count == 0 -> "未找到匹配内容"
+                toolName == "glob_files" -> "找到 $count 个文件"
+                else -> "找到 $count 处匹配"
+            }
+            if (count == 0) {
+                if (json.opt("partial") == true) "$label · 扫描范围有限" else label
+            } else {
+                withScope(label, json, "还有更多")
+            }
         }
         else -> null
     }
@@ -39,7 +50,9 @@ internal object AgentFileResultFormatter {
                 null -> "尚未到达目标行"
             }
         }
-        return withScope("已读 ${formatBytes(bytes)}", json, "可继续读取")
+        val isTruncated = json.opt("truncated") == true || json.opt("has_more") == true
+        val label = if (isTruncated) "已读前 ${formatBytes(bytes)}" else "已读取 ${formatBytes(bytes)}"
+        return withScope(label, json, "还有更多")
     }
 
     private fun summarizeStat(json: JSONObject): String? {

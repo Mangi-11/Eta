@@ -61,7 +61,7 @@ class AgentTraceFormatterTest {
         val search = formatter.summarizeResult("web_search", AgentModelClient.ToolResult(
             """{"ok":true,"query":"private-query","results":[{"title":"private-title","url":"https://example.com/private-path","snippet":"private-body"}]}""",
         ))
-        assertEquals("1 条结果", search)
+        assertEquals("找到 1 条搜索结果", search)
         val fetch = formatter.summarizeResult("fetch_url", AgentModelClient.ToolResult(
             """{"ok":true,"final_url":"https://alice:password@example.com/private-path?token=secret-query","title":"private-title","text":"private-body","has_more":true}""",
         ))
@@ -135,7 +135,7 @@ class AgentTraceFormatterTest {
             RedactionCase(
                 toolName = "memory_write",
                 argumentsJson = """{"mode":"append","revision":"secret-revision","content":"private memory"}""",
-                expectedParts = listOf("更新记忆", "追加", "行", "字节"),
+                expectedParts = listOf("追加记忆"),
                 sensitiveParts = listOf("secret-revision", "private memory"),
             ),
         )
@@ -219,7 +219,12 @@ class AgentTraceFormatterTest {
             """{"ok":true,"count":99,"items":[{"content":"private-record"},{"value":"private-value"}],"has_more":true,"partial":true}""",
             sensitive = true,
         )
-        assertEquals("完成 · 返回 2 条结果 · 可继续读取 · 采集范围有限", formatter.summarizeResult("search_messages", result))
+        assertEquals("找到 2 条短信 · 还有更多 · 采集范围有限", formatter.summarizeResult("search_messages", result))
+
+        val generic = AgentModelClient.ToolResult(
+            """{"ok":true,"items":[{"content":"one"},{"content":"two"}],"has_more":true,"partial":true}""",
+        )
+        assertEquals("找到 2 条结果 · 还有更多 · 采集范围有限", formatter.summarizeResult("custom_search", generic))
     }
 
     @Test
@@ -401,12 +406,12 @@ class AgentTraceFormatterTest {
         assertFalse(formatter.isSuccessResult(failed))
         assertTrue(formatter.isSuccessResult(noFlag))
         assertTrue(formatter.isSuccessResult(malformed))
-        assertEquals("完成", formatter.summarizeResult("tap", ok))
+        assertEquals("已点击", formatter.summarizeResult("tap", ok))
         assertEquals("失败 · code=X", formatter.summarizeResult("tap", failed))
     }
 
     @Test
-    fun memoryResultSummaryContainsOnlyStatusLineAndByteMetadata() {
+    fun memoryResultSummaryPresentsNaturalStatusWithoutByteOrLineCounts() {
         val summary = formatter.summarizeResult(
             "memory_get",
             AgentModelClient.ToolResult(
@@ -415,11 +420,20 @@ class AgentTraceFormatterTest {
             ),
         )
 
-        assertTrue(summary.contains("已读取记忆"))
-        assertTrue(summary.contains("9 行"))
-        assertTrue(summary.contains("321 字节"))
-        assertFalse(summary.contains("ok="))
+        assertEquals("已读取记忆", summary)
+        assertFalse(summary.contains("9 行"))
+        assertFalse(summary.contains("321 字节"))
         assertFalse(summary.contains("private memory"))
+
+        val querySummary = formatter.summarizeResult(
+            "memory_get",
+            AgentModelClient.ToolResult(
+                content = """{"ok":true,"matched_lines":3,"line_count":200,"bytes":8000}""",
+            ),
+        )
+        assertEquals("找到 3 条相关记忆", querySummary)
+        assertFalse(querySummary.contains("200"))
+        assertFalse(querySummary.contains("8000"))
     }
 
     @Test

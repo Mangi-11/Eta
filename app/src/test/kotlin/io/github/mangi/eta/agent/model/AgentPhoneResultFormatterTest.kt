@@ -74,9 +74,14 @@ class AgentPhoneResultFormatterTest {
         assertEquals("已创建便签", summarize("create_note", """
             {"ok":true,"verified":true,"note":{"title":"private-title","content":"private-body"}}
         """))
-        assertEquals("返回 2 个闹钟 · 还有更多", summarize("list_alarms", """
+        assertEquals("找到 2 个闹钟 · 还有更多", summarize("list_alarms", """
             {"ok":true,"items":[{"label":"private-one"},{"label":"private-two"}],"has_more":true}
         """))
+        assertEquals("暂无闹钟", summarize("list_alarms", """{"ok":true,"items":[]}"""))
+        assertEquals("找到 1 个可用日历", summarize("list_calendars", """{"ok":true,"items":[{"id":"1"}]}"""))
+        assertEquals("未找到可用日历", summarize("list_calendars", """{"ok":true,"items":[]}"""))
+        assertEquals("找到 1 个计时器", summarize("list_active_timers", """{"ok":true,"items":[{"id":"1"}]}"""))
+        assertEquals("暂无活跃计时器", summarize("list_active_timers", """{"ok":true,"items":[]}"""))
     }
 
     @Test

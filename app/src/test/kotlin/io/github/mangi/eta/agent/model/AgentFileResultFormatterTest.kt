@@ -23,17 +23,18 @@ class AgentFileResultFormatterTest {
 
     @Test
     fun readDistinguishesPaginationFromScanningBeforeTheRequestedLine() {
-        assertEquals("已读 1 KiB · 可继续读取", summarize("read_file", """{"bytes_read":1024,"truncated":true,"start_line_reached":true}"""))
+        assertEquals("已读前 1 KiB · 还有更多", summarize("read_file", """{"bytes_read":1024,"truncated":true,"start_line_reached":true}"""))
         assertEquals("尚未到达目标行 · 可继续读取", summarize("read_file", """{"bytes_read":0,"truncated":true,"start_line_reached":false,"stop_reason":"scan_limit"}"""))
         assertEquals("未到达目标行 · 已到文件末尾", summarize("read_file", """{"bytes_read":0,"truncated":false,"start_line_reached":false,"stop_reason":"eof"}"""))
     }
 
     @Test
     fun listingAndSearchCountOnlyReturnedResultsAndPreservePartialCoverage() {
-        assertEquals("已列出 1 个条目 · 可继续读取", summarize("list_directory", """{"entries":[{}],"has_more":true}"""))
-        assertEquals("找到 2 个文件 · 可继续搜索 · 扫描范围有限", summarize("glob_files", """{"matches":[{},{}],"truncated":true,"partial":true}"""))
-        assertEquals("找到 1 处匹配 · 可继续搜索 · 扫描范围有限", summarize("grep_files", """{"matches":[{}],"truncated":true,"partial":true,"total_skipped":2,"next_cursor":"next-page"}"""))
-        assertEquals("找到 0 处匹配 · 扫描范围有限", summarize("grep_files", """{"matches":[],"truncated":false,"partial":true,"total_skipped":3}"""))
+        assertEquals("已列出 1 项内容 · 还有更多", summarize("list_directory", """{"entries":[{}],"has_more":true}"""))
+        assertEquals("目录为空", summarize("list_directory", """{"entries":[]}"""))
+        assertEquals("找到 2 个文件 · 还有更多 · 扫描范围有限", summarize("glob_files", """{"matches":[{},{}],"truncated":true,"partial":true}"""))
+        assertEquals("找到 1 处匹配 · 还有更多 · 扫描范围有限", summarize("grep_files", """{"matches":[{}],"truncated":true,"partial":true,"total_skipped":2,"next_cursor":"next-page"}"""))
+        assertEquals("未找到匹配内容 · 扫描范围有限", summarize("grep_files", """{"matches":[],"truncated":false,"partial":true,"total_skipped":3}"""))
     }
 
     @Test

@@ -55,8 +55,8 @@ internal class AgentTraceFormatter {
             AgentSubagentToolCatalog.TOOL_NAME -> summarizeSubagentArguments(toolCall.argumentsJson)
             AgentSubagentToolCatalog.PROFILE_TOOL_NAME -> summarizeSubagentProfileArguments(toolCall.argumentsJson)
             AgentConversationToolCatalog.READ_HISTORY -> "读取当前会话历史"
-            "memory_get", "character_memory_get" -> summarizeMemoryGetArguments(toolCall.argumentsJson)
-            "memory_write", "character_memory_write" -> summarizeMemoryWriteArguments(toolCall.argumentsJson)
+            "memory_get", "character_memory_get", "memory_write", "character_memory_write" ->
+                AgentPersonalResultFormatter.summarizeArguments(toolCall.name, toolCall.argumentsJson) ?: "记忆"
             "skills_list" -> "查看技能列表"
             "skills_read" -> "读取技能"
             "skills_read_resource" -> "读取技能资源"
@@ -242,31 +242,6 @@ internal class AgentTraceFormatter {
             }.joinToString(" · ")
         }.getOrDefault("观察屏幕")
 
-    private fun summarizeMemoryGetArguments(argumentsJson: String): String =
-        runCatching {
-            val arguments = JSONObject(argumentsJson)
-            if (arguments.optString("query").isNotBlank()) "检索记忆" else "读取记忆"
-        }.getOrDefault("读取记忆")
-
-    private fun summarizeMemoryWriteArguments(argumentsJson: String): String =
-        runCatching {
-            val arguments = JSONObject(argumentsJson)
-            val mode = when (arguments.optString("mode")) {
-                "replace_range" -> "替换片段"
-                "append" -> "追加"
-                "clear" -> "清空"
-                else -> null
-            }
-            val content = arguments.optString("content")
-            val lines = if (content.isEmpty()) 0 else content.count { it == '\n' } + 1
-            buildList {
-                add("更新记忆")
-                mode?.let(::add)
-                add("$lines 行")
-                add("${content.toByteArray(Charsets.UTF_8).size} 字节")
-            }.joinToString(" · ")
-        }.getOrDefault("更新记忆")
-
     /** 结果成败供事件与 UI 状态使用，不再依赖摘要文本里的标记。 */
     fun isSuccessResult(result: AgentModelClient.ToolResult): Boolean =
         parseResultJson(result)?.optBoolean("ok", true) ?: true
@@ -286,6 +261,7 @@ internal class AgentTraceFormatter {
         if (json != null) {
             val summary = AgentDeviceResultFormatter.summarize(toolName, json)
                 ?: AgentPhoneResultFormatter.summarize(toolName, json)
+                ?: AgentPersonalResultFormatter.summarize(toolName, json)
                 ?: AgentFileResultFormatter.summarize(toolName, json)
             if (summary != null) return summary
         }
@@ -294,8 +270,20 @@ internal class AgentTraceFormatter {
             AgentSubagentToolCatalog.TOOL_NAME -> json?.let(::summarizeSubagentResult) ?: "完成"
             AgentSubagentToolCatalog.PROFILE_TOOL_NAME -> json?.let(::summarizeSubagentProfileResult) ?: "完成"
             AgentConversationToolCatalog.READ_HISTORY -> "已读取历史分页"
-            "memory_get", "memory_write", "character_memory_get", "character_memory_write" ->
-                json?.let { summarizeMemoryResult(toolName, it) } ?: "完成"
+            "observe_screen" -> if (result.images.isNotEmpty()) "已截取当前屏幕" else "已获取当前界面"
+            "tap", "tap_element", "tap_area" -> "已点击"
+            "long_press", "long_press_element" -> "已长按"
+            "swipe" -> "已滑动"
+            "scroll", "scroll_element" -> "已滚动"
+            "type_text", "input_text", "paste_text" -> "已输入文本"
+            "clear_text" -> "已清空文本"
+            "press_key" -> "已按键"
+            "wait" -> "等待完成"
+            "wait_for_text" -> "已出现目标文本"
+            "wait_for_package" -> "应用已就绪"
+            "inspect_app" -> "已获取应用信息"
+            "get_clipboard" -> "已读取剪贴板"
+            "set_clipboard" -> "已复制到剪贴板"
             "search_apps" -> json?.let(::summarizeSearchAppsResult) ?: "完成"
             "launch_app" -> json?.let(::summarizeLaunchAppResult) ?: "已打开"
             "present_to_user" -> json?.let(::summarizePresentToUserResult) ?: "已呈现到主屏"
@@ -324,14 +312,14 @@ internal class AgentTraceFormatter {
             val count = json.optJSONArray("results")?.length() ?: json.firstNonNegativeInt("count")
             return when (count) {
                 null -> "完成"
-                0 -> "没有找到结果"
-                else -> "$count 条结果"
+                0 -> "未找到相关结果"
+                else -> "找到 $count 条搜索结果"
             }
         }
         val chars = (json.opt("text") as? String)?.length
             ?: json.firstNonNegativeInt("returned_chars", "text_chars")
             ?: return "完成"
-        return if (json.optBoolean("has_more")) "已读前 ${formatCharCount(chars)}" else formatCharCount(chars)
+        return if (json.optBoolean("has_more")) "已读前 ${formatCharCount(chars)}" else "已读 ${formatCharCount(chars)}"
     }
 
     /** 失败摘要保留 code= 标记，供运行日志提取稳定错误码；message 是工具侧给出的中文原因。 */
@@ -346,13 +334,6 @@ internal class AgentTraceFormatter {
             code?.let { add("code=$it") }
         }.joinToString(" · ")
     }
-
-    private fun summarizeMemoryResult(toolName: String, json: JSONObject): String =
-        buildList {
-            add(if (toolName.endsWith("memory_get")) "已读取记忆" else "已更新记忆")
-            if (json.has("line_count")) add("${json.optInt("line_count")} 行")
-            if (json.has("bytes")) add("${json.optInt("bytes")} 字节")
-        }.joinToString(" · ")
 
     private fun summarizeSubagentArguments(argumentsJson: String): String = runCatching {
         val args = JSONObject(argumentsJson)
@@ -409,17 +390,40 @@ internal class AgentTraceFormatter {
         result: AgentModelClient.ToolResult,
     ): String =
         buildList {
-            add(if (json.has("verified") && !json.optBoolean("verified")) "已执行，效果未确认" else "完成")
-            json.optJSONArray("entries")?.let { add("${it.length()} 个条目") }
-            (json.optJSONArray("items") ?: json.optJSONArray("results"))?.let { add("返回 ${it.length()} 条结果") }
-            json.optJSONArray("matches")?.let { add("${it.length()} 个匹配") }
-            if (json.has("bytes_read")) add("已读 ${json.optLong("bytes_read")} 字节")
-            if (json.has("replacements")) add("替换 ${json.optInt("replacements")} 处")
-            if (json.optBoolean("truncated") || json.optBoolean("has_more")) add("可继续读取")
+            if (json.has("verified") && !json.optBoolean("verified")) {
+                add("已执行，效果未确认")
+            }
+            val items = json.optJSONArray("items") ?: json.optJSONArray("results")
+            val matches = json.optJSONArray("matches")
+            val entries = json.optJSONArray("entries")
+            val apps = json.optJSONArray("apps")
+            val candidates = json.optJSONArray("candidates")
+
+            when {
+                items != null -> {
+                    if (items.length() == 0) add("未找到相关结果")
+                    else add("找到 ${items.length()} 条结果")
+                }
+                matches != null -> {
+                    if (matches.length() == 0) add("未找到匹配内容")
+                    else add("找到 ${matches.length()} 处匹配")
+                }
+                entries != null -> {
+                    if (entries.length() == 0) add("暂无内容")
+                    else add("已获取 ${entries.length()} 项内容")
+                }
+                apps != null -> {
+                    if (apps.length() == 0) add("未找到匹配应用")
+                    else add("找到 ${apps.length()} 个应用")
+                }
+                candidates != null -> add("${candidates.length()} 个候选")
+                json.has("bytes_read") -> add("已读 ${json.optLong("bytes_read")} 字节")
+                json.has("replacements") -> add("已替换 ${json.optInt("replacements")} 处")
+                result.images.isNotEmpty() -> add("${result.images.size} 张图片")
+                isEmpty() -> add("完成")
+            }
+            if (json.optBoolean("truncated") || json.optBoolean("has_more")) add("还有更多")
             if (json.optBoolean("partial") || json.optBoolean("scan_limited")) add("采集范围有限")
-            json.optJSONArray("apps")?.let { add("找到 ${it.length()} 个应用") }
-            json.optJSONArray("candidates")?.let { add("${it.length()} 个候选") }
-            if (result.images.isNotEmpty()) add("${result.images.size} 张图片")
         }.joinToString(" · ")
 
     private fun summarizeSearchAppsResult(json: JSONObject): String {

@@ -7,9 +7,9 @@ internal object AgentPhoneResultFormatter {
     fun summarize(toolName: String, json: JSONObject): String? {
         if (json.opt("ok") == false || json.optString("status") == "unconfirmed") return null
         when (toolName) {
-            "list_calendars" -> return itemCount(json, "个日历")
-            "list_alarms" -> return itemCount(json, "个闹钟")
-            "list_active_timers" -> return itemCount(json, "个计时器")
+            "list_calendars" -> return calendarCount(json)
+            "list_alarms" -> return alarmCount(json)
+            "list_active_timers" -> return timerCount(json)
             "read_note" -> return json.optJSONObject("note")?.let { "已读取便签" }
             "read_calendar_event" -> return json.optJSONObject("event")?.let { "已读取日程" }
         }
@@ -23,6 +23,7 @@ internal object AgentPhoneResultFormatter {
         if (json.opt("verified") != true) return null
         return when (toolName) {
             "set_alarm" -> withDetail("已创建闹钟", alarmTime(json.optJSONObject("alarm")))
+            "set_timer" -> withDetail("已设置计时器", timerDuration(json.optJSONObject("timer") ?: json))
             "update_alarm_time" -> alarmTimeChange(json)
             "set_alarm_enabled" -> alarmEnabled(json)
             "delete_alarm" -> withDetail("已删除闹钟", alarmTime(json.optJSONObject("before")))
@@ -38,9 +39,25 @@ internal object AgentPhoneResultFormatter {
         }
     }
 
-    private fun itemCount(json: JSONObject, unit: String): String? {
+    private fun calendarCount(json: JSONObject): String? {
         val items = json.optJSONArray("items") ?: return null
-        return "返回 ${items.length()} $unit" + if (json.opt("has_more") == true) " · 还有更多" else ""
+        val count = items.length()
+        if (count == 0) return "未找到可用日历"
+        return "找到 $count 个可用日历" + if (json.opt("has_more") == true) " · 还有更多" else ""
+    }
+
+    private fun alarmCount(json: JSONObject): String? {
+        val items = json.optJSONArray("items") ?: return null
+        val count = items.length()
+        if (count == 0) return "暂无闹钟"
+        return "找到 $count 个闹钟" + if (json.opt("has_more") == true) " · 还有更多" else ""
+    }
+
+    private fun timerCount(json: JSONObject): String? {
+        val items = json.optJSONArray("items") ?: return null
+        val count = items.length()
+        if (count == 0) return "暂无活跃计时器"
+        return "找到 $count 个计时器" + if (json.opt("has_more") == true) " · 还有更多" else ""
     }
 
     private fun alarmTime(json: JSONObject?): String? {
