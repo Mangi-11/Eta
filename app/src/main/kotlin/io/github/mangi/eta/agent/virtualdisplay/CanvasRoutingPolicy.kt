@@ -30,18 +30,28 @@ internal object CanvasRoutingPolicy {
     const val FLAG_OWN_FOCUS = 1 shl 14
     const val FLAG_STEAL_TOP_FOCUS_DISABLED = 1 shl 15
 
-    /** 受信任后台交互画布所需的完整标志组合：支持触摸、独立焦点、不抢夺主屏顶部焦点、销毁时回收窗口。 */
+    /** android.view.Display.getFlags() 返回的受信任标志位，用于检验虚拟屏是否真正取得系统级 TRUSTED 权限。 */
+    const val DISPLAY_FLAG_TRUSTED = 1 shl 7
+
+    /** WindowManager IME 显示策略：禁止虚拟屏在主屏回退弹出或抢占软键盘。 */
+    const val DISPLAY_IME_POLICY_LOCAL = 0
+    const val DISPLAY_IME_POLICY_FALLBACK_DISPLAY = 1
+    const val DISPLAY_IME_POLICY_HIDE = 2
+
+    /**
+     * 受信任后台交互画布所需的完整标志组合：
+     * - 不启用 FLAG_OWN_FOCUS，配合 DISPLAY_IME_POLICY_HIDE 彻底阻止虚拟屏抢夺主屏输入法或弹出软键盘；
+     * - 不启用 FLAG_ROTATES_WITH_CONTENT，锁定与物理主屏一致的固定画幅，避免跨应用跳转旋转时重建 Surface；
+     * - 不启用 FLAG_DESTROY_CONTENT_ON_REMOVAL，避免跨应用栈迁移或释放时误杀应用进程。
+     */
     const val TRUSTED_INTERACTIVE_FLAGS: Int =
         FLAG_PUBLIC or
             FLAG_OWN_CONTENT_ONLY or
             FLAG_SUPPORTS_TOUCH or
-            FLAG_ROTATES_WITH_CONTENT or
-            FLAG_DESTROY_CONTENT_ON_REMOVAL or
             FLAG_TRUSTED or
             FLAG_OWN_DISPLAY_GROUP or
             FLAG_ALWAYS_UNLOCKED or
             FLAG_TOUCH_FEEDBACK_DISABLED or
-            FLAG_OWN_FOCUS or
             FLAG_STEAL_TOP_FOCUS_DISABLED
 
     private val MAIN_DISPLAY_ONLY_PACKAGES = setOf(

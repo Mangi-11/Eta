@@ -4,6 +4,7 @@ import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.ColorSpace
 import android.graphics.PixelFormat
 import android.graphics.Point
 import android.hardware.display.DisplayManager
@@ -19,6 +20,7 @@ import android.view.Display
 import android.view.WindowManager
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.scale
+import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
 import io.github.mangi.eta.agent.device.DeviceToolContract
@@ -126,30 +128,10 @@ internal object VirtualDisplayController {
             displayHeight = height
             displayDensityDpi = densityDpi
 
-            val createdInProcess = tryCreateInProcessVirtualDisplay(
-                appContext = appContext,
-                surface = reader.surface,
-                width = width,
-                height = height,
-                densityDpi = densityDpi,
-            )
-            if (createdInProcess != null) {
-                val id = createdInProcess.display?.displayId ?: Display.INVALID_DISPLAY
-                if (CanvasRoutingPolicy.isVirtualDisplay(id)) {
-                    inProcessVirtualDisplay = createdInProcess
-                    activeDisplayId = id
-                    mutableSnapshots.value = VirtualDisplaySnapshot(
-                        active = true,
-                        displayId = id,
-                        width = width,
-                        height = height,
-                    )
-                    AndroidAgentLogger.info("Virtual display created in-process: displayId=$id size=${width}x$height")
-                    return id
-                }
-                runCatching { createdInProcess.release() }
-            }
-
+            // Root 可用时优先通过 Root 特权桥（SYSTEM_UID 1000）创建虚拟屏：
+            // 1. 虚拟屏 owner 为 system (uid 1000)，内部发生跨应用 startActivity 时不会因跨 UID 被拦截崩溃；
+            // 2. 拥有 INTERNAL_SYSTEM_WINDOW 权限，可直接调用 IWindowManager.setDisplayImePolicy(displayId, HIDE) 阻止主屏弹出键盘；
+            // 3. 每次直接运行最新 APK 逻辑，不依赖手机重启刷新 system_server Hook。
             if (rootAvailable()) {
                 val rootId = tryCreateRootBridgedVirtualDisplay(
                     appContext = appContext,
@@ -172,6 +154,39 @@ internal object VirtualDisplayController {
                 }
             }
 
+            // 无 Root（仅 LSPosed）时回退进程内创建，由 system_server Hook 赋予 SYSTEM_UID 所有权与 DISPLAY_IME_POLICY_HIDE。
+            val createdInProcess = if (EtaApp.serviceInstance != null) {
+                tryCreateInProcessVirtualDisplay(
+                    appContext = appContext,
+                    surface = reader.surface,
+                    width = width,
+                    height = height,
+                    densityDpi = densityDpi,
+                )
+            } else {
+                null
+            }
+            if (createdInProcess != null) {
+                val display = createdInProcess.display
+                val id = display?.displayId ?: Display.INVALID_DISPLAY
+                val isTrusted = display != null && (display.flags and CanvasRoutingPolicy.DISPLAY_FLAG_TRUSTED) != 0
+                if (CanvasRoutingPolicy.isVirtualDisplay(id) && isTrusted) {
+                    inProcessVirtualDisplay = createdInProcess
+                    activeDisplayId = id
+                    mutableSnapshots.value = VirtualDisplaySnapshot(
+                        active = true,
+                        displayId = id,
+                        width = width,
+                        height = height,
+                    )
+                    AndroidAgentLogger.info(
+                        "Virtual display created in-process: displayId=$id trusted=true size=${width}x$height",
+                    )
+                    return id
+                }
+                runCatching { createdInProcess.release() }
+            }
+
             releaseLocked(appContext, rootAvailable)
             return null
         }
@@ -191,42 +206,36 @@ internal object VirtualDisplayController {
         val appContext = context.applicationContext
         mutePackageAudioFocusIfPossible(appContext, packageName, rootAvailable)
 
-        val startedInProcess = runCatching {
-            val intent = Intent(launchIntent).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        var launchedByRoot = false
+        if (rootAvailable()) {
+            val userId = DeviceToolContract.appUserId(appContext)
+            val component = launchIntent.component?.flattenToShortString()
+            if (!component.isNullOrBlank()) {
+                val cmd = "am start --user $userId --display $displayId -n ${DeviceToolContract.quote(component)}"
+                val exec = BoundedRootCommandExecutor(AndroidAgentLogger, rootAvailable = rootAvailable)
+                try {
+                    launchedByRoot = exec.execute(cmd, timeoutMillis = 6_000L).exitCode == 0
+                } finally {
+                    exec.close()
+                }
             }
-            val options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId)
-            appContext.startActivity(intent, options.toBundle())
-            true
-        }.getOrElse { throwable ->
-            AndroidAgentLogger.debug {
-                "Virtual display startActivity in-process fallback: type=${throwable.safeLogType()}"
-            }
-            false
         }
 
-        if (!startedInProcess || rootAvailable()) {
-            // Root 下补发一次指定 displayId 的 am start，确保后台启动限制或跨屏栈迁移生效
-            if (rootAvailable()) {
-                val userId = DeviceToolContract.appUserId(appContext)
-                val component = launchIntent.component?.flattenToShortString()
-                val cmd = if (!component.isNullOrBlank()) {
-                    "am start --user $userId --display $displayId -n ${DeviceToolContract.quote(component)}"
-                } else {
-                    "monkey -p ${DeviceToolContract.quote(packageName)} -c android.intent.category.LAUNCHER 1"
+        if (!launchedByRoot) {
+            val startedInProcess = runCatching {
+                val intent = Intent(launchIntent).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                 }
-                if (!startedInProcess) {
-                    val exec = BoundedRootCommandExecutor(AndroidAgentLogger, rootAvailable = rootAvailable)
-                    try {
-                        val res = exec.execute(cmd, timeoutMillis = 6_000L)
-                        if (res.exitCode != 0 && !startedInProcess) return null
-                    } finally {
-                        exec.close()
-                    }
+                val options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId)
+                appContext.startActivity(intent, options.toBundle())
+                true
+            }.getOrElse { throwable ->
+                AndroidAgentLogger.debug {
+                    "Virtual display startActivity in-process fallback: type=${throwable.safeLogType()}"
                 }
-            } else if (!startedInProcess) {
-                return null
+                false
             }
+            if (!startedInProcess) return null
         }
 
         synchronized(lock) {
@@ -332,8 +341,34 @@ internal object VirtualDisplayController {
     }
 
     /**
-     * 提取虚拟屏最新一帧的完整 Bitmap 副本（供 observe_screen 使用，调用方负责 recycle）。
+     * 当虚拟屏内部发生跨应用跳转（如从应用 A 跳往应用 B 或拉起授权页）时，同步更新当前虚拟屏承载的包名与应用名。
      */
+    fun onTopPackageObserved(
+        context: Context,
+        observedPackage: String,
+        rootAvailable: () -> Boolean = { RootAccess.isGranted },
+    ) {
+        val pkg = observedPackage.trim()
+        if (pkg.isBlank() || pkg == "android" || pkg == "com.android.systemui" || pkg == context.packageName) return
+        val current = synchronized(lock) { mutableSnapshots.value }
+        if (!current.active || current.packageName == pkg) return
+        val appContext = context.applicationContext
+        val resolvedName = runCatching {
+            val pm = appContext.packageManager
+            val info = pm.getApplicationInfo(pkg, 0)
+            pm.getApplicationLabel(info).toString().trim().takeIf { it.isNotBlank() }
+        }.getOrNull() ?: pkg
+        mutePackageAudioFocusIfPossible(appContext, pkg, rootAvailable)
+        synchronized(lock) {
+            val latest = mutableSnapshots.value
+            if (latest.active && latest.packageName != pkg) {
+                mutableSnapshots.value = latest.copy(
+                    packageName = pkg,
+                    appName = resolvedName,
+                )
+            }
+        }
+    }
     fun captureScreenshotBitmap(waitUpToMs: Long = 450L): Bitmap? {
         val deadline = SystemClock.elapsedRealtime() + waitUpToMs.coerceAtLeast(0L)
         while (true) {
@@ -578,6 +613,21 @@ internal object VirtualDisplayController {
         val width = image.width
         val height = image.height
         if (width <= 0 || height <= 0) return null
+
+        // 优先直接通过 HardwareBuffer 映射，避免不同 ROM Gralloc 行尾 padding 差异导致的 BufferUnderflowException
+        runCatching {
+            image.hardwareBuffer?.use { hb ->
+                val wrapped = Bitmap.wrapHardwareBuffer(hb, ColorSpace.get(ColorSpace.Named.SRGB))
+                if (wrapped != null) {
+                    try {
+                        return wrapped.copy(Bitmap.Config.ARGB_8888, false)
+                    } finally {
+                        if (!wrapped.isRecycled) wrapped.recycle()
+                    }
+                }
+            }
+        }
+
         val plane = image.planes.firstOrNull() ?: return null
         val buffer = plane.buffer ?: return null
         buffer.rewind()
@@ -588,12 +638,20 @@ internal object VirtualDisplayController {
         val paddedWidth = width + rowPadding / pixelStride
         if (paddedWidth < width) return null
 
-        val rawBitmap = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
+        val requiredBytes = paddedWidth * height * 4
+        val safeHeight = if (buffer.remaining() >= requiredBytes) {
+            height
+        } else {
+            (buffer.remaining() / (paddedWidth * 4)).coerceAtMost(height)
+        }
+        if (safeHeight <= 0) return null
+
+        val rawBitmap = Bitmap.createBitmap(paddedWidth, safeHeight, Bitmap.Config.ARGB_8888)
         rawBitmap.copyPixelsFromBuffer(buffer)
-        return if (paddedWidth == width) {
+        return if (paddedWidth == width && safeHeight == height) {
             rawBitmap
         } else {
-            val cropped = Bitmap.createBitmap(rawBitmap, 0, 0, width, height)
+            val cropped = Bitmap.createBitmap(rawBitmap, 0, 0, width, safeHeight)
             rawBitmap.recycle()
             cropped
         }

@@ -104,4 +104,14 @@ class CanvasRoutingPolicyTest {
         assertFalse(CanvasRoutingPolicy.isVirtualDisplay(Display.INVALID_DISPLAY))
         assertTrue(CanvasRoutingPolicy.isVirtualDisplay(2))
     }
+
+    @Test
+    fun trustedInteractiveFlagsPreventImeFocusStealingAndRotationSurfaceReset() {
+        val flags = CanvasRoutingPolicy.TRUSTED_INTERACTIVE_FLAGS
+        assertTrue((flags and CanvasRoutingPolicy.FLAG_TRUSTED) != 0)
+        assertTrue((flags and CanvasRoutingPolicy.FLAG_STEAL_TOP_FOCUS_DISABLED) != 0)
+        assertFalse((flags and CanvasRoutingPolicy.FLAG_OWN_FOCUS) != 0)
+        assertFalse((flags and CanvasRoutingPolicy.FLAG_ROTATES_WITH_CONTENT) != 0)
+        assertFalse((flags and CanvasRoutingPolicy.FLAG_DESTROY_CONTENT_ON_REMOVAL) != 0)
+    }
 }

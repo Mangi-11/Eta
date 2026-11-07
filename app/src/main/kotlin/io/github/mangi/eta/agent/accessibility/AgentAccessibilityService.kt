@@ -138,10 +138,37 @@ class AgentAccessibilityService : AccessibilityService() {
     /**
      * 一次观察与其节点句柄组成不可变快照。调用方必须把同一实例传回节点动作，
      * 避免其他运行或 wait_for_text 的临时观察改写 index 含义。
+     * 在虚拟屏上若恰逢跨应用跳转的窗口切换过渡帧，在后台线程短暂等待新窗口就绪。
      */
     fun captureNodeSnapshot(
         maxNodes: Int,
         displayId: Int = android.view.Display.DEFAULT_DISPLAY,
+    ): NodeSnapshot? {
+        val isVirtual = displayId != android.view.Display.DEFAULT_DISPLAY
+        val canRetry = isVirtual && Looper.myLooper() != Looper.getMainLooper()
+        val deadline = SystemClock.elapsedRealtime() + if (canRetry) 850L else 0L
+        var lastSnapshot: NodeSnapshot? = null
+        while (true) {
+            val snapshot = captureNodeSnapshotOnce(maxNodes, displayId)
+            if (snapshot != null && snapshot.nodes.isNotEmpty()) {
+                return snapshot
+            }
+            if (snapshot != null) lastSnapshot = snapshot
+            if (!canRetry || SystemClock.elapsedRealtime() >= deadline) {
+                return lastSnapshot
+            }
+            try {
+                Thread.sleep(120L)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return lastSnapshot
+            }
+        }
+    }
+
+    private fun captureNodeSnapshotOnce(
+        maxNodes: Int,
+        displayId: Int,
     ): NodeSnapshot? = runOnMainSync {
         val startedAt = SystemClock.elapsedRealtime()
         val root = activeRootOnDisplay(displayId) ?: return@runOnMainSync null
@@ -218,19 +245,25 @@ class AgentAccessibilityService : AccessibilityService() {
             windowsOnAllDisplays.get(displayId)
         }.getOrNull().orEmpty()
         if (displayWindows.isEmpty()) return null
+        // 虚拟屏启用了 FLAG_STEAL_TOP_FOCUS_DISABLED，新跳转的顶层应用窗口 isFocused 可能为 false；
+        // 按应用窗口类型与 Z-order (layer 越大越靠前) 优先选取，确保跨应用跳转后命中最新顶层界面。
         val sorted = displayWindows
-            .filter { it.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY }
+            .filter {
+                it.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY &&
+                    it.type != AccessibilityWindowInfo.TYPE_INPUT_METHOD
+            }
             .sortedWith(
                 compareByDescending<AccessibilityWindowInfo> {
-                    it.type == AccessibilityWindowInfo.TYPE_APPLICATION && (it.isFocused || it.isActive)
+                    it.type == AccessibilityWindowInfo.TYPE_APPLICATION
                 }
-                    .thenByDescending { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-                    .thenByDescending { it.isFocused || it.isActive }
-                    .thenByDescending { it.layer },
+                    .thenByDescending { it.layer }
+                    .thenByDescending { it.isFocused || it.isActive },
             )
         for (window in sorted) {
-            val root = runCatching { window.root }.getOrNull()
-            if (root != null) return root
+            val root = runCatching { window.root }.getOrNull() ?: continue
+            val pkg = root.packageName?.toString().orEmpty()
+            if (pkg == "com.android.systemui" && sorted.size > 1) continue
+            return root
         }
         return null
     }
@@ -1864,7 +1897,14 @@ class AgentAccessibilityService : AccessibilityService() {
                     editable = editable,
                     password = password,
                     enabled = enabled,
-                    checked = node.isCheckable.takeIf { it }?.let { node.isChecked },
+                    checked = node.isCheckable.takeIf { it }?.let {
+                        if (Build.VERSION.SDK_INT >= 36) {
+                            node.checked == AccessibilityNodeInfo.CHECKED_STATE_TRUE
+                        } else {
+                            @Suppress("DEPRECATION")
+                            node.isChecked
+                        }
+                    },
                     selected = node.isSelected,
                     hint = hint,
                     clickTarget = clickTarget,

@@ -175,6 +175,15 @@ internal class RootShellDeviceController(
             null
         }
         val nodes = elementObservation?.nodes.orEmpty()
+        if (isVirtual) {
+            val topPkg = elementObservation?.packageName?.ifBlank { null }
+                ?: focus.optString("package").ifBlank { null }
+            if (!topPkg.isNullOrBlank()) {
+                io.github.mangi.eta.agent.runtime.AgentAppContext.resolve()?.let { ctx ->
+                    VirtualDisplayController.onTopPackageObserved(ctx, topPkg, rootAvailable)
+                }
+            }
+        }
         val capture = if (includeScreenshot) captureScreenshot(displayId) else ScreenCapture.notRequested()
         val image = capture.image
         val coordinateSpace = if (image?.width != null && image.height != null) {
@@ -551,8 +560,11 @@ internal class RootShellDeviceController(
                             JSONObject(it).put("button", normalized).toString()
                         }
                     }
-                    return nodeActionJson("press_key", result).let {
-                        JSONObject(it).put("button", normalized).toString()
+                    // 虚拟屏隐藏了软键盘（DISPLAY_IME_POLICY_HIDE），若节点不响应 ACTION_IME_ENTER，有 Root 时继续回退发送 KEYCODE_ENTER。
+                    if (!rootAvailable()) {
+                        return nodeActionJson("press_key", result).let {
+                            JSONObject(it).put("button", normalized).toString()
+                        }
                     }
                 }
             }
