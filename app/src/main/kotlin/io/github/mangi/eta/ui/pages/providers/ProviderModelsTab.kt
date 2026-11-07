@@ -55,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -70,9 +71,19 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.itos.coui.checkbox.Checkbox as CouiCheckbox
+import com.itos.coui.checkbox.CouiCheckboxDefaults
+import com.itos.coui.layout.CouiPageDefaults
+import com.itos.coui.layout.Divider
+import com.itos.coui.switch.CouiSwitchDefaults
+import com.itos.coui.switch.Switch as CouiSwitch
+import com.itos.coui.text.CouiTextKind
+import com.itos.coui.text.Text as CouiText
+import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.auth.ProviderAuthException
+import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ProviderAuthModes
@@ -83,11 +94,19 @@ import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.repository.ModelRepository
 import io.github.mangi.eta.data.repository.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.EtaChoiceChip
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
+import io.github.mangi.eta.ui.components.coui.CouiButton
+import io.github.mangi.eta.ui.components.coui.CouiButtonRole
+import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
+import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
+import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
+import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
 import kotlinx.coroutines.CancellationException
@@ -179,7 +198,8 @@ internal fun filterProviderModels(models: List<Model>, query: String): List<Mode
 internal fun ProviderModelsTab(
     provider: ProviderSetting,
     scope: CoroutineScope,
-    scrollBehavior: ScrollBehavior,
+    scrollBehavior: ScrollBehavior? = null,
+    nestedScrollConnection: NestedScrollConnection? = scrollBehavior?.nestedScrollConnection,
     contentSidePadding: Dp,
 ) {
     val context = LocalContext.current
@@ -213,13 +233,68 @@ internal fun ProviderModelsTab(
         },
     )
 
+    val uiStyle = LocalUiStyle.current
+    val onPullRemoteModels: () -> Unit = {
+        fetchScope.launch {
+            isFetching = true
+            message = null
+            try {
+                val catalog = RemoteModelFetcher.fetchCatalog(provider).getOrElse { throwable ->
+                    message = context.getString(
+                        R.string.provider_error,
+                        throwable.message ?: throwable.javaClass.simpleName,
+                    )
+                    return@launch
+                }
+                if (ProviderAuthModes.isOAuth(provider.authMode)) {
+                    val sync = ModelRepository.syncRemoteCatalog(catalog)
+                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                    message = "已同步 ${sync.fetchedCount} 个远端模型"
+                    return@launch
+                }
+                val candidates = ModelRepository.newRemoteModels(provider.id, catalog.models)
+                if (candidates.isNotEmpty()) {
+                    pendingImport = RemoteModelImport(catalog, candidates)
+                    return@launch
+                }
+                val sync = ModelRepository.syncRemoteCatalog(catalog, emptySet())
+                if (sync.applied) {
+                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                }
+                message = if (sync.applied) {
+                    context.getString(R.string.provider_models_up_to_date)
+                } else {
+                    context.getString(R.string.page_the_remote_end_did_not_return_a_usable_conversation__781487)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                message = context.getString(
+                    R.string.provider_error,
+                    throwable.message ?: context.getString(R.string.provider_sync_failed),
+                )
+            } finally {
+                isFetching = false
+            }
+        }
+    }
+    val onOpenAddCustomModel: () -> Unit = {
+        editorError = null
+        isCreatingModel = true
+        editingModel = Model(
+            id = "",
+            modelId = "",
+            displayName = context.getString(R.string.page_custom_model_25be0f),
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .scrollEndHaptic()
                 .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection),
+                .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier),
             contentPadding = PaddingValues(
                 start = contentSidePadding,
                 end = contentSidePadding,
@@ -229,79 +304,45 @@ internal fun ProviderModelsTab(
             item(key = "actions", contentType = "section") {
                 AnimatedVisibility(
                     visible = !selectionMode,
-                    // 卡片先淡出再收起高度，避免内容被压扁的观感；回来时先撑开再淡入。
                     enter = expandVertically(selectionMotion(), expandFrom = Alignment.Top) +
                         fadeIn(selectionFade(delayMillis = SelectionMotionMillis / 3)),
                     exit = shrinkVertically(selectionMotion(), shrinkTowards = Alignment.Top) +
                         fadeOut(selectionFade()),
                 ) {
                     ProviderSection(title = stringResource(R.string.ui_model_management_183414)) {
-                        ArrowPreference(
-                            title = if (isFetching) context.getString(R.string.page_retrieving_a880c9)
-                            else context.getString(R.string.page_automatically_pull_from_remote_f883d0),
-                            summary = stringResource(R.string.provider_models_endpoint_summary, provider.baseUrl),
-                            enabled = !isFetching && !isMutatingModel,
-                            onClick = {
-                                fetchScope.launch {
-                                    isFetching = true
-                                    message = null
-                                    try {
-                                        val catalog = RemoteModelFetcher.fetchCatalog(provider).getOrElse { throwable ->
-                                            message = context.getString(
-                                                R.string.provider_error,
-                                                throwable.message ?: throwable.javaClass.simpleName,
-                                            )
-                                            return@launch
-                                        }
-                                        if (ProviderAuthModes.isOAuth(provider.authMode)) {
-                                            val sync = ModelRepository.syncRemoteCatalog(catalog)
-                                            RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                                            message = "已同步 ${sync.fetchedCount} 个远端模型"
-                                            return@launch
-                                        }
-                                        val candidates = ModelRepository.newRemoteModels(provider.id, catalog.models)
-                                        if (candidates.isNotEmpty()) {
-                                            pendingImport = RemoteModelImport(catalog, candidates)
-                                            return@launch
-                                        }
-                                        // 没有新模型时仍同步一次，刷新已添加模型的元数据并移除远端已下线的模型。
-                                        val sync = ModelRepository.syncRemoteCatalog(catalog, emptySet())
-                                        if (sync.applied) {
-                                            RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                                        }
-                                        message = if (sync.applied) {
-                                            context.getString(R.string.provider_models_up_to_date)
-                                        } else {
-                                            context.getString(R.string.page_the_remote_end_did_not_return_a_usable_conversation__781487)
-                                        }
-                                    } catch (cancelled: CancellationException) {
-                                        throw cancelled
-                                    } catch (throwable: Throwable) {
-                                        message = context.getString(
-                                            R.string.provider_error,
-                                            throwable.message ?: context.getString(R.string.provider_sync_failed),
-                                        )
-                                    } finally {
-                                        isFetching = false
-                                    }
-                                }
-                            },
-                        )
-
-                        ArrowPreference(
-                            title = stringResource(R.string.ui_add_custom_model_a5ddc0),
-                            summary = stringResource(R.string.ui_manually_fill_in_the_display_name_and_model_id_077a7b),
-                            enabled = !isFetching && !isMutatingModel,
-                            onClick = {
-                                editorError = null
-                                isCreatingModel = true
-                                editingModel = Model(
-                                    id = "",
-                                    modelId = "",
-                                    displayName = context.getString(R.string.page_custom_model_25be0f),
-                                )
-                            },
-                        )
+                        val pullTitle = if (isFetching) context.getString(R.string.page_retrieving_a880c9)
+                        else context.getString(R.string.page_automatically_pull_from_remote_f883d0)
+                        val pullSummary = stringResource(R.string.provider_models_endpoint_summary, provider.baseUrl)
+                        val customTitle = stringResource(R.string.ui_add_custom_model_a5ddc0)
+                        val customSummary = stringResource(R.string.ui_manually_fill_in_the_display_name_and_model_id_077a7b)
+                        if (uiStyle == AppearanceUiStyle.COUI) {
+                            CouiPreference(
+                                title = pullTitle,
+                                summary = pullSummary,
+                                enabled = !isFetching && !isMutatingModel,
+                                onClick = onPullRemoteModels,
+                            )
+                            Divider()
+                            CouiPreference(
+                                title = customTitle,
+                                summary = customSummary,
+                                enabled = !isFetching && !isMutatingModel,
+                                onClick = onOpenAddCustomModel,
+                            )
+                        } else {
+                            ArrowPreference(
+                                title = pullTitle,
+                                summary = pullSummary,
+                                enabled = !isFetching && !isMutatingModel,
+                                onClick = onPullRemoteModels,
+                            )
+                            ArrowPreference(
+                                title = customTitle,
+                                summary = customSummary,
+                                enabled = !isFetching && !isMutatingModel,
+                                onClick = onOpenAddCustomModel,
+                            )
+                        }
                         message?.let {
                             Text(
                                 text = it,
@@ -315,18 +356,26 @@ internal fun ProviderModelsTab(
             }
 
             item(key = "model_search", contentType = "search") {
-                InputField(
-                    query = modelSearchQuery,
-                    onQueryChange = { modelSearchQuery = it },
-                    onSearch = {},
-                    expanded = false,
-                    onExpandedChange = {},
-                    label = stringResource(R.string.ui_search_model_df5586),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .padding(top = 4.dp, bottom = 8.dp),
-                )
+                if (uiStyle == AppearanceUiStyle.COUI) {
+                    CouiSearchBarBox(
+                        query = modelSearchQuery,
+                        onQueryChange = { modelSearchQuery = it },
+                        placeholder = stringResource(R.string.ui_search_model_df5586),
+                    )
+                } else {
+                    InputField(
+                        query = modelSearchQuery,
+                        onQueryChange = { modelSearchQuery = it },
+                        onSearch = {},
+                        expanded = false,
+                        onExpandedChange = {},
+                        label = stringResource(R.string.ui_search_model_df5586),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                            .padding(top = 4.dp, bottom = 8.dp),
+                    )
+                }
             }
 
             val modelListTitle = if (normalizedModelSearchQuery.isBlank()) {
@@ -364,35 +413,51 @@ internal fun ProviderModelsTab(
                     if (selectionMode) {
                         val visibleIds = filteredModels.mapTo(mutableSetOf()) { it.id }
                         val allVisibleSelected = visibleIds.isNotEmpty() && selectedModelIds.containsAll(visibleIds)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(end = 20.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            SmallTitle(
-                                text = pluralStringResource(
-                                    R.plurals.provider_models_selected,
-                                    selectedModelIds.size,
-                                    selectedModelIds.size,
-                                ),
-                                modifier = Modifier.weight(1f),
-                            )
-                            SelectionHeaderAction(
-                                text = stringResource(
-                                    if (allVisibleSelected) R.string.page_select_none_ba20eb else R.string.page_select_all_3e44b2,
-                                ),
-                                color = MiuixTheme.colorScheme.primary,
-                                enabled = !isFetching && !isMutatingModel && visibleIds.isNotEmpty(),
-                                onClick = {
-                                    selectedModelIds = if (allVisibleSelected) {
-                                        selectedModelIds - visibleIds
-                                    } else {
-                                        selectedModelIds + visibleIds
-                                    }
-                                },
-                            )
+                        val selectedTitle = pluralStringResource(
+                            R.plurals.provider_models_selected,
+                            selectedModelIds.size,
+                            selectedModelIds.size,
+                        )
+                        val actionLabel = stringResource(
+                            if (allVisibleSelected) R.string.page_select_none_ba20eb else R.string.page_select_all_3e44b2,
+                        )
+                        val onToggleSelectAll: () -> Unit = {
+                            selectedModelIds = if (allVisibleSelected) {
+                                selectedModelIds - visibleIds
+                            } else {
+                                selectedModelIds + visibleIds
+                            }
                         }
+                        if (uiStyle == AppearanceUiStyle.COUI) {
+                            CouiSectionTitle(text = selectedTitle) {
+                                SelectionHeaderAction(
+                                    text = actionLabel,
+                                    color = MiuixTheme.colorScheme.primary,
+                                    enabled = !isFetching && !isMutatingModel && visibleIds.isNotEmpty(),
+                                    onClick = onToggleSelectAll,
+                                )
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(end = 20.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                SmallTitle(
+                                    text = selectedTitle,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                SelectionHeaderAction(
+                                    text = actionLabel,
+                                    color = MiuixTheme.colorScheme.primary,
+                                    enabled = !isFetching && !isMutatingModel && visibleIds.isNotEmpty(),
+                                    onClick = onToggleSelectAll,
+                                )
+                            }
+                        }
+                    } else if (uiStyle == AppearanceUiStyle.COUI) {
+                        CouiSectionTitle(text = modelListTitle)
                     } else {
                         SmallTitle(modelListTitle)
                     }
@@ -520,88 +585,127 @@ internal fun ProviderModelsTab(
     }
 
     modelPendingDelete?.let { model ->
-        OverlayDialog(
-            show = true,
-            title = stringResource(R.string.ui_delete_model_cf24da),
-            summary = stringResource(R.string.provider_model_delete_summary, model.displayName),
-            onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
-        ) {
-            MiuixDialogActions(
-                confirmText = if (isMutatingModel) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5),
-                cancelEnabled = !isMutatingModel,
-                confirmEnabled = !isMutatingModel,
-                destructive = true,
-                onCancel = { modelPendingDelete = null },
-                onConfirm = {
-                    scope.launch {
-                        isMutatingModel = true
-                        try {
-                            ModelRepository.deleteModel(provider.id, model.id)
-                            RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                            message = context.getString(R.string.provider_model_deleted, model.displayName)
-                            modelPendingDelete = null
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (throwable: Throwable) {
-                            message = context.getString(
-                                R.string.provider_error,
-                                throwable.message ?: context.getString(R.string.provider_delete_failed),
-                            )
-                            modelPendingDelete = null
-                        } finally {
-                            isMutatingModel = false
-                        }
-                    }
-                },
-            )
+        val deleteConfirmText = if (isMutatingModel) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5)
+        val onConfirmDeleteModel: () -> Unit = {
+            scope.launch {
+                isMutatingModel = true
+                try {
+                    ModelRepository.deleteModel(provider.id, model.id)
+                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                    message = context.getString(R.string.provider_model_deleted, model.displayName)
+                    modelPendingDelete = null
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (throwable: Throwable) {
+                    message = context.getString(
+                        R.string.provider_error,
+                        throwable.message ?: context.getString(R.string.provider_delete_failed),
+                    )
+                    modelPendingDelete = null
+                } finally {
+                    isMutatingModel = false
+                }
+            }
+        }
+        when (LocalUiStyle.current) {
+            AppearanceUiStyle.COUI -> {
+                CouiConfirmDialog(
+                    visible = true,
+                    title = stringResource(R.string.ui_delete_model_cf24da),
+                    message = stringResource(R.string.provider_model_delete_summary, model.displayName),
+                    confirmText = deleteConfirmText,
+                    confirmEnabled = !isMutatingModel,
+                    cancelEnabled = !isMutatingModel,
+                    destructive = true,
+                    onConfirm = onConfirmDeleteModel,
+                    onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
+                )
+            }
+            AppearanceUiStyle.MIUIX -> {
+                OverlayDialog(
+                    show = true,
+                    title = stringResource(R.string.ui_delete_model_cf24da),
+                    summary = stringResource(R.string.provider_model_delete_summary, model.displayName),
+                    onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
+                ) {
+                    MiuixDialogActions(
+                        confirmText = deleteConfirmText,
+                        cancelEnabled = !isMutatingModel,
+                        confirmEnabled = !isMutatingModel,
+                        destructive = true,
+                        onCancel = { modelPendingDelete = null },
+                        onConfirm = onConfirmDeleteModel,
+                    )
+                }
+            }
         }
     }
 
     if (showBatchDeleteDialog) {
-        OverlayDialog(
-            show = true,
-            title = stringResource(R.string.ui_delete_model_cf24da),
-            summary = pluralStringResource(
-                R.plurals.provider_selected_delete_summary,
-                selectedModelIds.size,
-                selectedModelIds.size,
-            ),
-            onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
-        ) {
-            MiuixDialogActions(
-                confirmText = if (isMutatingModel) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5),
-                cancelEnabled = !isMutatingModel,
-                confirmEnabled = !isMutatingModel,
-                destructive = true,
-                onCancel = { showBatchDeleteDialog = false },
-                onConfirm = {
-                    scope.launch {
-                        val deletedCount = selectedModelIds.size
-                        isMutatingModel = true
-                        try {
-                            ModelRepository.deleteModels(provider.id, selectedModelIds)
-                            RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                            message = context.resources.getQuantityString(
-                                R.plurals.provider_models_deleted,
-                                deletedCount,
-                                deletedCount,
-                            )
-                            showBatchDeleteDialog = false
-                            selectionMode = false
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (throwable: Throwable) {
-                            message = context.getString(
-                                R.string.provider_error,
-                                throwable.message ?: context.getString(R.string.provider_delete_failed),
-                            )
-                            showBatchDeleteDialog = false
-                        } finally {
-                            isMutatingModel = false
-                        }
-                    }
-                },
-            )
+        val batchConfirmText = if (isMutatingModel) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5)
+        val batchSummary = pluralStringResource(
+            R.plurals.provider_selected_delete_summary,
+            selectedModelIds.size,
+            selectedModelIds.size,
+        )
+        val onConfirmBatchDelete: () -> Unit = {
+            scope.launch {
+                val deletedCount = selectedModelIds.size
+                isMutatingModel = true
+                try {
+                    ModelRepository.deleteModels(provider.id, selectedModelIds)
+                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                    message = context.resources.getQuantityString(
+                        R.plurals.provider_models_deleted,
+                        deletedCount,
+                        deletedCount,
+                    )
+                    showBatchDeleteDialog = false
+                    selectionMode = false
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (throwable: Throwable) {
+                    message = context.getString(
+                        R.string.provider_error,
+                        throwable.message ?: context.getString(R.string.provider_delete_failed),
+                    )
+                    showBatchDeleteDialog = false
+                } finally {
+                    isMutatingModel = false
+                }
+            }
+        }
+        when (LocalUiStyle.current) {
+            AppearanceUiStyle.COUI -> {
+                CouiConfirmDialog(
+                    visible = true,
+                    title = stringResource(R.string.ui_delete_model_cf24da),
+                    message = batchSummary,
+                    confirmText = batchConfirmText,
+                    confirmEnabled = !isMutatingModel,
+                    cancelEnabled = !isMutatingModel,
+                    destructive = true,
+                    onConfirm = onConfirmBatchDelete,
+                    onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
+                )
+            }
+            AppearanceUiStyle.MIUIX -> {
+                OverlayDialog(
+                    show = true,
+                    title = stringResource(R.string.ui_delete_model_cf24da),
+                    summary = batchSummary,
+                    onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
+                ) {
+                    MiuixDialogActions(
+                        confirmText = batchConfirmText,
+                        cancelEnabled = !isMutatingModel,
+                        confirmEnabled = !isMutatingModel,
+                        destructive = true,
+                        onCancel = { showBatchDeleteDialog = false },
+                        onConfirm = onConfirmBatchDelete,
+                    )
+                }
+            }
         }
     }
 
@@ -783,11 +887,27 @@ private fun ModelListItem(
         }
         Spacer(modifier = Modifier.width(8.dp))
         if (selectionMode) {
-            Checkbox(
-                state = if (checked) ToggleableState.On else ToggleableState.Off,
-                onClick = onToggleChecked,
-                enabled = enabled,
-            )
+            when (LocalUiStyle.current) {
+                AppearanceUiStyle.COUI -> {
+                    val dark = CouiTheme.isDark
+                    val colors = CouiPageDefaults.themeColors(dark)
+                    CouiCheckbox(
+                        modifier = Modifier.size(24.dp),
+                        checked = checked,
+                        enabled = enabled,
+                        colors = CouiCheckboxDefaults.colors(colors.accent, dark),
+                        shape = CouiCheckboxDefaults.shape,
+                        borderShape = CouiCheckboxDefaults.borderShape,
+                    )
+                }
+                AppearanceUiStyle.MIUIX -> {
+                    Checkbox(
+                        state = if (checked) ToggleableState.On else ToggleableState.Off,
+                        onClick = onToggleChecked,
+                        enabled = enabled,
+                    )
+                }
+            }
         } else {
             IconButton(onClick = onEdit, enabled = enabled) {
                 Icon(
@@ -871,221 +991,420 @@ private fun ModelEditDialog(
         },
     )
 
-    OverlayDialog(
-        show = true,
-        title = if (isNew) context.getString(R.string.page_add_model_532a64) else context.getString(R.string.page_edit_model_29e31e),
-        onDismissRequest = { if (!isSaving) onDismiss() },
-    ) {
-        Column {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .modelDialogScrollableBody()
-                    .scrollEndHaptic()
-                    .verticalScroll(rememberScrollState()),
+    val dialogTitle = if (isNew) context.getString(R.string.page_add_model_532a64) else context.getString(R.string.page_edit_model_29e31e)
+    val confirmText = if (isSaving) context.getString(R.string.page_saving_d70d42) else context.getString(R.string.page_save_fadf24)
+    val confirmEnabled = !isSaving &&
+        displayName.isNotBlank() &&
+        modelId.isNotBlank() &&
+        contextError == null
+    val contextValue = contextWindowOverrideText.toIntOrNull()
+    val thinkingTitle = if (geminiCapabilities != null && !geminiCapabilities.mandatory) {
+        "思考档位使用 Default"
+    } else {
+        stringResource(R.string.ui_support_thinking_5b9e4c)
+    }
+    val thinkingSummary = if (geminiCapabilities != null) {
+        if (geminiCapabilities.mandatory) "该模型默认启用思考，可发送已确认支持的思考档位。"
+        else "仅使用 Default 默认档位，不发送自定义思考档位。"
+    } else if (reasoningOverrideActive) {
+        stringResource(R.string.page_covered_model_automatic_capabilities_3fa7d4)
+    } else {
+        stringResource(
+            if (model.reasoning == true) {
+                R.string.provider_auto_reasoning_detected
+            } else {
+                R.string.provider_auto_reasoning_unknown
+            },
+        )
+    }
+
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            val dark = CouiTheme.isDark
+            val colors = CouiPageDefaults.themeColors(dark)
+            val contextRightLabel = when {
+                contextWindowOverrideText.isBlank() -> null
+                contextError != null -> stringResource(R.string.provider_context_window_invalid)
+                contextValue != null -> stringResource(R.string.provider_context_window_value, formatCompactTokenCount(contextValue))
+                else -> null
+            }
+            CouiConfirmDialog(
+                visible = true,
+                title = dialogTitle,
+                message = null,
+                confirmText = confirmText,
+                confirmEnabled = confirmEnabled,
+                cancelEnabled = !isSaving,
+                onConfirm = { onSubmit(updated()) },
+                onDismissRequest = { if (!isSaving) onDismiss() },
             ) {
-                TextField(
-                    value = displayName,
-                    onValueChange = { displayName = it },
-                    label = stringResource(R.string.ui_display_name_ed16be),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                TextField(
-                    value = modelId,
-                    onValueChange = { modelId = it },
-                    label = "Model ID",
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Ascii,
-                        imeAction = ImeAction.Next,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                TextField(
-                    value = contextWindowOverrideText,
-                    onValueChange = { value -> contextWindowOverrideText = value.filter(Char::isDigit) },
-                    label = stringResource(R.string.ui_context_length_tokens_227860),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                val contextValue = contextWindowOverrideText.toIntOrNull()
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    contextWindowPresets.forEach { preset ->
-                        EtaChoiceChip(
-                            text = formatCompactTokenCount(preset),
-                            selected = contextValue == preset,
-                            onClick = { contextWindowOverrideText = preset.toString() },
-                            enabled = !isSaving,
-                        )
-                    }
-                }
-                Text(
-                    text = when {
-                        contextWindowOverrideText.isBlank() ->
-                            stringResource(R.string.provider_context_window_hint)
-                        contextError != null ->
-                            stringResource(R.string.provider_context_window_invalid)
-                        contextValue != null && contextValue !in contextWindowPresets ->
-                            stringResource(R.string.provider_context_window_value, formatCompactTokenCount(contextValue))
-                        else -> stringResource(R.string.provider_context_window_usage)
-                    },
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = if (contextError != null && contextWindowOverrideText.isNotBlank()) {
-                        StatusError
-                    } else {
-                        MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    },
-                    modifier = Modifier.padding(start = 4.dp, top = 8.dp),
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                // 弹窗内不再套卡片：卡片与弹窗同色看不出边界，内边距只会让这一段错开左缘。
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(enabled = !isSaving && geminiCapabilities == null) {
-                            reasoningOverrideActive = true
-                            reasoningEnabled = !reasoningEnabled
-                        }
-                        .padding(horizontal = 4.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (geminiCapabilities != null && !geminiCapabilities.mandatory) "思考档位使用 Default"
-                                else stringResource(R.string.ui_support_thinking_5b9e4c),
-                            style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = if (geminiCapabilities != null) {
-                                if (geminiCapabilities.mandatory) "该模型必须思考，不支持 Off；Default 使用模型默认档位。"
-                                else "尚未确认该模型的思考档位；仅使用 Default，不发送自定义思考档位。"
-                            } else if (reasoningOverrideActive) {
-                                stringResource(R.string.page_covered_model_automatic_capabilities_3fa7d4)
-                            } else {
-                                stringResource(
-                                    if (model.reasoning == true) {
-                                        R.string.provider_auto_reasoning_detected
-                                    } else {
-                                        R.string.provider_auto_reasoning_unknown
-                                    },
-                                )
-                            },
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(top = 2.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Switch(
-                        checked = geminiCapabilities != null || reasoningEnabled,
-                        onCheckedChange = { enabled ->
-                            reasoningOverrideActive = true
-                            reasoningEnabled = enabled
-                        },
-                        enabled = !isSaving && geminiCapabilities == null,
+                    CouiTextField(
+                        value = displayName,
+                        onValueChange = { displayName = it },
+                        label = stringResource(R.string.ui_display_name_ed16be),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     )
-                }
-                if (geminiCapabilities != null || reasoningEnabled) {
-                    // Default 始终可用（交给模型或 Provider 决定），不作为可选项展示。
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(top = 10.dp),
-                    ) {
-                        (geminiCapabilities?.supportedEfforts ?: editableReasoningEfforts).forEach { effort ->
-                            val checked = geminiCapabilities != null || effort in selectedReasoningEfforts
-                            EtaChoiceChip(
-                                text = effort.displayName,
-                                selected = checked,
-                                onClick = {
+                    CouiTextField(
+                        value = modelId,
+                        onValueChange = { modelId = it },
+                        label = "Model ID",
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Ascii,
+                            imeAction = ImeAction.Next,
+                        ),
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        CouiTextField(
+                            value = contextWindowOverrideText,
+                            onValueChange = { value -> contextWindowOverrideText = value.filter(Char::isDigit) },
+                            label = stringResource(R.string.ui_context_length_tokens_227860),
+                            rightLabel = contextRightLabel,
+                            rightLabelColor = if (contextError != null && contextWindowOverrideText.isNotBlank()) {
+                                StatusError
+                            } else {
+                                colors.summary
+                            },
+                            placeholder = stringResource(R.string.provider_context_window_hint),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done,
+                            ),
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            contextWindowPresets.forEach { preset ->
+                                EtaChoiceChip(
+                                    text = formatCompactTokenCount(preset),
+                                    selected = contextValue == preset,
+                                    onClick = { contextWindowOverrideText = preset.toString() },
+                                    enabled = !isSaving,
+                                )
+                            }
+                        }
+                    }
+
+                    Divider(startIndent = 0.dp, endIndent = 0.dp)
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(enabled = !isSaving && geminiCapabilities == null) {
                                     reasoningOverrideActive = true
-                                    selectedReasoningEfforts = if (checked) {
-                                        selectedReasoningEfforts - effort
-                                    } else {
-                                        selectedReasoningEfforts + effort
-                                    }
+                                    reasoningEnabled = !reasoningEnabled
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                CouiText(
+                                    text = thinkingTitle,
+                                    kind = CouiTextKind.PreferenceTitle,
+                                    color = colors.title,
+                                )
+                                CouiText(
+                                    text = thinkingSummary,
+                                    kind = CouiTextKind.PreferenceSummary,
+                                    color = colors.summary,
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            CouiSwitch(
+                                checked = geminiCapabilities != null || reasoningEnabled,
+                                onCheckedChange = { enabled ->
+                                    reasoningOverrideActive = true
+                                    reasoningEnabled = enabled
                                 },
+                                dark = dark,
+                                colors = CouiSwitchDefaults.colors(colors.accent, dark),
                                 enabled = !isSaving && geminiCapabilities == null,
                             )
                         }
-                    }
-                }
-                Text(
-                    text = if (nativeGemini) "Gemini 原生连接只发送已确认支持的思考档位。"
-                        else stringResource(R.string.ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d),
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(start = 4.dp, top = 8.dp),
-                )
-                error?.let { message ->
-                    Text(
-                        text = message,
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = StatusError,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                }
-                if (reasoningOverrideActive || onDelete != null) {
-                    // 文字链接保持轻量外观，但点击区扩展到 40dp 高，避免在弹窗底部误触。
-                    Row(
-                        modifier = Modifier.padding(top = 4.dp).offset(x = (-4).dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (reasoningOverrideActive) {
-                            Text(
-                                text = stringResource(R.string.ui_restore_automatic_8d4e1e),
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable(
-                                        enabled = !isSaving,
-                                        onClick = ::resetAutomaticReasoning,
+
+                        val visibleEfforts = geminiCapabilities?.supportedEfforts ?: editableReasoningEfforts
+                        if ((geminiCapabilities != null || reasoningEnabled) && visibleEfforts.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                visibleEfforts.forEach { effort ->
+                                    val checked = geminiCapabilities != null || effort in selectedReasoningEfforts
+                                    EtaChoiceChip(
+                                        text = effort.displayName,
+                                        selected = checked,
+                                        onClick = {
+                                            reasoningOverrideActive = true
+                                            selectedReasoningEfforts = if (checked) {
+                                                selectedReasoningEfforts - effort
+                                            } else {
+                                                selectedReasoningEfforts + effort
+                                            }
+                                        },
+                                        enabled = !isSaving && geminiCapabilities == null,
                                     )
-                                    .padding(horizontal = 8.dp, vertical = 10.dp),
-                            )
+                                }
+                            }
+                            if (geminiCapabilities == null) {
+                                CouiText(
+                                    text = stringResource(R.string.ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d),
+                                    kind = CouiTextKind.Description,
+                                    color = colors.summary,
+                                )
+                            }
                         }
-                        onDelete?.let { delete ->
-                            Text(
-                                text = stringResource(R.string.ui_delete_model_cf24da),
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.error,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable(enabled = !isSaving, onClick = delete)
-                                    .padding(horizontal = 8.dp, vertical = 10.dp),
-                            )
+                    }
+
+                    error?.let { message ->
+                        CouiText(
+                            text = message,
+                            kind = CouiTextKind.Description,
+                            color = StatusError,
+                        )
+                    }
+
+                    if (reasoningOverrideActive || onDelete != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (reasoningOverrideActive) {
+                                CouiButton(
+                                    text = stringResource(R.string.ui_restore_automatic_8d4e1e),
+                                    enabled = !isSaving,
+                                    onClick = ::resetAutomaticReasoning,
+                                    minHeight = 38.dp,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            onDelete?.let { delete ->
+                                CouiButton(
+                                    text = stringResource(R.string.ui_delete_model_cf24da),
+                                    enabled = !isSaving,
+                                    role = CouiButtonRole.Destructive,
+                                    onClick = delete,
+                                    minHeight = 38.dp,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
                         }
                     }
                 }
             }
         }
-        MiuixDialogActions(
-            confirmText = if (isSaving) context.getString(R.string.page_saving_d70d42) else context.getString(R.string.page_save_fadf24),
-            confirmEnabled = !isSaving &&
-                displayName.isNotBlank() &&
-                modelId.isNotBlank() &&
-                contextError == null,
-            cancelEnabled = !isSaving,
-            onCancel = onDismiss,
-            onConfirm = { onSubmit(updated()) },
-            modifier = Modifier.padding(top = 16.dp),
-        )
+
+        AppearanceUiStyle.MIUIX -> {
+            OverlayDialog(
+                show = true,
+                title = dialogTitle,
+                onDismissRequest = { if (!isSaving) onDismiss() },
+            ) {
+                Column {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .modelDialogScrollableBody()
+                            .scrollEndHaptic()
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        TextField(
+                            value = displayName,
+                            onValueChange = { displayName = it },
+                            label = stringResource(R.string.ui_display_name_ed16be),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TextField(
+                            value = modelId,
+                            onValueChange = { modelId = it },
+                            label = "Model ID",
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Ascii,
+                                imeAction = ImeAction.Next,
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TextField(
+                            value = contextWindowOverrideText,
+                            onValueChange = { value -> contextWindowOverrideText = value.filter(Char::isDigit) },
+                            label = stringResource(R.string.ui_context_length_tokens_227860),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done,
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(top = 10.dp),
+                        ) {
+                            contextWindowPresets.forEach { preset ->
+                                EtaChoiceChip(
+                                    text = formatCompactTokenCount(preset),
+                                    selected = contextValue == preset,
+                                    onClick = { contextWindowOverrideText = preset.toString() },
+                                    enabled = !isSaving,
+                                )
+                            }
+                        }
+                        Text(
+                            text = when {
+                                contextWindowOverrideText.isBlank() ->
+                                    stringResource(R.string.provider_context_window_hint)
+                                contextError != null ->
+                                    stringResource(R.string.provider_context_window_invalid)
+                                contextValue != null && contextValue !in contextWindowPresets ->
+                                    stringResource(R.string.provider_context_window_value, formatCompactTokenCount(contextValue))
+                                else -> stringResource(R.string.provider_context_window_usage)
+                            },
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = if (contextError != null && contextWindowOverrideText.isNotBlank()) {
+                                StatusError
+                            } else {
+                                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            },
+                            modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(enabled = !isSaving && geminiCapabilities == null) {
+                                    reasoningOverrideActive = true
+                                    reasoningEnabled = !reasoningEnabled
+                                }
+                                .padding(horizontal = 4.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = thinkingTitle,
+                                    style = MiuixTheme.textStyles.body1,
+                                    color = MiuixTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    text = thinkingSummary,
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Switch(
+                                checked = geminiCapabilities != null || reasoningEnabled,
+                                onCheckedChange = { enabled ->
+                                    reasoningOverrideActive = true
+                                    reasoningEnabled = enabled
+                                },
+                                enabled = !isSaving && geminiCapabilities == null,
+                            )
+                        }
+                        if (geminiCapabilities != null || reasoningEnabled) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(top = 10.dp),
+                            ) {
+                                (geminiCapabilities?.supportedEfforts ?: editableReasoningEfforts).forEach { effort ->
+                                    val checked = geminiCapabilities != null || effort in selectedReasoningEfforts
+                                    EtaChoiceChip(
+                                        text = effort.displayName,
+                                        selected = checked,
+                                        onClick = {
+                                            reasoningOverrideActive = true
+                                            selectedReasoningEfforts = if (checked) {
+                                                selectedReasoningEfforts - effort
+                                            } else {
+                                                selectedReasoningEfforts + effort
+                                            }
+                                        },
+                                        enabled = !isSaving && geminiCapabilities == null,
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = if (nativeGemini) "Gemini 原生连接只发送已确认支持的思考档位。"
+                            else stringResource(R.string.ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d),
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                        )
+                        error?.let { message ->
+                            Text(
+                                text = message,
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = StatusError,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                        if (reasoningOverrideActive || onDelete != null) {
+                            Row(
+                                modifier = Modifier.padding(top = 4.dp).offset(x = (-4).dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (reasoningOverrideActive) {
+                                    Text(
+                                        text = stringResource(R.string.ui_restore_automatic_8d4e1e),
+                                        style = MiuixTheme.textStyles.body2,
+                                        color = MiuixTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable(
+                                                enabled = !isSaving,
+                                                onClick = ::resetAutomaticReasoning,
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                                    )
+                                }
+                                onDelete?.let { delete ->
+                                    Text(
+                                        text = stringResource(R.string.ui_delete_model_cf24da),
+                                        style = MiuixTheme.textStyles.body2,
+                                        color = MiuixTheme.colorScheme.error,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable(enabled = !isSaving, onClick = delete)
+                                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    MiuixDialogActions(
+                        confirmText = confirmText,
+                        confirmEnabled = confirmEnabled,
+                        cancelEnabled = !isSaving,
+                        onCancel = onDismiss,
+                        onConfirm = { onSubmit(updated()) },
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+                }
+            }
+        }
     }
 }
 

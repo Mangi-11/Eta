@@ -27,17 +27,35 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.itos.coui.dialog.CouiDialogDefaults
+import com.itos.coui.icons.CouiIcons
+import com.itos.coui.layout.Divider
+import com.itos.coui.layout.Group
+import com.itos.coui.text.CouiTextKind
+import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.mcp.McpServerManager
 import io.github.mangi.eta.agent.mcp.validateMcpEndpoint
+import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.McpAuthorizationType
 import io.github.mangi.eta.data.model.McpProtocolMode
 import io.github.mangi.eta.data.model.McpServerSetting
 import io.github.mangi.eta.data.model.McpToolDefinition
 import io.github.mangi.eta.data.repository.McpServerRepository
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiButton
+import io.github.mangi.eta.ui.components.coui.CouiButtonRole
+import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
+import io.github.mangi.eta.ui.components.coui.CouiInputDialog
+import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
+import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -72,157 +90,259 @@ internal fun McpServersScreen(
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    MiuixScaffoldPage(
-        title = stringResource(R.string.route_mcp_servers),
-        onBack = onBack,
-        actions = {
-            IconButton(onClick = { showAdd = true }) {
-                Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = stringResource(R.string.mcp_add_server),
-                )
-            }
-        },
-    ) {
-        item(key = "servers") {
-            SmallTitle(stringResource(R.string.mcp_configured_servers, servers.size))
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-            ) {
-                if (servers.isEmpty()) {
-                    ListEmptyState(
-                        title = stringResource(R.string.mcp_empty_title),
-                        summary = stringResource(R.string.mcp_empty_summary),
-                        icon = Icons.Rounded.Hub,
-                        action = {
-                            TextButton(
-                                text = stringResource(R.string.mcp_add_server),
-                                onClick = { showAdd = true },
-                            )
-                        },
-                    )
-                } else {
-                    servers.forEach { server ->
-                        ArrowPreference(
-                            title = server.name,
-                            summary = stringResource(
-                                R.string.mcp_server_row_summary,
-                                server.activeTools.size,
-                                server.tools.size,
-                            ),
-                            onClick = { onNavigate(AppRoute.McpServerDetail(server.id)) },
+    val onConfirmAdd: () -> Unit = {
+        val normalizedName = name.trim()
+        val normalizedUrl = url.trim()
+        error = when {
+            normalizedName.isBlank() -> resources.getString(R.string.mcp_name_required)
+            else -> runCatching { validateMcpEndpoint(normalizedUrl) }
+                .exceptionOrNull()?.message
+        }
+        if (error == null) {
+            scope.launch {
+                working = true
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val draft = McpServerSetting(
+                            id = "",
+                            name = normalizedName,
+                            url = normalizedUrl,
+                            protocolMode = McpProtocolMode.AUTO,
+                            authorizationType = if (token.isBlank()) {
+                                McpAuthorizationType.NONE
+                            } else {
+                                McpAuthorizationType.BEARER
+                            },
                         )
+                        val discovered = McpServerManager.discover(draft, token)
+                        McpServerRepository.add(discovered, token)
                     }
+                }
+                working = false
+                result.onSuccess {
+                    showAdd = false
+                    name = ""
+                    url = ""
+                    token = ""
+                    error = null
+                    Toast.makeText(
+                        context,
+                        resources.getString(R.string.mcp_server_added, it.tools.size),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }.onFailure {
+                    error = it.message ?: resources.getString(R.string.mcp_connection_failed)
                 }
             }
         }
     }
 
-    WindowDialog(
-        show = showAdd,
-        title = stringResource(R.string.mcp_add_server),
-        onDismissRequest = { if (!working) showAdd = false },
-    ) {
-        // 只有表单滚动，按钮固定在底部：输入法弹出或错误较长时确认操作仍然可达。
-        Column(modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState()),
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            CouiScaffoldPage(
+                title = stringResource(R.string.route_mcp_servers),
+                onBack = onBack,
+                actions = {
+                    CouiTopAppBarIconButton(
+                        icon = CouiIcons.Add,
+                        contentDescription = stringResource(R.string.mcp_add_server),
+                        onClick = { showAdd = true },
+                    )
+                },
             ) {
-                TextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = stringResource(R.string.mcp_server_name),
-                    singleLine = true,
-                    enabled = !working,
+                Group(title = stringResource(R.string.mcp_configured_servers, servers.size)) {
+                    if (servers.isEmpty()) {
+                        ListEmptyState(
+                            title = stringResource(R.string.mcp_empty_title),
+                            summary = stringResource(R.string.mcp_empty_summary),
+                            icon = Icons.Rounded.Hub,
+                            action = {
+                                CouiButton(
+                                    text = stringResource(R.string.mcp_add_server),
+                                    role = CouiButtonRole.Primary,
+                                    onClick = { showAdd = true },
+                                )
+                            },
+                        )
+                    } else {
+                        servers.forEachIndexed { index, server ->
+                            CouiPreference(
+                                title = server.name,
+                                summary = stringResource(
+                                    R.string.mcp_server_row_summary,
+                                    server.activeTools.size,
+                                    server.tools.size,
+                                ),
+                                onClick = { onNavigate(AppRoute.McpServerDetail(server.id)) },
+                            )
+                            if (index < servers.lastIndex) {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+                CouiPageBottomSpacer()
+            }
+
+            CouiConfirmDialog(
+                visible = showAdd,
+                title = stringResource(R.string.mcp_add_server),
+                message = null,
+                confirmText = if (working) stringResource(R.string.mcp_connecting) else stringResource(R.string.mcp_add_server),
+                confirmEnabled = !working,
+                cancelEnabled = !working,
+                onConfirm = onConfirmAdd,
+                onDismissRequest = { if (!working) showAdd = false },
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth(),
-                )
-                TextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = stringResource(R.string.mcp_server_url),
-                    singleLine = true,
-                    enabled = !working,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                TextField(
-                    value = token,
-                    onValueChange = { token = it },
-                    label = stringResource(R.string.mcp_bearer_optional),
-                    singleLine = true,
-                    enabled = !working,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                error?.let {
-                    Text(
-                        text = it,
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.error,
+                ) {
+                    CouiTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = stringResource(R.string.mcp_server_name),
+                        singleLine = true,
+                        enabled = !working,
+                    )
+                    CouiTextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        label = stringResource(R.string.mcp_server_url),
+                        singleLine = true,
+                        enabled = !working,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    )
+                    CouiTextField(
+                        value = token,
+                        onValueChange = { token = it },
+                        label = stringResource(R.string.mcp_bearer_optional),
+                        singleLine = true,
+                        enabled = !working,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    )
+                    error?.let {
+                        Text(
+                            text = it,
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+        }
+
+        AppearanceUiStyle.MIUIX -> {
+            MiuixScaffoldPage(
+                title = stringResource(R.string.route_mcp_servers),
+                onBack = onBack,
+                actions = {
+                    IconButton(onClick = { showAdd = true }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = stringResource(R.string.mcp_add_server),
+                        )
+                    }
+                },
+            ) {
+                item(key = "servers") {
+                    SmallTitle(stringResource(R.string.mcp_configured_servers, servers.size))
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        if (servers.isEmpty()) {
+                            ListEmptyState(
+                                title = stringResource(R.string.mcp_empty_title),
+                                summary = stringResource(R.string.mcp_empty_summary),
+                                icon = Icons.Rounded.Hub,
+                                action = {
+                                    TextButton(
+                                        text = stringResource(R.string.mcp_add_server),
+                                        onClick = { showAdd = true },
+                                    )
+                                },
+                            )
+                        } else {
+                            servers.forEach { server ->
+                                ArrowPreference(
+                                    title = server.name,
+                                    summary = stringResource(
+                                        R.string.mcp_server_row_summary,
+                                        server.activeTools.size,
+                                        server.tools.size,
+                                    ),
+                                    onClick = { onNavigate(AppRoute.McpServerDetail(server.id)) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            WindowDialog(
+                show = showAdd,
+                title = stringResource(R.string.mcp_add_server),
+                onDismissRequest = { if (!working) showAdd = false },
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        TextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = stringResource(R.string.mcp_server_name),
+                            singleLine = true,
+                            enabled = !working,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        TextField(
+                            value = url,
+                            onValueChange = { url = it },
+                            label = stringResource(R.string.mcp_server_url),
+                            singleLine = true,
+                            enabled = !working,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        TextField(
+                            value = token,
+                            onValueChange = { token = it },
+                            label = stringResource(R.string.mcp_bearer_optional),
+                            singleLine = true,
+                            enabled = !working,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        error?.let {
+                            Text(
+                                text = it,
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                    MiuixDialogActions(
+                        modifier = Modifier.padding(top = 16.dp),
+                        confirmText = if (working) {
+                            stringResource(R.string.mcp_connecting)
+                        } else {
+                            stringResource(R.string.mcp_add_server)
+                        },
+                        confirmEnabled = !working,
+                        onCancel = { showAdd = false },
+                        onConfirm = onConfirmAdd,
                     )
                 }
             }
-            MiuixDialogActions(
-                modifier = Modifier.padding(top = 16.dp),
-                confirmText = if (working) {
-                    stringResource(R.string.mcp_connecting)
-                } else {
-                    stringResource(R.string.mcp_add_server)
-                },
-                confirmEnabled = !working,
-                onCancel = { showAdd = false },
-                onConfirm = {
-                    val normalizedName = name.trim()
-                    val normalizedUrl = url.trim()
-                    error = when {
-                        normalizedName.isBlank() -> resources.getString(R.string.mcp_name_required)
-                        else -> runCatching { validateMcpEndpoint(normalizedUrl) }
-                            .exceptionOrNull()?.message
-                    }
-                    if (error == null) scope.launch {
-                        working = true
-                        val result = withContext(Dispatchers.IO) {
-                            runCatching {
-                                val draft = McpServerSetting(
-                                    id = "",
-                                    name = normalizedName,
-                                    url = normalizedUrl,
-                                    protocolMode = McpProtocolMode.AUTO,
-                                    authorizationType = if (token.isBlank()) {
-                                        McpAuthorizationType.NONE
-                                    } else {
-                                        McpAuthorizationType.BEARER
-                                    },
-                                )
-                                val discovered = McpServerManager.discover(draft, token)
-                                McpServerRepository.add(discovered, token)
-                            }
-                        }
-                        working = false
-                        result.onSuccess {
-                            showAdd = false
-                            name = ""
-                            url = ""
-                            token = ""
-                            error = null
-                            Toast.makeText(
-                                context,
-                                resources.getString(R.string.mcp_server_added, it.tools.size),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }.onFailure {
-                            error = it.message ?: resources.getString(R.string.mcp_connection_failed)
-                        }
-                    }
-                },
-            )
         }
     }
 }
@@ -243,163 +363,136 @@ internal fun McpServerDetailScreen(
     var showToken by remember { mutableStateOf(false) }
     var token by remember { mutableStateOf("") }
 
-    MiuixScaffoldPage(
-        title = server?.name ?: stringResource(R.string.route_mcp_server_detail),
-        onBack = onBack,
-        actions = {
-            IconButton(
-                enabled = server != null && !working,
-                onClick = {
-                    scope.launch {
-                        working = true
-                        val result = withContext(Dispatchers.IO) {
-                            runCatching { McpServerManager.refresh(serverId) }
-                        }
-                        working = false
-                        Toast.makeText(
-                            context,
-                            result.fold(
-                                onSuccess = { resources.getString(R.string.mcp_refreshed, it.tools.size) },
-                                onFailure = { it.message ?: resources.getString(R.string.mcp_refresh_failed) },
-                            ),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
+    val onRefresh: () -> Unit = {
+        scope.launch {
+            working = true
+            val result = withContext(Dispatchers.IO) {
+                runCatching { McpServerManager.refresh(serverId) }
+            }
+            working = false
+            Toast.makeText(
+                context,
+                result.fold(
+                    onSuccess = { resources.getString(R.string.mcp_refreshed, it.tools.size) },
+                    onFailure = { it.message ?: resources.getString(R.string.mcp_refresh_failed) },
+                ),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            val dialogColors = CouiDialogDefaults.themeColors()
+            CouiScaffoldPage(
+                title = server?.name ?: stringResource(R.string.route_mcp_server_detail),
+                onBack = onBack,
+                actions = {
+                    CouiTopAppBarIconButton(
+                        icon = Icons.Rounded.Refresh,
+                        contentDescription = stringResource(R.string.mcp_refresh_tools),
+                        enabled = server != null && !working,
+                        onClick = onRefresh,
+                    )
                 },
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Refresh,
-                    contentDescription = stringResource(R.string.mcp_refresh_tools),
-                )
-            }
-        },
-    ) {
-        if (server == null) {
-            item(key = "missing") {
-                ListEmptyState(title = stringResource(R.string.mcp_server_missing))
-            }
-            return@MiuixScaffoldPage
-        }
-        item(key = "server") {
-            SmallTitle(stringResource(R.string.mcp_server_settings))
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-            ) {
-                SwitchPreference(
-                    title = stringResource(R.string.mcp_enable_server),
-                    summary = server.url,
-                    checked = server.enabled,
-                    onCheckedChange = { enabled ->
-                        scope.launch(Dispatchers.IO) {
-                            McpServerRepository.update(server.copy(enabled = enabled))
-                        }
-                    },
-                )
-                ArrowPreference(
-                    title = stringResource(R.string.mcp_update_token),
-                    summary = stringResource(
-                        if (server.authorizationType == McpAuthorizationType.BEARER) {
-                            R.string.mcp_token_configured
-                        } else {
-                            R.string.mcp_no_authentication
-                        }
-                    ),
-                    onClick = { showToken = true },
-                )
-            }
-        }
-        item(key = "tools") {
-            SmallTitle(stringResource(R.string.mcp_tools_count, server.tools.size))
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-            ) {
-                if (server.tools.isEmpty()) {
-                    ListEmptyState(
-                        title = stringResource(R.string.mcp_no_tools),
-                        summary = stringResource(R.string.mcp_refresh_tools_hint),
-                        icon = Icons.Rounded.Refresh,
+                if (server == null) {
+                    ListEmptyState(title = stringResource(R.string.mcp_server_missing))
+                    return@CouiScaffoldPage
+                }
+                Group(title = stringResource(R.string.mcp_server_settings)) {
+                    CouiSwitchPreference(
+                        title = stringResource(R.string.mcp_enable_server),
+                        summary = server.url,
+                        checked = server.enabled,
+                        onCheckedChange = { enabled ->
+                            scope.launch(Dispatchers.IO) {
+                                McpServerRepository.update(server.copy(enabled = enabled))
+                            }
+                        },
                     )
-                } else {
-                    server.tools.forEach { tool ->
-                        val checked = tool.name in server.enabledToolNames
-                        SwitchPreference(
-                            title = tool.title.ifBlank { tool.name },
-                            summary = toolSummary(tool),
-                            checked = checked,
-                            onCheckedChange = { enabled ->
-                                if (enabled && tool.readOnlyHint != true) {
-                                    pendingRiskyTool = tool
-                                } else {
-                                    scope.launch(Dispatchers.IO) {
-                                        McpServerRepository.setToolEnabled(serverId, tool.name, enabled)
-                                    }
-                                }
+                    Divider()
+                    CouiPreference(
+                        title = stringResource(R.string.mcp_update_token),
+                        summary = stringResource(
+                            if (server.authorizationType == McpAuthorizationType.BEARER) {
+                                R.string.mcp_token_configured
+                            } else {
+                                R.string.mcp_no_authentication
                             },
+                        ),
+                        onClick = { showToken = true },
+                    )
+                }
+
+                Group(title = stringResource(R.string.mcp_tools_count, server.tools.size)) {
+                    if (server.tools.isEmpty()) {
+                        ListEmptyState(
+                            title = stringResource(R.string.mcp_no_tools),
+                            summary = stringResource(R.string.mcp_refresh_tools_hint),
+                            icon = Icons.Rounded.Refresh,
                         )
+                    } else {
+                        server.tools.forEachIndexed { index, tool ->
+                            val checked = tool.name in server.enabledToolNames
+                            CouiSwitchPreference(
+                                title = tool.title.ifBlank { tool.name },
+                                summary = toolSummary(tool),
+                                checked = checked,
+                                onCheckedChange = { enabled ->
+                                    if (enabled && tool.readOnlyHint != true) {
+                                        pendingRiskyTool = tool
+                                    } else {
+                                        scope.launch(Dispatchers.IO) {
+                                            McpServerRepository.setToolEnabled(serverId, tool.name, enabled)
+                                        }
+                                    }
+                                },
+                            )
+                            if (index < server.tools.lastIndex) {
+                                Divider()
+                            }
+                        }
                     }
                 }
+
+                Group {
+                    CouiPreference(
+                        title = stringResource(R.string.mcp_delete_server),
+                        titleColor = dialogColors.destructive,
+                        summary = stringResource(R.string.mcp_delete_server_summary),
+                        showChevron = false,
+                        onClick = { showDelete = true },
+                    )
+                }
+                CouiPageBottomSpacer()
             }
-        }
-        item(key = "delete") {
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(top = 4.dp, bottom = 12.dp),
-            ) {
-                BasicComponent(
-                    title = stringResource(R.string.mcp_delete_server),
-                    titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
-                    summary = stringResource(R.string.mcp_delete_server_summary),
-                    onClick = { showDelete = true },
+
+            pendingRiskyTool?.let { tool ->
+                CouiConfirmDialog(
+                    visible = true,
+                    title = stringResource(R.string.mcp_enable_risky_tool),
+                    message = stringResource(R.string.mcp_enable_risky_tool_summary, tool.name, server?.name.orEmpty()),
+                    confirmText = stringResource(R.string.mcp_enable_tool),
+                    destructive = true,
+                    onConfirm = {
+                        scope.launch(Dispatchers.IO) {
+                            McpServerRepository.setToolEnabled(serverId, tool.name, true)
+                        }
+                        pendingRiskyTool = null
+                    },
+                    onDismissRequest = { pendingRiskyTool = null },
                 )
             }
-        }
-    }
 
-    pendingRiskyTool?.let { tool ->
-        WindowDialog(
-            show = true,
-            title = stringResource(R.string.mcp_enable_risky_tool),
-            summary = stringResource(R.string.mcp_enable_risky_tool_summary, tool.name, server?.name.orEmpty()),
-            onDismissRequest = { pendingRiskyTool = null },
-        ) {
-            MiuixDialogActions(
-                confirmText = stringResource(R.string.mcp_enable_tool),
-                destructive = true,
-                onCancel = { pendingRiskyTool = null },
-                onConfirm = {
-                    scope.launch(Dispatchers.IO) {
-                        McpServerRepository.setToolEnabled(serverId, tool.name, true)
-                    }
-                    pendingRiskyTool = null
-                },
-            )
-        }
-    }
-
-    WindowDialog(
-        show = showToken,
-        title = stringResource(R.string.mcp_update_token),
-        summary = stringResource(R.string.mcp_update_token_summary),
-        onDismissRequest = { showToken = false },
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            TextField(
+            CouiInputDialog(
+                visible = showToken,
+                title = stringResource(R.string.mcp_update_token),
+                message = stringResource(R.string.mcp_update_token_summary),
                 value = token,
                 onValueChange = { token = it },
-                label = stringResource(R.string.mcp_bearer_token),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            MiuixDialogActions(
+                placeholder = stringResource(R.string.mcp_bearer_token),
                 confirmText = stringResource(R.string.action_save),
-                onCancel = { showToken = false },
                 onConfirm = {
                     server?.let { current ->
                         scope.launch(Dispatchers.IO) {
@@ -418,27 +511,208 @@ internal fun McpServerDetailScreen(
                         showToken = false
                     }
                 },
+                onDismissRequest = { showToken = false },
+            )
+
+            CouiConfirmDialog(
+                visible = showDelete,
+                title = stringResource(R.string.mcp_delete_server),
+                message = stringResource(R.string.mcp_delete_confirm, server?.name.orEmpty()),
+                confirmText = stringResource(R.string.ui_delete_3755f5),
+                destructive = true,
+                onConfirm = {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { McpServerRepository.delete(serverId) }
+                        onBack()
+                    }
+                },
+                onDismissRequest = { showDelete = false },
             )
         }
-    }
 
-    WindowDialog(
-        show = showDelete,
-        title = stringResource(R.string.mcp_delete_server),
-        summary = stringResource(R.string.mcp_delete_confirm, server?.name.orEmpty()),
-        onDismissRequest = { showDelete = false },
-    ) {
-        MiuixDialogActions(
-            confirmText = stringResource(R.string.ui_delete_3755f5),
-            destructive = true,
-            onCancel = { showDelete = false },
-            onConfirm = {
-                scope.launch {
-                    withContext(Dispatchers.IO) { McpServerRepository.delete(serverId) }
-                    onBack()
+        AppearanceUiStyle.MIUIX -> {
+            MiuixScaffoldPage(
+                title = server?.name ?: stringResource(R.string.route_mcp_server_detail),
+                onBack = onBack,
+                actions = {
+                    IconButton(
+                        enabled = server != null && !working,
+                        onClick = onRefresh,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = stringResource(R.string.mcp_refresh_tools),
+                        )
+                    }
+                },
+            ) {
+                if (server == null) {
+                    item(key = "missing") {
+                        ListEmptyState(title = stringResource(R.string.mcp_server_missing))
+                    }
+                    return@MiuixScaffoldPage
                 }
-            },
-        )
+                item(key = "server") {
+                    SmallTitle(stringResource(R.string.mcp_server_settings))
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        SwitchPreference(
+                            title = stringResource(R.string.mcp_enable_server),
+                            summary = server.url,
+                            checked = server.enabled,
+                            onCheckedChange = { enabled ->
+                                scope.launch(Dispatchers.IO) {
+                                    McpServerRepository.update(server.copy(enabled = enabled))
+                                }
+                            },
+                        )
+                        ArrowPreference(
+                            title = stringResource(R.string.mcp_update_token),
+                            summary = stringResource(
+                                if (server.authorizationType == McpAuthorizationType.BEARER) {
+                                    R.string.mcp_token_configured
+                                } else {
+                                    R.string.mcp_no_authentication
+                                },
+                            ),
+                            onClick = { showToken = true },
+                        )
+                    }
+                }
+                item(key = "tools") {
+                    SmallTitle(stringResource(R.string.mcp_tools_count, server.tools.size))
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        if (server.tools.isEmpty()) {
+                            ListEmptyState(
+                                title = stringResource(R.string.mcp_no_tools),
+                                summary = stringResource(R.string.mcp_refresh_tools_hint),
+                                icon = Icons.Rounded.Refresh,
+                            )
+                        } else {
+                            server.tools.forEach { tool ->
+                                val checked = tool.name in server.enabledToolNames
+                                SwitchPreference(
+                                    title = tool.title.ifBlank { tool.name },
+                                    summary = toolSummary(tool),
+                                    checked = checked,
+                                    onCheckedChange = { enabled ->
+                                        if (enabled && tool.readOnlyHint != true) {
+                                            pendingRiskyTool = tool
+                                        } else {
+                                            scope.launch(Dispatchers.IO) {
+                                                McpServerRepository.setToolEnabled(serverId, tool.name, enabled)
+                                            }
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+                item(key = "delete") {
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(top = 4.dp, bottom = 12.dp),
+                    ) {
+                        BasicComponent(
+                            title = stringResource(R.string.mcp_delete_server),
+                            titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
+                            summary = stringResource(R.string.mcp_delete_server_summary),
+                            onClick = { showDelete = true },
+                        )
+                    }
+                }
+            }
+
+            pendingRiskyTool?.let { tool ->
+                WindowDialog(
+                    show = true,
+                    title = stringResource(R.string.mcp_enable_risky_tool),
+                    summary = stringResource(R.string.mcp_enable_risky_tool_summary, tool.name, server?.name.orEmpty()),
+                    onDismissRequest = { pendingRiskyTool = null },
+                ) {
+                    MiuixDialogActions(
+                        confirmText = stringResource(R.string.mcp_enable_tool),
+                        destructive = true,
+                        onCancel = { pendingRiskyTool = null },
+                        onConfirm = {
+                            scope.launch(Dispatchers.IO) {
+                                McpServerRepository.setToolEnabled(serverId, tool.name, true)
+                            }
+                            pendingRiskyTool = null
+                        },
+                    )
+                }
+            }
+
+            WindowDialog(
+                show = showToken,
+                title = stringResource(R.string.mcp_update_token),
+                summary = stringResource(R.string.mcp_update_token_summary),
+                onDismissRequest = { showToken = false },
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    TextField(
+                        value = token,
+                        onValueChange = { token = it },
+                        label = stringResource(R.string.mcp_bearer_token),
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    MiuixDialogActions(
+                        confirmText = stringResource(R.string.action_save),
+                        onCancel = { showToken = false },
+                        onConfirm = {
+                            server?.let { current ->
+                                scope.launch(Dispatchers.IO) {
+                                    McpServerRepository.update(
+                                        current.copy(
+                                            authorizationType = if (token.isBlank()) {
+                                                McpAuthorizationType.NONE
+                                            } else {
+                                                McpAuthorizationType.BEARER
+                                            },
+                                        ),
+                                        bearerToken = token,
+                                    )
+                                }
+                                token = ""
+                                showToken = false
+                            }
+                        },
+                    )
+                }
+            }
+
+            WindowDialog(
+                show = showDelete,
+                title = stringResource(R.string.mcp_delete_server),
+                summary = stringResource(R.string.mcp_delete_confirm, server?.name.orEmpty()),
+                onDismissRequest = { showDelete = false },
+            ) {
+                MiuixDialogActions(
+                    confirmText = stringResource(R.string.ui_delete_3755f5),
+                    destructive = true,
+                    onCancel = { showDelete = false },
+                    onConfirm = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) { McpServerRepository.delete(serverId) }
+                            onBack()
+                        }
+                    },
+                )
+            }
+        }
     }
 }
 

@@ -20,9 +20,9 @@ Android 标准库兼容使用 [desugar_jdk_libs](https://github.com/google/desug
 
 Eta 使用 [Nimbus JOSE + JWT](https://connect2id.com/products/nimbus-jose-jwt) 校验 OAuth 登录的签名和身份声明。该库由 Connect2id Ltd. 维护，采用 Apache License 2.0；许可全文随 APK 保存在 [`assets/licenses/nimbus-jose-jwt-Apache-2.0.txt`](../app/src/main/assets/licenses/nimbus-jose-jwt-Apache-2.0.txt)。依赖版本以 `gradle/libs.versions.toml` 为准。
 
-## Miuix
+## COUI-Kit 与 Miuix
 
-Eta 的应用界面使用 [Miuix](https://github.com/compose-miuix-ui/miuix)，其采用 [Apache License 2.0](https://github.com/compose-miuix-ui/miuix/blob/main/LICENSE)。
+Eta 的应用界面支持 [COUI-Kit](https://github.com/itoseo/COUI-Kit)（`io.github.itoseo:coui`，采用 [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/)）与 [Miuix](https://github.com/compose-miuix-ui/miuix)（采用 [Apache License 2.0](https://github.com/compose-miuix-ui/miuix/blob/main/LICENSE)）。依赖版本以 `gradle/libs.versions.toml` 为准。
 
 ## DexKit
 

@@ -52,7 +52,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import com.itos.coui.dialog.CouiDialogAction
+import com.itos.coui.dialog.CouiDialogPlacement
+import com.itos.coui.dialog.Dialog
+import com.itos.coui.menu.CouiMenuItem
+import com.itos.coui.menu.Menu
+import com.itos.coui.menu.couiMenuAnchor
+import com.itos.coui.menu.rememberCouiMenuAnchor
+import com.itos.coui.menu.rememberCouiWindowBackdrop
+import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.coui.CouiChipTabs
+import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
+import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
 import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.filterGroups
@@ -105,11 +119,12 @@ internal fun AgentModelPickerButton(
     }
     val currentModel = selected?.displayName ?: stringResource(R.string.model_not_selected)
     val switchModelDescription = stringResource(R.string.model_switch_current, currentModel)
+    val anchor = rememberCouiMenuAnchor()
     Box(modifier = modifier) {
         IconButton(
             onClick = {
                 if (state.modelCount <= ModelPopupLimit) {
-                    showPopup = true
+                    anchor.open { showPopup = true }
                 } else {
                     sheetSession += 1
                     showSheet = true
@@ -118,9 +133,11 @@ internal fun AgentModelPickerButton(
             enabled = enabled,
             minWidth = ChatInputActionSize,
             minHeight = ChatInputActionSize,
-            modifier = Modifier.semantics {
-                contentDescription = switchModelDescription
-            },
+            modifier = Modifier
+                .couiMenuAnchor(anchor)
+                .semantics {
+                    contentDescription = switchModelDescription
+                },
         ) {
             ModelBrandMark(
                 modelId = selected?.modelId,
@@ -129,37 +146,91 @@ internal fun AgentModelPickerButton(
             )
         }
 
-        OverlayListPopup(
-            show = showPopup && popupAnchorTopPx > 0,
-            popupPositionProvider = popupPositionProvider,
-            alignment = PopupPositionProvider.Align.TopEnd,
-            onDismissRequest = { showPopup = false },
-            maxHeight = popupMaxHeight,
-            minWidth = ModelPopupWidth,
-        ) {
-            ModelQuickList(
-                state = state,
-                onModelSelected = { modelId ->
-                    showPopup = false
-                    onModelSelected(modelId)
-                },
-            )
-        }
-
-        OverlayBottomSheet(
-            show = showSheet,
-            title = stringResource(R.string.model_picker_title),
-            onDismissRequest = { showSheet = false },
-            insideMargin = DpSize(0.dp, 0.dp),
-        ) {
-            key(sheetSession) {
-                ModelSheetContent(
-                    state = state,
-                    onModelSelected = { modelId ->
-                        showSheet = false
-                        onModelSelected(modelId)
+        when (LocalUiStyle.current) {
+            AppearanceUiStyle.COUI -> {
+                val menuItems = remember(state.providerGroups, state.selectedModel?.id) {
+                    val multipleGroups = state.providerGroups.size > 1
+                    state.providerGroups.flatMapIndexed { groupIndex, group ->
+                        group.models.mapIndexed { modelIndex, model ->
+                            CouiMenuItem(
+                                value = model.id,
+                                text = if (multipleGroups) "${group.providerName} · ${model.displayName}" else model.displayName,
+                                selected = model.id == state.selectedModel?.id,
+                                dividerBefore = multipleGroups && groupIndex > 0 && modelIndex == 0,
+                            )
+                        }
+                    }
+                }
+                Menu(
+                    expanded = showPopup,
+                    onDismissRequest = { showPopup = false },
+                    items = menuItems,
+                    onItemClick = { item ->
+                        showPopup = false
+                        onModelSelected(item.value)
                     },
+                    anchor = anchor,
                 )
+
+                val dark = CouiTheme.isDark
+                Dialog(
+                    visible = showSheet,
+                    onDismissRequest = { showSheet = false },
+                    dark = dark,
+                    title = stringResource(R.string.model_picker_title),
+                    confirmAction = CouiDialogAction(
+                        text = stringResource(R.string.action_close),
+                        onClick = { showSheet = false },
+                    ),
+                    placement = CouiDialogPlacement.Bottom,
+                    material = rememberCouiDialogMaterial(dark),
+                    backdrop = rememberCouiWindowBackdrop(),
+                ) {
+                    key(sheetSession) {
+                        ModelSheetContent(
+                            state = state,
+                            onModelSelected = { modelId ->
+                                showSheet = false
+                                onModelSelected(modelId)
+                            },
+                        )
+                    }
+                }
+            }
+            AppearanceUiStyle.MIUIX -> {
+                OverlayListPopup(
+                    show = showPopup && popupAnchorTopPx > 0,
+                    popupPositionProvider = popupPositionProvider,
+                    alignment = PopupPositionProvider.Align.TopEnd,
+                    onDismissRequest = { showPopup = false },
+                    maxHeight = popupMaxHeight,
+                    minWidth = ModelPopupWidth,
+                ) {
+                    ModelQuickList(
+                        state = state,
+                        onModelSelected = { modelId ->
+                            showPopup = false
+                            onModelSelected(modelId)
+                        },
+                    )
+                }
+
+                OverlayBottomSheet(
+                    show = showSheet,
+                    title = stringResource(R.string.model_picker_title),
+                    onDismissRequest = { showSheet = false },
+                    insideMargin = DpSize(0.dp, 0.dp),
+                ) {
+                    key(sheetSession) {
+                        ModelSheetContent(
+                            state = state,
+                            onModelSelected = { modelId ->
+                                showSheet = false
+                                onModelSelected(modelId)
+                            },
+                        )
+                    }
+                }
             }
         }
     }
@@ -234,46 +305,70 @@ private fun ModelSheetContent(
     val select = rememberConfirmedSelection(onModelSelected)
     val selectedId = select.pendingId ?: state.selectedModel?.id
     val density = LocalDensity.current
-    // 面板高度固定，不随搜索结果伸缩；键盘弹出时由面板的约束自然压缩列表区域。
     val sheetHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() } * 0.68f
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(sheetHeight)
-            .navigationBarsPadding(),
+            .then(if (isCoui) Modifier else Modifier.navigationBarsPadding()),
     ) {
-        InputField(
-            query = query,
-            onQueryChange = { query = it },
-            onSearch = {},
-            expanded = false,
-            onExpandedChange = {},
-            label = stringResource(R.string.ui_search_model_df5586),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(top = 4.dp, bottom = 8.dp),
-        )
-        if (state.providerGroups.size > 1) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 6.dp),
-            ) {
-                item(key = "all") {
-                    EtaChoiceChip(
-                        text = stringResource(R.string.model_picker_filter_all),
-                        selected = providerFilter == null,
-                        onClick = { providerFilter = null },
+        when (LocalUiStyle.current) {
+            AppearanceUiStyle.COUI -> {
+                CouiSearchBarBox(
+                    query = query,
+                    onQueryChange = { query = it },
+                    placeholder = stringResource(R.string.ui_search_model_df5586),
+                    backgroundColor = Color.Transparent,
+                )
+                if (state.providerGroups.size > 1) {
+                    val allLabel = stringResource(R.string.model_picker_filter_all)
+                    val tabItems = remember(state.providerGroups, allLabel) {
+                        listOf("" to allLabel) + state.providerGroups.map { it.providerId to it.providerName }
+                    }
+                    CouiChipTabs(
+                        items = tabItems,
+                        selectedKey = providerFilter.orEmpty(),
+                        onSelectedKeyChange = { key -> providerFilter = key.takeIf { it.isNotEmpty() } },
+                        backgroundColor = Color.Transparent,
                     )
                 }
-                items(state.providerGroups, key = { it.providerId }) { group ->
-                    EtaChoiceChip(
-                        text = group.providerName,
-                        selected = providerFilter == group.providerId,
-                        onClick = { providerFilter = group.providerId },
-                    )
+            }
+            AppearanceUiStyle.MIUIX -> {
+                InputField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearch = {},
+                    expanded = false,
+                    onExpandedChange = {},
+                    label = stringResource(R.string.ui_search_model_df5586),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 4.dp, bottom = 8.dp),
+                )
+                if (state.providerGroups.size > 1) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    ) {
+                        item(key = "all") {
+                            EtaChoiceChip(
+                                text = stringResource(R.string.model_picker_filter_all),
+                                selected = providerFilter == null,
+                                onClick = { providerFilter = null },
+                            )
+                        }
+                        items(state.providerGroups, key = { it.providerId }) { group ->
+                            EtaChoiceChip(
+                                text = group.providerName,
+                                selected = providerFilter == group.providerId,
+                                onClick = { providerFilter = group.providerId },
+                            )
+                        }
+                    }
                 }
             }
         }

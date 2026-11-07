@@ -219,7 +219,7 @@ AI 时代下，处理外部 PR 变得比以往更加困难：大量由 AI 生成
 - [Pi Coding Agent](https://github.com/earendil-works/pi)：Eta Agent Runtime 的核心参考，包括 Agent Loop、Tool Calling、steering 与 transcript 状态管理。
 - [OmniBot](https://github.com/omnimind-ai/OmniBot)：Android AI Agent 方向的参考项目。
 - [libxposed API](https://github.com/libxposed/api)：现代 Xposed API。
-- [Miuix](https://github.com/compose-miuix-ui/miuix)：UI 组件库。
+- [COUI-Kit](https://github.com/itoseo/COUI-Kit) 与 [Miuix](https://github.com/compose-miuix-ui/miuix)：UI 组件库。
 
 ## 许可证
 

@@ -87,6 +87,10 @@ import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.virtualdisplay.VirtualDisplaySnapshot
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.coui.CouiButton
+import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -272,23 +276,41 @@ internal fun OverlaySupplementInput(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(
-                text = stringResource(R.string.action_cancel),
-                onClick = onCancel,
-                minWidth = 44.dp,
-                minHeight = 32.dp,
-                insideMargin = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            TextButton(
-                text = stringResource(R.string.overlay_send),
-                onClick = onSend,
-                enabled = value.isNotBlank(),
-                minWidth = 44.dp,
-                minHeight = 32.dp,
-                insideMargin = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                colors = ButtonDefaults.textButtonColorsPrimary(),
-            )
+            if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+                CouiButton(
+                    text = stringResource(R.string.action_cancel),
+                    onClick = onCancel,
+                    minHeight = 32.dp,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                CouiButton(
+                    text = stringResource(R.string.overlay_send),
+                    onClick = onSend,
+                    enabled = value.isNotBlank(),
+                    role = CouiButtonRole.Primary,
+                    minHeight = 32.dp,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                )
+            } else {
+                TextButton(
+                    text = stringResource(R.string.action_cancel),
+                    onClick = onCancel,
+                    minWidth = 44.dp,
+                    minHeight = 32.dp,
+                    insideMargin = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                TextButton(
+                    text = stringResource(R.string.overlay_send),
+                    onClick = onSend,
+                    enabled = value.isNotBlank(),
+                    minWidth = 44.dp,
+                    minHeight = 32.dp,
+                    insideMargin = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            }
         }
     }
 }
@@ -496,24 +518,37 @@ private fun ResultCardActions(
                 tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
             )
         }
-        TextButton(
-            text = stringResource(R.string.overlay_result_done),
-            onClick = onDone,
-            modifier = Modifier.weight(1f),
-            minHeight = 44.dp,
-        )
-        if (hasVirtualDisplayApp && onOpenVirtualApp != null) {
-            TextButton(
-                text = stringResource(R.string.overlay_result_open_virtual_app),
-                onClick = onOpenVirtualApp,
+        val doneText = stringResource(R.string.overlay_result_done)
+        val primaryText = if (hasVirtualDisplayApp && onOpenVirtualApp != null) {
+            stringResource(R.string.overlay_result_open_virtual_app)
+        } else {
+            stringResource(R.string.overlay_result_open_eta)
+        }
+        val onPrimary = if (hasVirtualDisplayApp && onOpenVirtualApp != null) onOpenVirtualApp else onOpenEta
+        if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+            CouiButton(
+                text = doneText,
+                onClick = onDone,
                 modifier = Modifier.weight(1f),
                 minHeight = 44.dp,
-                colors = ButtonDefaults.textButtonColorsPrimary(),
+            )
+            CouiButton(
+                text = primaryText,
+                onClick = onPrimary,
+                role = CouiButtonRole.Primary,
+                modifier = Modifier.weight(1f),
+                minHeight = 44.dp,
             )
         } else {
             TextButton(
-                text = stringResource(R.string.overlay_result_open_eta),
-                onClick = onOpenEta,
+                text = doneText,
+                onClick = onDone,
+                modifier = Modifier.weight(1f),
+                minHeight = 44.dp,
+            )
+            TextButton(
+                text = primaryText,
+                onClick = onPrimary,
                 modifier = Modifier.weight(1f),
                 minHeight = 44.dp,
                 colors = ButtonDefaults.textButtonColorsPrimary(),

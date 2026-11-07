@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
@@ -28,16 +29,27 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.itos.coui.dialog.CouiDialogDefaults
+import com.itos.coui.layout.CouiPageDefaults
+import com.itos.coui.layout.Divider
+import com.itos.coui.layout.Group
 import io.github.mangi.eta.R
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.WorkspaceEntry
 import io.github.mangi.eta.ui.app.WorkspaceFileStore
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
+import io.github.mangi.eta.ui.components.coui.CouiSettingsIcon
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -58,7 +70,6 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var path by rememberSaveable { mutableStateOf("") }
     var pendingExport by rememberSaveable { mutableStateOf<String?>(null) }
-    // null 表示尚未读到首个结果；与“目录为空”区分，避免加载期间闪出空态。
     var entries by remember { mutableStateOf<List<WorkspaceEntry>?>(null) }
     var revision by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
@@ -120,78 +131,147 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
             message = WorkspaceMessage(resources.getString(R.string.capability_workspace_failed), isError = true)
         }
     }
-    MiuixScaffoldPage(title = stringResource(R.string.capability_workspace), onBack = onBack) {
+    val uiStyle = LocalUiStyle.current
+    val onOpenPublicAccess: () -> Unit = {
+        try {
+            accessLauncher.launch(
+                Intent(
+                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:${context.packageName}"),
+                ),
+            )
+        } catch (_: android.content.ActivityNotFoundException) {
+            message = WorkspaceMessage(resources.getString(R.string.capability_workspace_failed), isError = true)
+        }
+    }
+
+    val listContent: LazyListScope.() -> Unit = {
         item(key = "workspace-info") {
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(top = 8.dp, bottom = 12.dp),
-            ) {
-                BasicComponent(
-                    title = stringResource(R.string.capability_workspace_private),
-                    summary = stringResource(R.string.capability_workspace_private_summary),
-                )
-            }
-        }
-        item(key = "actions") {
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-            ) {
-                ArrowPreference(
-                    title = stringResource(R.string.capability_workspace_import),
-                    enabled = !busy,
-                    endActions = {
-                        if (busy) {
-                            InfiniteProgressIndicator(size = 20.dp)
-                        }
-                    },
-                    onClick = { importLauncher.launch(arrayOf("*/*")) },
-                )
-                ArrowPreference(
-                    title = stringResource(R.string.capability_workspace_public),
-                    summary = if (publicAccess) stringResource(R.string.capability_workspace_public_granted) else stringResource(R.string.capability_workspace_public_summary),
-                    onClick = {
-                        try {
-                            accessLauncher.launch(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                                Uri.parse("package:${context.packageName}")))
-                        } catch (_: android.content.ActivityNotFoundException) {
-                            message = WorkspaceMessage(resources.getString(R.string.capability_workspace_failed), isError = true)
-                        }
-                    },
-                )
-            }
-        }
-        message?.let { current ->
-            item(key = "message") {
+            if (uiStyle == AppearanceUiStyle.COUI) {
+                Group {
+                    CouiPreference(
+                        title = stringResource(R.string.capability_workspace_private),
+                        summary = stringResource(R.string.capability_workspace_private_summary),
+                        showChevron = false,
+                    )
+                }
+            } else {
                 Card(
                     modifier = Modifier
-                        .animateItem()
                         .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp),
+                        .padding(top = 8.dp, bottom = 12.dp),
                 ) {
                     BasicComponent(
-                        title = current.text,
-                        titleColor = BasicComponentDefaults.titleColor(
-                            color = if (current.isError) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onBackground,
-                        ),
-                        endActions = {
-                            IconButton(onClick = { message = null }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = stringResource(R.string.action_close),
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                )
-                            }
-                        },
+                        title = stringResource(R.string.capability_workspace_private),
+                        summary = stringResource(R.string.capability_workspace_private_summary),
                     )
                 }
             }
         }
+        item(key = "actions") {
+            val publicSummary = if (publicAccess) {
+                stringResource(R.string.capability_workspace_public_granted)
+            } else {
+                stringResource(R.string.capability_workspace_public_summary)
+            }
+            if (uiStyle == AppearanceUiStyle.COUI) {
+                Group {
+                    CouiPreference(
+                        title = stringResource(R.string.capability_workspace_import),
+                        enabled = !busy,
+                        trailing = if (busy) {
+                            { InfiniteProgressIndicator(size = 20.dp) }
+                        } else {
+                            null
+                        },
+                        onClick = { importLauncher.launch(arrayOf("*/*")) },
+                    )
+                    Divider()
+                    CouiPreference(
+                        title = stringResource(R.string.capability_workspace_public),
+                        summary = publicSummary,
+                        onClick = onOpenPublicAccess,
+                    )
+                }
+            } else {
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    ArrowPreference(
+                        title = stringResource(R.string.capability_workspace_import),
+                        enabled = !busy,
+                        endActions = {
+                            if (busy) {
+                                InfiniteProgressIndicator(size = 20.dp)
+                            }
+                        },
+                        onClick = { importLauncher.launch(arrayOf("*/*")) },
+                    )
+                    ArrowPreference(
+                        title = stringResource(R.string.capability_workspace_public),
+                        summary = publicSummary,
+                        onClick = onOpenPublicAccess,
+                    )
+                }
+            }
+        }
+        message?.let { current ->
+            item(key = "message") {
+                if (uiStyle == AppearanceUiStyle.COUI) {
+                    val dialogColors = CouiDialogDefaults.themeColors()
+                    Group(modifier = Modifier.animateItem()) {
+                        CouiPreference(
+                            title = current.text,
+                            titleColor = if (current.isError) dialogColors.destructive else Color.Unspecified,
+                            showChevron = false,
+                            trailing = {
+                                IconButton(onClick = { message = null }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.action_close),
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    )
+                                }
+                            },
+                        )
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier
+                            .animateItem()
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        BasicComponent(
+                            title = current.text,
+                            titleColor = BasicComponentDefaults.titleColor(
+                                color = if (current.isError) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onBackground,
+                            ),
+                            endActions = {
+                                IconButton(onClick = { message = null }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.action_close),
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                    )
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        }
         item(key = "path") {
-            SmallTitle(if (path.isBlank()) stringResource(R.string.capability_workspace_files) else path)
+            val sectionText = if (path.isBlank()) stringResource(R.string.capability_workspace_files) else path
+            if (uiStyle == AppearanceUiStyle.COUI) {
+                CouiSectionTitle(text = sectionText)
+            } else {
+                SmallTitle(sectionText)
+            }
         }
         val currentEntries = entries
         val hasParent = path.isNotBlank()
@@ -200,19 +280,29 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
                 EtaPreferenceGroupItem(
                     isFirst = true,
                     isLast = currentEntries.isNullOrEmpty(),
+                    hasLeadingIcon = true,
                 ) {
-                    ArrowPreference(
-                        title = stringResource(R.string.capability_workspace_parent),
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Rounded.FolderOpen,
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 8.dp).size(24.dp),
-                                tint = MiuixTheme.colorScheme.primary,
-                            )
-                        },
-                        onClick = { path = path.substringBeforeLast('/', "") },
-                    )
+                    if (uiStyle == AppearanceUiStyle.COUI) {
+                        val colors = CouiPageDefaults.themeColors()
+                        CouiPreference(
+                            title = stringResource(R.string.capability_workspace_parent),
+                            icon = { CouiSettingsIcon(Icons.Rounded.FolderOpen, colors.accent) },
+                            onClick = { path = path.substringBeforeLast('/', "") },
+                        )
+                    } else {
+                        ArrowPreference(
+                            title = stringResource(R.string.capability_workspace_parent),
+                            startAction = {
+                                Icon(
+                                    imageVector = Icons.Rounded.FolderOpen,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(end = 8.dp).size(24.dp),
+                                    tint = MiuixTheme.colorScheme.primary,
+                                )
+                            },
+                            onClick = { path = path.substringBeforeLast('/', "") },
+                        )
+                    }
                 }
             }
         }
@@ -232,40 +322,77 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
                     icon = Icons.Rounded.FolderOpen,
                 )
             }
-            // 文件逐项进入 Lazy 列表，但画成一个连续分组，与其他设置页的分组列表一致。
             else -> itemsIndexed(currentEntries, key = { _, entry -> entry.path }) { index, entry ->
+                val summary = if (entry.directory) stringResource(R.string.capability_workspace_directory)
+                else stringResource(
+                    R.string.capability_workspace_file_export,
+                    Formatter.formatShortFileSize(context, entry.size),
+                )
+                val icon = if (entry.directory) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile
+                val onEntryClick: () -> Unit = {
+                    if (entry.directory) {
+                        path = entry.path
+                    } else {
+                        pendingExport = entry.path
+                        exportLauncher.launch(entry.name)
+                    }
+                }
                 EtaPreferenceGroupItem(
                     isFirst = index == 0 && !hasParent,
                     isLast = index == currentEntries.lastIndex,
+                    hasLeadingIcon = true,
                 ) {
-                    ArrowPreference(
-                        title = entry.name,
-                        summary = if (entry.directory) stringResource(R.string.capability_workspace_directory)
-                            else stringResource(
-                                R.string.capability_workspace_file_export,
-                                Formatter.formatShortFileSize(context, entry.size),
-                            ),
-                        startAction = {
-                            Icon(
-                                imageVector = if (entry.directory) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile,
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 8.dp).size(24.dp),
-                                tint = if (entry.directory) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            )
-                        },
-                        enabled = !busy,
-                        onClick = {
-                            if (entry.directory) path = entry.path else {
-                                pendingExport = entry.path
-                                exportLauncher.launch(entry.name)
-                            }
-                        },
-                    )
+                    if (uiStyle == AppearanceUiStyle.COUI) {
+                        val colors = CouiPageDefaults.themeColors()
+                        CouiPreference(
+                            title = entry.name,
+                            summary = summary,
+                            icon = {
+                                CouiSettingsIcon(
+                                    icon = icon,
+                                    tint = if (entry.directory) colors.accent else colors.summary,
+                                )
+                            },
+                            enabled = !busy,
+                            onClick = onEntryClick,
+                        )
+                    } else {
+                        ArrowPreference(
+                            title = entry.name,
+                            summary = summary,
+                            startAction = {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(end = 8.dp).size(24.dp),
+                                    tint = if (entry.directory) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                )
+                            },
+                            enabled = !busy,
+                            onClick = onEntryClick,
+                        )
+                    }
                 }
             }
         }
     }
+
+    when (uiStyle) {
+        AppearanceUiStyle.COUI -> {
+            CouiLazyScaffoldPage(
+                title = stringResource(R.string.capability_workspace),
+                onBack = onBack,
+                content = listContent,
+            )
+        }
+        AppearanceUiStyle.MIUIX -> {
+            MiuixScaffoldPage(
+                title = stringResource(R.string.capability_workspace),
+                onBack = onBack,
+                content = listContent,
+            )
+        }
+    }
 }
 
-/** 导入导出结果；失败需要醒目区分，不能和成功提示同色。 */
 private data class WorkspaceMessage(val text: String, val isError: Boolean)

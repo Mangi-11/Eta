@@ -152,6 +152,9 @@
   <string name="appearance_title">外觀與主題</string>
   <string name="appearance_group_color">顏色與主題</string>
   <string name="appearance_group_interface">介面與效果</string>
+  <string name="appearance_ui_style">介面樣式</string>
+  <string name="appearance_ui_style_coui">COUI</string>
+  <string name="appearance_ui_style_miuix">Miuix</string>
   <string name="appearance_theme_mode">主題模式</string>
   <string name="appearance_theme_system">跟隨系統</string>
   <string name="appearance_theme_light">淺色</string>

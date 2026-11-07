@@ -21,10 +21,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.itos.coui.layout.CouiPageDefaults
+import com.itos.coui.layout.Group
+import com.itos.coui.text.CouiTextKind
+import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiChipTabs
+import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.model.AgentToolsAction
 import io.github.mangi.eta.ui.model.AgentToolsUiState
 import io.github.mangi.eta.ui.model.ToolItemUi
@@ -50,47 +60,98 @@ fun AgentToolsScreen(
     val currentListState = rememberLazyListState()
     val allListState = rememberLazyListState()
     val groups = projectToolGroups(state.groups, showAll, capabilities.root.isGranted, capabilities.tools.colorOs)
-    MiuixScaffoldPage(
-        title = stringResource(R.string.ui_tool_ability_9f0f80),
-        onBack = { onAction(AgentToolsAction.NavigateBack) },
-        modifier = modifier,
-        listState = if (showAll) allListState else currentListState,
-    ) {
-        item(key = "capability-view") {
-            TabRow(
-                tabs = listOf(stringResource(R.string.capability_current_device), stringResource(R.string.capability_all)),
-                selectedTabIndex = if (showAll) 1 else 0,
-                onTabSelected = { showAll = it == 1 },
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-        }
-        item(key = "capability-discovery") {
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 8.dp),
+    val tabs = listOf(
+        false to stringResource(R.string.capability_current_device),
+        true to stringResource(R.string.capability_all),
+    )
+
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            val colors = CouiPageDefaults.themeColors()
+            CouiLazyScaffoldPage(
+                title = stringResource(R.string.ui_tool_ability_9f0f80),
+                onBack = { onAction(AgentToolsAction.NavigateBack) },
+                modifier = modifier,
+                listState = if (showAll) allListState else currentListState,
             ) {
-                ArrowPreference(
-                    title = stringResource(R.string.capability_enhancements),
-                    summary = stringResource(R.string.capability_enhancements_summary),
-                    onClick = { onAction(AgentToolsAction.OpenEnhancements) },
-                )
+                item(key = "capability-view") {
+                    CouiChipTabs(
+                        items = tabs,
+                        selectedKey = showAll,
+                        onSelectedKeyChange = { showAll = it },
+                    )
+                }
+                item(key = "capability-discovery") {
+                    Group {
+                        CouiPreference(
+                            title = stringResource(R.string.capability_enhancements),
+                            summary = stringResource(R.string.capability_enhancements_summary),
+                            onClick = { onAction(AgentToolsAction.OpenEnhancements) },
+                        )
+                    }
+                }
+                groups.forEach { group ->
+                    item(key = "${group.id}-title") {
+                        CouiSectionTitle(text = group.title)
+                    }
+                    items(
+                        items = group.tools.chunked(2),
+                        key = { row -> "${group.id}-${row.joinToString(separator = "-") { it.id }}" },
+                    ) { row ->
+                        ToolGridRow(
+                            tools = row,
+                            rootGranted = capabilities.root.isGranted,
+                            capabilities = capabilities.tools,
+                            onAction = onAction,
+                        )
+                    }
+                }
             }
         }
-        groups.forEach { group ->
-            item(key = "${group.id}-title") {
-                SmallTitle(group.title)
-            }
-            items(
-                items = group.tools.chunked(2),
-                key = { row -> "${group.id}-${row.joinToString(separator = "-") { it.id }}" },
-            ) { row ->
-                ToolGridRow(
-                    tools = row,
-                    rootGranted = capabilities.root.isGranted,
-                    capabilities = capabilities.tools,
-                    onAction = onAction,
-                )
+        AppearanceUiStyle.MIUIX -> {
+            MiuixScaffoldPage(
+                title = stringResource(R.string.ui_tool_ability_9f0f80),
+                onBack = { onAction(AgentToolsAction.NavigateBack) },
+                modifier = modifier,
+                listState = if (showAll) allListState else currentListState,
+            ) {
+                item(key = "capability-view") {
+                    TabRow(
+                        tabs = listOf(stringResource(R.string.capability_current_device), stringResource(R.string.capability_all)),
+                        selectedTabIndex = if (showAll) 1 else 0,
+                        onTabSelected = { showAll = it == 1 },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+                item(key = "capability-discovery") {
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 8.dp),
+                    ) {
+                        ArrowPreference(
+                            title = stringResource(R.string.capability_enhancements),
+                            summary = stringResource(R.string.capability_enhancements_summary),
+                            onClick = { onAction(AgentToolsAction.OpenEnhancements) },
+                        )
+                    }
+                }
+                groups.forEach { group ->
+                    item(key = "${group.id}-title") {
+                        SmallTitle(group.title)
+                    }
+                    items(
+                        items = group.tools.chunked(2),
+                        key = { row -> "${group.id}-${row.joinToString(separator = "-") { it.id }}" },
+                    ) { row ->
+                        ToolGridRow(
+                            tools = row,
+                            rootGranted = capabilities.root.isGranted,
+                            capabilities = capabilities.tools,
+                            onAction = onAction,
+                        )
+                    }
+                }
             }
         }
     }
@@ -103,10 +164,15 @@ private fun ToolGridRow(
     capabilities: AgentToolCapabilities,
     onAction: (AgentToolsAction) -> Unit,
 ) {
+    val horizontalPadding = if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+        CouiPageDefaults.horizontalMargin
+    } else {
+        ToolsMetrics.GridHorizontalPadding
+    }
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = ToolsMetrics.GridHorizontalPadding)
+            .padding(horizontal = horizontalPadding)
             .padding(bottom = ToolsMetrics.GridGap),
     ) {
         val useSingleColumn = maxWidth < 320.dp || LocalDensity.current.fontScale >= 1.3f

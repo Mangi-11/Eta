@@ -35,28 +35,57 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import com.itos.coui.dialog.CouiDialogAction
+import com.itos.coui.dialog.CouiDialogDefaults
+import com.itos.coui.dialog.CouiDialogPlacement
+import com.itos.coui.dialog.Dialog
+import com.itos.coui.icons.CouiIcons
+import com.itos.coui.layout.Divider
+import com.itos.coui.layout.Group
+import com.itos.coui.menu.rememberCouiWindowBackdrop
+import com.itos.coui.text.CouiTextKind
+import com.itos.coui.text.Text as CouiText
+import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.EtaApp
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.subagent.SubagentProfile
 import io.github.mangi.eta.agent.subagent.SubagentProfileCatalog
 import io.github.mangi.eta.config.Prefs
+import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.SubagentSettings
 import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.EtaChoiceChip
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.ModelBrandMark
 import io.github.mangi.eta.ui.components.StatusError
+import io.github.mangi.eta.ui.components.coui.CouiButton
+import io.github.mangi.eta.ui.components.coui.CouiButtonRole
+import io.github.mangi.eta.ui.components.coui.CouiChipTabs
+import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
+import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
+import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
+import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
+import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
+import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
 import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import io.github.mangi.eta.ui.model.filterGroups
@@ -161,278 +190,510 @@ internal fun SubagentSettingsScreen(
     var editorDraft by remember { mutableStateOf<CustomSubagentDraft?>(null) }
     var editorError by remember { mutableStateOf<String?>(null) }
 
-    MiuixScaffoldPage(
-        title = "Subagent",
-        onBack = onBack,
-        actions = {
-            IconButton(
-                onClick = {
-                    editorError = null
-                    editorDraft = CustomSubagentDraft()
-                },
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = "新建 Subagent",
-                )
+    val onToggleSubagent: (Boolean) -> Unit = { checked ->
+        val targetPrefs = agentPrefs
+        if (targetPrefs != null && targetPrefs.edit().putBoolean(Prefs.Keys.AGENT_SUBAGENT_ENABLED, checked).commit()) {
+            subagentEnabled = checked
+            Prefs.reconcileAgentPreferences(EtaApp.serviceInstance)
+            scope.launch {
+                RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
             }
-        },
-        overlay = {
-            OverlayBottomSheet(
-                show = showModelSheet,
-                title = "Subagent 模型",
-                onDismissRequest = { showModelSheet = false },
-                insideMargin = DpSize(0.dp, 0.dp),
-            ) {
-                SubagentModelPickerContent(
-                    pickerState = pickerState,
-                    selectedSecondaryModelId = resolvedSecondary?.model?.id,
-                    primaryModelName = primaryModelName,
-                    onSelectModel = { modelId ->
-                        showModelSheet = false
-                        scope.launch {
-                            RuntimeConfigRepository.setSubagentSettings(
-                                subagentSettings.copy(modelId = modelId),
-                            )
-                        }
-                    },
-                )
-            }
-
-            val currentProfile = inspectedProfile
-            OverlayBottomSheet(
-                show = currentProfile != null,
-                title = currentProfile?.name.orEmpty(),
-                onDismissRequest = { inspectedProfile = null },
-            ) {
-                if (currentProfile != null) {
-                    SubagentProfileDetailContent(
-                        profile = currentProfile,
-                        onEdit = if (!currentProfile.builtin) {
-                            {
-                                val toolsText = currentProfile.explicitTools
-                                    ?.takeUnless { it == setOf("*") }
-                                    ?.joinToString(", ")
-                                    .orEmpty()
-                                inspectedProfile = null
-                                editorError = null
-                                editorDraft = CustomSubagentDraft(
-                                    originalName = currentProfile.name,
-                                    name = currentProfile.name,
-                                    description = currentProfile.summary,
-                                    toolsText = toolsText,
-                                    prompt = currentProfile.roleInstruction,
-                                )
-                            }
-                        } else {
-                            null
-                        },
-                        onDelete = if (!currentProfile.builtin) {
-                            {
-                                val targetName = currentProfile.name
-                                inspectedProfile = null
-                                scope.launch {
-                                    withContext(Dispatchers.IO) {
-                                        SubagentProfileCatalog.deleteCustomProfile(targetName)
-                                    }
-                                    reloadCustomProfiles()
-                                }
-                            }
-                        } else {
-                            null
-                        },
+        }
+    }
+    val onEffortChange: (Int) -> Unit = { index ->
+        val chosen = effortOptions.getOrNull(index)
+        scope.launch {
+            RuntimeConfigRepository.setSubagentSettings(
+                subagentSettings.copy(reasoningEffort = chosen?.wireValue),
+            )
+        }
+    }
+    val onSaveDraft: (CustomSubagentDraft) -> Unit = { activeDraft ->
+        scope.launch {
+            val tools = activeDraft.toolsText
+                .split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val saved = SubagentProfileCatalog.saveCustomProfile(
+                        name = activeDraft.name,
+                        description = activeDraft.description,
+                        tools = tools,
+                        prompt = activeDraft.prompt,
                     )
+                    val oldName = activeDraft.originalName
+                    if (oldName != null && oldName != saved.name) {
+                        SubagentProfileCatalog.deleteCustomProfile(oldName)
+                    }
+                    saved
                 }
             }
+            result.fold(
+                onSuccess = {
+                    editorDraft = null
+                    editorError = null
+                    reloadCustomProfiles()
+                },
+                onFailure = { error ->
+                    editorError = error.message ?: "保存失败"
+                },
+            )
+        }
+    }
 
-            val activeDraft = editorDraft
-            WindowDialog(
-                show = activeDraft != null,
-                title = if (activeDraft?.originalName != null) "编辑 Subagent" else "新建 Subagent",
-                onDismissRequest = { editorDraft = null },
-            ) {
-                if (activeDraft != null) {
-                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 540.dp)) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f, fill = false)
-                                .verticalScroll(rememberScrollState()),
-                        ) {
-                            TextField(
-                                value = activeDraft.name,
-                                onValueChange = { editorDraft = activeDraft.copy(name = it) },
-                                label = "名称 (kebab-case，如 bill-analyzer)",
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            TextField(
-                                value = activeDraft.description,
-                                onValueChange = { editorDraft = activeDraft.copy(description = it) },
-                                label = "简介 (Description)",
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            TextField(
-                                value = activeDraft.toolsText,
-                                onValueChange = { editorDraft = activeDraft.copy(toolsText = it) },
-                                label = "可用工具 (逗号分隔，留空默认允许全部非 GUI 工具)",
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            TextField(
-                                value = activeDraft.prompt,
-                                onValueChange = { editorDraft = activeDraft.copy(prompt = it) },
-                                label = "角色指令 (System Prompt)",
-                                minLines = 4,
-                                maxLines = 8,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            editorError?.let { err ->
-                                Text(
-                                    text = err,
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = StatusError,
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        MiuixDialogActions(
-                            confirmText = "保存",
-                            onCancel = { editorDraft = null },
-                            onConfirm = {
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            CouiScaffoldPage(
+                title = "Subagent",
+                onBack = onBack,
+                actions = {
+                    CouiTopAppBarIconButton(
+                        icon = CouiIcons.Add,
+                        contentDescription = "新建 Subagent",
+                        onClick = {
+                            editorError = null
+                            editorDraft = CustomSubagentDraft()
+                        },
+                    )
+                },
+                overlay = {
+                    val dark = CouiTheme.isDark
+                    Dialog(
+                        visible = showModelSheet,
+                        onDismissRequest = { showModelSheet = false },
+                        dark = dark,
+                        title = "Subagent 模型",
+                        confirmAction = CouiDialogAction(
+                            text = stringResource(R.string.action_close),
+                            onClick = { showModelSheet = false },
+                        ),
+                        placement = CouiDialogPlacement.Bottom,
+                        material = rememberCouiDialogMaterial(dark),
+                        backdrop = rememberCouiWindowBackdrop(),
+                    ) {
+                        SubagentModelPickerContent(
+                            pickerState = pickerState,
+                            selectedSecondaryModelId = resolvedSecondary?.model?.id,
+                            primaryModelName = primaryModelName,
+                            onSelectModel = { modelId ->
+                                showModelSheet = false
                                 scope.launch {
-                                    val tools = activeDraft.toolsText
-                                        .split(",")
-                                        .map { it.trim() }
-                                        .filter { it.isNotEmpty() }
-                                    val result = withContext(Dispatchers.IO) {
-                                        runCatching {
-                                            val saved = SubagentProfileCatalog.saveCustomProfile(
-                                                name = activeDraft.name,
-                                                description = activeDraft.description,
-                                                tools = tools,
-                                                prompt = activeDraft.prompt,
-                                            )
-                                            val oldName = activeDraft.originalName
-                                            if (oldName != null && oldName != saved.name) {
-                                                SubagentProfileCatalog.deleteCustomProfile(oldName)
-                                            }
-                                            saved
-                                        }
-                                    }
-                                    result.fold(
-                                        onSuccess = {
-                                            editorDraft = null
-                                            editorError = null
-                                            reloadCustomProfiles()
-                                        },
-                                        onFailure = { error ->
-                                            editorError = error.message ?: "保存失败"
-                                        },
+                                    RuntimeConfigRepository.setSubagentSettings(
+                                        subagentSettings.copy(modelId = modelId),
                                     )
                                 }
                             },
                         )
                     }
-                }
-            }
-        },
-    ) {
-        item(key = "config_group") {
-            SmallTitle("通用与模型")
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-            ) {
-                SwitchPreference(
-                    title = "启用 Subagent",
-                    checked = subagentEnabled,
-                    enabled = agentPrefs != null,
-                    onCheckedChange = { checked ->
-                        val targetPrefs = agentPrefs ?: return@SwitchPreference
-                        if (targetPrefs.edit().putBoolean(Prefs.Keys.AGENT_SUBAGENT_ENABLED, checked).commit()) {
-                            subagentEnabled = checked
-                            Prefs.reconcileAgentPreferences(EtaApp.serviceInstance)
-                            scope.launch {
-                                RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                            }
-                        }
-                    },
-                )
-                ArrowPreference(
-                    title = "Subagent 模型",
-                    summary = secondarySummary,
-                    enabled = subagentEnabled,
-                    onClick = { showModelSheet = true },
-                )
-                if (effortOptions.size > 1) {
-                    OverlayDropdownPreference(
-                        title = "思考强度",
-                        items = effortLabels,
-                        selectedIndex = selectedEffortIndex,
-                        enabled = subagentEnabled,
-                        onSelectedIndexChange = { index ->
-                            val chosen = effortOptions.getOrNull(index)
-                            scope.launch {
-                                RuntimeConfigRepository.setSubagentSettings(
-                                    subagentSettings.copy(reasoningEffort = chosen?.wireValue),
-                                )
-                            }
-                        },
-                    )
-                }
-            }
-        }
 
-        item(key = "builtin_group") {
-            SmallTitle("Built-in Subagents")
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-            ) {
-                SubagentProfile.BUILTIN_PROFILES.forEach { profile ->
-                    ArrowPreference(
-                        title = profile.name,
-                        summary = profile.summary,
-                        onClick = { inspectedProfile = profile },
-                    )
-                }
-            }
-        }
-
-        item(key = "custom_group") {
-            SmallTitle("Custom Subagents")
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-            ) {
-                if (customProfiles.isEmpty()) {
-                    ListEmptyState(
-                        title = "暂无自定义 Subagent",
-                        summary = "可在对话中直接让 Eta 创建专属 Subagent（保存在 agents/<name>.md），或点击右上角 + 手动新建",
-                        icon = Icons.Rounded.Extension,
-                        action = {
-                            TextButton(
-                                text = "新建 Subagent",
-                                onClick = {
-                                    editorError = null
-                                    editorDraft = CustomSubagentDraft()
+                    val currentProfile = inspectedProfile
+                    Dialog(
+                        visible = currentProfile != null,
+                        onDismissRequest = { inspectedProfile = null },
+                        dark = dark,
+                        title = currentProfile?.name.orEmpty(),
+                        confirmAction = CouiDialogAction(
+                            text = stringResource(R.string.action_close),
+                            onClick = { inspectedProfile = null },
+                        ),
+                        placement = CouiDialogPlacement.Bottom,
+                        material = rememberCouiDialogMaterial(dark),
+                        backdrop = rememberCouiWindowBackdrop(),
+                    ) {
+                        if (currentProfile != null) {
+                            SubagentProfileDetailContent(
+                                profile = currentProfile,
+                                onEdit = if (!currentProfile.builtin) {
+                                    {
+                                        val toolsText = currentProfile.explicitTools
+                                            ?.takeUnless { it == setOf("*") }
+                                            ?.joinToString(", ")
+                                            .orEmpty()
+                                        inspectedProfile = null
+                                        editorError = null
+                                        editorDraft = CustomSubagentDraft(
+                                            originalName = currentProfile.name,
+                                            name = currentProfile.name,
+                                            description = currentProfile.summary,
+                                            toolsText = toolsText,
+                                            prompt = currentProfile.roleInstruction,
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                                onDelete = if (!currentProfile.builtin) {
+                                    {
+                                        val targetName = currentProfile.name
+                                        inspectedProfile = null
+                                        scope.launch {
+                                            withContext(Dispatchers.IO) {
+                                                SubagentProfileCatalog.deleteCustomProfile(targetName)
+                                            }
+                                            reloadCustomProfiles()
+                                        }
+                                    }
+                                } else {
+                                    null
                                 },
                             )
-                        },
+                        }
+                    }
+
+                    val activeDraft = editorDraft
+                    CouiConfirmDialog(
+                        visible = activeDraft != null,
+                        title = if (activeDraft?.originalName != null) "编辑 Subagent" else "新建 Subagent",
+                        message = null,
+                        confirmText = "保存",
+                        onConfirm = { if (activeDraft != null) onSaveDraft(activeDraft) },
+                        onDismissRequest = { editorDraft = null },
+                    ) {
+                        if (activeDraft != null) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                CouiTextField(
+                                    value = activeDraft.name,
+                                    onValueChange = { editorDraft = activeDraft.copy(name = it) },
+                                    label = "名称 (kebab-case，如 bill-analyzer)",
+                                    singleLine = true,
+                                )
+                                CouiTextField(
+                                    value = activeDraft.description,
+                                    onValueChange = { editorDraft = activeDraft.copy(description = it) },
+                                    label = "简介 (Description)",
+                                    singleLine = true,
+                                )
+                                CouiTextField(
+                                    value = activeDraft.toolsText,
+                                    onValueChange = { editorDraft = activeDraft.copy(toolsText = it) },
+                                    label = "可用工具 (逗号分隔，留空默认允许全部非 GUI 工具)",
+                                    singleLine = true,
+                                )
+                                CouiTextField(
+                                    value = activeDraft.prompt,
+                                    onValueChange = { editorDraft = activeDraft.copy(prompt = it) },
+                                    label = "角色指令 (System Prompt)",
+                                    singleLine = false,
+                                    minLines = 4,
+                                    maxLines = 8,
+                                )
+                                editorError?.let { err ->
+                                    Text(
+                                        text = err,
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = StatusError,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+            ) {
+                Group(title = "通用与模型") {
+                    CouiSwitchPreference(
+                        title = "启用 Subagent",
+                        checked = subagentEnabled,
+                        enabled = agentPrefs != null,
+                        onCheckedChange = onToggleSubagent,
                     )
-                } else {
-                    customProfiles.forEach { profile ->
-                        ArrowPreference(
+                    Divider()
+                    CouiPreference(
+                        title = "Subagent 模型",
+                        summary = secondarySummary,
+                        enabled = subagentEnabled,
+                        onClick = { showModelSheet = true },
+                    )
+                    if (effortOptions.size > 1) {
+                        Divider()
+                        CouiDropdownPreference(
+                            title = "思考强度",
+                            items = effortLabels,
+                            selectedIndex = selectedEffortIndex,
+                            enabled = subagentEnabled,
+                            onSelectedIndexChange = onEffortChange,
+                        )
+                    }
+                }
+
+                Group(title = "Built-in Subagents") {
+                    SubagentProfile.BUILTIN_PROFILES.forEachIndexed { index, profile ->
+                        CouiPreference(
                             title = profile.name,
                             summary = profile.summary,
                             onClick = { inspectedProfile = profile },
                         )
+                        if (index < SubagentProfile.BUILTIN_PROFILES.lastIndex) {
+                            Divider()
+                        }
+                    }
+                }
+
+                Group(title = "Custom Subagents") {
+                    if (customProfiles.isEmpty()) {
+                        ListEmptyState(
+                            title = "暂无自定义 Subagent",
+                            summary = "可在对话中直接让 Eta 创建专属 Subagent（保存在 agents/<name>.md），或点击右上角 + 手动新建",
+                            icon = Icons.Rounded.Extension,
+                            action = {
+                                CouiButton(
+                                    text = "新建 Subagent",
+                                    role = CouiButtonRole.Primary,
+                                    onClick = {
+                                        editorError = null
+                                        editorDraft = CustomSubagentDraft()
+                                    },
+                                )
+                            },
+                        )
+                    } else {
+                        customProfiles.forEachIndexed { index, profile ->
+                            CouiPreference(
+                                title = profile.name,
+                                summary = profile.summary,
+                                onClick = { inspectedProfile = profile },
+                            )
+                            if (index < customProfiles.lastIndex) {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+
+                CouiPageBottomSpacer()
+            }
+        }
+
+        AppearanceUiStyle.MIUIX -> {
+            MiuixScaffoldPage(
+                title = "Subagent",
+                onBack = onBack,
+                actions = {
+                    IconButton(
+                        onClick = {
+                            editorError = null
+                            editorDraft = CustomSubagentDraft()
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = "新建 Subagent",
+                        )
+                    }
+                },
+                overlay = {
+                    OverlayBottomSheet(
+                        show = showModelSheet,
+                        title = "Subagent 模型",
+                        onDismissRequest = { showModelSheet = false },
+                        insideMargin = DpSize(0.dp, 0.dp),
+                    ) {
+                        SubagentModelPickerContent(
+                            pickerState = pickerState,
+                            selectedSecondaryModelId = resolvedSecondary?.model?.id,
+                            primaryModelName = primaryModelName,
+                            onSelectModel = { modelId ->
+                                showModelSheet = false
+                                scope.launch {
+                                    RuntimeConfigRepository.setSubagentSettings(
+                                        subagentSettings.copy(modelId = modelId),
+                                    )
+                                }
+                            },
+                        )
+                    }
+
+                    val currentProfile = inspectedProfile
+                    OverlayBottomSheet(
+                        show = currentProfile != null,
+                        title = currentProfile?.name.orEmpty(),
+                        onDismissRequest = { inspectedProfile = null },
+                    ) {
+                        if (currentProfile != null) {
+                            SubagentProfileDetailContent(
+                                profile = currentProfile,
+                                onEdit = if (!currentProfile.builtin) {
+                                    {
+                                        val toolsText = currentProfile.explicitTools
+                                            ?.takeUnless { it == setOf("*") }
+                                            ?.joinToString(", ")
+                                            .orEmpty()
+                                        inspectedProfile = null
+                                        editorError = null
+                                        editorDraft = CustomSubagentDraft(
+                                            originalName = currentProfile.name,
+                                            name = currentProfile.name,
+                                            description = currentProfile.summary,
+                                            toolsText = toolsText,
+                                            prompt = currentProfile.roleInstruction,
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                                onDelete = if (!currentProfile.builtin) {
+                                    {
+                                        val targetName = currentProfile.name
+                                        inspectedProfile = null
+                                        scope.launch {
+                                            withContext(Dispatchers.IO) {
+                                                SubagentProfileCatalog.deleteCustomProfile(targetName)
+                                            }
+                                            reloadCustomProfiles()
+                                        }
+                                    }
+                                } else {
+                                    null
+                                },
+                            )
+                        }
+                    }
+
+                    val activeDraft = editorDraft
+                    WindowDialog(
+                        show = activeDraft != null,
+                        title = if (activeDraft?.originalName != null) "编辑 Subagent" else "新建 Subagent",
+                        onDismissRequest = { editorDraft = null },
+                    ) {
+                        if (activeDraft != null) {
+                            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 540.dp)) {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f, fill = false)
+                                        .verticalScroll(rememberScrollState()),
+                                ) {
+                                    TextField(
+                                        value = activeDraft.name,
+                                        onValueChange = { editorDraft = activeDraft.copy(name = it) },
+                                        label = "名称 (kebab-case，如 bill-analyzer)",
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    TextField(
+                                        value = activeDraft.description,
+                                        onValueChange = { editorDraft = activeDraft.copy(description = it) },
+                                        label = "简介 (Description)",
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    TextField(
+                                        value = activeDraft.toolsText,
+                                        onValueChange = { editorDraft = activeDraft.copy(toolsText = it) },
+                                        label = "可用工具 (逗号分隔，留空默认允许全部非 GUI 工具)",
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    TextField(
+                                        value = activeDraft.prompt,
+                                        onValueChange = { editorDraft = activeDraft.copy(prompt = it) },
+                                        label = "角色指令 (System Prompt)",
+                                        minLines = 4,
+                                        maxLines = 8,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    editorError?.let { err ->
+                                        Text(
+                                            text = err,
+                                            style = MiuixTheme.textStyles.footnote1,
+                                            color = StatusError,
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                MiuixDialogActions(
+                                    confirmText = "保存",
+                                    onCancel = { editorDraft = null },
+                                    onConfirm = { onSaveDraft(activeDraft) },
+                                )
+                            }
+                        }
+                    }
+                },
+            ) {
+                item(key = "config_group") {
+                    SmallTitle("通用与模型")
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        SwitchPreference(
+                            title = "启用 Subagent",
+                            checked = subagentEnabled,
+                            enabled = agentPrefs != null,
+                            onCheckedChange = onToggleSubagent,
+                        )
+                        ArrowPreference(
+                            title = "Subagent 模型",
+                            summary = secondarySummary,
+                            enabled = subagentEnabled,
+                            onClick = { showModelSheet = true },
+                        )
+                        if (effortOptions.size > 1) {
+                            OverlayDropdownPreference(
+                                title = "思考强度",
+                                items = effortLabels,
+                                selectedIndex = selectedEffortIndex,
+                                enabled = subagentEnabled,
+                                onSelectedIndexChange = onEffortChange,
+                            )
+                        }
+                    }
+                }
+
+                item(key = "builtin_group") {
+                    SmallTitle("Built-in Subagents")
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        SubagentProfile.BUILTIN_PROFILES.forEach { profile ->
+                            ArrowPreference(
+                                title = profile.name,
+                                summary = profile.summary,
+                                onClick = { inspectedProfile = profile },
+                            )
+                        }
+                    }
+                }
+
+                item(key = "custom_group") {
+                    SmallTitle("Custom Subagents")
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        if (customProfiles.isEmpty()) {
+                            ListEmptyState(
+                                title = "暂无自定义 Subagent",
+                                summary = "可在对话中直接让 Eta 创建专属 Subagent（保存在 agents/<name>.md），或点击右上角 + 手动新建",
+                                icon = Icons.Rounded.Extension,
+                                action = {
+                                    TextButton(
+                                        text = "新建 Subagent",
+                                        onClick = {
+                                            editorError = null
+                                            editorDraft = CustomSubagentDraft()
+                                        },
+                                    )
+                                },
+                            )
+                        } else {
+                            customProfiles.forEach { profile ->
+                                ArrowPreference(
+                                    title = profile.name,
+                                    summary = profile.summary,
+                                    onClick = { inspectedProfile = profile },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -455,47 +716,71 @@ private fun SubagentModelPickerContent(
     }
     val density = LocalDensity.current
     val sheetHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() } * 0.68f
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(sheetHeight)
-            .navigationBarsPadding(),
+            .then(if (isCoui) Modifier else Modifier.navigationBarsPadding()),
     ) {
-        InputField(
-            query = query,
-            onQueryChange = { query = it },
-            onSearch = {},
-            expanded = false,
-            onExpandedChange = {},
-            label = "搜索模型或服务商",
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-        if (pickerState.providerGroups.size > 1) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                item(key = "filter:all") {
-                    EtaChoiceChip(
-                        text = "全部",
-                        selected = providerFilter == null,
-                        onClick = { providerFilter = null },
+        when (LocalUiStyle.current) {
+            AppearanceUiStyle.COUI -> {
+                CouiSearchBarBox(
+                    query = query,
+                    onQueryChange = { query = it },
+                    placeholder = "搜索模型或服务商",
+                    backgroundColor = Color.Transparent,
+                )
+                if (pickerState.providerGroups.size > 1) {
+                    val tabItems = remember(pickerState.providerGroups) {
+                        listOf("" to "全部") + pickerState.providerGroups.map { it.providerId to it.providerName }
+                    }
+                    CouiChipTabs(
+                        items = tabItems,
+                        selectedKey = providerFilter.orEmpty(),
+                        onSelectedKeyChange = { key -> providerFilter = key.takeIf { it.isNotEmpty() } },
+                        backgroundColor = Color.Transparent,
                     )
                 }
-                items(
-                    items = pickerState.providerGroups,
-                    key = { "filter:${it.providerId}" },
-                ) { group ->
-                    EtaChoiceChip(
-                        text = group.providerName,
-                        selected = providerFilter == group.providerId,
-                        onClick = {
-                            providerFilter = if (providerFilter == group.providerId) null else group.providerId
-                        },
-                    )
+            }
+            AppearanceUiStyle.MIUIX -> {
+                InputField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearch = {},
+                    expanded = false,
+                    onExpandedChange = {},
+                    label = "搜索模型或服务商",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                if (pickerState.providerGroups.size > 1) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        item(key = "filter:all") {
+                            EtaChoiceChip(
+                                text = "全部",
+                                selected = providerFilter == null,
+                                onClick = { providerFilter = null },
+                            )
+                        }
+                        items(
+                            items = pickerState.providerGroups,
+                            key = { "filter:${it.providerId}" },
+                        ) { group ->
+                            EtaChoiceChip(
+                                text = group.providerName,
+                                selected = providerFilter == group.providerId,
+                                onClick = {
+                                    providerFilter = if (providerFilter == group.providerId) null else group.providerId
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -626,12 +911,20 @@ private fun SubagentProfileDetailContent(
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
 ) {
+    val uiStyle = LocalUiStyle.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .navigationBarsPadding()
-            .padding(bottom = 24.dp),
+            .then(
+                if (uiStyle == AppearanceUiStyle.COUI) {
+                    Modifier.padding(horizontal = CouiDialogDefaults.contentPadding, vertical = 8.dp)
+                } else {
+                    Modifier
+                        .verticalScroll(rememberScrollState())
+                        .navigationBarsPadding()
+                        .padding(bottom = 24.dp)
+                },
+            ),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(
@@ -679,22 +972,40 @@ private fun SubagentProfileDetailContent(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (onDelete != null) {
-                    TextButton(
-                        text = "删除",
-                        onClick = onDelete,
-                        colors = ButtonDefaults.textButtonColors(
-                            textColor = StatusError,
-                        ),
-                        modifier = Modifier.weight(1f),
-                    )
+                    if (uiStyle == AppearanceUiStyle.COUI) {
+                        CouiButton(
+                            text = "删除",
+                            onClick = onDelete,
+                            role = CouiButtonRole.Destructive,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        TextButton(
+                            text = "删除",
+                            onClick = onDelete,
+                            colors = ButtonDefaults.textButtonColors(
+                                textColor = StatusError,
+                            ),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
                 if (onEdit != null) {
-                    TextButton(
-                        text = "编辑",
-                        onClick = onEdit,
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        modifier = Modifier.weight(1f),
-                    )
+                    if (uiStyle == AppearanceUiStyle.COUI) {
+                        CouiButton(
+                            text = "编辑",
+                            onClick = onEdit,
+                            role = CouiButtonRole.Primary,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        TextButton(
+                            text = "编辑",
+                            onClick = onEdit,
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }

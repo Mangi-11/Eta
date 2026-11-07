@@ -33,7 +33,10 @@ import io.github.mangi.eta.agent.browser.AgentBrowserSession
 import io.github.mangi.eta.agent.browser.BrowserSessionRegistry
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.MiuixDialogActions
+import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -148,22 +151,39 @@ internal fun AgentBrowserScreen(
     }
 
     if (showClearDataDialog) {
-        WindowDialog(
-            show = true,
-            title = stringResource(R.string.browser_clear_shared_data),
-            summary = stringResource(R.string.browser_clear_shared_data_message),
-            onDismissRequest = { showClearDataDialog = false },
-        ) {
-            MiuixDialogActions(
-                confirmText = stringResource(R.string.browser_clear_shared_data),
-                confirmEnabled = !actionPending,
-                destructive = true,
-                onCancel = { showClearDataDialog = false },
-                onConfirm = {
-                    showClearDataDialog = false
-                    launchBrowserAction { BrowserSessionRegistry.clearSharedBrowsingData(context.applicationContext) }
-                },
-            )
+        val onConfirmClear: () -> Unit = {
+            showClearDataDialog = false
+            launchBrowserAction { BrowserSessionRegistry.clearSharedBrowsingData(context.applicationContext) }
+        }
+        when (LocalUiStyle.current) {
+            AppearanceUiStyle.COUI -> {
+                CouiConfirmDialog(
+                    visible = true,
+                    title = stringResource(R.string.browser_clear_shared_data),
+                    message = stringResource(R.string.browser_clear_shared_data_message),
+                    confirmText = stringResource(R.string.browser_clear_shared_data),
+                    confirmEnabled = !actionPending,
+                    destructive = true,
+                    onConfirm = onConfirmClear,
+                    onDismissRequest = { showClearDataDialog = false },
+                )
+            }
+            AppearanceUiStyle.MIUIX -> {
+                WindowDialog(
+                    show = true,
+                    title = stringResource(R.string.browser_clear_shared_data),
+                    summary = stringResource(R.string.browser_clear_shared_data_message),
+                    onDismissRequest = { showClearDataDialog = false },
+                ) {
+                    MiuixDialogActions(
+                        confirmText = stringResource(R.string.browser_clear_shared_data),
+                        confirmEnabled = !actionPending,
+                        destructive = true,
+                        onCancel = { showClearDataDialog = false },
+                        onConfirm = onConfirmClear,
+                    )
+                }
+            }
         }
     }
 }

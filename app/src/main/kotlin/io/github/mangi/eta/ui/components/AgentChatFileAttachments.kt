@@ -53,9 +53,16 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.itos.coui.menu.CouiMenuItem
+import com.itos.coui.menu.Menu
+import com.itos.coui.menu.couiMenuAnchor
+import com.itos.coui.menu.rememberCouiMenuAnchor
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentFileReference
 import io.github.mangi.eta.agent.model.AgentFileReferenceKind
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.coui.CouiInputDialog
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
@@ -114,11 +121,33 @@ internal fun AgentAttachmentPickerButton(
         if (uri != null) onAttachFolder(uri.toString())
     }
 
+    val anchor = rememberCouiMenuAnchor()
+    val options = listOf(
+        stringResource(R.string.attachment_image),
+        stringResource(R.string.attachment_file),
+        stringResource(R.string.attachment_folder),
+        stringResource(R.string.attachment_enter_path),
+    )
+    val onSelectOption: (Int) -> Unit = { index ->
+        when (index) {
+            0 -> photoPicker.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+            )
+            1 -> filePicker.launch(arrayOf("*/*"))
+            2 -> folderPicker.launch(null)
+            3 -> {
+                pathInput = ""
+                showPathDialog = true
+            }
+        }
+    }
+
     Box(modifier = modifier) {
         IconButton(
-            onClick = { showPopup = true },
+            onClick = { anchor.open { showPopup = true } },
             minWidth = ChatInputActionSize,
             minHeight = ChatInputActionSize,
+            modifier = Modifier.couiMenuAnchor(anchor),
         ) {
             Icon(
                 imageVector = Icons.Rounded.Add,
@@ -127,77 +156,102 @@ internal fun AgentAttachmentPickerButton(
                 tint = MiuixTheme.colorScheme.onSurface,
             )
         }
-        WindowListPopup(
-            show = showPopup && popupAnchorTopPx > 0,
-            popupPositionProvider = remember(popupAnchorTopPx) {
-                InputPopupPositionProvider(popupAnchorTopPx)
-            },
-            alignment = PopupPositionProvider.Align.TopStart,
-            onDismissRequest = { showPopup = false },
-            maxHeight = popupMaxHeight,
-        ) {
-            val dismiss = LocalDismissState.current
-            val options = listOf(
-                stringResource(R.string.attachment_image),
-                stringResource(R.string.attachment_file),
-                stringResource(R.string.attachment_folder),
-                stringResource(R.string.attachment_enter_path),
-            )
-            ListPopupColumn {
-                options.forEachIndexed { index, option ->
-                    DropdownImpl(
-                        text = option,
-                        optionSize = options.size,
-                        isSelected = false,
-                        index = index,
-                        onSelectedIndexChange = {
-                            dismiss?.invoke()
-                            when (index) {
-                                0 -> photoPicker.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                                1 -> filePicker.launch(arrayOf("*/*"))
-                                2 -> folderPicker.launch(null)
-                                3 -> {
-                                    pathInput = ""
-                                    showPathDialog = true
-                                }
-                            }
-                        },
-                    )
+        when (LocalUiStyle.current) {
+            AppearanceUiStyle.COUI -> {
+                val menuItems = remember(options) {
+                    options.mapIndexed { index, label -> CouiMenuItem(value = index, text = label) }
+                }
+                Menu(
+                    expanded = showPopup,
+                    onDismissRequest = { showPopup = false },
+                    items = menuItems,
+                    onItemClick = { item ->
+                        showPopup = false
+                        onSelectOption(item.value)
+                    },
+                    anchor = anchor,
+                )
+            }
+            AppearanceUiStyle.MIUIX -> {
+                WindowListPopup(
+                    show = showPopup && popupAnchorTopPx > 0,
+                    popupPositionProvider = remember(popupAnchorTopPx) {
+                        InputPopupPositionProvider(popupAnchorTopPx)
+                    },
+                    alignment = PopupPositionProvider.Align.TopStart,
+                    onDismissRequest = { showPopup = false },
+                    maxHeight = popupMaxHeight,
+                ) {
+                    val dismiss = LocalDismissState.current
+                    ListPopupColumn {
+                        options.forEachIndexed { index, option ->
+                            DropdownImpl(
+                                text = option,
+                                optionSize = options.size,
+                                isSelected = false,
+                                index = index,
+                                onSelectedIndexChange = {
+                                    dismiss?.invoke()
+                                    onSelectOption(index)
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 
-    WindowDialog(
-        show = showPathDialog,
-        cornerRadius = DialogDefaults.CornerRadius,
-        title = stringResource(R.string.ui_input_file_path_36d474),
-        summary = stringResource(R.string.ui_supports_files_and_folders_under_internal_storage_or_520786),
-        onDismissRequest = { showPathDialog = false },
-    ) {
-        Column {
-            TextField(
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            CouiInputDialog(
+                visible = showPathDialog,
+                title = stringResource(R.string.ui_input_file_path_36d474),
+                message = stringResource(R.string.ui_supports_files_and_folders_under_internal_storage_or_520786),
                 value = pathInput,
                 onValueChange = { pathInput = it },
-                label = stringResource(R.string.ui_absolute_path_9ac6fc),
-                useLabelAsPlaceholder = true,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            MiuixDialogActions(
+                placeholder = stringResource(R.string.ui_absolute_path_9ac6fc),
                 confirmText = stringResource(R.string.attachment_add),
                 confirmEnabled = pathInput.trim().startsWith('/'),
-                onCancel = { showPathDialog = false },
                 onConfirm = {
                     val path = pathInput.trim()
                     showPathDialog = false
                     onAttachFilePath(path)
                 },
-                modifier = Modifier.padding(top = 16.dp),
+                onDismissRequest = { showPathDialog = false },
             )
+        }
+        AppearanceUiStyle.MIUIX -> {
+            WindowDialog(
+                show = showPathDialog,
+                cornerRadius = DialogDefaults.CornerRadius,
+                title = stringResource(R.string.ui_input_file_path_36d474),
+                summary = stringResource(R.string.ui_supports_files_and_folders_under_internal_storage_or_520786),
+                onDismissRequest = { showPathDialog = false },
+            ) {
+                Column {
+                    TextField(
+                        value = pathInput,
+                        onValueChange = { pathInput = it },
+                        label = stringResource(R.string.ui_absolute_path_9ac6fc),
+                        useLabelAsPlaceholder = true,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    MiuixDialogActions(
+                        confirmText = stringResource(R.string.attachment_add),
+                        confirmEnabled = pathInput.trim().startsWith('/'),
+                        onCancel = { showPathDialog = false },
+                        onConfirm = {
+                            val path = pathInput.trim()
+                            showPathDialog = false
+                            onAttachFilePath(path)
+                        },
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+                }
+            }
         }
     }
 }

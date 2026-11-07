@@ -48,8 +48,14 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import com.itos.coui.menu.CouiMenuItem
+import com.itos.coui.menu.Menu
+import com.itos.coui.menu.couiMenuAnchor
+import com.itos.coui.menu.rememberCouiMenuAnchor
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.BrowserSessionSnapshot
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -244,29 +250,56 @@ private fun BrowserSubmitAction(
 @Composable
 private fun BrowserOverflowMenu(items: List<DropdownItem>) {
     var expanded by remember { mutableStateOf(false) }
+    val anchor = rememberCouiMenuAnchor()
     Box {
         BrowserControlButton(
             icon = Icons.Rounded.MoreVert,
             description = stringResource(R.string.action_more),
-            onClick = { expanded = true },
+            onClick = { anchor.open { expanded = true } },
+            modifier = Modifier.couiMenuAnchor(anchor),
         )
-        WindowListPopup(
-            show = expanded,
-            alignment = PopupPositionProvider.Align.End,
-            onDismissRequest = { expanded = false },
-        ) {
-            ListPopupColumn {
-                items.forEachIndexed { index, item ->
-                    DropdownImpl(
-                        item = item,
-                        optionSize = items.size,
-                        isSelected = false,
-                        index = index,
-                        onSelectedIndexChange = {
-                            expanded = false
-                            item.onClick?.invoke()
-                        },
-                    )
+        when (LocalUiStyle.current) {
+            AppearanceUiStyle.COUI -> {
+                val menuItems = remember(items) {
+                    items.mapIndexed { index, item ->
+                        CouiMenuItem(
+                            value = index,
+                            text = item.text,
+                            enabled = item.enabled,
+                        )
+                    }
+                }
+                Menu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    items = menuItems,
+                    onItemClick = { menuItem ->
+                        expanded = false
+                        items.getOrNull(menuItem.value)?.onClick?.invoke()
+                    },
+                    anchor = anchor,
+                )
+            }
+            AppearanceUiStyle.MIUIX -> {
+                WindowListPopup(
+                    show = expanded,
+                    alignment = PopupPositionProvider.Align.End,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    ListPopupColumn {
+                        items.forEachIndexed { index, item ->
+                            DropdownImpl(
+                                item = item,
+                                optionSize = items.size,
+                                isSelected = false,
+                                index = index,
+                                onSelectedIndexChange = {
+                                    expanded = false
+                                    item.onClick?.invoke()
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -280,8 +313,9 @@ private fun BrowserControlButton(
     enabled: Boolean = true,
     onClick: () -> Unit,
     size: Dp = 40.dp,
+    modifier: Modifier = Modifier,
 ) {
-    IconButton(onClick = onClick, enabled = enabled, minWidth = size, minHeight = size) {
+    IconButton(onClick = onClick, enabled = enabled, minWidth = size, minHeight = size, modifier = modifier) {
         Icon(
             imageVector = icon,
             contentDescription = description,

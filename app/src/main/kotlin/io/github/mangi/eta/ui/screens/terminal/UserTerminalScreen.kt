@@ -55,13 +55,22 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.itos.coui.menu.CouiMenuAnchor
+import com.itos.coui.menu.CouiMenuItem
+import com.itos.coui.menu.Menu
+import com.itos.coui.menu.couiMenuAnchor
+import com.itos.coui.menu.rememberCouiMenuAnchor
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.isLinux
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.TerminalBlockUi
 import io.github.mangi.eta.ui.app.UserTerminalStore
 import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.ansiPlainText
 import io.github.mangi.eta.ui.components.ansiToAnnotatedString
+import io.github.mangi.eta.ui.components.coui.CouiButton
+import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
@@ -243,15 +252,17 @@ private fun CommandBlock(
     val colors = MiuixTheme.colorScheme
     val exitCode = block.exitCode
     val failed = exitCode != null && exitCode != 0
+    val anchor = rememberCouiMenuAnchor()
     Box {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .couiMenuAnchor(anchor)
                 .combinedClickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {},
-                    onLongClick = { showMenu = true },
+                    onLongClick = { anchor.open { showMenu = true } },
                 ),
         ) {
             if (block.cwdAtStart.isNotEmpty()) {
@@ -270,7 +281,6 @@ private fun CommandBlock(
                 modifier = Modifier.padding(top = 2.dp),
             )
             if (block.output.isNotEmpty()) {
-                // 原始输出含 ANSI 序列；整段重解析保证流式截断的序列在下一次到达后恢复。
                 val parsedOutput = remember(block.output) { ansiToAnnotatedString(block.output) }
                 Text(
                     text = parsedOutput,
@@ -284,6 +294,7 @@ private fun CommandBlock(
         BlockMenu(
             show = showMenu,
             hasOutput = block.output.isNotEmpty(),
+            anchor = anchor,
             onDismiss = { showMenu = false },
             onCopyCommand = { scope.launch { clipboard.setPlainText(block.command) } },
             onCopyOutput = { scope.launch { clipboard.setPlainText(ansiPlainText(block.output)) } },
@@ -336,48 +347,79 @@ private suspend fun Clipboard.setPlainText(text: String) {
 private fun BlockMenu(
     show: Boolean,
     hasOutput: Boolean,
+    anchor: CouiMenuAnchor,
     onDismiss: () -> Unit,
     onCopyCommand: () -> Unit,
     onCopyOutput: () -> Unit,
     onReinput: () -> Unit,
 ) {
-    WindowListPopup(
-        show = show,
-        alignment = PopupPositionProvider.Align.Start,
-        onDismissRequest = onDismiss,
-    ) {
-        ListPopupColumn {
-            DropdownImpl(
-                text = stringResource(R.string.terminal_copy_command),
-                optionSize = 3,
-                isSelected = false,
-                index = 0,
-                onSelectedIndexChange = {
+    val copyCommandText = stringResource(R.string.terminal_copy_command)
+    val copyOutputText = stringResource(R.string.terminal_copy_output)
+    val reinputText = stringResource(R.string.terminal_reinput)
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            val menuItems = remember(copyCommandText, copyOutputText, reinputText, hasOutput) {
+                listOf(
+                    CouiMenuItem(value = 0, text = copyCommandText),
+                    CouiMenuItem(value = 1, text = copyOutputText, enabled = hasOutput),
+                    CouiMenuItem(value = 2, text = reinputText),
+                )
+            }
+            Menu(
+                expanded = show,
+                onDismissRequest = onDismiss,
+                items = menuItems,
+                onItemClick = { item ->
                     onDismiss()
-                    onCopyCommand()
+                    when (item.value) {
+                        0 -> onCopyCommand()
+                        1 -> onCopyOutput()
+                        2 -> onReinput()
+                    }
                 },
+                anchor = anchor,
             )
-            DropdownImpl(
-                text = stringResource(R.string.terminal_copy_output),
-                optionSize = 3,
-                isSelected = false,
-                index = 1,
-                enabled = hasOutput,
-                onSelectedIndexChange = {
-                    onDismiss()
-                    onCopyOutput()
-                },
-            )
-            DropdownImpl(
-                text = stringResource(R.string.terminal_reinput),
-                optionSize = 3,
-                isSelected = false,
-                index = 2,
-                onSelectedIndexChange = {
-                    onDismiss()
-                    onReinput()
-                },
-            )
+        }
+        AppearanceUiStyle.MIUIX -> {
+            WindowListPopup(
+                show = show,
+                alignment = PopupPositionProvider.Align.Start,
+                onDismissRequest = onDismiss,
+            ) {
+                ListPopupColumn {
+                    DropdownImpl(
+                        text = copyCommandText,
+                        optionSize = 3,
+                        isSelected = false,
+                        index = 0,
+                        onSelectedIndexChange = {
+                            onDismiss()
+                            onCopyCommand()
+                        },
+                    )
+                    DropdownImpl(
+                        text = copyOutputText,
+                        optionSize = 3,
+                        isSelected = false,
+                        index = 1,
+                        enabled = hasOutput,
+                        onSelectedIndexChange = {
+                            onDismiss()
+                            onCopyOutput()
+                        },
+                    )
+                    DropdownImpl(
+                        text = reinputText,
+                        optionSize = 3,
+                        isSelected = false,
+                        index = 2,
+                        onSelectedIndexChange = {
+                            onDismiss()
+                            onReinput()
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -529,19 +571,36 @@ internal fun TerminalPlaceholder(
             modifier = Modifier.padding(top = 14.dp),
         )
         if (actionText != null && onAction != null) {
-            TextButton(
-                text = actionText,
-                onClick = onAction,
-                colors = ButtonDefaults.textButtonColorsPrimary(),
-                modifier = Modifier.padding(top = 18.dp),
-            )
+            if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+                CouiButton(
+                    text = actionText,
+                    onClick = onAction,
+                    role = CouiButtonRole.Primary,
+                    modifier = Modifier.padding(top = 18.dp),
+                )
+            } else {
+                TextButton(
+                    text = actionText,
+                    onClick = onAction,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier.padding(top = 18.dp),
+                )
+            }
         }
         if (secondaryActionText != null && onSecondaryAction != null) {
-            TextButton(
-                text = secondaryActionText,
-                onClick = onSecondaryAction,
-                modifier = Modifier.padding(top = 12.dp),
-            )
+            if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+                CouiButton(
+                    text = secondaryActionText,
+                    onClick = onSecondaryAction,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            } else {
+                TextButton(
+                    text = secondaryActionText,
+                    onClick = onSecondaryAction,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
         }
     }
 }

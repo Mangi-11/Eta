@@ -8,11 +8,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Article
 import androidx.compose.material.icons.rounded.Stop
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,10 +26,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
+import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.DaemonTaskUi
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.displayName
 import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.StatusSuccess
+import io.github.mangi.eta.ui.components.coui.CouiNoticeDialog
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
@@ -37,7 +40,6 @@ import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
-/** 守护任务列表面板；终端块视图与控制台视图共用。 */
 @Composable
 internal fun DaemonTasksDialog(
     tasks: List<DaemonTaskUi>,
@@ -45,11 +47,7 @@ internal fun DaemonTasksDialog(
     onStop: (String) -> Unit,
     onLoadLogs: suspend (String) -> String,
 ) {
-    WindowDialog(
-        show = true,
-        title = stringResource(R.string.terminal_daemon_tasks),
-        onDismissRequest = onDismiss,
-    ) {
+    val body: @Composable () -> Unit = {
         if (tasks.isEmpty()) {
             Text(
                 text = stringResource(R.string.terminal_daemon_empty),
@@ -65,6 +63,28 @@ internal fun DaemonTasksDialog(
                 items(items = tasks, key = { it.id }) { task ->
                     DaemonTaskRow(task = task, onStop = onStop, onLoadLogs = onLoadLogs)
                 }
+            }
+        }
+    }
+
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            CouiNoticeDialog(
+                visible = true,
+                title = stringResource(R.string.terminal_daemon_tasks),
+                message = null,
+                onDismissRequest = onDismiss,
+            ) {
+                body()
+            }
+        }
+        AppearanceUiStyle.MIUIX -> {
+            WindowDialog(
+                show = true,
+                title = stringResource(R.string.terminal_daemon_tasks),
+                onDismissRequest = onDismiss,
+            ) {
+                body()
             }
         }
     }

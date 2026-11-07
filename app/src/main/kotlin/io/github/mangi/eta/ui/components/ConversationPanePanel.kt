@@ -56,7 +56,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import com.itos.coui.dialog.CouiDialogDefaults
+import com.itos.coui.menu.CouiMenuItem
+import com.itos.coui.menu.Menu
+import com.itos.coui.menu.couiMenuAnchor
+import com.itos.coui.menu.rememberCouiMenuAnchor
+import com.itos.coui.shape.CouiShape
+import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
@@ -114,6 +124,9 @@ private object ConversationPanelMetrics {
  */
 @Composable
 internal fun conversationPaneContainerColor(): Color {
+    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+        return if (CouiTheme.isDark) Color(0xFF18191C) else Color(0xFFF3F4F6)
+    }
     val colors = MiuixTheme.colorScheme
     return if (colors.background.luminance() > 0.5f) colors.surface else colors.surfaceContainer
 }
@@ -252,30 +265,40 @@ private fun PaneActionBar(
     query: String,
     onSearchChange: (String) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SearchBar(
-            modifier = Modifier.weight(1f),
-            insideMargin = DpSize.Zero,
-            expanded = false,
-            onExpandedChange = {},
-            inputField = {
-                InputField(
-                    query = query,
-                    onQueryChange = onSearchChange,
-                    onSearch = onSearchChange,
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            CouiSearchBarBox(
+                query = query,
+                onQueryChange = onSearchChange,
+                placeholder = stringResource(R.string.conversation_search_hint),
+                backgroundColor = conversationPaneContainerColor(),
+            )
+        }
+        AppearanceUiStyle.MIUIX -> {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SearchBar(
+                    modifier = Modifier.weight(1f),
+                    insideMargin = DpSize.Zero,
                     expanded = false,
                     onExpandedChange = {},
-                    label = stringResource(R.string.conversation_search_hint),
-                    // 深色下侧栏已抬高到 surfaceContainer，搜索框需再高一档才能显出轮廓；
-                    // 浅色的 surfaceContainerHigh 与 surfaceContainerHighest 相同，观感不变。
-                    color = MiuixTheme.colorScheme.surfaceContainerHighest,
+                    inputField = {
+                        InputField(
+                            query = query,
+                            onQueryChange = onSearchChange,
+                            onSearch = onSearchChange,
+                            expanded = false,
+                            onExpandedChange = {},
+                            label = stringResource(R.string.conversation_search_hint),
+                            color = MiuixTheme.colorScheme.surfaceContainerHighest,
+                        )
+                    },
+                    content = {},
                 )
-            },
-            content = {},
-        )
+            }
+        }
     }
 }
 
@@ -312,25 +335,45 @@ private fun ConversationTextRow(
 ) {
     var showActionMenu by remember { mutableStateOf(false) }
     val hapticFeedback = LocalHapticFeedback.current
+    val anchor = rememberCouiMenuAnchor()
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
+    val couiDark = CouiTheme.isDark
+    val couiRowShape = remember { CouiShape(14.dp, 2f) }
 
     Box(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = ConversationPanelMetrics.RowMinHeight)
-                .squircleSurface(
-                    color = if (selected) {
-                        MiuixTheme.colorScheme.tertiaryContainer
+                .couiMenuAnchor(anchor)
+                .then(
+                    if (isCoui) {
+                        Modifier
+                            .clip(couiRowShape)
+                            .background(
+                                if (selected) {
+                                    if (couiDark) Color(0xFF26292E) else Color.White
+                                } else {
+                                    Color.Transparent
+                                },
+                                couiRowShape,
+                            )
                     } else {
-                        Color.Transparent
+                        Modifier.squircleSurface(
+                            color = if (selected) {
+                                MiuixTheme.colorScheme.tertiaryContainer
+                            } else {
+                                Color.Transparent
+                            },
+                            cornerRadius = ConversationPanelMetrics.RowCornerRadius,
+                        )
                     },
-                    cornerRadius = ConversationPanelMetrics.RowCornerRadius,
                 )
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showActionMenu = true
+                        anchor.open { showActionMenu = true }
                     },
                 )
                 .padding(
@@ -395,118 +438,154 @@ private fun ConversationTextRow(
             }
         }
 
-        WindowListPopup(
-            show = showActionMenu,
-            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-            alignment = PopupPositionProvider.Align.BottomEnd,
-            onDismissRequest = { showActionMenu = false },
-        ) {
-            val pinText = stringResource(
-                if (conversation.isPinned) {
-                    R.string.action_unpin_conversation
-                } else {
-                    R.string.action_pin_conversation
-                },
-            )
-            val renameText = stringResource(R.string.action_rename)
-            val exportText = stringResource(R.string.action_export)
-            val deleteText = stringResource(R.string.action_delete)
-            val pinItem = remember(pinText) {
-                DropdownItem(
-                    text = pinText,
-                    icon = { modifier ->
-                        Icon(
-                            imageVector = Icons.Outlined.PushPin,
-                            contentDescription = null,
-                            modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
-                        )
+        val pinText = stringResource(
+            if (conversation.isPinned) {
+                R.string.action_unpin_conversation
+            } else {
+                R.string.action_pin_conversation
+            },
+        )
+        val renameText = stringResource(R.string.action_rename)
+        val exportText = stringResource(R.string.action_export)
+        val deleteText = stringResource(R.string.action_delete)
+        when (LocalUiStyle.current) {
+            AppearanceUiStyle.COUI -> {
+                val destructiveColor = CouiDialogDefaults.themeColors().destructive
+                val menuItems = remember(pinText, renameText, exportText, deleteText, destructiveColor) {
+                    listOf(
+                        CouiMenuItem(value = 0, text = pinText, icon = Icons.Outlined.PushPin),
+                        CouiMenuItem(value = 1, text = renameText, icon = Icons.Outlined.Edit),
+                        CouiMenuItem(value = 2, text = exportText, icon = Icons.Outlined.Download),
+                        CouiMenuItem(
+                            value = 3,
+                            text = deleteText,
+                            icon = Icons.Outlined.Delete,
+                            iconTint = destructiveColor,
+                            dividerBefore = true,
+                        ),
+                    )
+                }
+                Menu(
+                    expanded = showActionMenu,
+                    onDismissRequest = { showActionMenu = false },
+                    items = menuItems,
+                    onItemClick = { item ->
+                        showActionMenu = false
+                        when (item.value) {
+                            0 -> onTogglePin()
+                            1 -> onRename()
+                            2 -> onExport()
+                            3 -> onDelete()
+                        }
                     },
+                    anchor = anchor,
                 )
             }
-            val renameItem = remember(renameText) {
-                DropdownItem(
-                    text = renameText,
-                    icon = { modifier ->
-                        Icon(
-                            imageVector = Icons.Outlined.Edit,
-                            contentDescription = null,
-                            modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
+            AppearanceUiStyle.MIUIX -> {
+                WindowListPopup(
+                    show = showActionMenu,
+                    popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+                    alignment = PopupPositionProvider.Align.BottomEnd,
+                    onDismissRequest = { showActionMenu = false },
+                ) {
+                    val pinItem = remember(pinText) {
+                        DropdownItem(
+                            text = pinText,
+                            icon = { modifier ->
+                                Icon(
+                                    imageVector = Icons.Outlined.PushPin,
+                                    contentDescription = null,
+                                    modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
+                                )
+                            },
                         )
-                    },
-                )
-            }
-            val exportItem = remember(exportText) {
-                DropdownItem(
-                    text = exportText,
-                    icon = { modifier ->
-                        Icon(
-                            imageVector = Icons.Outlined.Download,
-                            contentDescription = null,
-                            modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
+                    }
+                    val renameItem = remember(renameText) {
+                        DropdownItem(
+                            text = renameText,
+                            icon = { modifier ->
+                                Icon(
+                                    imageVector = Icons.Outlined.Edit,
+                                    contentDescription = null,
+                                    modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
+                                )
+                            },
                         )
-                    },
-                )
-            }
-            val deleteItem = remember(deleteText) {
-                DropdownItem(
-                    text = deleteText,
-                    icon = { modifier ->
-                        Icon(
-                            imageVector = Icons.Outlined.Delete,
-                            contentDescription = null,
-                            modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
-                            tint = MiuixTheme.colorScheme.error,
+                    }
+                    val exportItem = remember(exportText) {
+                        DropdownItem(
+                            text = exportText,
+                            icon = { modifier ->
+                                Icon(
+                                    imageVector = Icons.Outlined.Download,
+                                    contentDescription = null,
+                                    modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
+                                )
+                            },
                         )
-                    },
-                )
-            }
-            val deleteColors = DropdownDefaults.dropdownColors(
-                contentColor = MiuixTheme.colorScheme.error,
-                selectedContentColor = MiuixTheme.colorScheme.error,
-                selectedIndicatorColor = MiuixTheme.colorScheme.error,
-            )
-            ListPopupColumn {
-                DropdownImpl(
-                    item = pinItem,
-                    optionSize = 4,
-                    isSelected = false,
-                    index = 0,
-                    onSelectedIndexChange = {
-                        showActionMenu = false
-                        onTogglePin()
-                    },
-                )
-                DropdownImpl(
-                    item = renameItem,
-                    optionSize = 4,
-                    isSelected = false,
-                    index = 1,
-                    onSelectedIndexChange = {
-                        showActionMenu = false
-                        onRename()
-                    },
-                )
-                DropdownImpl(
-                    item = exportItem,
-                    optionSize = 4,
-                    isSelected = false,
-                    index = 2,
-                    onSelectedIndexChange = {
-                        showActionMenu = false
-                        onExport()
-                    },
-                )
-                DropdownImpl(
-                    item = deleteItem,
-                    optionSize = 4,
-                    isSelected = false,
-                    index = 3,
-                    dropdownColors = deleteColors,
-                    onSelectedIndexChange = {
-                        showActionMenu = false
-                        onDelete()
-                    },
-                )
+                    }
+                    val deleteItem = remember(deleteText) {
+                        DropdownItem(
+                            text = deleteText,
+                            icon = { modifier ->
+                                Icon(
+                                    imageVector = Icons.Outlined.Delete,
+                                    contentDescription = null,
+                                    modifier = modifier.size(ConversationPanelMetrics.ActionIconSize),
+                                    tint = MiuixTheme.colorScheme.error,
+                                )
+                            },
+                        )
+                    }
+                    val deleteColors = DropdownDefaults.dropdownColors(
+                        contentColor = MiuixTheme.colorScheme.error,
+                        selectedContentColor = MiuixTheme.colorScheme.error,
+                        selectedIndicatorColor = MiuixTheme.colorScheme.error,
+                    )
+                    ListPopupColumn {
+                        DropdownImpl(
+                            item = pinItem,
+                            optionSize = 4,
+                            isSelected = false,
+                            index = 0,
+                            onSelectedIndexChange = {
+                                showActionMenu = false
+                                onTogglePin()
+                            },
+                        )
+                        DropdownImpl(
+                            item = renameItem,
+                            optionSize = 4,
+                            isSelected = false,
+                            index = 1,
+                            onSelectedIndexChange = {
+                                showActionMenu = false
+                                onRename()
+                            },
+                        )
+                        DropdownImpl(
+                            item = exportItem,
+                            optionSize = 4,
+                            isSelected = false,
+                            index = 2,
+                            onSelectedIndexChange = {
+                                showActionMenu = false
+                                onExport()
+                            },
+                        )
+                        DropdownImpl(
+                            item = deleteItem,
+                            optionSize = 4,
+                            isSelected = false,
+                            index = 3,
+                            dropdownColors = deleteColors,
+                            onSelectedIndexChange = {
+                                showActionMenu = false
+                                onDelete()
+                            },
+                        )
+                    }
+                }
             }
         }
     }

@@ -22,9 +22,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.TerminalEnvironment
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.displayName
 import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.StatusSuccess
+import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -36,14 +39,12 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 internal data class SessionDialogRow(
     val id: String,
     val environment: TerminalEnvironment,
-    /** 块式终端传 cwd；控制台传空串。 */
     val subtitle: String,
     val active: Boolean,
     val running: Boolean,
     val alive: Boolean,
 )
 
-/** 终端会话列表面板；块式终端与控制台共用。点按行切换会话，行内提供重启与关闭。 */
 @Composable
 internal fun SessionListDialog(
     rows: List<SessionDialogRow>,
@@ -53,11 +54,7 @@ internal fun SessionListDialog(
     onClose: (String) -> Unit,
     onNew: () -> Unit,
 ) {
-    WindowDialog(
-        show = true,
-        title = stringResource(R.string.terminal_sessions),
-        onDismissRequest = onDismiss,
-    ) {
+    val listBody: @Composable () -> Unit = {
         if (rows.isEmpty()) {
             Text(
                 text = stringResource(R.string.terminal_session_empty),
@@ -80,14 +77,39 @@ internal fun SessionListDialog(
                 }
             }
         }
-        TextButton(
-            text = stringResource(R.string.terminal_new_session),
-            onClick = { onNew(); onDismiss() },
-            colors = ButtonDefaults.textButtonColorsPrimary(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp),
-        )
+    }
+
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            CouiConfirmDialog(
+                visible = true,
+                title = stringResource(R.string.terminal_sessions),
+                message = null,
+                confirmText = stringResource(R.string.terminal_new_session),
+                cancelText = stringResource(R.string.action_close),
+                onConfirm = { onNew(); onDismiss() },
+                onDismissRequest = onDismiss,
+            ) {
+                listBody()
+            }
+        }
+        AppearanceUiStyle.MIUIX -> {
+            WindowDialog(
+                show = true,
+                title = stringResource(R.string.terminal_sessions),
+                onDismissRequest = onDismiss,
+            ) {
+                listBody()
+                TextButton(
+                    text = stringResource(R.string.terminal_new_session),
+                    onClick = { onNew(); onDismiss() },
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                )
+            }
+        }
     }
 }
 

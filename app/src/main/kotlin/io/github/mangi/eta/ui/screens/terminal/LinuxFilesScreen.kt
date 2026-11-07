@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -30,15 +31,22 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.itos.coui.layout.CouiPageDefaults
+import com.itos.coui.layout.Group
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.LinuxDistribution
 import io.github.mangi.eta.agent.terminal.LinuxEnvironmentPaths
 import io.github.mangi.eta.agent.terminal.LinuxFileExplorer
 import io.github.mangi.eta.agent.terminal.ShellProcessSupervisor
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiSettingsIcon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -48,10 +56,6 @@ import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * Linux rootfs 只读文件浏览：目录列举与文件读取都经一次性 root Shell 完成，
- * 查看文件时进入屏内查看态，页面返回键先退回列表再退出页面。
- */
 @Composable
 internal fun LinuxFilesScreen(
     context: Context,
@@ -111,18 +115,15 @@ internal fun LinuxFilesScreen(
         fileResult = null
     }
 
-    // 查看文件时系统返回键先退回列表，再退出页面。
     val viewerBackState = rememberNavigationEventState(NavigationEventInfo.None)
     NavigationBackHandler(
         state = viewerBackState,
         isBackEnabled = openFilePath != null,
         onBackCompleted = { closeFile() },
     )
+    val uiStyle = LocalUiStyle.current
 
-    MiuixScaffoldPage(
-        title = stringResource(R.string.linux_files_title),
-        onBack = { if (openFilePath != null) closeFile() else onBack() },
-    ) {
+    val listContent: LazyListScope.() -> Unit = {
         when {
             linuxDistribution == null -> {
                 item(key = "invalid-distribution") {
@@ -146,18 +147,31 @@ internal fun LinuxFilesScreen(
                             }
                         }
                         item(key = "viewer-content") {
-                            Card(
-                                modifier = Modifier
-                                    .padding(horizontal = 12.dp)
-                                    .padding(bottom = 12.dp),
-                                insideMargin = PaddingValues(16.dp),
-                            ) {
-                                SelectionContainer {
-                                    Text(
-                                        text = result.content,
-                                        style = MiuixTheme.textStyles.footnote1
-                                            .copy(fontFamily = EtaMonospace),
-                                    )
+                            if (uiStyle == AppearanceUiStyle.COUI) {
+                                Group {
+                                    Box(modifier = Modifier.padding(16.dp)) {
+                                        SelectionContainer {
+                                            Text(
+                                                text = result.content,
+                                                style = MiuixTheme.textStyles.footnote1.copy(fontFamily = EtaMonospace),
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                Card(
+                                    modifier = Modifier
+                                        .padding(horizontal = 12.dp)
+                                        .padding(bottom = 12.dp),
+                                    insideMargin = PaddingValues(16.dp),
+                                ) {
+                                    SelectionContainer {
+                                        Text(
+                                            text = result.content,
+                                            style = MiuixTheme.textStyles.footnote1
+                                                .copy(fontFamily = EtaMonospace),
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -245,9 +259,25 @@ internal fun LinuxFilesScreen(
             }
         }
     }
+
+    when (uiStyle) {
+        AppearanceUiStyle.COUI -> {
+            CouiLazyScaffoldPage(
+                title = stringResource(R.string.linux_files_title),
+                onBack = { if (openFilePath != null) closeFile() else onBack() },
+                content = listContent,
+            )
+        }
+        AppearanceUiStyle.MIUIX -> {
+            MiuixScaffoldPage(
+                title = stringResource(R.string.linux_files_title),
+                onBack = { if (openFilePath != null) closeFile() else onBack() },
+                content = listContent,
+            )
+        }
+    }
 }
 
-/** 路径与提示文字和 SmallTitle 同一起点（28.dp）。 */
 @Composable
 private fun PathBar(path: String) {
     Text(
@@ -296,19 +326,38 @@ private fun FileRow(
     isLast: Boolean,
     onClick: () -> Unit,
 ) {
-    EtaPreferenceGroupItem(isFirst = isFirst, isLast = isLast) {
-        BasicComponent(
-            title = name,
-            summary = summary,
-            startAction = {
-                Icon(
-                    imageVector = if (isDir) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 8.dp).size(24.dp),
-                    tint = if (isDir) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
+    val icon = if (isDir) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile
+    EtaPreferenceGroupItem(isFirst = isFirst, isLast = isLast, hasLeadingIcon = true) {
+        when (LocalUiStyle.current) {
+            AppearanceUiStyle.COUI -> {
+                val colors = CouiPageDefaults.themeColors()
+                CouiPreference(
+                    title = name,
+                    summary = summary,
+                    icon = {
+                        CouiSettingsIcon(
+                            icon = icon,
+                            tint = if (isDir) colors.accent else colors.summary,
+                        )
+                    },
+                    onClick = onClick,
                 )
-            },
-            onClick = onClick,
-        )
+            }
+            AppearanceUiStyle.MIUIX -> {
+                BasicComponent(
+                    title = name,
+                    summary = summary,
+                    startAction = {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 8.dp).size(24.dp),
+                            tint = if (isDir) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        )
+                    },
+                    onClick = onClick,
+                )
+            }
+        }
     }
 }
