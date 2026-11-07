@@ -234,11 +234,11 @@ private fun CharacterWorldbookEntryEditor(
         )
     }
     CharacterFieldGroupLabel("内容")
-    CharacterTextField("条目标题", entry.name, { onChange(entry.copy(name = it)) }, enabled, singleLine = true)
-    CharacterTextField("内容", entry.content, { onChange(entry.copy(content = it)) }, enabled, minLines = 4)
+    CharacterTextField("条目标题", entry.name, { onChange(entry.copy(name = it)) }, enabled, singleLine = true, inGroup = true)
+    CharacterTextField("内容", entry.content, { onChange(entry.copy(content = it)) }, enabled, minLines = 4, inGroup = true)
     CharacterFieldGroupLabel("触发")
-    CharacterTextField("主关键词（每行一个）", entry.keys.joinToString("\n"), { onChange(entry.copy(keys = it.lines())) }, enabled)
-    CharacterTextField("次级关键词（每行一个）", entry.secondaryKeys.joinToString("\n"), { onChange(entry.copy(secondaryKeys = it.lines())) }, enabled)
+    CharacterTextField("主关键词（每行一个）", entry.keys.joinToString("\n"), { onChange(entry.copy(keys = it.lines())) }, enabled, inGroup = true)
+    CharacterTextField("次级关键词（每行一个）", entry.secondaryKeys.joinToString("\n"), { onChange(entry.copy(secondaryKeys = it.lines())) }, enabled, inGroup = true)
     if (uiStyle == AppearanceUiStyle.COUI) {
         CouiSwitchPreference(
             title = "同时匹配次级关键词",
@@ -287,7 +287,7 @@ private fun CharacterWorldbookEntryEditor(
     }
     CharacterTextField("插入顺序", entry.insertionOrder.toString(), { value ->
         value.toIntOrNull()?.takeIf { it >= 0 }?.let { onChange(entry.copy(insertionOrder = it)) }
-    }, enabled, singleLine = true)
+    }, enabled, singleLine = true, inGroup = true)
     if (uiStyle == AppearanceUiStyle.COUI) {
         CouiButton(
             text = "移除条目",

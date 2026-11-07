@@ -1,5 +1,7 @@
 package io.github.mangi.eta.ui.markdown
 
+import androidx.compose.foundation.OverscrollEffect
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -45,6 +47,38 @@ internal fun StaticMarkdown(
     } else {
         MarkdownContent(document = document, style = style, modifier = modifier)
     }
+}
+
+/**
+ * 独立滚动视口内的长篇静态 Markdown（如 MEMORY.md 预览）。
+ *
+ * 解析未完成前不渲染整篇原文占位（避免几十 KiB 的单节点 MultiParagraph 在页面进入动画中阻塞主线程），
+ * 解析后通过 [LazyMarkdownContent] 按视口虚拟化渲染。
+ */
+@Composable
+internal fun LazyStaticMarkdown(
+    content: String,
+    tone: MarkdownTone,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+    overscrollEffect: OverscrollEffect? = null,
+) {
+    val style = rememberMarkdownStyle(tone)
+    val document = produceState(
+        initialValue = staticMarkdownDocumentCache.get(content, style.inline),
+        content,
+        style.inline,
+    ) {
+        value = staticMarkdownDocumentCache.get(content, style.inline)
+            ?: withContext(Dispatchers.Default) { staticMarkdownDocumentCache.parse(content, style.inline) }
+    }.value ?: return
+    LazyMarkdownContent(
+        document = document,
+        style = style,
+        modifier = modifier,
+        contentPadding = contentPadding,
+        overscrollEffect = overscrollEffect,
+    )
 }
 
 /**

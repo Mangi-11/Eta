@@ -235,10 +235,11 @@ internal fun CharacterTextField(
     enabled: Boolean,
     singleLine: Boolean = false,
     minLines: Int = 2,
+    inGroup: Boolean = false,
 ) {
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            Group {
+            val fieldContent: @Composable () -> Unit = {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -253,6 +254,13 @@ internal fun CharacterTextField(
                         minLines = if (singleLine) 1 else minLines,
                         maxLines = if (singleLine) 1 else Int.MAX_VALUE,
                     )
+                }
+            }
+            if (inGroup) {
+                fieldContent()
+            } else {
+                Group {
+                    fieldContent()
                 }
             }
         }

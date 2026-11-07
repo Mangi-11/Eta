@@ -1,10 +1,12 @@
 package io.github.mangi.eta.ui.markdown
 
+import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
@@ -86,6 +89,73 @@ internal fun MarkdownContent(
 ) {
     val scope = remember(style, reveal) { MarkdownRenderScope(style, reveal) }
     MarkdownBlockColumn(blocks = document.blocks, scope = scope, compact = false, modifier = modifier)
+}
+
+/**
+ * 面向独立滚动视口（如长篇 MEMORY.md 预览）的按需虚拟化 Markdown 视图。
+ *
+ * 将顶层块与顶层列表项拆分为 LazyColumn 条目，使数十 KiB 的长文档首帧只组合与测量当前视口内的少量节点，
+ * 避免页面进入动画期间一次性排版整篇文档造成主线程掉帧。
+ */
+@Composable
+internal fun LazyMarkdownContent(
+    document: MarkdownDocument,
+    style: MarkdownStyle,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    overscrollEffect: OverscrollEffect? = null,
+) {
+    val scope = remember(style) { MarkdownRenderScope(style, reveal = null) }
+    val density = LocalDensity.current
+    val answer = style.tone == MarkdownTone.Answer
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = contentPadding,
+        overscrollEffect = overscrollEffect,
+    ) {
+        document.blocks.forEachIndexed { blockIndex, block ->
+            val previous = document.blocks.getOrNull(blockIndex - 1)
+            val blockGapSp = markdownBlockGap(previous, block, style.tone)
+            if (block is MarkdownList && block.items.isNotEmpty()) {
+                val itemGap = when {
+                    block.loose -> if (answer) 10.dp else 8.dp
+                    else -> if (answer) 4.dp else 2.dp
+                }
+                val markerWidth = if (block.ordered) {
+                    val digits = (block.items.lastOrNull()?.number ?: 1).toString().length
+                    (digits * 9 + 8).dp
+                } else {
+                    14.dp
+                }
+                block.items.forEachIndexed { itemIndex, listItem ->
+                    item(key = (block.offset.toLong() shl 32) or (listItem.offset.toLong() and 0xFFFFFFFFL)) {
+                        if (itemIndex == 0) {
+                            if (blockGapSp.value > 0f) {
+                                Spacer(Modifier.height(with(density) { blockGapSp.toDp() }))
+                            }
+                        } else {
+                            Spacer(Modifier.height(itemGap))
+                        }
+                        MarkdownListItemRow(
+                            item = listItem,
+                            ordered = block.ordered,
+                            loose = block.loose,
+                            depth = 0,
+                            markerWidth = markerWidth,
+                            scope = scope,
+                        )
+                    }
+                }
+            } else {
+                item(key = block.offset) {
+                    if (blockGapSp.value > 0f) {
+                        Spacer(Modifier.height(with(density) { blockGapSp.toDp() }))
+                    }
+                    MarkdownBlockView(block, scope)
+                }
+            }
+        }
+    }
 }
 
 @Immutable
@@ -348,20 +418,39 @@ private fun MarkdownListBlock(block: MarkdownList, scope: MarkdownRenderScope) {
         block.items.forEachIndexed { index, item ->
             key(item.offset) {
                 if (index > 0) Spacer(Modifier.height(itemGap))
-                Row(Modifier.fillMaxWidth()) {
-                    ListMarker(item = item, ordered = block.ordered, depth = depth, width = markerWidth, scope = scope)
-                    CompositionLocalProvider(LocalListDepth provides depth + 1) {
-                        MarkdownBlockColumn(
-                            blocks = item.blocks,
-                            scope = scope,
-                            compact = !block.loose,
-                            modifier = Modifier
-                                .weight(1f)
-                                .alignByBaseline(),
-                        )
-                    }
-                }
+                MarkdownListItemRow(
+                    item = item,
+                    ordered = block.ordered,
+                    loose = block.loose,
+                    depth = depth,
+                    markerWidth = markerWidth,
+                    scope = scope,
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun MarkdownListItemRow(
+    item: MarkdownListItem,
+    ordered: Boolean,
+    loose: Boolean,
+    depth: Int,
+    markerWidth: Dp,
+    scope: MarkdownRenderScope,
+) {
+    Row(Modifier.fillMaxWidth()) {
+        ListMarker(item = item, ordered = ordered, depth = depth, width = markerWidth, scope = scope)
+        CompositionLocalProvider(LocalListDepth provides depth + 1) {
+            MarkdownBlockColumn(
+                blocks = item.blocks,
+                scope = scope,
+                compact = !loose,
+                modifier = Modifier
+                    .weight(1f)
+                    .alignByBaseline(),
+            )
         }
     }
 }

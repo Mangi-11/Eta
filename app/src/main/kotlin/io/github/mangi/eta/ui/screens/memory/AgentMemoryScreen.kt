@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.itos.coui.layout.CouiPageDefaults
 import com.itos.coui.layout.Divider
 import com.itos.coui.layout.Group
+import com.itos.coui.scroll.rememberCouiOverscrollEffect
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
@@ -68,8 +69,8 @@ import io.github.mangi.eta.ui.components.coui.CouiScaffold
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
+import io.github.mangi.eta.ui.markdown.LazyStaticMarkdown
 import io.github.mangi.eta.ui.markdown.MarkdownTone
-import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.ui.model.AgentMemoryAction
 import io.github.mangi.eta.ui.model.AgentMemoryUiState
 import java.text.NumberFormat
@@ -95,13 +96,19 @@ internal fun AgentMemoryScreen(
     onAction: (AgentMemoryAction) -> Unit,
 ) {
     var showClearDialog by remember { mutableStateOf(false) }
-    var mode by rememberSaveable { mutableStateOf<MemoryViewMode?>(null) }
+    var mode by rememberSaveable {
+        mutableStateOf(
+            if (!state.isLoading && state.savedContent.isBlank()) MemoryViewMode.Edit else MemoryViewMode.Preview,
+        )
+    }
+    var initialModeResolved by rememberSaveable { mutableStateOf(!state.isLoading) }
     LaunchedEffect(state.isLoading) {
-        if (!state.isLoading && mode == null) {
+        if (!state.isLoading && !initialModeResolved) {
+            initialModeResolved = true
             mode = if (state.savedContent.isBlank()) MemoryViewMode.Edit else MemoryViewMode.Preview
         }
     }
-    val currentMode = mode ?: MemoryViewMode.Preview
+    val currentMode = mode
     val imeVisible = WindowInsets.isImeVisible
     val canClear = !state.isLoading && !state.isSaving && state.draft.isNotEmpty()
 
@@ -144,6 +151,7 @@ internal fun AgentMemoryScreen(
                         onDraftChange = { onAction(AgentMemoryAction.DraftChanged(it)) },
                         modifier = Modifier
                             .weight(1f)
+                            .padding(top = CouiPageDefaults.groupSpacing)
                             .padding(horizontal = CouiPageDefaults.horizontalMargin),
                     )
                     MemorySaveBar(
@@ -333,12 +341,18 @@ private fun MemoryDocumentCard(
     modifier: Modifier = Modifier,
 ) {
     val colors = MiuixTheme.colorScheme
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val overLimit = state.draftBytes > state.maxBytes
     val cardContent: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
+                .padding(
+                    start = 16.dp,
+                    end = if (isCoui) CouiPageDefaults.rowPadding else 10.dp,
+                    top = 12.dp,
+                    bottom = 12.dp,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -363,12 +377,16 @@ private fun MemoryDocumentCard(
             }
             MemoryModeSwitch(mode = mode, enabled = !state.isLoading, onModeChange = onModeChange)
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(0.5.dp)
-                .background(colors.dividerLine),
-        )
+        if (isCoui) {
+            Divider()
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(0.5.dp)
+                    .background(colors.dividerLine),
+            )
+        }
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             when {
                 state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -437,14 +455,18 @@ private fun MemoryPreview(content: String, onStartEditing: () -> Unit) {
         }
         return
     }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-    ) {
-        StaticMarkdown(content = content, tone = MarkdownTone.Answer, modifier = Modifier.fillMaxWidth())
+    val overscroll = if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+        rememberCouiOverscrollEffect()
+    } else {
+        null
     }
+    LazyStaticMarkdown(
+        content = content,
+        tone = MarkdownTone.Answer,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+        overscrollEffect = overscroll,
+    )
 }
 
 @Composable
