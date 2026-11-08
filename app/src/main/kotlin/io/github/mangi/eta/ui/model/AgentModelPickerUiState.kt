@@ -35,9 +35,34 @@ internal data class AgentModelOptionUi(
 )
 
 @Immutable
+internal data class SessionStatsSummaryUi(
+    val turns: Int = 0,
+    val steps: Int = 0,
+    val llmMs: Long = 0L,
+    val toolMs: Long = 0L,
+    val ttftMs: Long = 0L,
+    val ttftSteps: Int = 0,
+    val decodeMs: Long = 0L,
+    val decodeTokens: Int = 0,
+    val promptTokens: Int = 0,
+    val uncachedInputTokens: Int = 0,
+    val cachedTokens: Int = 0,
+    val outputTokens: Int = 0,
+    val reasoningTokens: Int = 0,
+    val hasTokenUsage: Boolean = false,
+) {
+    val totalTokens: Int
+        get() = promptTokens + outputTokens
+
+    val hasPerformanceStats: Boolean
+        get() = llmMs > 0L || toolMs > 0L || ttftSteps > 0 || (decodeMs > 0L && decodeTokens > 0)
+}
+
+@Immutable
 internal data class AgentContextUsageUi(
     val contextTokens: Int?,
     val contextWindow: Int?,
+    val sessionStats: SessionStatsSummaryUi = SessionStatsSummaryUi(),
 ) {
     val progress: Float?
         get() = contextUsageProgress(contextTokens, contextWindow)
@@ -128,18 +153,91 @@ internal fun latestContextUsage(
     messages: List<AgentChatMessageUi>,
     selectedModel: AgentModelOptionUi?,
 ): AgentContextUsageUi {
+    val sessionStats = deriveSessionStatsSummary(messages)
     for (message in messages.asReversed()) {
         when (message) {
             is AgentMessageUi -> message.usage?.contextTokens?.let {
-                return AgentContextUsageUi(it, selectedModel?.contextWindow)
+                return AgentContextUsageUi(it, selectedModel?.contextWindow, sessionStats)
             }
             is SystemNoticeMessageUi -> if (message.code == SystemNoticeCode.ContextCompaction) {
-                return AgentContextUsageUi(null, selectedModel?.contextWindow)
+                return AgentContextUsageUi(null, selectedModel?.contextWindow, sessionStats)
             }
             else -> Unit
         }
     }
-    return AgentContextUsageUi(null, selectedModel?.contextWindow)
+    return AgentContextUsageUi(null, selectedModel?.contextWindow, sessionStats)
+}
+
+internal fun deriveSessionStatsSummary(messages: List<AgentChatMessageUi>): SessionStatsSummaryUi {
+    var turns = 0
+    var steps = 0
+    var llmMs = 0L
+    var toolMs = 0L
+    var ttftMs = 0L
+    var ttftSteps = 0
+    var decodeMs = 0L
+    var decodeTokens = 0
+    var promptTokens = 0
+    var uncachedInputTokens = 0
+    var cachedTokens = 0
+    var outputTokens = 0
+    var reasoningTokens = 0
+    var hasTokenUsage = false
+
+    messages.forEach { message ->
+        if (message !is AgentMessageUi) return@forEach
+        val usage = message.usage ?: return@forEach
+        val turnSteps = (usage.stepCount ?: 1).coerceAtLeast(1)
+        turns += 1
+        steps += turnSteps
+        usage.llmMs?.takeIf { it > 0L }?.let { llmMs += it }
+        usage.toolMs?.takeIf { it > 0L }?.let { toolMs += it }
+        val recordedTtftSteps = usage.ttftSteps ?: if (usage.ttftMs != null) 1 else 0
+        if (recordedTtftSteps > 0 && usage.ttftMs != null && usage.ttftMs > 0L) {
+            ttftMs += usage.ttftMs
+            ttftSteps += recordedTtftSteps
+        }
+        val turnDecodeTokens = usage.decodeTokens ?: usage.outputTokens
+        if (usage.decodeMs != null && usage.decodeMs > 0L && turnDecodeTokens != null && turnDecodeTokens > 0) {
+            decodeMs += usage.decodeMs
+            decodeTokens += turnDecodeTokens
+        }
+        val rawInput = usage.inputTokens ?: 0
+        val rawCache = usage.cachedTokens ?: 0
+        val rawOut = usage.outputTokens ?: 0
+        val rawReasoning = usage.reasoningTokens ?: 0
+        if (usage.inputTokens != null || usage.cachedTokens != null || usage.outputTokens != null || usage.contextTokens != null) {
+            hasTokenUsage = true
+            val turnPrompt = when {
+                rawInput >= rawCache && rawInput > 0 -> rawInput
+                rawInput > 0 && rawCache > 0 -> rawInput + rawCache
+                else -> maxOf(rawInput, rawCache, ((usage.contextTokens ?: 0) - rawOut).coerceAtLeast(0))
+            }
+            val turnUncached = (turnPrompt - rawCache).coerceAtLeast(0)
+            promptTokens += turnPrompt
+            uncachedInputTokens += turnUncached
+            cachedTokens += rawCache
+            outputTokens += rawOut
+            reasoningTokens += rawReasoning
+        }
+    }
+
+    return SessionStatsSummaryUi(
+        turns = turns,
+        steps = steps,
+        llmMs = llmMs,
+        toolMs = toolMs,
+        ttftMs = ttftMs,
+        ttftSteps = ttftSteps,
+        decodeMs = decodeMs,
+        decodeTokens = decodeTokens,
+        promptTokens = promptTokens,
+        uncachedInputTokens = uncachedInputTokens,
+        cachedTokens = cachedTokens,
+        outputTokens = outputTokens,
+        reasoningTokens = reasoningTokens,
+        hasTokenUsage = hasTokenUsage,
+    )
 }
 
 internal fun contextUsageProgress(contextTokens: Int?, contextWindow: Int?): Float? {

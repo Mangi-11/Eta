@@ -74,7 +74,8 @@ import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.SystemNoticeCode
 import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
-import io.github.mangi.eta.ui.components.AnswerActionSize
+import io.github.mangi.eta.ui.components.AnswerActionButton
+import io.github.mangi.eta.ui.components.ChatActionIcons
 import io.github.mangi.eta.ui.components.ChatInputActionIconSize
 import io.github.mangi.eta.ui.components.ChatInputActionSize
 import io.github.mangi.eta.ui.components.StatusError
@@ -392,29 +393,19 @@ internal fun SpeechPlaybackErrors(controller: SpeechPlaybackController) {
     }
 }
 
-/** 朗读入口与相邻的消息操作共享同一套尺寸与弱化配色，播放中转为停止。 */
+/** 朗读入口与相邻的消息操作共享同一套尺寸与线性图标风格，播放中转为停止。 */
 @Composable
 internal fun SpeechReadAloudButton(messageId: String, text: String) {
     val controller = LocalSpeechPlayback.current ?: return
     if (!LocalSpeechPlaybackEnabled.current) return
     val state by controller.state.collectAsState()
     val active = state.messageId == messageId
-    IconButton(
+    AnswerActionButton(
+        icon = if (active) ChatActionIcons.Stop else ChatActionIcons.Volume,
+        contentDescription = stringResource(
+            if (active) R.string.speech_read_stop else R.string.speech_read_aloud,
+        ),
         onClick = { if (active) controller.stop() else controller.speak(messageId, text) },
-        minWidth = AnswerActionSize,
-        minHeight = AnswerActionSize,
-    ) {
-        Icon(
-            imageVector = if (active) Icons.Rounded.Stop else Icons.AutoMirrored.Rounded.VolumeUp,
-            contentDescription = stringResource(
-                if (active) R.string.speech_read_stop else R.string.speech_read_aloud,
-            ),
-            modifier = Modifier.size(if (active) 14.dp else 16.dp),
-            tint = if (active) {
-                MiuixTheme.colorScheme.primary
-            } else {
-                MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f)
-            },
-        )
-    }
+        tint = if (active) MiuixTheme.colorScheme.primary else null,
+    )
 }

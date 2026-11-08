@@ -754,13 +754,14 @@ private fun AgentMessageBlock(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // 抵消按钮的居中留白，与工作过程标题图标共用左侧中心线。
+                    // 抵消首个按钮的内部水平留白，使图标与上方正文及工作过程图标共用左侧中心线。
                     .offset(x = -AnswerActionCenterOffset)
-                    .padding(top = 2.dp),
+                    .padding(top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 AnswerActionButton(
-                    icon = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
+                    icon = if (copied) ChatActionIcons.Check else ChatActionIcons.Copy,
                     contentDescription = stringResource(
                         if (copied) R.string.copy_copied else R.string.copy_answer,
                     ),
@@ -776,7 +777,7 @@ private fun AgentMessageBlock(
                 if (showMessageActions) {
                     if (message.characterEditable) {
                         AnswerActionButton(
-                            icon = Icons.Rounded.Edit,
+                            icon = ChatActionIcons.Edit,
                             contentDescription = stringResource(R.string.chat_edit_character_reply),
                             onClick = onEdit,
                             enabled = messageActionsEnabled,
@@ -784,7 +785,7 @@ private fun AgentMessageBlock(
                     }
                     TooltipBox(text = stringResource(R.string.ui_regenerate_2e1905), enabled = messageActionsEnabled) {
                         AnswerActionButton(
-                            icon = Icons.Rounded.Refresh,
+                            icon = ChatActionIcons.Refresh,
                             contentDescription = stringResource(R.string.ui_regenerate_reply_84a7d9),
                             onClick = onRegenerate,
                             enabled = messageActionsEnabled,
@@ -792,7 +793,7 @@ private fun AgentMessageBlock(
                     }
                     TooltipBox(text = stringResource(R.string.ui_delete_3755f5), enabled = messageActionsEnabled) {
                         AnswerActionButton(
-                            icon = Icons.Rounded.Delete,
+                            icon = ChatActionIcons.Trash,
                             contentDescription = stringResource(R.string.ui_delete_this_conversation_3f351b),
                             onClick = onDelete,
                             enabled = messageActionsEnabled,
@@ -801,12 +802,18 @@ private fun AgentMessageBlock(
                     if (showBranchAction) {
                         TooltipBox(text = stringResource(R.string.conversation_branch)) {
                             AnswerActionButton(
-                                icon = Icons.AutoMirrored.Rounded.CallSplit,
+                                icon = ChatActionIcons.Branch,
                                 contentDescription = stringResource(R.string.conversation_branch),
                                 onClick = onBranch,
                                 enabled = messageActionsEnabled,
                             )
                         }
+                    }
+                    if (!assistantOverlay && message.usage != null && message.usage.hasPerformanceStats) {
+                        TurnStatsPill(
+                            usage = message.usage,
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
                     }
                     if (message.characterEditable && message.candidateCount > 1) {
                         Spacer(Modifier.weight(1f))
@@ -871,9 +878,9 @@ private fun CharacterReplyHeader(character: RoleplayChatUi, isGreeting: Boolean)
 private val ChatCardCorner = 12.dp
 private const val ChatCardOutlineAlpha = 0.5f
 
-/** 回答操作按钮的触控尺寸；行整体左移半个尺寸减去图标半宽，使图标落在工作过程图标的中心线上。 */
-internal val AnswerActionSize = 36.dp
-private val AnswerActionCenterOffset = 11.dp
+/** 回答操作按钮的紧凑触控尺寸（28.dp 盒 + 16.dp 图标）；行整体左移 6.dp 对齐正文左边缘。 */
+internal val AnswerActionSize = 28.dp
+private val AnswerActionCenterOffset = 6.dp
 
 /** 回答下方的轻量操作：图标显式着色，因此禁用态需要自己换成禁用色，否则看起来仍可点。 */
 @Composable
@@ -884,11 +891,27 @@ internal fun AnswerActionButton(
     enabled: Boolean = true,
     tint: Color? = null,
 ) {
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        minWidth = AnswerActionSize,
-        minHeight = AnswerActionSize,
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
+    val couiDark = CouiTheme.isDark
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .size(AnswerActionSize)
+            .clip(RoundedCornerShape(8.dp))
+            .then(
+                if (isCoui) {
+                    Modifier.couiButtonFeedback(couiDark, interactionSource, enabled = enabled)
+                } else {
+                    Modifier
+                },
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
@@ -897,7 +920,7 @@ internal fun AnswerActionButton(
             tint = when {
                 !enabled -> MiuixTheme.colorScheme.disabledOnSurface
                 tint != null -> tint
-                else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f)
+                else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.72f)
             },
         )
     }
