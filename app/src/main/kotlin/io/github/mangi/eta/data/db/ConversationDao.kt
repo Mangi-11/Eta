@@ -110,6 +110,15 @@ internal interface ConversationDao : ChunkedTextDao {
     @Query("SELECT * FROM conversation_context_checkpoints ORDER BY conversation_id ASC LIMIT :limit OFFSET :offset")
     suspend fun contextCheckpointRowsPage(limit: Int, offset: Int): List<ConversationContextCheckpointEntity>
 
+    @Query("SELECT id, sort_index AS sortIndex, type, (trim(content) != '') AS hasContent, " +
+        "CASE WHEN type = 'system_notice' THEN content ELSE '' END AS noticeCode " +
+        "FROM conversation_messages WHERE conversation_id = :conversationId ORDER BY sort_index ASC")
+    suspend fun branchMessages(conversationId: String): List<io.github.mangi.eta.data.model.ConversationBranchMessage>
+
+    @Query("SELECT * FROM conversation_messages WHERE conversation_id = :conversationId " +
+        "AND sort_index > :after AND sort_index <= :through ORDER BY sort_index ASC LIMIT :limit")
+    suspend fun branchMessageRows(conversationId: String, after: Int, through: Int, limit: Int): List<ConversationMessageEntity>
+
     @Query("SELECT * FROM conversation_messages WHERE conversation_id = :conversationId ORDER BY sort_index ASC LIMIT :limit OFFSET :offset")
     suspend fun messageRowsPage(conversationId: String, limit: Int, offset: Int): List<ConversationMessageEntity>
 

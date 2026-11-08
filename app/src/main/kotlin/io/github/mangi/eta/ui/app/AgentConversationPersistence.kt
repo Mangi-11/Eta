@@ -1,10 +1,13 @@
 package io.github.mangi.eta.ui.app
 
 import android.content.Context
+import androidx.room.withTransaction
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.roleplay.RoleplayBinding
 import io.github.mangi.eta.agent.roleplay.RoleplayMessageState
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.db.EtaDatabase
+import io.github.mangi.eta.data.repository.ConversationBranchRepository
 import io.github.mangi.eta.ui.model.AgentChatHomeUiState
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import kotlinx.coroutines.sync.Mutex
@@ -15,11 +18,34 @@ internal class AgentConversationPersistence(initial: AgentConversationStore.Snap
     private val mutex = Mutex()
     // 未对齐的会话不进入基线，首次保存按新会话整段写入，重排 sort_index。
     private var saved = initial?.let { snapshot -> project(snapshot) - snapshot.unalignedConversationIds }.orEmpty()
+    // 已提交但尚未进入 Main 状态的分支必须合入旧快照，直到保存队列观察到发布后的状态。
+    private var unpublishedBranches = emptyMap<String, Content>()
 
     suspend fun save(context: Context, snapshot: AgentConversationStore.Snapshot) = mutex.withLock {
-        val current = project(snapshot)
+        val projected = project(snapshot)
+        val current = unpublishedBranches + projected
         AgentConversationStore.saveChanges(context, snapshot.selectedConversationId, current, saved)
         saved = current
+        unpublishedBranches = unpublishedBranches - projected.keys
+    }
+
+    suspend fun branch(
+        context: Context,
+        sourceId: String,
+        targetMessageId: String,
+        branchId: String,
+        title: String,
+        now: Long,
+    ): AgentChatHomeUiState = mutex.withLock {
+        val database = EtaDatabase.get(context)
+        val state = database.withTransaction {
+            ConversationBranchRepository.create(database, sourceId, targetMessageId, branchId, title, now)
+            checkNotNull(AgentConversationStore.loadConversation(context, branchId))
+        }
+        val content = Content(state, title, now)
+        saved = saved + (branchId to content)
+        unpublishedBranches = unpublishedBranches + (branchId to content)
+        state
     }
 
     suspend fun adoptConversation(

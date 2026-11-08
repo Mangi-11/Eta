@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.automirrored.rounded.CallSplit
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -213,11 +214,13 @@ internal fun ChatMessageItem(
     retainedStreamingState: StreamingMarkdownState? = null,
     showCopyAction: Boolean = true,
     showMessageActions: Boolean = false,
+    showBranchAction: Boolean = false,
     messageActionsEnabled: Boolean = true,
     isEditing: Boolean = false,
     onEditMessage: (String) -> Unit = {},
     onDeleteMessage: (String) -> Unit = {},
     onRegenerateMessage: (String) -> Unit = {},
+    onBranchMessage: (String) -> Unit = {},
     onSelectReplyCandidate: (String, Int) -> Unit = { _, _ -> },
 ) {
     when (message) {
@@ -237,6 +240,8 @@ internal fun ChatMessageItem(
             retainedStreamingState = retainedStreamingState,
             showCopyAction = showCopyAction,
             showMessageActions = showMessageActions,
+            showBranchAction = showBranchAction,
+            onBranch = { onBranchMessage(message.id) },
             messageActionsEnabled = messageActionsEnabled,
             onDelete = { onDeleteMessage(message.id) },
             onRegenerate = { onRegenerateMessage(message.id) },
@@ -641,6 +646,8 @@ private fun AgentMessageBlock(
     retainedStreamingState: StreamingMarkdownState?,
     showCopyAction: Boolean,
     showMessageActions: Boolean,
+    showBranchAction: Boolean = false,
+    onBranch: () -> Unit = {},
     messageActionsEnabled: Boolean,
     onDelete: () -> Unit,
     onRegenerate: () -> Unit,
@@ -790,6 +797,16 @@ private fun AgentMessageBlock(
                             onClick = onDelete,
                             enabled = messageActionsEnabled,
                         )
+                    }
+                    if (showBranchAction) {
+                        TooltipBox(text = stringResource(R.string.conversation_branch)) {
+                            AnswerActionButton(
+                                icon = Icons.AutoMirrored.Rounded.CallSplit,
+                                contentDescription = stringResource(R.string.conversation_branch),
+                                onClick = onBranch,
+                                enabled = messageActionsEnabled,
+                            )
+                        }
                     }
                     if (message.characterEditable && message.candidateCount > 1) {
                         Spacer(Modifier.weight(1f))

@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.app
 
 import io.github.mangi.eta.agent.model.AgentModelClient.ConversationMessage
+import io.github.mangi.eta.agent.roleplay.RoleplayHistoryProjection
 import io.github.mangi.eta.agent.roleplay.RoleplayMessageLink
 import io.github.mangi.eta.agent.roleplay.RoleplayReplyRevision
 import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
@@ -103,30 +104,10 @@ internal object RoleplayConversationReducer {
             .mapTo(mutableSetOf()) { it.key }
     }
 
-    fun projectJournal(state: AgentChatUiState): List<ConversationMessage>? {
-        return buildList {
-            val grouped = state.roleplayMessages.links.entries.groupBy { it.value.transcriptMessageId }
-            val journal = state.journal.ifEmpty { state.history }
-            if (journal.any { it.contextSummary }) add(ConversationMessage(
-                role = "system", content = "早期历史仅保留摘要；正文修订只应用于仍有原文的消息，不能恢复已缺失的历史。",
-            ))
-            journal.forEach { entry ->
-                val links = grouped[entry.messageId].orEmpty().sortedBy { it.value.blockOrder }
-                val changed = links.any { it.key in state.roleplayMessages.revisions }
-                if (!changed) add(entry) else {
-                    val body = links.map { (id, _) ->
-                        // 缺失块意味着本轮投影无法完整重建，不能把剩余片段冒充完整正文。
-                        state.messageContent(id) ?: return null
-                    }.joinToString("\n\n")
-                    if (entry.role == "user") add(ConversationMessage(
-                        role = "system",
-                        content = "以下历史用户正文经用户修订；后续已有工具记录来自原请求，不能视为修订后请求已被执行。",
-                    ))
-                    add(entry.copy(content = body, contentJson = ""))
-                }
-            }
+    fun projectJournal(state: AgentChatUiState): List<ConversationMessage>? =
+        RoleplayHistoryProjection.project(state.journal.ifEmpty { state.history }, state.roleplayMessages) {
+            state.messageContent(it)
         }
-    }
 
     fun rewriteHistory(state: AgentChatUiState, messageId: String): List<ConversationMessage>? {
         val link = state.roleplayMessages.links[messageId] ?: return null

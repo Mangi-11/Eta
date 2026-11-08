@@ -27,6 +27,7 @@ import io.github.mangi.eta.agent.roleplay.CharacterMacros
 import io.github.mangi.eta.agent.roleplay.CharacterCardCodec
 import io.github.mangi.eta.agent.roleplay.RoleplayMessageLink
 import io.github.mangi.eta.agent.roleplay.RoleplayMessageState
+import io.github.mangi.eta.data.repository.ConversationBranchUnavailable
 import io.github.mangi.eta.data.repository.CharacterRepository
 import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.agent.runtime.GuiControlStatus
@@ -125,6 +126,10 @@ internal class AgentAppState(
     private var historyPageReleasesEarlier = false
     private var conversationSearchJob: Job? = null
     private var persistedSearchMatches: Set<String> = emptySet()
+
+    private var branchingConversationId by mutableStateOf<String?>(null)
+    val isBranchingCurrentConversation: Boolean
+        get() = branchingConversationId != null && branchingConversationId == selectedConversationId
 
     var isLoadingConversation by mutableStateOf(false)
         private set
@@ -246,7 +251,7 @@ internal class AgentAppState(
 
     suspend fun importBackup(input: InputStream): EtaBackupSummary {
         val locallyBusy = withContext(Dispatchers.Main.immediate) {
-            runStore.hasActiveRuns || conversationsById.values.any { it.isStreaming }
+            branchingConversationId != null || runStore.hasActiveRuns || conversationsById.values.any { it.isStreaming }
         }
         if (locallyBusy) {
             throw IllegalStateException("请先停止正在运行的 Agent 任务")
@@ -267,7 +272,7 @@ internal class AgentAppState(
         }
 
         val pendingPersistence = synchronized(persistenceLock) {
-            check(!persistencePaused) { "备份正在导入" }
+            check(!persistencePaused && branchingConversationId == null) { "请等待会话保存完成" }
             persistencePaused = true
             persistenceJob
         }
@@ -1004,6 +1009,61 @@ internal class AgentAppState(
         persistConversations()
     }
 
+    fun branchConversation(conversationId: String, messageId: String, draftText: String = homeState.input) {
+        if (selectedConversationId != conversationId || branchingConversationId != null || persistencePaused ||
+            !homeState.isConversationLoaded || homeState.isStreaming || homeState.isCompacting ||
+            homeState.messageEdit != null || homeState.roleplayMessages.pendingRewrites.isNotEmpty() ||
+            runStore.activeRunId(conversationId) != null || conversationId in pendingConversationDeletes) return
+        val selectionVersion = conversationSelectionVersion
+        val branchId = newConversationId()
+        val baseTitle = appContext.getString(R.string.conversation_branch_title,
+            conversationTitles[conversationId].orEmpty().ifBlank { appContext.getString(R.string.conversation_unnamed) })
+        val taken = conversationTitles.values.toSet()
+        var title = baseTitle
+        var number = 2
+        while (title in taken) title = "$baseTitle ${number++}"
+        branchingConversationId = conversationId
+        updateCurrentConversation(homeState.copy(input = draftText), updateTimestamp = false)
+        val sourceSaved = persistConversations()
+        scope.launch {
+            try {
+                check(sourceSaved.await()) { "conversation_branch_source_save_failed" }
+                // 事务提交后必须完成保存基线和 Main 状态的登记；页面销毁不能留下会被旧快照删除的分支。
+                withContext(NonCancellable) {
+                    val now = System.currentTimeMillis()
+                    val created = synchronized(persistenceLock) {
+                        check(!persistencePaused) { "conversation_branch_persistence_paused" }
+                        val previous = persistenceJob
+                        val persistence = conversationPersistence
+                        async(Dispatchers.IO) {
+                            previous?.join()
+                            persistence.branch(appContext, conversationId, messageId, branchId, title, now)
+                        }.also { persistenceJob = it }
+                    }.await()
+                    withContext(Dispatchers.Main.immediate) {
+                        conversationTitles = conversationTitles + (branchId to title)
+                        conversationUpdatedAt = conversationUpdatedAt + (branchId to now)
+                        updateConversation(branchId, created, updateTimestamp = false)
+                        refreshConversationSummaries()
+                        if (selectedConversationId == conversationId && conversationSelectionVersion == selectionVersion && !homeState.isStreaming) {
+                            selectConversation(branchId)
+                        }
+                        persistConversations()
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: ConversationBranchUnavailable) {
+                Toast.makeText(appContext, R.string.conversation_branch_unavailable, Toast.LENGTH_LONG).show()
+            } catch (failure: Exception) {
+                AndroidAgentLogger.error("Conversation branch failed: type=${failure.safeLogType()}")
+                Toast.makeText(appContext, R.string.conversation_branch_failed, Toast.LENGTH_LONG).show()
+            } finally {
+                branchingConversationId = null
+            }
+        }
+    }
+
     fun startCharacterConversation(binding: RoleplayBinding, greeting: String) {
         createConversation()
         val id = newConversationId()
@@ -1033,7 +1093,7 @@ internal class AgentAppState(
     }
 
     fun selectReplyCandidate(messageId: String, index: Int) {
-        if (homeState.isStreaming || homeState.messageEdit != null) return
+        if (homeState.isStreaming || homeState.messageEdit != null || isBranchingCurrentConversation) return
         val updated = RoleplayConversationReducer.select(homeState, messageId, index) ?: return
         updateCurrentConversation(updated)
         refreshConversationSummaries()
@@ -1380,7 +1440,7 @@ internal class AgentAppState(
     }
 
     fun beginMessageEdit(messageId: String) {
-        if (homeState.isStreaming || homeState.messageEdit != null) return
+        if (homeState.isStreaming || homeState.messageEdit != null || isBranchingCurrentConversation) return
         if (homeState.roleplay != null) {
             if (messageId !in homeState.roleplayMessages.links) return
             val content = when (val message = homeState.messages.firstOrNull { it.id == messageId }) {
@@ -1454,7 +1514,7 @@ internal class AgentAppState(
         }
 
     fun deleteMessageTurn(messageId: String) {
-        if (homeState.isStreaming || homeState.messageEdit != null) return
+        if (homeState.isStreaming || homeState.messageEdit != null || isBranchingCurrentConversation) return
         val conversationId = selectedConversationId ?: return
         if (homeState.roleplay != null && messageId.startsWith("greeting-")) {
             val originalId = homeState.roleplayMessages.links[messageId]?.transcriptMessageId ?: return
@@ -1501,7 +1561,7 @@ internal class AgentAppState(
     }
 
     fun regenerateMessage(messageId: String) {
-        if (homeState.isStreaming || homeState.messageEdit != null) return
+        if (homeState.isStreaming || homeState.messageEdit != null || isBranchingCurrentConversation) return
         val conversationId = selectedConversationId ?: return
         if (homeState.roleplay != null) {
             val target = homeState.messages.filterIsInstance<AgentMessageUi>().firstOrNull { it.id == messageId } ?: return
@@ -1546,7 +1606,7 @@ internal class AgentAppState(
 
     fun compactCurrentContext() {
         val conversationId = selectedConversationId ?: return
-        if (runStore.activeRunId(conversationId) != null || !homeState.canCompactContext || modelPickerState.isChanging) return
+        if (isBranchingCurrentConversation || runStore.activeRunId(conversationId) != null || !homeState.canCompactContext || modelPickerState.isChanging) return
         launchConversationRun(
             conversationId = conversationId,
             runId = java.util.UUID.randomUUID().toString(),

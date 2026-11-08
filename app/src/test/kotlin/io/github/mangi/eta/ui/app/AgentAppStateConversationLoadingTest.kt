@@ -10,6 +10,7 @@ import io.github.mangi.eta.ui.model.ConversationHistoryLoadState
 import io.github.mangi.eta.ui.model.UserMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -309,6 +310,99 @@ class AgentAppStateConversationLoadingTest {
         assertEquals("run-a", runs.activeRunId("first"))
         awaitCondition { runs.observedRunIds == setOf("run-a") }
         state.completeRunForTest("run-a", "前台任务完成")
+    }
+
+    @Test
+    fun branchOpensIndependentConversationOnceAndPreservesDraftAndUniqueTitles() {
+        seed("source" to branchSource())
+        val state = AgentAppState(context, scope)
+        state.branchConversation("source", "assistant-source-1-0", "未发送的草稿")
+        state.branchConversation("source", "assistant-source-1-0", "重复点击")
+        awaitCondition { state.conversationPaneState.conversations.size == 2 && !state.isBranchingCurrentConversation }
+        val firstBranch = state.conversationPaneState.conversations.single { it.id != "source" }
+        awaitLoaded(state, firstBranch.id)
+        assertEquals("source · 分支", firstBranch.title)
+        assertEquals("", state.homeState.input)
+        assertEquals(4, state.homeState.messages.size)
+        assertFalse(state.homeState.isStreaming)
+        assertFalse(state.runStoreForTest().hasActiveRuns)
+
+        state.selectConversation("source")
+        awaitLoaded(state, "source")
+        assertEquals("未发送的草稿", state.homeState.input)
+        assertEquals(6, state.homeState.messages.size)
+        state.branchConversation("source", "assistant-source-0-0", state.homeState.input)
+        awaitCondition { state.conversationPaneState.conversations.size == 3 && !state.isBranchingCurrentConversation }
+        val secondBranch = state.conversationPaneState.conversations.single { it.id != "source" && it.id != firstBranch.id }
+        assertEquals("source · 分支 2", secondBranch.title)
+        awaitLoaded(state, secondBranch.id)
+        assertEquals(2, state.homeState.messages.size)
+    }
+
+    @Test
+    fun switchingWhileBranchWaitsForSaveDoesNotStealSelectionOrLoseCommittedBranch() {
+        seed("source" to branchSource(), "other" to conversation("other"))
+        val state = AgentAppState(context, scope)
+        val gate = CompletableDeferred<Unit>()
+        AgentAppState::class.java.getDeclaredField("persistenceJob").apply { isAccessible = true }.set(state, gate)
+        state.branchConversation("source", "assistant-source-1-0", "草稿")
+        assertTrue(state.isBranchingCurrentConversation)
+        state.selectConversation("other")
+        gate.complete(Unit)
+        awaitLoaded(state, "other")
+        awaitCondition { state.conversationPaneState.conversations.size == 3 }
+        assertEquals("other", state.conversationPaneState.selectedConversationId)
+        val child = state.conversationPaneState.conversations.single { it.id != "source" && it.id != "other" }
+        state.selectConversation(child.id)
+        awaitLoaded(state, child.id)
+        assertEquals(4, state.homeState.messages.size)
+        assertEquals(4, runBlocking { EtaDatabase.get(context).conversationDao().messageCount(child.id) })
+    }
+
+    @Test
+    fun editingAndActiveRunsBlockBranchCreation() {
+        seed("source" to branchSource())
+        val state = AgentAppState(context, scope)
+        state.beginMessageEdit("user-source-0")
+        state.branchConversation("source", "assistant-source-1-0", "不应提交")
+        assertFalse(state.isBranchingCurrentConversation)
+        assertEquals(1, state.conversationPaneState.conversations.size)
+        state.cancelMessageEdit()
+        state.registerRunForTest("running", "source")
+        state.branchConversation("source", "assistant-source-1-0", "不应提交")
+        assertFalse(state.isBranchingCurrentConversation)
+        assertEquals(1, state.conversationPaneState.conversations.size)
+        state.completeRunForTest("running", "完成")
+        awaitCondition { !state.homeState.isStreaming }
+    }
+
+    @Test
+    fun branchWriteFailureKeepsSourceSelectedAndRetryCreatesOnlyOneChild() {
+        seed("source" to branchSource())
+        val database = EtaDatabase.get(context)
+        database.openHelper.writableDatabase.execSQL("CREATE TRIGGER reject_new_conversation BEFORE INSERT ON conversations " +
+            "WHEN NEW.id != 'source' BEGIN SELECT RAISE(ABORT, 'branch_test_failure'); END")
+        val state = AgentAppState(context, scope)
+        state.branchConversation("source", "assistant-source-1-0", "保留草稿")
+        awaitCondition { !state.isBranchingCurrentConversation }
+        assertEquals("source", state.conversationPaneState.selectedConversationId)
+        assertEquals("保留草稿", state.homeState.input)
+        assertEquals(1, state.conversationPaneState.conversations.size)
+        assertEquals(1, runBlocking { database.conversationDao().conversationIdentities().size })
+        database.openHelper.writableDatabase.execSQL("DROP TRIGGER reject_new_conversation")
+        state.branchConversation("source", "assistant-source-1-0", "保留草稿")
+        awaitCondition { state.conversationPaneState.conversations.size == 2 }
+    }
+
+    private fun branchSource(): AgentChatHomeUiState {
+        val journal = (0 until 3).flatMap { index -> listOf(
+            AgentModelClient.ConversationMessage("user", "问题 $index", messageId = "user-source-$index"),
+            AgentModelClient.ConversationMessage("assistant", "回答 $index", messageId = "assistant-source-$index")) }
+        return AgentChatHomeUiState(
+            messages = (0 until 3).flatMap { index -> listOf(UserMessageUi("user-source-$index", "问题 $index"),
+                AgentMessageUi("assistant-source-$index-0", "回答 $index")) },
+            history = journal, journal = journal, input = "", isStreaming = false, thinkingEnabled = false,
+        )
     }
 
     private fun AgentAppState.runStoreForTest(): AgentRunStore =
