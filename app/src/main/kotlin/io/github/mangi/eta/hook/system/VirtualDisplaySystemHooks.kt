@@ -38,13 +38,13 @@ internal object VirtualDisplaySystemHooks {
     ): HookInstallation {
         val hooks = HookRegistrar(module, rootLogger, "VirtualDisplay")
         return hooks.install {
-            installDisplayManagerHooks(hooks, classLoader)
+            installDisplayManagerHooks(module, hooks, classLoader)
             installCrossAppLaunchHooks(hooks, classLoader)
             installTaskMoveHooks(hooks, classLoader)
         }
     }
 
-    private fun installDisplayManagerHooks(hooks: HookRegistrar, classLoader: ClassLoader) {
+    private fun installDisplayManagerHooks(module: XposedModule, hooks: HookRegistrar, classLoader: ClassLoader) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             return
         }
@@ -58,7 +58,7 @@ internal object VirtualDisplaySystemHooks {
                     method.parameterTypes[3] == String::class.java
             }.firstOrNull()
         }
-        if (dmsClass == null || createMethod == null) {
+        if (dmsClass == null || binderClass == null || createMethod == null) {
             hooks.missing(
                 id = "system.virtual-display-create",
                 description = "DisplayManagerService.createVirtualDisplay",
@@ -66,6 +66,19 @@ internal object VirtualDisplaySystemHooks {
             )
             return
         }
+        val releaseMethod = HookSupport.findDeclaredMethods(binderClass, makeAccessible = true) { method ->
+            method.name == "releaseVirtualDisplay" && method.parameterCount == 1 &&
+                method.parameterTypes[0] == createMethod.parameterTypes[1]
+        }.firstOrNull()
+        if (releaseMethod == null) {
+            hooks.missing(
+                id = "system.virtual-display-release",
+                description = "DisplayManagerService.releaseVirtualDisplay",
+                detail = "未找到虚拟屏创建失败后的回收入口",
+            )
+            return
+        }
+        val releaseInvoker = module.getInvoker(releaseMethod)
 
         hooks.intercept(
             id = "system.virtual-display-create",
@@ -94,8 +107,16 @@ internal object VirtualDisplaySystemHooks {
             try {
                 val result = chain.proceed(args.toTypedArray())
                 if (result is Int && CanvasRoutingPolicy.isVirtualDisplay(result)) {
+                    if (!applyDisplayImePolicyHide(result)) {
+                        try {
+                            releaseInvoker.invoke(chain.thisObject, args[1])
+                        } catch (exception: Exception) {
+                            hooks.logger.warn("Virtual display cleanup failed: type=${exception.javaClass.simpleName}")
+                        }
+                        hooks.logger.warn("Virtual display rejected: code=DISPLAY_IME_ISOLATION_UNAVAILABLE")
+                        return@intercept Display.INVALID_DISPLAY
+                    }
                     activeEtaDisplayIds.add(result)
-                    applyDisplayImePolicyHide(result)
                 }
                 result
             } finally {
@@ -154,14 +175,20 @@ internal object VirtualDisplaySystemHooks {
         }
     }
 
-    private fun applyDisplayImePolicyHide(displayId: Int) {
-        runCatching {
+    private fun applyDisplayImePolicyHide(displayId: Int): Boolean {
+        return try {
             val wmgClass = Class.forName("android.view.WindowManagerGlobal")
-            val wms = wmgClass.getMethod("getWindowManagerService").invoke(null) ?: return
+            val wms = wmgClass.getMethod("getWindowManagerService").invoke(null) ?: return false
             val setPolicy = wms.javaClass.methods.firstOrNull {
                 it.name == "setDisplayImePolicy" && it.parameterCount == 2
-            } ?: return
+            } ?: return false
+            val getPolicy = wms.javaClass.methods.firstOrNull {
+                it.name == "getDisplayImePolicy" && it.parameterCount == 1
+            } ?: return false
             setPolicy.invoke(wms, displayId, CanvasRoutingPolicy.DISPLAY_IME_POLICY_HIDE)
+            getPolicy.invoke(wms, displayId) == CanvasRoutingPolicy.DISPLAY_IME_POLICY_HIDE
+        } catch (_: Exception) {
+            false
         }
     }
 

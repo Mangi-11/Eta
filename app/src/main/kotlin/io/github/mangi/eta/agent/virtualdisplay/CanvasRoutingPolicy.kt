@@ -28,10 +28,12 @@ internal object CanvasRoutingPolicy {
     const val FLAG_ALWAYS_UNLOCKED = 1 shl 12
     const val FLAG_TOUCH_FEEDBACK_DISABLED = 1 shl 13
     const val FLAG_OWN_FOCUS = 1 shl 14
-    const val FLAG_STEAL_TOP_FOCUS_DISABLED = 1 shl 15
+    const val FLAG_STEAL_TOP_FOCUS_DISABLED = 1 shl 16
 
     /** android.view.Display.getFlags() 返回的受信任标志位，用于检验虚拟屏是否真正取得系统级 TRUSTED 权限。 */
     const val DISPLAY_FLAG_TRUSTED = 1 shl 7
+    const val DISPLAY_FLAG_OWN_FOCUS = 1 shl 11
+    const val DISPLAY_FLAG_STEAL_TOP_FOCUS_DISABLED = 1 shl 12
 
     /** WindowManager IME 显示策略：禁止虚拟屏在主屏回退弹出或抢占软键盘。 */
     const val DISPLAY_IME_POLICY_LOCAL = 0
@@ -40,7 +42,7 @@ internal object CanvasRoutingPolicy {
 
     /**
      * 受信任后台交互画布所需的完整标志组合：
-     * - 不启用 FLAG_OWN_FOCUS，配合 DISPLAY_IME_POLICY_HIDE 彻底阻止虚拟屏抢夺主屏输入法或弹出软键盘；
+     * - OWN_FOCUS 是 STEAL_TOP_FOCUS_DISABLED 的前置条件；IME 另由 DISPLAY_IME_POLICY_HIDE 隔离；
      * - 不启用 FLAG_ROTATES_WITH_CONTENT，锁定与物理主屏一致的固定画幅，避免跨应用跳转旋转时重建 Surface；
      * - 不启用 FLAG_DESTROY_CONTENT_ON_REMOVAL，避免跨应用栈迁移或释放时误杀应用进程。
      */
@@ -52,7 +54,16 @@ internal object CanvasRoutingPolicy {
             FLAG_OWN_DISPLAY_GROUP or
             FLAG_ALWAYS_UNLOCKED or
             FLAG_TOUCH_FEEDBACK_DISABLED or
+            FLAG_OWN_FOCUS or
             FLAG_STEAL_TOP_FOCUS_DISABLED
+
+    // Android 13 尚无独立焦点与禁止抢占顶层焦点的组合能力，后台画布从 Android 14 起启用。
+    fun supportsBackgroundDisplay(sdkInt: Int): Boolean = sdkInt >= 34
+
+    fun hasRequiredDisplayFlags(flags: Int): Boolean {
+        val required = DISPLAY_FLAG_TRUSTED or DISPLAY_FLAG_OWN_FOCUS or DISPLAY_FLAG_STEAL_TOP_FOCUS_DISABLED
+        return flags and required == required
+    }
 
     private val MAIN_DISPLAY_ONLY_PACKAGES = setOf(
         "android",

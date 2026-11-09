@@ -50,7 +50,7 @@ internal object AgentContextAppToolCatalog {
             .put(
                 AgentToolSchema.function(
                     name = "launch_app",
-                    description = "启动一个已安装 Android 应用。优先提供 package_name；只有应用名时允许模糊匹配，匹配多个会返回候选而不会启动。",
+                    description = "启动一个已安装 Android 应用。优先提供 package_name；只有应用名时允许模糊匹配，匹配多个会返回候选而不会启动。ok=true 表示启动请求已提交；launch_status=window_observed 才表示已在目标画布观察到应用窗口，unconfirmed 时先 observe_screen 确认，不要直接重复启动。",
                     parameters = JSONObject()
                         .put("type", "object")
                         .put(

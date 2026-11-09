@@ -6,6 +6,7 @@ import android.graphics.Rect
 import android.os.Looper
 import android.provider.Settings
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import io.github.mangi.eta.agent.device.RootShellDeviceController
 import io.github.mangi.eta.core.AgentLogger
 import java.util.concurrent.Executors
@@ -42,9 +43,20 @@ class AccessibilityPlatformCompatibilityTest {
                 setBoundsInScreen(Rect(10, 10, 100, 80))
                 addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN)
             }
-            shadowOf(service).setRootInActiveWindow(root)
-            val observation = RootShellDeviceController(NoOpLogger, rootAvailable = { false })
-                .observe(includeScreenshot = true, includeUiTree = true, maxNodes = 60)
+            val window = AccessibilityWindowInfo.obtain().also {
+                shadowOf(it).setType(AccessibilityWindowInfo.TYPE_APPLICATION)
+                shadowOf(it).setRoot(root)
+            }
+            shadowOf(service).setWindowsOnDisplay(0, listOf(window))
+            val executor = Executors.newSingleThreadExecutor()
+            val observation = try {
+                executor.submit<RootShellDeviceController.Observation> {
+                    RootShellDeviceController(NoOpLogger, rootAvailable = { false })
+                        .observe(includeScreenshot = true, includeUiTree = true, maxNodes = 60)
+                }.get(3, TimeUnit.SECONDS)
+            } finally {
+                executor.shutdownNow()
+            }
             val json = JSONObject(observation.content)
             assertTrue(json.getBoolean("ok"))
             assertEquals("继续", json.getJSONArray("ui_nodes").getJSONObject(0).getString("text"))

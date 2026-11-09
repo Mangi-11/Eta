@@ -113,6 +113,10 @@ internal object VirtualDisplayCommandMain {
     }
 
     private fun holdVirtualDisplay(request: JSONObject, reader: BufferedReader) {
+        if (!CanvasRoutingPolicy.supportsBackgroundDisplay(android.os.Build.VERSION.SDK_INT)) {
+            println(RESULT_PREFIX + JSONObject().put("ok", false).put("code", "DISPLAY_ISOLATION_UNSUPPORTED"))
+            exitProcess(1)
+        }
         val userId = request.optInt("user_id", 0)
         val token = request.optString("surface_token")
         val width = request.optInt("width", 1080).coerceIn(320, 4096)
@@ -145,7 +149,13 @@ internal object VirtualDisplayCommandMain {
 
         retainedVirtualDisplay = virtualDisplay
         retainedSurface = surface
-        applyDisplayImePolicyHide(displayId)
+        if (!CanvasRoutingPolicy.hasRequiredDisplayFlags(virtualDisplay.display.flags) ||
+            !applyDisplayImePolicyHide(displayId)
+        ) {
+            releaseRetainedDisplay()
+            println(RESULT_PREFIX + JSONObject().put("ok", false).put("code", "DISPLAY_ISOLATION_UNAVAILABLE"))
+            exitProcess(1)
+        }
 
         println("$READY_PREFIX$displayId")
         System.out.flush()
@@ -209,7 +219,7 @@ internal object VirtualDisplayCommandMain {
             it.name == "getDisplayImePolicy" && it.parameterCount == 1
         }
         val actual = getPolicy?.invoke(wms, displayId) as? Int
-        actual == null || actual == CanvasRoutingPolicy.DISPLAY_IME_POLICY_HIDE
+        actual == CanvasRoutingPolicy.DISPLAY_IME_POLICY_HIDE
     }.getOrDefault(false)
 
     private fun acquireSurfaceFromApp(userId: Int, surfaceToken: String): Surface? {

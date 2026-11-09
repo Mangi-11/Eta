@@ -448,7 +448,8 @@ internal class AgentTraceFormatter {
     private fun summarizeLaunchAppResult(json: JSONObject): String {
         val appName = sanitizeSummaryValue(json.optString("app_name"))
         val virtual = json.optString("canvas") == "virtual"
-        val base = if (appName.isNotBlank()) "已打开 · $appName" else "已打开"
+        val action = if (json.optString("launch_status") == "unconfirmed") "已请求打开，待确认" else "已打开"
+        val base = if (appName.isNotBlank()) "$action · $appName" else action
         return if (virtual) "$base · 虚拟屏" else base
     }
 

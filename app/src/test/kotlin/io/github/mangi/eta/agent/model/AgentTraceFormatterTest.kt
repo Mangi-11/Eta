@@ -521,6 +521,18 @@ class AgentTraceFormatterTest {
     }
 
     @Test
+    fun unconfirmedLaunchDoesNotClaimTheAppHasOpened() {
+        val summary = formatter.summarizeResult(
+            "launch_app",
+            AgentModelClient.ToolResult(
+                content = """{"ok":true,"app_name":"示例应用","canvas":"virtual","launch_status":"unconfirmed"}""",
+            ),
+        )
+
+        assertEquals("已请求打开，待确认 · 示例应用 · 虚拟屏", summary)
+    }
+
+    @Test
     fun terminalResultShowsExitCodeAndOutputPreview() {
         val success = formatter.summarizeResult(
             "run_command",

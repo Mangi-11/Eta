@@ -7,6 +7,7 @@ import io.github.mangi.eta.agent.device.RootShellDeviceController
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.model.AgentScreenObservationContract
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
 import io.github.mangi.eta.agent.runtime.GuiControlCoordinator
 import io.github.mangi.eta.core.AgentLogger
 import java.util.concurrent.atomic.AtomicBoolean
@@ -14,6 +15,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -23,6 +25,42 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class AgentLocalToolsPermissionTest {
+    @Test
+    fun cancellationDuringObservationDoesNotPublishOrReturnALateSnapshot() {
+        lateinit var instance: AgentLocalTools
+        instance = tools(
+            screenObservationProvider = {
+                instance.close()
+                observation("late", true)
+            },
+        )
+        instance.use {
+            assertThrows(AgentRunCancelledException::class.java) {
+                it.execute(AgentModelClient.ToolCall("observe", "observe_screen", "{}"))
+            }
+        }
+    }
+
+    @Test
+    fun lostVirtualDisplayDoesNotSilentlyObserveOrOperateTheMainDisplay() {
+        tools(
+            screenObservationProvider = { error("虚拟屏已失效，不应把观察路由到主屏") },
+        ).use { tools ->
+            AgentLocalTools::class.java.getDeclaredField("activeDisplayId").apply {
+                isAccessible = true
+                setInt(tools, 11)
+            }
+            listOf(
+                "observe_screen" to "{}",
+                "press_key" to """{"button":"BACK"}""",
+            ).forEach { (name, arguments) ->
+                val result = JSONObject(tools.execute(AgentModelClient.ToolCall(name, name, arguments)).content)
+                assertFalse(result.getBoolean("ok"))
+                assertEquals("DISPLAY_UNAVAILABLE", result.getString("code"))
+            }
+        }
+    }
+
     @Test
     fun releaseAndUserTakeoverInvalidateBothNodesAndRawScreenCoordinates() {
         val coordinator = GuiControlCoordinator()

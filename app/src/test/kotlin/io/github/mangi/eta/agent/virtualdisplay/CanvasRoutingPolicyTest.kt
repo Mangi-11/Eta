@@ -106,12 +106,30 @@ class CanvasRoutingPolicyTest {
     }
 
     @Test
-    fun trustedInteractiveFlagsPreventImeFocusStealingAndRotationSurfaceReset() {
+    fun trustedInteractiveFlagsUsePlatformFocusBitsAndTheirPrerequisites() {
         val flags = CanvasRoutingPolicy.TRUSTED_INTERACTIVE_FLAGS
         assertTrue((flags and CanvasRoutingPolicy.FLAG_TRUSTED) != 0)
-        assertTrue((flags and CanvasRoutingPolicy.FLAG_STEAL_TOP_FOCUS_DISABLED) != 0)
-        assertFalse((flags and CanvasRoutingPolicy.FLAG_OWN_FOCUS) != 0)
+        assertTrue((flags and (1 shl 16)) != 0)
+        assertTrue((flags and (1 shl 14)) != 0)
+        assertFalse((flags and (1 shl 15)) != 0)
         assertFalse((flags and CanvasRoutingPolicy.FLAG_ROTATES_WITH_CONTENT) != 0)
         assertFalse((flags and CanvasRoutingPolicy.FLAG_DESTROY_CONTENT_ON_REMOVAL) != 0)
+    }
+
+    @Test
+    fun backgroundDisplayRequiresAndroid14FocusIsolation() {
+        assertFalse(CanvasRoutingPolicy.supportsBackgroundDisplay(33))
+        assertTrue(CanvasRoutingPolicy.supportsBackgroundDisplay(34))
+        assertTrue(CanvasRoutingPolicy.supportsBackgroundDisplay(37))
+    }
+
+    @Test
+    fun displayMustExposeAllIsolationFlagsAfterCreation() {
+        val platformDisplayFlags = (1 shl 7) or (1 shl 11) or (1 shl 12)
+        assertTrue(CanvasRoutingPolicy.hasRequiredDisplayFlags(platformDisplayFlags))
+        for (requiredBit in listOf(7, 11, 12)) {
+            assertFalse(CanvasRoutingPolicy.hasRequiredDisplayFlags(platformDisplayFlags and (1 shl requiredBit).inv()))
+        }
+        assertFalse(CanvasRoutingPolicy.hasRequiredDisplayFlags(CanvasRoutingPolicy.FLAG_TRUSTED))
     }
 }

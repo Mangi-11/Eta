@@ -97,6 +97,7 @@ internal object AgentPromptBuilder {
                     "调用节点工具时必须把该节点与同一次观察的 observation_id 一起传回，过期就重新观察；" +
                     "同一手机的 GUI 操作阶段由 Runtime 排队独占，完成阶段后调用 release_gui 主动释放，再继续不依赖屏幕的工作；" +
                     "launch_app 与 open_uri 默认使用智能画布分流（display=auto）：目标应用已在物理主屏前台时直接操作主屏，跨应用任务优先在后台虚拟屏静默执行（observe_screen 返回 canvas=virtual）；" +
+                    "launch_app 返回 launch_status=unconfirmed 时只说明请求已提交，先观察目标画布确认；DISPLAY_UNAVAILABLE 表示原虚拟屏已失效，需要重新启动目标应用，不能沿用旧坐标操作主屏；" +
                     "仅当用户明确要求直接把应用打开在眼前主屏时才设 display=main；在后台虚拟屏完成前置操作、到达付款确认/二维码/目标结果页，或遇到安全窗口需要用户本人接管时，调用 present_to_user 将画面无缝投射到物理主屏；" +
                     "释放或用户接管后旧观察与坐标失效，继续操作前必须重新 observe_screen；" +
                     "scroll 的方向表示要显示的内容方向，例如 down 显示下方内容；" +
