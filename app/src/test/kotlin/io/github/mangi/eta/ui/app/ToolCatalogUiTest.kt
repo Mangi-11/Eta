@@ -11,10 +11,13 @@ import io.github.mangi.eta.agent.tool.AgentToolCapabilities
 import io.github.mangi.eta.agent.tool.RootRequirement
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.overlay.toolDisplayNameResource
+import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.ui.components.iconForTool
 import io.github.mangi.eta.ui.model.projectToolGroups
 import io.github.mangi.eta.ui.model.toolCardRequirement
+import io.github.mangi.eta.ui.screens.mcp.collapseDescriptionPreview
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -101,5 +104,51 @@ class ToolCatalogUiTest {
             val requirement = toolCardRequirement(card.id)
             requirement.rootRequirement != RootRequirement.REQUIRED && !requirement.colorOs
         }, ordinaryCards)
+    }
+
+    @Test
+    fun disabledToolsAreOmittedFromModelCatalogAndPersistInPrefs() {
+        val context = RuntimeEnvironment.getApplication()
+        Prefs.initLocal(context)
+        Prefs.setToolsEnabled(listOf("read_sms_code", "tap_area"), false)
+        assertFalse(Prefs.isToolEnabled("read_sms_code"))
+        assertFalse(Prefs.isToolEnabled("tap"))
+        assertFalse(Prefs.isToolEnabled("tap_area"))
+        assertTrue(Prefs.isToolEnabled("list_alarms"))
+
+        val tools = AgentToolCatalog.build(
+            terminalTools = true,
+            browserTools = true,
+            deviceDirectTools = true,
+            deviceSensitiveReadTools = true,
+            deviceSensitiveActionTools = true,
+            capabilities = AgentToolCapabilities(rootAvailable = true, lsposedAvailable = true),
+            disabledTools = Prefs.disabledTools(),
+        )
+        val names = (0 until tools.length()).map {
+            tools.getJSONObject(it).getJSONObject("function").getString("name")
+        }.toSet()
+        assertFalse("read_sms_code" in names)
+        assertFalse("tap" in names)
+        assertFalse("tap_area" in names)
+        assertTrue("list_alarms" in names)
+        assertTrue("tap_element" in names)
+
+        Prefs.setToolsEnabled(listOf("read_sms_code", "tap_area"), true)
+        assertTrue(Prefs.isToolEnabled("read_sms_code"))
+        assertTrue(Prefs.isToolEnabled("tap"))
+    }
+
+    @Test
+    fun mcpDescriptionPreviewCollapsesHeadingsAndBulletLines() {
+        val raw = """
+            # Search Tool
+            - First capability
+            * Second capability
+        """.trimIndent()
+        assertEquals(
+            "Search Tool · First capability · Second capability",
+            collapseDescriptionPreview(raw),
+        )
     }
 }

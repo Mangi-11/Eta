@@ -1276,7 +1276,8 @@ internal class AgentAppState(
         if (
             !AgentFileReferencePolicy.canSend(
                 references = fileReferences,
-                terminalToolsEnabled = agentBooleanForUi(Prefs.Keys.AGENT_TERMINAL_TOOLS),
+                terminalToolsEnabled = agentBooleanForUi(Prefs.Keys.AGENT_TERMINAL_TOOLS) &&
+                    (Prefs.isToolEnabled("read_file") || Prefs.isToolEnabled("terminal")),
             )
         ) {
             Toast.makeText(
@@ -1343,7 +1344,8 @@ internal class AgentAppState(
         if (
             !AgentFileReferencePolicy.canSend(
                 references = fileReferences,
-                terminalToolsEnabled = agentBooleanForUi(Prefs.Keys.AGENT_TERMINAL_TOOLS),
+                terminalToolsEnabled = agentBooleanForUi(Prefs.Keys.AGENT_TERMINAL_TOOLS) &&
+                    (Prefs.isToolEnabled("read_file") || Prefs.isToolEnabled("terminal")),
             )
         ) {
             Toast.makeText(

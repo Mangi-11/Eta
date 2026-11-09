@@ -221,12 +221,17 @@ internal fun CouiSwitchPreference(
     val colors = CouiPageDefaults.themeColors(dark)
     val view = LocalView.current
     val source = remember { MutableInteractionSource() }
+    var optimisticChecked by remember(checked) { mutableStateOf(checked) }
+    val commitChange: (Boolean) -> Unit = { target ->
+        optimisticChecked = target
+        onCheckedChange(target)
+    }
     CouiPreferenceRow(
         modifier = modifier
             .couiButtonFeedback(dark, source, enabled && !loading, list = true)
-            .toggleable(checked, source, null, enabled && !loading, Role.Switch) { target ->
+            .toggleable(optimisticChecked, source, null, enabled && !loading, Role.Switch) { target ->
                 view.performCouiHapticFeedback(CouiHapticFeedback.Switch, hapticFeedbackEnabled)
-                onCheckedChange(target)
+                commitChange(target)
             },
         title = title,
         summary = summary,
@@ -235,13 +240,13 @@ internal fun CouiSwitchPreference(
     ) {
         Switch(
             modifier = Modifier.padding(start = 16.dp),
-            checked = checked,
+            checked = optimisticChecked,
             onCheckedChange = null,
             dark = dark,
             colors = CouiSwitchDefaults.colors(colors.accent, dark),
             enabled = enabled,
             interactionSource = source,
-            onDragCheckedChange = onCheckedChange,
+            onDragCheckedChange = commitChange,
             loading = loading,
             loadingDescription = loadingDescription,
             hapticFeedbackEnabled = hapticFeedbackEnabled,

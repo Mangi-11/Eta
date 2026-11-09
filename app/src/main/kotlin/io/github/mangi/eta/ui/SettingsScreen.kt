@@ -454,15 +454,6 @@ private fun SettingsPageContent(
                         onClick = { onNavigate(AppRoute.Tools) },
                     )
                     CouiIconDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = agentPrefs,
-                        title = stringResource(R.string.ui_enable_web_browsing_tools_8b6b03),
-                        key = Prefs.Keys.AGENT_BROWSER_TOOLS,
-                        icon = Icons.Rounded.Language,
-                        iconTint = SettingsIconColors.Blue,
-                    )
-                    CouiIconDivider()
                     CouiPreference(
                         title = stringResource(R.string.web_tools_settings_title),
                         icon = {
@@ -481,42 +472,6 @@ private fun SettingsPageContent(
                         key = Prefs.Keys.AGENT_VIRTUAL_DISPLAY_ENABLED,
                         icon = Icons.Rounded.Layers,
                         iconTint = SettingsIconColors.Blue,
-                    )
-                    CouiIconDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = agentPrefs,
-                        title = stringResource(R.string.ui_enable_device_direct_tools_e2d595),
-                        key = Prefs.Keys.AGENT_DEVICE_DIRECT_TOOLS,
-                        icon = Icons.Rounded.Smartphone,
-                        iconTint = SettingsIconColors.Green,
-                    )
-                    CouiIconDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = agentPrefs,
-                        title = stringResource(R.string.ui_allow_reading_of_sensitive_device_information_feaec0),
-                        key = Prefs.Keys.AGENT_DEVICE_SENSITIVE_READ_TOOLS,
-                        icon = Icons.Rounded.Visibility,
-                        iconTint = SettingsIconColors.Blue,
-                    )
-                    CouiIconDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = agentPrefs,
-                        title = stringResource(R.string.ui_allow_sensitive_device_operation_3d42ea),
-                        key = Prefs.Keys.AGENT_DEVICE_SENSITIVE_ACTION_TOOLS,
-                        icon = Icons.Rounded.GppMaybe,
-                        iconTint = SettingsIconColors.Orange,
-                    )
-                    CouiIconDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = agentPrefs,
-                        title = stringResource(R.string.ui_enable_terminal_file_tools_18bb43),
-                        key = Prefs.Keys.AGENT_TERMINAL_TOOLS,
-                        icon = Icons.Rounded.Terminal,
-                        iconTint = SettingsIconColors.Green,
                     )
                     CouiIconDivider()
                     CouiPreference(
@@ -922,14 +877,6 @@ private fun SettingsPageContent(
                             startAction = { SettingsIcon(Icons.Rounded.Dashboard, tint = SettingsIconColors.Green) },
                             onClick = { onNavigate(AppRoute.Tools) },
                         )
-                        SwitchPref(
-                            context = context,
-                            prefs = agentPrefs,
-                            title = stringResource(R.string.ui_enable_web_browsing_tools_8b6b03),
-                            key = Prefs.Keys.AGENT_BROWSER_TOOLS,
-                            icon = Icons.Rounded.Language,
-                            iconTint = SettingsIconColors.Blue,
-                        )
                         ArrowPreference(
                             title = stringResource(R.string.web_tools_settings_title),
                             startAction = {
@@ -947,38 +894,6 @@ private fun SettingsPageContent(
                             key = Prefs.Keys.AGENT_VIRTUAL_DISPLAY_ENABLED,
                             icon = Icons.Rounded.Layers,
                             iconTint = SettingsIconColors.Blue,
-                        )
-                        SwitchPref(
-                            context = context,
-                            prefs = agentPrefs,
-                            title = stringResource(R.string.ui_enable_device_direct_tools_e2d595),
-                            key = Prefs.Keys.AGENT_DEVICE_DIRECT_TOOLS,
-                            icon = Icons.Rounded.Smartphone,
-                            iconTint = SettingsIconColors.Green,
-                        )
-                        SwitchPref(
-                            context = context,
-                            prefs = agentPrefs,
-                            title = stringResource(R.string.ui_allow_reading_of_sensitive_device_information_feaec0),
-                            key = Prefs.Keys.AGENT_DEVICE_SENSITIVE_READ_TOOLS,
-                            icon = Icons.Rounded.Visibility,
-                            iconTint = SettingsIconColors.Blue,
-                        )
-                        SwitchPref(
-                            context = context,
-                            prefs = agentPrefs,
-                            title = stringResource(R.string.ui_allow_sensitive_device_operation_3d42ea),
-                            key = Prefs.Keys.AGENT_DEVICE_SENSITIVE_ACTION_TOOLS,
-                            icon = Icons.Rounded.GppMaybe,
-                            iconTint = SettingsIconColors.Orange,
-                        )
-                        SwitchPref(
-                            context = context,
-                            prefs = agentPrefs,
-                            title = stringResource(R.string.ui_enable_terminal_file_tools_18bb43),
-                            key = Prefs.Keys.AGENT_TERMINAL_TOOLS,
-                            icon = Icons.Rounded.Terminal,
-                            iconTint = SettingsIconColors.Green,
                         )
                         ArrowPreference(
                             title = stringResource(R.string.ui_linux_tool_environment_314d22),

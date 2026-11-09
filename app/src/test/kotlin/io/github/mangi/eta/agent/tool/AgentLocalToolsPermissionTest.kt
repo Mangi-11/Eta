@@ -431,6 +431,30 @@ class AgentLocalToolsPermissionTest {
         tools.close()
     }
 
+    @Test
+    fun disabledIndividualToolReturnsToolDisabledErrorCode() {
+        val tools = AgentLocalTools(
+            context = RuntimeEnvironment.getApplication() as Context,
+            logger = NoOpLogger,
+            browserRunId = "test-run",
+            rootAvailable = { true },
+            deviceSensitiveReadToolsEnabled = { true },
+            isToolEnabled = { it != "read_sms_code" },
+        )
+        val result = tools.execute(
+            AgentModelClient.ToolCall(
+                id = "call-disabled",
+                name = "read_sms_code",
+                argumentsJson = "{}",
+            ),
+        )
+        val json = JSONObject(result.content)
+        assertFalse(json.getBoolean("ok"))
+        assertEquals("TOOL_DISABLED", json.getString("code"))
+        assertTrue(result.sensitive)
+        tools.close()
+    }
+
     private fun tools(
         terminalEnabled: () -> Boolean = { false },
         browserEnabled: () -> Boolean = { false },

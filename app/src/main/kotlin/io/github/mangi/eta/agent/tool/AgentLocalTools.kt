@@ -110,6 +110,9 @@ internal class AgentLocalTools(
     private val virtualDisplayEnabled: () -> Boolean = {
         Prefs.isEnabled(Prefs.Keys.AGENT_VIRTUAL_DISPLAY_ENABLED)
     },
+    private val isToolEnabled: (String) -> Boolean = {
+        Prefs.isToolEnabled(it)
+    },
     private val lsposedAvailable: () -> Boolean = { EtaApp.serviceInstance != null },
     private val guiControl: GuiControlCoordinator.RunControl? = null,
     browserSession: AgentBrowserSession? = null,
@@ -199,6 +202,12 @@ internal class AgentLocalTools(
                 AgentToolRequirements.rootDenied(toolCall.name, args, rootAvailable())
             ) {
                 return@runCatching textResult(errorResult("ROOT_REQUIRED", "此操作需要 Root 授权，本次未执行"))
+            }
+            if (!isToolEnabled(toolCall.name)) {
+                return@runCatching AgentModelClient.ToolResult(
+                    content = errorResult("TOOL_DISABLED", "工具 ${toolCall.name} 已在工具列表中关闭，本次未执行"),
+                    sensitive = AgentSensitiveToolPolicy.isSensitive(toolCall.name),
+                )
             }
             deviceToolPermissionError(toolCall.name)?.let { return@runCatching it }
             memoryToolPermissionError(toolCall.name)?.let { return@runCatching it }
@@ -326,6 +335,9 @@ internal class AgentLocalTools(
     private fun executeForegroundIntent(toolName: String, action: () -> JSONObject): JSONObject {
         fun execute(): JSONObject {
             if (closed.get()) throw AgentRunCancelledException()
+            if (!isToolEnabled(toolName)) {
+                return JSONObject(errorResult("TOOL_DISABLED", "工具 $toolName 已在工具列表中关闭，本次未执行"))
+            }
             deviceToolPermissionError(toolName)?.let { return JSONObject(it.content) }
             return when (val decision = beforeToolExecution(toolName)) {
                 ToolExecutionDecision.Allow -> {

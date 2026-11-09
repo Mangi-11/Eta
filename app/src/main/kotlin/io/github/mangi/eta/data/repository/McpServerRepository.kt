@@ -48,19 +48,23 @@ internal object McpServerRepository {
 
     suspend fun update(server: McpServerSetting, bearerToken: String? = null) {
         val previous = requireNotNull(serverById(server.id)) { "MCP 服务器不存在" }
-        val secretStore = secrets()
-        val previousToken = secretStore.bearerToken(server.id)
-        val changesSecret = bearerToken != null || server.authorizationType == McpAuthorizationType.NONE
+        val changesSecret = bearerToken != null ||
+            (previous.authorizationType != McpAuthorizationType.NONE &&
+                server.authorizationType == McpAuthorizationType.NONE)
+        val secretStore = if (changesSecret) secrets() else null
+        val previousToken = secretStore?.bearerToken(server.id)
         val updated = if (bearerToken != null) {
             server.copy(lastProtocolVersion = null, toolsExpireAt = null)
         } else {
             server
         }
-        if (changesSecret) updateSecret(secretStore, updated, bearerToken.orEmpty())
+        if (changesSecret && secretStore != null) {
+            updateSecret(secretStore, updated, bearerToken.orEmpty())
+        }
         try {
             require(dao().update(updated.toEntity()) == 1) { "MCP 服务器不存在" }
         } catch (failure: Throwable) {
-            if (changesSecret) runCatching {
+            if (changesSecret && secretStore != null) runCatching {
                 updateSecret(secretStore, previous, previousToken.orEmpty())
             }
             throw failure
@@ -72,6 +76,21 @@ internal object McpServerRepository {
         val names = server.enabledToolNames.toMutableSet()
         if (enabled) names += toolName else names -= toolName
         update(server.copy(enabledToolNames = names))
+    }
+
+    suspend fun setAllToolsEnabled(serverId: String, enabled: Boolean) {
+        val server = requireNotNull(serverById(serverId)) { "MCP 服务器不存在" }
+        val names = if (enabled) server.tools.mapTo(linkedSetOf()) { it.name } else emptySet()
+        update(server.copy(enabledToolNames = names))
+    }
+
+    suspend fun setAllServersToolsEnabled(enabled: Boolean) {
+        servers().forEach { server ->
+            val names = if (enabled) server.tools.mapTo(linkedSetOf()) { it.name } else emptySet()
+            if (names != server.enabledToolNames) {
+                update(server.copy(enabledToolNames = names))
+            }
+        }
     }
 
     suspend fun delete(serverId: String) {
