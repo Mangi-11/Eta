@@ -314,6 +314,22 @@ class AgentAppStateConversationLoadingTest {
 
     @Test
     fun branchOpensIndependentConversationOnceAndPreservesDraftAndUniqueTitles() {
+        assertBranchPreservesDraftAndUniqueTitles("source · Branch")
+    }
+
+    @Test
+    @Config(qualifiers = "b+zh+Hans")
+    fun simplifiedChineseBranchPreservesDraftAndUniqueTitles() {
+        assertBranchPreservesDraftAndUniqueTitles("source · 分支")
+    }
+
+    @Test
+    @Config(qualifiers = "b+zh+Hant")
+    fun traditionalChineseBranchPreservesDraftAndUniqueTitles() {
+        assertBranchPreservesDraftAndUniqueTitles("source · 分支")
+    }
+
+    private fun assertBranchPreservesDraftAndUniqueTitles(expectedTitle: String) {
         seed("source" to branchSource())
         val state = AgentAppState(context, scope)
         state.branchConversation("source", "assistant-source-1-0", "未发送的草稿")
@@ -321,7 +337,7 @@ class AgentAppStateConversationLoadingTest {
         awaitCondition { state.conversationPaneState.conversations.size == 2 && !state.isBranchingCurrentConversation }
         val firstBranch = state.conversationPaneState.conversations.single { it.id != "source" }
         awaitLoaded(state, firstBranch.id)
-        assertEquals("source · 分支", firstBranch.title)
+        assertEquals(expectedTitle, firstBranch.title)
         assertEquals("", state.homeState.input)
         assertEquals(4, state.homeState.messages.size)
         assertFalse(state.homeState.isStreaming)
@@ -334,7 +350,7 @@ class AgentAppStateConversationLoadingTest {
         state.branchConversation("source", "assistant-source-0-0", state.homeState.input)
         awaitCondition { state.conversationPaneState.conversations.size == 3 && !state.isBranchingCurrentConversation }
         val secondBranch = state.conversationPaneState.conversations.single { it.id != "source" && it.id != firstBranch.id }
-        assertEquals("source · 分支 2", secondBranch.title)
+        assertEquals("$expectedTitle 2", secondBranch.title)
         awaitLoaded(state, secondBranch.id)
         assertEquals(2, state.homeState.messages.size)
     }
