@@ -20,11 +20,11 @@ class RemoteModelFetcherTest {
             """{"data":[
               {"id":"display-key","model":"actual-model","name":"显示名称","context_window":131072,
                "baseUrl":"https://untrusted.example","apiKey":"secret","extraHeaders":{"Authorization":"secret"}},
-              {"modelId":"second-model","api_backend":"chat_completions"},
+              {"modelId":"second-model","api_backend":"responses"},
               {"_meta":{"model":"meta-model","contextWindow":256000}},
               {"id":"hidden-top","hidden":true},
               {"id":"hidden-meta","_meta":{"hidden":true}},
-              {"id":"responses-model","apiBackend":"responses"},
+              {"id":"chat-model","apiBackend":"chat_completions"},
               {"id":"messages-model","api_backend":"messages"}
             ]}"""
         ) { skipped = it }
@@ -36,15 +36,16 @@ class RemoteModelFetcherTest {
     }
 
     @Test
-    fun grokCatalogKeepsDefaultChatModelsAndDistinguishesIncompatibleFromEmpty() {
+    fun grokCatalogUsesResponsesAndDistinguishesIncompatibleFromEmpty() {
         val models = RemoteModelFetcher.parseGrokModels(
             """{"object":"list","data":[
               {"id":"grok-build","object":"model","owned_by":"xai","context_length":131072},
-              {"id":"grok-explicit-chat","apiBackend":"chat_completions"}
+              {"id":"grok-explicit-responses","apiBackend":"responses"},
+              {"id":"grok-default","api_backend":null}
             ]}"""
         )
-        assertEquals(2, models.size)
-        for (backend in listOf("responses", "messages", "unknown")) {
+        assertEquals(3, models.size)
+        for (backend in listOf("chat_completions", "messages", "unknown")) {
             val error = assertThrows(IllegalArgumentException::class.java) {
                 RemoteModelFetcher.parseGrokModels("""{"data":[{"id":"model","apiBackend":"$backend"}]}""")
             }
@@ -53,6 +54,15 @@ class RemoteModelFetcherTest {
         assertTrue(RemoteModelFetcher.parseGrokModels("""{"data":[]}""").isEmpty())
         assertTrue(RemoteModelFetcher.parseGrokModels("""{"data":[{"id":"hidden","hidden":true}]}""").isEmpty())
         assertTrue(runCatching { RemoteModelFetcher.parseGrokModels("""{"models":[]}""") }.isFailure)
+    }
+
+    @Test
+    fun grokCatalogDoesNotInterpretMalformedProtocolDeclarationsAsDefaults() {
+        for (backend in listOf("42", "true", "{}", "[]", "[\"responses\"]")) {
+            assertThrows(IllegalArgumentException::class.java) {
+                RemoteModelFetcher.parseGrokModels("""{"data":[{"id":"model","api_backend":$backend}]}""")
+            }
+        }
     }
 
     @Test

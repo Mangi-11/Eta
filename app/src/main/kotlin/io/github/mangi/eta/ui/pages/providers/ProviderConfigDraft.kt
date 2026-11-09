@@ -35,23 +35,26 @@ internal data class ProviderConfigDraft(
     val authMode: String = ProviderAuthModes.API_KEY,
 ) {
     companion object {
-        fun from(provider: ProviderSetting): ProviderConfigDraft = ProviderConfigDraft(
-            headers = provider.customHeaders.map { ProviderHeaderDraft(header = it) },
-            name = provider.name,
-            baseUrl = provider.baseUrl,
-            apiKey = provider.apiKey,
-            authMode = provider.authMode,
-            systemPrompt = provider.systemPrompt.orEmpty(),
-            isEnabled = provider.isEnabled,
-            endpointMode = when (provider) {
-                is OpenAiCompatibleProviderSetting -> provider.endpointMode
-                is CustomProviderSetting -> provider.endpointMode
-                is AnthropicProviderSetting, is GeminiProviderSetting -> ""
-            },
-            hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
-            anthropicVersion = (provider as? AnthropicProviderSetting)?.anthropicVersion
-                ?: AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION,
-        )
+        fun from(provider: ProviderSetting): ProviderConfigDraft {
+            val profile = ProviderConnectionProfile.forAuthMode(provider.authMode)
+            return ProviderConfigDraft(
+                headers = provider.customHeaders.map { ProviderHeaderDraft(header = it) },
+                name = provider.name,
+                baseUrl = profile?.baseUrl ?: provider.baseUrl,
+                apiKey = provider.apiKey,
+                authMode = provider.authMode,
+                systemPrompt = provider.systemPrompt.orEmpty(),
+                isEnabled = provider.isEnabled,
+                endpointMode = profile?.endpointMode ?: when (provider) {
+                    is OpenAiCompatibleProviderSetting -> provider.endpointMode
+                    is CustomProviderSetting -> provider.endpointMode
+                    is AnthropicProviderSetting, is GeminiProviderSetting -> ""
+                },
+                hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
+                anthropicVersion = (provider as? AnthropicProviderSetting)?.anthropicVersion
+                    ?: AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION,
+            )
+        }
     }
 }
 

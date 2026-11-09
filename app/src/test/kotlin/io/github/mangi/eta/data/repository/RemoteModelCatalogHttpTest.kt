@@ -72,18 +72,19 @@ class RemoteModelCatalogHttpTest {
         val credentials = FixtureCredentials(provider.id, provider.authMode)
         val targets = mutableListOf<String>()
         withServer(listOf(200 to """{"object":"list","data":[
-          {"id":"display-key","model":"grok-chat","name":"Grok Chat","context_window":256000,
+          {"id":"display-key","model":"grok-responses","name":"Grok","context_window":256000,"api_backend":"responses",
            "capabilities":{"reasoning_effort":["low","high"],"default_reasoning_effort":"high"}},
-          {"modelId":"grok-explicit-chat","apiBackend":"chat_completions"},
+          {"modelId":"grok-explicit-responses","apiBackend":"responses"},
           {"id":"hidden","hidden":true},
           {"id":"grok-imagine-image","output_modalities":["image"]}
         ]}""")) { url, seen ->
             val result = RemoteModelFetcher.fetchCatalog(provider, redirectedClient(url, targets), credentials).getOrThrow()
-            assertEquals(listOf("grok-chat", "grok-explicit-chat"), result.models.map { it.modelId })
+            assertEquals(listOf("grok-responses", "grok-explicit-responses"), result.models.map { it.modelId })
             assertEquals(256000, result.models.first().contextWindow)
             assertEquals(ReasoningEffort.HIGH, result.models.first().reasoningCapabilities!!.defaultEffort)
             assertEquals("Bearer fixture-old", seen.single().authorization)
             assertEquals("xai-grok-cli", seen.single().tokenAuth)
+            assertEquals("1.0.77", seen.single().clientVersion)
             assertEquals("application/json", seen.single().accept)
             assertEquals(listOf(ProviderConnectionProfile.XAI_GROK.modelsUrl), targets)
         }
@@ -138,6 +139,7 @@ class RemoteModelCatalogHttpTest {
 
     private data class SeenRequest(
         val authorization: String?, val tokenAuth: String?, val accept: String?, val accountId: String?, val originator: String?,
+        val clientVersion: String?,
     )
 
     private suspend fun withServer(
@@ -154,6 +156,7 @@ class RemoteModelCatalogHttpTest {
                 exchange.requestHeaders.getFirst("Accept"),
                 exchange.requestHeaders.getFirst("ChatGPT-Account-Id"),
                 exchange.requestHeaders.getFirst("originator"),
+                exchange.requestHeaders.getFirst("x-grok-client-version"),
             )
             val (status, body) = responses[calls.getAndIncrement().coerceAtMost(responses.lastIndex)]
             val bytes = body.toByteArray(Charsets.UTF_8)

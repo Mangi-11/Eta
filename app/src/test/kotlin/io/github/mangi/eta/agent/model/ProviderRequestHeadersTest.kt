@@ -22,7 +22,7 @@ class ProviderRequestHeadersTest {
     }
 
     @Test
-    fun grokSubscriptionUsesManagedRoutingWithoutPretendingToBeAClientVersion() {
+    fun grokSubscriptionDeclaresProtocolVersionAndManagedModelRouting() {
         val builder = Headers.Builder()
         ProviderRequestHeaders.mergeInto(
             builder, "https://cli-chat-proxy.grok.com/v1", emptyList(),
@@ -32,12 +32,37 @@ class ProviderRequestHeadersTest {
         assertEquals("xai-grok-cli", headers["X-XAI-Token-Auth"])
         assertEquals("grok-fixture", headers["x-grok-model-override"])
         assertEquals("Eta", headers["User-Agent"])
-        assertNull(headers["x-grok-client-version"])
+        assertEquals("1.0.77", headers["x-grok-client-version"])
+    }
+
+    @Test
+    fun grokCatalogUsesVersionHeaderWithoutAModelOverride() {
+        val builder = Headers.Builder()
+        ProviderRequestHeaders.mergeInto(
+            builder, "https://cli-chat-proxy.grok.com/v1", emptyList(),
+            authMode = ProviderAuthModes.XAI_GROK,
+        )
+        assertEquals("1.0.77", builder.build()["x-grok-client-version"])
+        assertNull(builder.build()["x-grok-model-override"])
+    }
+
+    @Test
+    fun grokRoutingHeadersAreNotAddedToApiKeyOrCodexConnections() {
+        for (mode in listOf(ProviderAuthModes.API_KEY, ProviderAuthModes.OPENAI_CHATGPT)) {
+            val builder = Headers.Builder()
+            ProviderRequestHeaders.mergeInto(
+                builder, "https://api.x.ai/v1", emptyList(), authMode = mode, model = "fixture",
+            )
+            val headers = builder.build()
+            assertNull(headers["x-grok-client-version"])
+            assertNull(headers["x-grok-model-override"])
+            assertNull(headers["X-XAI-Token-Auth"])
+        }
     }
 
     @Test
     fun subscriptionRejectsCustomAuthenticationAndRoutingHeaders() {
-        listOf("Authorization", "Cookie", "X-Grok-Model-Override", "OpenAI-Project", "ChatGPT-Account-ID", "Originator", "Session-Id").forEach { name ->
+        listOf("Authorization", "Cookie", "X-Grok-Client-Version", "X-Grok-Model-Override", "OpenAI-Project", "ChatGPT-Account-ID", "Originator", "Session-Id").forEach { name ->
             val failure = runCatching {
                 ProviderRequestHeaders.mergeInto(
                     Headers.Builder(), "https://api.openai.com/v1", listOf(CustomHeader(name, "secret-fixture")),

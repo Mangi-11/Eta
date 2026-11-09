@@ -24,7 +24,7 @@ internal enum class ProviderConnectionProfile(
     XAI_GROK(
         ProviderAuthModes.XAI_GROK,
         "https://cli-chat-proxy.grok.com/v1",
-        OpenAiEndpointMode.CHAT_COMPLETIONS,
+        OpenAiEndpointMode.RESPONSES,
         ProviderSourceTypes.XAI,
     );
 

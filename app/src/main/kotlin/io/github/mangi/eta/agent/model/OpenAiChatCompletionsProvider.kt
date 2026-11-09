@@ -3,7 +3,6 @@ package io.github.mangi.eta.agent.model
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
-import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.provider.ProviderSourceRegistry
 import java.util.UUID
@@ -116,19 +115,6 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
                 mergeExtraBody(request, config.extraBodyJson)
                 RequestBodyMerge.mergeCustomBody(request, config.customBody)
                 ProviderReasoning.applyOpenAiCompatibleRequest(request, config)
-                if (config.authMode == ProviderAuthModes.XAI_GROK) {
-                    // 代理按请求头路由模型，正文必须与同一配置一致，并保持订阅所需的流式调用。
-                    request.put("model", config.model)
-                    request.put("stream", true)
-                    request.put("messages", OpenAiRequestMessages.forChatCompletions(messages))
-                    if (tools.length() > 0) {
-                        request.put("tools", tools)
-                        request.put("tool_choice", "auto")
-                    } else {
-                        request.remove("tools")
-                        request.remove("tool_choice")
-                    }
-                }
             }
     }
 

@@ -103,11 +103,13 @@ OAuth 凭据由主进程的 `ProviderCredentialRepository` 管理，以 Android 
 
 模型推理和远端目录请求在发送前获取有效凭据；同账号并发刷新只执行一次，刷新结果整体保存，登录与注销代次防止迟到结果覆盖当前会话。临时网络错误保留凭据，确定失效后要求重新登录。HTTP 401 仅在响应流消费前允许刷新一次；此恢复不重放模型流或工具。订阅请求禁止重定向，认证及模型路由 Header 不能被自定义请求头覆盖。Codex 退出登录清除本机令牌；Grok 同时尝试撤销远端授权。
 
-Codex 复用 Responses 编解码，使用扁平函数工具、`store: false` 与流式响应，并在后续轮次回传加密推理项。请求发送至 `https://chatgpt.com/backend-api/codex/responses`，工作区 Header 与 Bearer 从同一份令牌获取；刷新后不接受工作区变化。不支持的自定义参数在请求前明确拒绝。Grok 使用订阅代理的 Chat Completions 流。授权说明参见 [Codex 账号认证](https://developers.openai.com/codex/auth/)与 [xAI 身份认证](https://docs.x.ai/build/enterprise)。
+Codex 与 Grok 订阅复用 Responses 编解码，使用扁平函数工具、`store: false` 与流式响应，显式请求 `reasoning.encrypted_content`，并在同一次 run 的后续轮次回传完整输出项。Codex 请求发送至 `https://chatgpt.com/backend-api/codex/responses`，工作区 Header 与 Bearer 从同一份令牌获取；刷新后不接受工作区变化，不支持的自定义参数在请求前明确拒绝。授权说明参见 [Codex 账号认证](https://developers.openai.com/codex/auth/)与 [xAI 身份认证](https://docs.x.ai/build/enterprise)。
+
+Grok 订阅固定使用 `https://cli-chat-proxy.grok.com/v1/responses`；目录、Runtime 和设置草稿共同读取 `ProviderConnectionProfile`，已有订阅配置中保存的旧协议不改变实际路由。目录与推理请求均携带 `ProviderRequestHeaders` 管理的兼容版本，推理请求的 `x-grok-model-override` 与正文模型保持一致，客户端身份保留 `User-Agent: Eta`。xAI API Key 连接仍使用用户配置的地址和协议，不附加订阅路由头。共享工具目录与执行合同保持原样。仅 Grok 订阅在发送副本中展开根部只有 `required` 的联合分支，使其携带外层对象字段和约束，保留 `oneOf` / `anyOf`；已有完整分支或包含引用的 schema 不做推测性改写。其他 Provider 不执行该投影，工具声明与缓存前缀保持原有生成方式。参数规则参见 [xAI 函数调用](https://docs.x.ai/developers/tools/function-calling#parameter-schema)。
 
 OpenAI 初始预设仅包含 GPT-6.1 Sol、GPT-6 Luna 和 GPT-6 Astra，用于尚未同步的连接。Codex 从 `/backend-api/codex/models` 拉取账号目录，查询参数 `client_version` 使用 Eta 的发行版本；解析远端 `slug`、`display_name`、可见性、输入模态、上下文窗口和推理档位，不用公共 API 预设补齐或筛选账号模型。Grok 从订阅代理拉取目录。登录成功后自动同步完整账号目录，模型页手动刷新使用同一路径；成功同步后以远端结果为准，失败保留已有配置。模型列表与默认选择由持久化配置驱动，登录状态不隐藏模型或切换到其他连接；未登录、凭据失效及额度不足在请求时报告。
 
-目录结果携带连接配置快照和非敏感的登录代次，读取结束及同步提交前均校验，模型页离开时取消读取。同步时匹配模型保留本地 ID 和用户覆盖值，自动模型标记为远端来源，并清理远端已移除的自动模型；手动配置保留。预设更新只清理旧预设并补入尚未同步连接的新预设，不覆盖远端模型，也不在保存空连接时重新填充。Grok 目录按实际推理标识、隐藏字段与明确声明的推理档位解释，不接受其中的地址或凭据覆盖；仅列入当前订阅连接采用的 Chat Completions 路由，全部可见模型声明其他协议时明确报错，不把协议不兼容当作空目录。
+目录结果携带连接配置快照和非敏感的登录代次，读取结束及同步提交前均校验，模型页离开时取消读取。同步时匹配模型保留本地 ID 和用户覆盖值，自动模型标记为远端来源，并清理远端已移除的自动模型；手动配置保留。预设更新只清理旧预设并补入尚未同步连接的新预设，不覆盖远端模型，也不在保存空连接时重新填充。Grok 目录按实际推理标识、隐藏字段与明确声明的推理档位解释，不接受其中的地址或凭据覆盖；协议筛选与订阅连接共用同一配置，接受 `apiBackend` / `api_backend` 声明的 Responses 模型，缺省或 null 沿用连接协议。全部可见模型声明其他协议时明确报错，不把协议不兼容当作空目录。
 
 提供商目录从固定的 `models.dev/api.json` 读取公开元数据，应用内另有随 APK 打包的压缩快照；在线目录通过大小限制、协议和 HTTPS 地址校验后原子缓存，读取失败时使用缓存或快照。目录只列出 Eta 可按 Chat Completions 接入且具有文本输出与工具调用能力的候选模型；读取目录不发送已保存的 API Key。用户选择模型并核对完整 Base URL 后，导入为默认停用、无 API Key 的自定义提供商；后续密钥由用户为该地址填写，已保存的模型和当前选择不随目录刷新改写。
 

@@ -31,29 +31,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
         onEvent: (ProviderEvent) -> Unit,
     ): ProviderResponse {
         val config = request.effectiveConfig
-        require(config.openAiEndpointMode == OpenAiEndpointMode.RESPONSES) {
-            "当前 Provider 未配置为 Responses API"
-        }
-        val body = buildRequestJson(config, request.messages, request.effectiveTools)
-            .toString()
-            .toRequestBody(JSON_MEDIA_TYPE)
-        val headers = okhttp3.Headers.Builder()
-            .add("Content-Type", "application/json; charset=utf-8")
-            .add("Accept", "text/event-stream")
-            .apply {
-                if (config.apiKey.isNotBlank()) add("Authorization", "Bearer ${config.apiKey}")
-            }
-            .also {
-                ProviderRequestHeaders.mergeInto(
-                    it, config.baseUrl, config.customHeaders, request.sessionId, config.authMode,
-                )
-            }
-            .build()
-        val httpRequest = Request.Builder()
-            .url(ProviderUrls.openAiResponsesUrl(config.baseUrl))
-            .headers(headers)
-            .post(body)
-            .build()
+        val httpRequest = buildHttpRequest(request)
         runController.throwIfCancelled()
         onEvent(ProviderEvent.RequestStarted)
         return AuthorizedProviderHttp.execute(
@@ -75,6 +53,33 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
             onEvent(ProviderEvent.Completed(assistant.optString("finish_reason").ifBlank { null }))
             ProviderResponse(assistant)
         }
+    }
+
+    internal fun buildHttpRequest(request: ProviderRequest): Request {
+        val config = request.effectiveConfig
+        require(config.openAiEndpointMode == OpenAiEndpointMode.RESPONSES) {
+            "当前 Provider 未配置为 Responses API"
+        }
+        val body = buildRequestJson(config, request.messages, request.effectiveTools)
+            .toString()
+            .toRequestBody(JSON_MEDIA_TYPE)
+        val headers = okhttp3.Headers.Builder()
+            .add("Content-Type", "application/json; charset=utf-8")
+            .add("Accept", "text/event-stream")
+            .apply {
+                if (config.apiKey.isNotBlank()) add("Authorization", "Bearer ${config.apiKey}")
+            }
+            .also {
+                ProviderRequestHeaders.mergeInto(
+                    it, config.baseUrl, config.customHeaders, request.sessionId, config.authMode, config.model,
+                )
+            }
+            .build()
+        return Request.Builder()
+            .url(ProviderUrls.openAiResponsesUrl(config.baseUrl))
+            .headers(headers)
+            .post(body)
+            .build()
     }
 
     internal fun buildRequestJson(

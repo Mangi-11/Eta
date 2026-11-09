@@ -9,6 +9,9 @@ import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 internal object ProviderRequestHeaders {
+    // 订阅代理以此校验协议兼容版本，不能使用 Eta 的应用版本；客户端身份仍由 User-Agent 表达。
+    private const val GROK_PROTOCOL_VERSION = "1.0.77"
+
     fun mergeInto(
         builder: Headers.Builder,
         baseUrl: String,
@@ -27,6 +30,7 @@ internal object ProviderRequestHeaders {
         CustomHeaderFilter.mergeInto(builder, customHeaders)
         if (profile == ProviderConnectionProfile.XAI_GROK) {
             builder.set("X-XAI-Token-Auth", "xai-grok-cli")
+            builder.set("x-grok-client-version", GROK_PROTOCOL_VERSION)
             model?.let { builder.set("x-grok-model-override", it) }
         }
         if (profile == ProviderConnectionProfile.OPENAI_CODEX) {

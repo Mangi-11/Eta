@@ -4,6 +4,7 @@ import androidx.compose.runtime.saveable.SaverScope
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.Model
+import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSourceTypes
@@ -53,16 +54,63 @@ class ProviderComponentsTest {
     }
 
     @Test
-    fun returningFromGrokLoginToApiKeyUsesTheApiEndpoint() {
-        val provider = requireNotNull(BuiltinProviders.providerById(BuiltinProviders.XAI_ID))
-        val subscription = ProviderConfigDraft.from(provider)
-            .withAuthMode(ProviderAuthModes.XAI_GROK, provider)
-            .toProvider(provider)
+    fun subscriptionDraftUsesCurrentConnectionProfileForLegacySettings() {
+        for (profile in ProviderConnectionProfile.entries) {
+            val providers = listOf(
+                OpenAiCompatibleProviderSetting(
+                    id = "legacy-built-in", name = "订阅", baseUrl = "https://old.example/v1",
+                    authMode = profile.authMode, endpointMode = OpenAiEndpointMode.CHAT_COMPLETIONS,
+                    hostedWebSearchEnabled = true,
+                ),
+                CustomProviderSetting(
+                    id = "legacy-custom", name = "订阅副本", baseUrl = "https://old.example/v1",
+                    authMode = profile.authMode, endpointMode = OpenAiEndpointMode.CHAT_COMPLETIONS,
+                    hostedWebSearchEnabled = true,
+                ),
+            )
 
-        val apiDraft = ProviderConfigDraft.from(subscription).withAuthMode(ProviderAuthModes.API_KEY, subscription)
+            for (provider in providers) {
+                val draft = ProviderConfigDraft.from(provider)
 
-        assertEquals(provider.baseUrl, apiDraft.baseUrl)
-        assertEquals(ProviderAuthModes.API_KEY, apiDraft.authMode)
+                assertEquals(profile.baseUrl, draft.baseUrl)
+                assertEquals(OpenAiEndpointMode.RESPONSES, draft.endpointMode)
+                assertEquals(true, draft.hostedWebSearchEnabled)
+                assertEquals(provider.authMode, draft.authMode)
+            }
+        }
+    }
+
+    @Test
+    fun returningFromSubscriptionToApiKeyUsesTheApiEndpointAndProtocol() {
+        val accounts = mapOf(
+            BuiltinProviders.XAI_ID to ProviderAuthModes.XAI_GROK,
+            BuiltinProviders.OPENAI_ID to ProviderAuthModes.OPENAI_CHATGPT,
+        )
+        for ((providerId, authMode) in accounts) {
+            val provider = requireNotNull(BuiltinProviders.providerById(providerId))
+            val original = ProviderConfigDraft.from(provider)
+            val subscription = original.withAuthMode(authMode, provider).toProvider(provider)
+
+            val apiDraft = ProviderConfigDraft.from(subscription).withAuthMode(ProviderAuthModes.API_KEY, subscription)
+
+            assertEquals(original.baseUrl, apiDraft.baseUrl)
+            assertEquals(original.endpointMode, apiDraft.endpointMode)
+            assertEquals(ProviderAuthModes.API_KEY, apiDraft.authMode)
+        }
+    }
+
+    @Test
+    fun switchingBackBeforeSavingPreservesCustomApiConfiguration() {
+        val provider = CustomProviderSetting(
+            id = "custom-xai", name = "自定义", baseUrl = "https://gateway.example/v1",
+            endpointMode = OpenAiEndpointMode.CHAT_COMPLETIONS,
+        )
+        val original = ProviderConfigDraft.from(provider)
+
+        val restored = original.withAuthMode(ProviderAuthModes.XAI_GROK, provider)
+            .withAuthMode(ProviderAuthModes.API_KEY, provider)
+
+        assertEquals(original, restored)
     }
 
     @Test
