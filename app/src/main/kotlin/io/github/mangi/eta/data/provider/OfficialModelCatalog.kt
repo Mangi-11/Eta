@@ -9,7 +9,7 @@ import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 
 internal object OfficialModelCatalog {
-    internal const val CURRENT_REVISION = 4
+    internal const val CURRENT_REVISION = 5
 
     // 旧安装只补入本次新增的模型，避免恢复用户主动删除的旧预设。
     private val additionsByRevision = mapOf(
@@ -25,6 +25,7 @@ internal object OfficialModelCatalog {
         ),
         2 to mapOf(ProviderSourceTypes.OPENAI to setOf("gpt-6.1-sol")),
         4 to mapOf(ProviderSourceTypes.GEMINI to setOf("gemini-3.8-flash", "gemini-4-argon", "gemini-3.5-flash-lite")),
+        5 to mapOf(ProviderSourceTypes.GEMINI to setOf("gemini-4-carbon")),
     )
 
     private val modelsByCatalogId: Map<String, List<Model>> = mapOf(
@@ -64,6 +65,16 @@ internal object OfficialModelCatalog {
             ),
         ).map { it.copy(contextWindowOverride = it.contextWindow) },
         ProviderSourceTypes.GEMINI to listOf(
+            officialModel(
+                id = "builtin-gemini-4-carbon",
+                modelId = "gemini-4-carbon",
+                displayName = "Gemini 4 Carbon",
+                ownedBy = "google",
+                inputModalities = listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY),
+                toolCall = true,
+                reasoning = true,
+                contextWindow = 1_048_576,
+            ),
             officialModel(
                 id = "builtin-gemini-3-8-flash",
                 modelId = "gemini-3.8-flash",

@@ -932,6 +932,9 @@ private fun ModelEditDialog(
     onDelete: (() -> Unit)?,
 ) {
     val context = LocalContext.current
+    val initialCapabilities = if (nativeGemini) GeminiModelCapabilities.resolveReasoning(model)
+        else model.effectiveReasoningCapabilities
+    val availableEfforts = if (nativeGemini) GeminiModelCapabilities.configurableEfforts else editableReasoningEfforts
     var displayName by remember(model.id, isNew) { mutableStateOf(model.displayName) }
     var modelId by remember(model.id, isNew) { mutableStateOf(model.modelId) }
     var contextWindowOverrideText by remember(model.id, isNew) {
@@ -944,23 +947,29 @@ private fun ModelEditDialog(
         )
     }
     var reasoningEnabled by remember(model.id, isNew) {
-        mutableStateOf(model.supportsReasoning)
+        mutableStateOf(
+            if (nativeGemini) model.reasoningOverride ?: initialCapabilities?.supportedEfforts.orEmpty().isNotEmpty()
+            else model.supportsReasoning
+        )
     }
     var selectedReasoningEfforts by remember(model.id, isNew) {
         mutableStateOf(
-            model.effectiveReasoningCapabilities
+            initialCapabilities
                 ?.selectableEfforts
                 ?.toSet()
                 .orEmpty() + ReasoningEffort.DEFAULT
         )
     }
     val contextError = contextWindowInputError(contextWindowOverrideText)
-    val geminiCapabilities = if (nativeGemini) GeminiModelCapabilities.requestReasoningCapabilities(modelId) else null
 
     fun resetAutomaticReasoning() {
         reasoningOverrideActive = false
-        reasoningEnabled = model.reasoning == true
-        selectedReasoningEfforts = model.reasoningCapabilities
+        val automaticCapabilities = if (nativeGemini) GeminiModelCapabilities.resolveReasoning(
+            model.copy(modelId = modelId, reasoningOverride = null, reasoningCapabilitiesOverride = null),
+        ) else model.reasoningCapabilities
+        reasoningEnabled = if (nativeGemini) automaticCapabilities?.supportedEfforts.orEmpty().isNotEmpty()
+            else model.reasoning == true
+        selectedReasoningEfforts = automaticCapabilities
             ?.selectableEfforts
             ?.toSet()
             .orEmpty() + ReasoningEffort.DEFAULT
@@ -972,11 +981,11 @@ private fun ModelEditDialog(
         contextWindowOverride = contextWindowOverrideText.trim()
             .takeIf(String::isNotEmpty)
             ?.toInt(),
-        reasoningOverride = reasoningEnabled.takeIf { reasoningOverrideActive && geminiCapabilities == null },
-        reasoningCapabilitiesOverride = if (reasoningOverrideActive && reasoningEnabled && geminiCapabilities == null) {
-            val canDisable = ReasoningEffort.OFF in selectedReasoningEfforts
+        reasoningOverride = reasoningEnabled.takeIf { reasoningOverrideActive },
+        reasoningCapabilitiesOverride = if (reasoningOverrideActive && reasoningEnabled) {
+            val canDisable = !nativeGemini && ReasoningEffort.OFF in selectedReasoningEfforts
             (model.effectiveReasoningCapabilities ?: ModelReasoningCapabilities()).copy(
-                supportedEfforts = editableReasoningEfforts.filter { effort ->
+                supportedEfforts = availableEfforts.filter { effort ->
                     effort != ReasoningEffort.OFF && effort in selectedReasoningEfforts
                 },
                 defaultEffort = model.effectiveReasoningCapabilities
@@ -998,24 +1007,14 @@ private fun ModelEditDialog(
         modelId.isNotBlank() &&
         contextError == null
     val contextValue = contextWindowOverrideText.toIntOrNull()
-    val thinkingTitle = if (geminiCapabilities != null && !geminiCapabilities.mandatory) {
-        "思考档位使用 Default"
-    } else {
-        stringResource(R.string.ui_support_thinking_5b9e4c)
-    }
-    val thinkingSummary = if (geminiCapabilities != null) {
-        if (geminiCapabilities.mandatory) "该模型默认启用思考，可发送已确认支持的思考档位。"
-        else "仅使用 Default 默认档位，不发送自定义思考档位。"
+    val thinkingTitle = if (nativeGemini) "配置思考档位" else stringResource(R.string.ui_support_thinking_5b9e4c)
+    val thinkingSummary = if (nativeGemini) {
+        "关闭时仅使用 Default，不发送档位参数；不会关闭模型自身的思考。"
     } else if (reasoningOverrideActive) {
         stringResource(R.string.page_covered_model_automatic_capabilities_3fa7d4)
     } else {
-        stringResource(
-            if (model.reasoning == true) {
-                R.string.provider_auto_reasoning_detected
-            } else {
-                R.string.provider_auto_reasoning_unknown
-            },
-        )
+        stringResource(if (model.reasoning == true) R.string.provider_auto_reasoning_detected
+            else R.string.provider_auto_reasoning_unknown)
     }
 
     when (LocalUiStyle.current) {
@@ -1099,7 +1098,7 @@ private fun ModelEditDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable(enabled = !isSaving && geminiCapabilities == null) {
+                                .clickable(enabled = !isSaving) {
                                     reasoningOverrideActive = true
                                     reasoningEnabled = !reasoningEnabled
                                 }
@@ -1123,25 +1122,24 @@ private fun ModelEditDialog(
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             CouiSwitch(
-                                checked = geminiCapabilities != null || reasoningEnabled,
+                                checked = reasoningEnabled,
                                 onCheckedChange = { enabled ->
                                     reasoningOverrideActive = true
                                     reasoningEnabled = enabled
                                 },
                                 dark = dark,
                                 colors = CouiSwitchDefaults.colors(colors.accent, dark),
-                                enabled = !isSaving && geminiCapabilities == null,
+                                enabled = !isSaving,
                             )
                         }
 
-                        val visibleEfforts = geminiCapabilities?.supportedEfforts ?: editableReasoningEfforts
-                        if ((geminiCapabilities != null || reasoningEnabled) && visibleEfforts.isNotEmpty()) {
+                        if (reasoningEnabled && availableEfforts.isNotEmpty()) {
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                visibleEfforts.forEach { effort ->
-                                    val checked = geminiCapabilities != null || effort in selectedReasoningEfforts
+                                availableEfforts.forEach { effort ->
+                                    val checked = effort in selectedReasoningEfforts
                                     EtaChoiceChip(
                                         text = effort.displayName,
                                         selected = checked,
@@ -1153,17 +1151,16 @@ private fun ModelEditDialog(
                                                 selectedReasoningEfforts + effort
                                             }
                                         },
-                                        enabled = !isSaving && geminiCapabilities == null,
+                                        enabled = !isSaving,
                                     )
                                 }
                             }
-                            if (geminiCapabilities == null) {
-                                CouiText(
-                                    text = stringResource(R.string.ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d),
-                                    kind = CouiTextKind.Description,
-                                    color = colors.summary,
-                                )
-                            }
+                            CouiText(
+                                text = if (nativeGemini) "可手动选择档位，是否支持由服务端校验。Default 始终可用。"
+                                else stringResource(R.string.ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d),
+                                kind = CouiTextKind.Description,
+                                color = colors.summary,
+                            )
                         }
                     }
 
@@ -1291,7 +1288,7 @@ private fun ModelEditDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable(enabled = !isSaving && geminiCapabilities == null) {
+                                .clickable(enabled = !isSaving) {
                                     reasoningOverrideActive = true
                                     reasoningEnabled = !reasoningEnabled
                                 }
@@ -1313,22 +1310,22 @@ private fun ModelEditDialog(
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Switch(
-                                checked = geminiCapabilities != null || reasoningEnabled,
+                                checked = reasoningEnabled,
                                 onCheckedChange = { enabled ->
                                     reasoningOverrideActive = true
                                     reasoningEnabled = enabled
                                 },
-                                enabled = !isSaving && geminiCapabilities == null,
+                                enabled = !isSaving,
                             )
                         }
-                        if (geminiCapabilities != null || reasoningEnabled) {
+                        if (reasoningEnabled) {
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.padding(top = 10.dp),
                             ) {
-                                (geminiCapabilities?.supportedEfforts ?: editableReasoningEfforts).forEach { effort ->
-                                    val checked = geminiCapabilities != null || effort in selectedReasoningEfforts
+                                availableEfforts.forEach { effort ->
+                                    val checked = effort in selectedReasoningEfforts
                                     EtaChoiceChip(
                                         text = effort.displayName,
                                         selected = checked,
@@ -1340,13 +1337,13 @@ private fun ModelEditDialog(
                                                 selectedReasoningEfforts + effort
                                             }
                                         },
-                                        enabled = !isSaving && geminiCapabilities == null,
+                                        enabled = !isSaving,
                                     )
                                 }
                             }
                         }
                         Text(
-                            text = if (nativeGemini) "Gemini 原生连接只发送已确认支持的思考档位。"
+                            text = if (nativeGemini) "可手动选择档位，是否支持由服务端校验。Default 始终可用。"
                             else stringResource(R.string.ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d),
                             style = MiuixTheme.textStyles.footnote2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,

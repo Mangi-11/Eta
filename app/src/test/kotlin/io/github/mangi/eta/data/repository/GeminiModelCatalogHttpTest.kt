@@ -27,6 +27,28 @@ import org.junit.Test
 
 class GeminiModelCatalogHttpTest {
     @Test
+    fun remoteThinkingFlagTakesPrecedenceOverLocalKnowledge() {
+        val models = GeminiModelCatalog.parsePage("""{"models":[
+            {"name":"models/gemini-4-carbon","thinking":false},
+            {"name":"models/gemini-future","thinking":true}]}""").models
+        assertEquals(false, models.first().reasoning)
+        assertNull(models.first().reasoningCapabilities)
+        assertEquals(true, models.last().reasoning)
+        assertNull(models.last().reasoningCapabilities)
+    }
+
+    @Test
+    fun carbonCatalogEntryIncludesDocumentedThinkingCapabilities() {
+        val model = GeminiModelCatalog.parsePage("""{"models":[{"name":"models/gemini-4-carbon",
+            "displayName":"Gemini 4 Carbon","supportedGenerationMethods":["generateContent"]}]}""")
+            .models.single()
+        assertTrue(model.supportsReasoning)
+        assertEquals(listOf(ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH),
+            requireNotNull(model.reasoningCapabilities).supportedEfforts)
+        assertEquals(ReasoningEffort.MEDIUM, model.reasoningCapabilities.defaultEffort)
+    }
+
+    @Test
     fun paginatesWithNativeAuthenticationNormalizesNamesAndDoesNotInferUnknownCapabilities() = runBlocking {
         withServer(listOf(
             """{"models":[{"name":"models/gemini-3.8-flash","displayName":"Flash","inputTokenLimit":1048576,

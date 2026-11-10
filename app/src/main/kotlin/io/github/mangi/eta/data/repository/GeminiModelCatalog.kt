@@ -16,6 +16,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -42,6 +43,7 @@ internal object GeminiModelCatalog {
                 return@mapNotNull null
             }
             val capabilities = GeminiModelCapabilities.reasoningCapabilities(modelId)
+            val thinking = (row["thinking"] as? JsonPrimitive)?.booleanOrNull
             Model(
                 id = UUID.randomUUID().toString(),
                 modelId = modelId,
@@ -53,8 +55,8 @@ internal object GeminiModelCatalog {
                 inputModalities = if (capabilities != null) listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY) else emptyList(),
                 outputModalities = listOf(Model.TEXT_MODALITY),
                 toolCall = true.takeIf { capabilities != null },
-                reasoning = true.takeIf { capabilities != null },
-                reasoningCapabilities = capabilities,
+                reasoning = thinking ?: true.takeIf { capabilities != null },
+                reasoningCapabilities = capabilities.takeUnless { thinking == false },
             )
         }
         val token = root["nextPageToken"]?.let { value ->

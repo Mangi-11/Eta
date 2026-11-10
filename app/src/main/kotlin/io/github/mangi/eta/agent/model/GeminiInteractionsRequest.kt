@@ -51,9 +51,8 @@ internal object GeminiInteractionsRequest {
         val effort = config.effectiveReasoningEffort
         if (effort != ReasoningEffort.DEFAULT) {
             require(effort != ReasoningEffort.OFF) { "当前 Gemini 模型不支持关闭思考，请选择 Default 或支持的思考档位。" }
-            require(effort.wireValue in setOf("minimal", "low", "medium", "high") &&
-                effort in config.reasoningCapabilities?.supportedEfforts.orEmpty()) {
-                "当前 Gemini 模型不支持所选思考档位。"
+            require(effort.wireValue in setOf("minimal", "low", "medium", "high")) {
+                "Gemini Interactions 协议不支持所选思考档位。"
             }
             generation.put("thinking_level", effort.wireValue)
         }

@@ -203,7 +203,7 @@ internal object RuntimeConfigRepository {
 
     fun reasoningCapabilities(provider: ProviderSetting, model: Model): ModelReasoningCapabilities? {
         if (provider is GeminiProviderSetting) {
-            return GeminiModelCapabilities.requestReasoningCapabilities(model.modelId)
+            return GeminiModelCapabilities.resolveReasoning(model)
         }
         val sourceType = ProviderSourceRegistry.resolve(provider)
         val inferOpenAiCatalog = sourceType == io.github.mangi.eta.data.model.ProviderSourceTypes.CUSTOM &&

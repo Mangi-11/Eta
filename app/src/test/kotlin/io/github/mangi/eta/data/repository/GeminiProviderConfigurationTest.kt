@@ -7,6 +7,8 @@ import io.github.mangi.eta.data.model.CustomHeader
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.Model
+import io.github.mangi.eta.data.model.ModelReasoningCapabilities
+import io.github.mangi.eta.data.model.withModels
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.ProviderTypes
@@ -72,7 +74,7 @@ class GeminiProviderConfigurationTest {
         assertEquals(ProviderSourceTypes.GEMINI, config.providerSourceType)
         assertEquals("", config.openAiEndpointMode)
         assertEquals(ReasoningEffort.DEFAULT, config.reasoningEffort)
-        assertTrue(requireNotNull(config.reasoningCapabilities).mandatory)
+        assertEquals(listOf(ReasoningEffort.DEFAULT), requireNotNull(config.reasoningCapabilities).selectableEfforts)
         val raw = Json.encodeToString<ProviderSetting>(stored)
         assertEquals(stored, Json.decodeFromString<ProviderSetting>(raw))
     }
@@ -92,6 +94,37 @@ class GeminiProviderConfigurationTest {
     }
 
     @Test
+    fun unknownModelManualEffortsSurvivePersistenceAndRuntimeProjection() = runBlocking {
+        val manual = ModelReasoningCapabilities(supportedEfforts = listOf(ReasoningEffort.LOW, ReasoningEffort.HIGH),
+            defaultEnabled = true, mandatory = true)
+        val provider = GeminiProviderSetting(id = "manual-config", name = "Gemini", models = listOf(
+            Model(id = "future", modelId = "gemini-future", displayName = "未来模型",
+                reasoningOverride = true, reasoningCapabilitiesOverride = manual),
+        ))
+        ProviderRepository.addProvider(provider)
+        val stored = requireNotNull(ProviderRepository.providerById(provider.id))
+        val model = stored.models.single()
+        assertEquals(manual, model.reasoningCapabilitiesOverride)
+        assertEquals(manual, RuntimeConfigRepository.buildRuntimeConfig(stored, model).reasoningCapabilities)
+        assertEquals(listOf(ReasoningEffort.DEFAULT), requireNotNull(
+            RuntimeConfigRepository.buildRuntimeConfig(stored, model.copy(reasoningOverride = null,
+                reasoningCapabilitiesOverride = null)).reasoningCapabilities).selectableEfforts)
+    }
+
+    @Test
+    fun carbonUpgradePreservesExistingModelAndDoesNotRestoreDeletedPresets() = runBlocking {
+        val carbon = Model(id = "existing-carbon", modelId = "gemini-4-carbon", displayName = "我的 Carbon",
+            contextWindowOverride = 200_000)
+        val provider = requireNotNull(BuiltinProviders.providerById(BuiltinProviders.GEMINI_ID))
+            .withModels(listOf(carbon))
+        ProviderRepository.addProvider(provider)
+        SettingsDataStore.setOfficialModelCatalogRevision(4)
+        ProviderRepository.ensureBuiltInsMerged()
+        assertEquals(listOf(carbon), requireNotNull(ProviderRepository.providerById(provider.id)).models)
+        assertEquals(5, SettingsDataStore.officialModelCatalogRevision())
+    }
+
+    @Test
     fun builtinMergeAppendsGeminiAndPreservesTheSelectedCompatibleConnection() = runBlocking {
         val source = CustomProviderSetting(
             id = "existing-gemini-compatible", name = "原有兼容连接",
@@ -107,7 +140,8 @@ class GeminiProviderConfigurationTest {
         assertEquals(BuiltinProviders.GEMINI_ID, providers.last().id)
         assertEquals(source.id, SettingsDataStore.settings().selectedProviderId)
         assertEquals(source.models.single().id, SettingsDataStore.settings().selectedModelId)
-        assertEquals(3, providers.last().models.size)
+        assertEquals(4, providers.last().models.size)
+        assertTrue(providers.last().models.any { it.modelId == "gemini-4-carbon" })
     }
 
     @Test

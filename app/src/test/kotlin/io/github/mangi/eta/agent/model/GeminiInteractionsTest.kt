@@ -8,6 +8,10 @@ import io.github.mangi.eta.data.model.CustomHeader
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ProviderTypes
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.model.GeminiProviderSetting
+import io.github.mangi.eta.data.model.Model
+import io.github.mangi.eta.data.provider.GeminiModelCapabilities
+import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import java.io.ByteArrayInputStream
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
@@ -22,6 +26,49 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 class GeminiInteractionsTest {
+    @Test
+    fun existingCarbonModelResolvesLevelsAndRequestsSummaries() {
+        val model = Model(id = "carbon", modelId = "gemini-4-carbon", displayName = "Carbon")
+        val capabilities = requireNotNull(RuntimeConfigRepository.reasoningCapabilities(
+            GeminiProviderSetting(id = "gemini", name = "Gemini"), model,
+        ))
+        assertEquals(listOf(ReasoningEffort.DEFAULT, ReasoningEffort.LOW, ReasoningEffort.MEDIUM,
+            ReasoningEffort.HIGH), capabilities.selectableEfforts)
+        assertEquals(ReasoningEffort.MEDIUM, capabilities.defaultEffort)
+        assertTrue(capabilities.mandatory)
+        assertFalse(capabilities.supportsBudget)
+        assertEquals(capabilities, GeminiModelCapabilities.reasoningCapabilities(" models/gemini-4-carbon "))
+        for (effort in capabilities.selectableEfforts) {
+            val body = GeminiInteractionsRequest.build(config().copy(model = model.modelId,
+                reasoningCapabilities = capabilities, reasoningEffort = effort), JSONArray(), JSONArray())
+            val generation = body.getJSONObject("generation_config")
+            assertEquals("auto", generation.getString("thinking_summaries"))
+            assertFalse(generation.has("thinking_budget"))
+            if (effort == ReasoningEffort.DEFAULT) {
+                assertFalse(generation.has("thinking_level"))
+            } else {
+                assertEquals(effort.wireValue, generation.getString("thinking_level"))
+            }
+        }
+    }
+
+    @Test
+    fun thoughtSummaryStartAndDeltaReachVisibleThinkingWithoutExposingSignature() {
+        val events = mutableListOf<ProviderEvent>()
+        val result = read(
+            start(0, """{"type":"thought","summary":[{"type":"text","text":"检查"}]}""") +
+                delta(0, """{"type":"thought_summary","content":{"type":"text","text":"条件"}}""") +
+                delta(0, """{"type":"thought_signature","signature":"opaque-fixture"}""") + stop(0) +
+                start(1, """{"type":"model_output","content":[{"type":"text","text":"答案"}]}""") +
+                stop(1) + complete("completed"), events,
+        )
+        assertEquals("检查条件", result.getString("reasoning_content"))
+        assertEquals("答案", result.getString("content"))
+        assertEquals(listOf("检查", "条件"), events.filterIsInstance<ProviderEvent.BlockDelta>()
+            .filter { it.kind == AssistantBlockKind.THINKING }.map { it.delta })
+        assertFalse(events.toString().contains("opaque-fixture"))
+    }
+
     @Test
     fun fragmentedParallelCallsKeepOriginalIdsAndSignedThoughtWithoutSummary() {
         val events = mutableListOf<ProviderEvent>()
@@ -285,12 +332,15 @@ class GeminiInteractionsTest {
     }
 
     @Test
-    fun thinkingOnlySendsSupportedExplicitLevelsAndRejectsOff() {
+    fun thinkingValidatesProtocolLevelsInsteadOfModelWhitelist() {
         val capabilities = ModelReasoningCapabilities(supportedEfforts = listOf(ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH), mandatory = true)
         val cfg = config().copy(reasoningEffort = ReasoningEffort.LOW, reasoningCapabilities = capabilities)
         val body = GeminiInteractionsRequest.build(cfg, JSONArray(), JSONArray())
         assertEquals("low", body.getJSONObject("generation_config").getString("thinking_level"))
-        for (effort in listOf(ReasoningEffort.OFF, ReasoningEffort.MINIMAL, ReasoningEffort.MAX)) {
+        val unlisted = GeminiInteractionsRequest.build(cfg.copy(model = "gemini-future",
+            reasoningEffort = ReasoningEffort.MINIMAL), JSONArray(), JSONArray())
+        assertEquals("minimal", unlisted.getJSONObject("generation_config").getString("thinking_level"))
+        for (effort in listOf(ReasoningEffort.OFF, ReasoningEffort.XHIGH, ReasoningEffort.MAX)) {
             try {
                 GeminiInteractionsRequest.build(cfg.copy(reasoningEffort = effort), JSONArray(), JSONArray())
                 fail("不支持的档位必须拒绝")
