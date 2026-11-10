@@ -309,8 +309,10 @@ fun AgentAppRoot(
     @Composable
     fun RoutedShell(
         route: AppRoute,
-        content: @Composable () -> Unit,
+        applyShellPadding: Boolean = true,
+        content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
     ) {
+        val isHome = route is AppRoute.Home
         AgentAppShell(
             currentRoute = route,
             isCurrentRoute = backStack.lastOrNull() == route,
@@ -368,7 +370,11 @@ fun AgentAppRoot(
             onOpenPermissions = { pushRoute(AppRoute.Permissions) },
             onOpenSettings = { pushRoute(AppRoute.Settings) },
             onOpenModelProviders = { pushRoute(AppRoute.ModelProviders) },
-            homeCharacter = if (route is AppRoute.Home) agentState.homeState.roleplayChatUi() else null,
+            homeTitle = if (isHome) agentState.currentConversationTitle else null,
+            homeCharacter = if (isHome) agentState.homeState.roleplayChatUi() else null,
+            homeModelPickerState = if (isHome) agentState.modelPickerState else null,
+            isHomeStreaming = isHome && agentState.homeState.isStreaming,
+            onHomeModelSelected = agentState::selectModel,
             onOpenCharacter = {
                 agentState.homeState.roleplay?.let { pushRoute(AppRoute.CharacterDetail(it.characterId)) }
             },
@@ -376,9 +382,9 @@ fun AgentAppRoot(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
+                    .then(if (applyShellPadding) Modifier.padding(padding) else Modifier)
             ) {
-                content()
+                content(padding)
             }
         }
     }
@@ -400,12 +406,13 @@ fun AgentAppRoot(
             ),
         ) {
             entry<AppRoute.Home>(swipeDismiss = swipeDismiss) {
-                RoutedShell(route = AppRoute.Home) {
+                RoutedShell(route = AppRoute.Home, applyShellPadding = false) { shellPadding ->
                     AgentHomeScreen(
                         state = agentState.homeState,
                         modelPickerState = agentState.modelPickerState,
                         isBranching = agentState.isBranchingCurrentConversation,
                         conversationKey = agentState.conversationPaneState.selectedConversationId,
+                        topInset = shellPadding.calculateTopPadding(),
                         onAction = { action ->
                             when (action) {
                                 is AgentHomeAction.ReasoningEffortChanged ->

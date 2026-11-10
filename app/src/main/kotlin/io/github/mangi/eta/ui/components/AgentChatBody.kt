@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -61,23 +62,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.dropShadow
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.itos.coui.effect.couiButtonFeedback
 import com.itos.coui.layout.CouiPageDefaults
 import com.itos.coui.shape.CouiShape
@@ -91,7 +90,6 @@ import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.repository.ConversationBranchBoundary
 import io.github.mangi.eta.ui.model.branchMessageOutline
 import io.github.mangi.eta.ui.app.AgentConversationRevisionReducer
-import io.github.mangi.eta.ui.app.LocalBlurEnabled
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownStateCache
 import io.github.mangi.eta.ui.model.ConversationHistoryLoadState
@@ -124,13 +122,6 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.IconButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -191,6 +182,7 @@ internal fun AgentChatBody(
     onLoadEarlierMessages: () -> Unit = {},
     onHistoryViewportChanged: (Boolean) -> Unit = {},
     isDrawerOpen: Boolean = false,
+    topInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberLazyListState(initialFirstVisibleItemIndex = messages.size + if (hasEarlierMessages) 1 else 0)
@@ -314,6 +306,7 @@ internal fun AgentChatBody(
             historyLoadState = historyLoadState,
             onLoadEarlierMessages = onLoadEarlierMessages,
             onHistoryViewportChanged = onHistoryViewportChanged,
+            topInset = topInset,
             modifier = modifier,
         )
     }
@@ -373,16 +366,9 @@ private fun AgentChatScaffold(
     historyLoadState: ConversationHistoryLoadState,
     onLoadEarlierMessages: () -> Unit,
     onHistoryViewportChanged: (Boolean) -> Unit,
+    topInset: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val surfaceColor = MiuixTheme.colorScheme.surface
-    val frostEnabled = hasMessages && LocalBlurEnabled.current && isRuntimeShaderSupported()
-    val messageBackdrop = rememberLayerBackdrop {
-        // Backdrop 必须包含不透明底色，否则文字边缘模糊到透明区域时会出现黑边。
-        drawRect(surfaceColor)
-        drawContent()
-    }
-
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = Color.Transparent,
@@ -394,9 +380,7 @@ private fun AgentChatScaffold(
         ),
         bottomBar = {
             AgentChatBottomBar(
-                messageBackdrop = messageBackdrop.takeIf { frostEnabled },
                 input = input,
-                modelPickerState = modelPickerState,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
                 showContextUsage = hasMessages,
@@ -417,7 +401,6 @@ private fun AgentChatScaffold(
                 onReasoningEffortChange = onReasoningEffortChange,
                 onCompactContext = onCompactContext,
                 canCompactContext = canCompactContext,
-                onModelSelected = onModelSelected,
                 onStop = onStop,
                 onAttachImage = onAttachImage,
                 onRemoveImage = onRemoveImage,
@@ -436,13 +419,14 @@ private fun AgentChatScaffold(
                 onSuggestionClick = onSuggestionClick,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = bottomPadding),
+                    .padding(top = topInset, bottom = bottomPadding),
             )
         } else {
             AgentConversationMessages(
                 visibleMessages = visibleMessages,
                 scrollState = scrollState,
                 isStreaming = isStreaming,
+                topInset = topInset,
                 bottomInset = bottomPadding,
                 keepBottomAnchored = keepBottomAnchored,
                 onBottomAnchorChanged = onBottomAnchorChanged,
@@ -462,9 +446,7 @@ private fun AgentChatScaffold(
                 historyLoadState = historyLoadState,
                 onLoadEarlierMessages = onLoadEarlierMessages,
                 onHistoryViewportChanged = onHistoryViewportChanged,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(if (frostEnabled) Modifier.layerBackdrop(messageBackdrop) else Modifier),
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }
@@ -480,6 +462,7 @@ internal fun AgentConversationMessages(
     keepBottomAnchored: Boolean,
     onBottomAnchorChanged: (Boolean) -> Unit,
     assistantOverlay: Boolean = false,
+    topInset: Dp = 0.dp,
     onSuggestionClick: (String) -> Unit = {},
     onRunTraceClick: () -> Unit = {},
     onOpenBrowser: () -> Unit = {},
@@ -755,8 +738,8 @@ internal fun AgentConversationMessages(
                 .nestedScroll(historyPaging.scrollConnection)
                 .overScrollVertical(),
             contentPadding = PaddingValues(
-                top = 16.dp,
-                bottom = bottomInset + 16.dp,
+                top = topInset + if (assistantOverlay) 8.dp else 10.dp,
+                bottom = bottomInset + 14.dp,
             ),
             overscrollEffect = null,
         ) {
@@ -848,7 +831,7 @@ internal fun AgentConversationMessages(
             visible = !keepBottomAnchored && !isAtBottom,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = bottomInset + 12.dp),
+                .padding(bottom = bottomInset + 8.dp),
             enter = fadeIn(tween(160)) + scaleIn(tween(180), initialScale = 0.82f),
             exit = fadeOut(tween(100)) + scaleOut(tween(120), targetScale = 0.86f),
         ) {
@@ -860,14 +843,14 @@ internal fun AgentConversationMessages(
                         .dropShadow(
                             shape = CircleShape,
                             shadow = Shadow(
-                                radius = 12.dp,
+                                radius = 10.dp,
                                 color = Color.Black,
-                                alpha = if (couiDark) 0.28f else 0.10f,
+                                alpha = if (couiDark) 0.24f else 0.08f,
                             ),
                         )
                         .border(
                             width = 0.5.dp,
-                            color = if (couiDark) Color(0x22FFFFFF) else Color(0x12000000),
+                            color = if (couiDark) Color(0x22FFFFFF) else Color(0x10000000),
                             shape = CircleShape,
                         )
                 } else {
@@ -889,18 +872,18 @@ internal fun AgentConversationMessages(
                     }
                 },
                 backgroundColor = if (isCoui) {
-                    if (couiDark) Color(0xFF282A2E) else Color.White
+                    if (couiDark) Color(0xFF24262B) else Color.White
                 } else {
                     MiuixTheme.colorScheme.surfaceContainerHigh
                 },
-                minWidth = 40.dp,
-                minHeight = 40.dp,
+                minWidth = 36.dp,
+                minHeight = 36.dp,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.ArrowDownward,
                     contentDescription = stringResource(R.string.ui_back_to_bottom_32282e),
-                    modifier = Modifier.size(18.dp),
-                    tint = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(16.dp),
+                    tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
                 )
             }
         }
@@ -1043,9 +1026,7 @@ internal fun resolveFinalResultMessageIds(
 
 @Composable
 private fun AgentChatBottomBar(
-    messageBackdrop: LayerBackdrop?,
     input: String,
-    modelPickerState: AgentModelPickerUiState,
     isCompacting: Boolean,
     contextUsage: AgentContextUsageUi,
     showContextUsage: Boolean,
@@ -1066,7 +1047,6 @@ private fun AgentChatBottomBar(
     onReasoningEffortChange: (ReasoningEffort) -> Unit,
     onCompactContext: () -> Unit,
     canCompactContext: Boolean,
-    onModelSelected: (String) -> Unit,
     onStop: () -> Unit,
     onAttachImage: (String) -> Unit,
     onRemoveImage: (String) -> Unit,
@@ -1076,67 +1056,33 @@ private fun AgentChatBottomBar(
     onRemoveFileReference: (String) -> Unit,
     onCancelMessageEdit: () -> Unit,
 ) {
-    Column(
+    val surface = MiuixTheme.colorScheme.surface
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .imePadding(),
     ) {
-        if (messageBackdrop != null) {
-            val blurColors = BlurDefaults.blurColors(
-                blendColors = listOf(
-                    BlendColorEntry(MiuixTheme.colorScheme.surface.copy(alpha = 0.72f))
+        // 底部以连续垂直渐隐承接悬浮输入胶囊，避免一整块不透明实心矩形把消息流生硬截断。
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        0.0f to Color.Transparent,
+                        0.26f to surface.copy(alpha = 0.86f),
+                        0.55f to surface.copy(alpha = 0.98f),
+                        1.0f to surface,
+                    ),
                 ),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(ChatBottomFrostHeight)
-                    // DstIn 让真实磨砂在顶部透明、靠近输入框时逐渐变实，消除硬裁切线。
-                    .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                    }
-                    .drawWithContent {
-                        drawContent()
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black),
-                            ),
-                            blendMode = BlendMode.DstIn,
-                        )
-                    }
-                    .textureBlur(
-                        backdrop = messageBackdrop,
-                        shape = RectangleShape,
-                        blurRadius = 20f,
-                        colors = blurColors,
-                    ),
-            )
-        } else {
-            // 空白主页沿用原来的轻微渐隐，不改变主页视觉。
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(16.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                MiuixTheme.colorScheme.surface,
-                            ),
-                        )
-                    ),
-            )
-        }
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MiuixTheme.colorScheme.surface)
                 .navigationBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                .padding(top = 14.dp, start = 14.dp, end = 14.dp, bottom = 10.dp),
         ) {
             AgentChatInputBar(
                 input = input,
-                modelPickerState = modelPickerState,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
                 showContextUsage = showContextUsage,
@@ -1159,7 +1105,6 @@ private fun AgentChatBottomBar(
                 onReasoningEffortChange = onReasoningEffortChange,
                 onCompactContext = onCompactContext,
                 canCompactContext = canCompactContext,
-                onModelSelected = onModelSelected,
                 onStop = onStop,
                 onAttachImage = onAttachImage,
                 onRemoveImage = onRemoveImage,
@@ -1173,8 +1118,6 @@ private fun AgentChatBottomBar(
         }
     }
 }
-
-private val ChatBottomFrostHeight = 24.dp
 
 private const val BOTTOM_FOLLOW_RESPONSE_SECONDS = 0.085f
 private const val BOTTOM_FOLLOW_MAX_FRAME_SECONDS = 0.05f
@@ -1265,12 +1208,16 @@ private fun EmptyChatState(
             } else {
                 Text(
                     text = stringResource(R.string.ui_how_can_i_help_you_e75391),
-                    style = MiuixTheme.textStyles.headline1,
+                    style = MiuixTheme.textStyles.title2.copy(
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-0.2).sp,
+                    ),
                     color = MiuixTheme.colorScheme.onSurface,
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(26.dp))
 
             AnimatedVisibility(
                 visible = showSuggestions && !isCharacterConversation,
@@ -1292,10 +1239,10 @@ private fun EmptyChatState(
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     suggestions.chunked(2).forEach { rowItems ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             rowItems.forEach { item ->
                                 SuggestionCard(
                                     item = item,
@@ -1317,28 +1264,54 @@ private fun SuggestionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .squircleSurface(color = MiuixTheme.colorScheme.surface, cornerRadius = 16.dp)
-            .squircleBorder(
-                width = 0.5.dp,
-                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.5f),
-                cornerRadius = 16.dp,
-            )
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
+    val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    val ink = MiuixTheme.colorScheme.onSurface.copy(alpha = 1f)
+    val fill = ink.copy(alpha = if (isDark) 0.055f else 0.028f)
+    val border = ink.copy(alpha = if (isDark) 0.10f else 0.065f)
+    val interactionSource = remember { MutableInteractionSource() }
+    val shapeModifier = if (isCoui) {
+        val shape = CouiShape(15.dp, 2.2f)
+        Modifier
+            .couiButtonFeedback(isDark, interactionSource, enabled = true)
+            .clip(shape)
+            .background(fill, shape)
+            .border(0.5.dp, border, shape)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+    } else {
+        Modifier
+            .squircleSurface(color = fill, cornerRadius = 15.dp)
+            .squircleBorder(width = 0.5.dp, color = border, cornerRadius = 15.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
+    }
+    Row(
+        modifier = modifier
+            .then(shapeModifier)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = item.icon,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = MiuixTheme.colorScheme.primary,
-        )
-        Spacer(modifier = Modifier.height(10.dp))
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(MiuixTheme.colorScheme.primary.copy(alpha = if (isDark) 0.16f else 0.10f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = item.icon,
+                contentDescription = null,
+                modifier = Modifier.size(15.dp),
+                tint = MiuixTheme.colorScheme.primary,
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = item.title,
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurface,
+            style = MiuixTheme.textStyles.body2.copy(
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.88f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

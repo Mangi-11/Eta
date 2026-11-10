@@ -145,15 +145,15 @@ internal fun AgentAttachmentPickerButton(
     Box(modifier = modifier) {
         IconButton(
             onClick = { anchor.open { showPopup = true } },
-            minWidth = ChatInputActionSize,
-            minHeight = ChatInputActionSize,
+            minWidth = 34.dp,
+            minHeight = 34.dp,
             modifier = Modifier.couiMenuAnchor(anchor),
         ) {
             Icon(
                 imageVector = Icons.Rounded.Add,
                 contentDescription = stringResource(R.string.ui_add_attachment_dba9e8),
-                modifier = Modifier.size(ChatInputActionIconSize),
-                tint = MiuixTheme.colorScheme.onSurface,
+                modifier = Modifier.size(21.dp),
+                tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.72f),
             )
         }
         when (LocalUiStyle.current) {

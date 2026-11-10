@@ -2,7 +2,9 @@ package io.github.mangi.eta.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,20 +13,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,21 +46,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.itos.coui.dialog.CouiDialogAction
 import com.itos.coui.dialog.CouiDialogPlacement
 import com.itos.coui.dialog.Dialog
+import com.itos.coui.effect.couiButtonFeedback
 import com.itos.coui.menu.CouiMenuItem
 import com.itos.coui.menu.Menu
 import com.itos.coui.menu.couiMenuAnchor
@@ -75,31 +86,32 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowBottomSheet
+import top.yukonga.miuix.kmp.window.WindowListPopup
 
 /**
- * 模型不多时用输入栏上方的轻量弹窗一次列完；模型较多时弹窗既放不下也不好找，
- * 直接打开底部面板，用搜索和服务商筛选定位。
+ * 聊天首页顶栏的复合标题与模型切换入口：
+ * - 新对话：居中呈现轻盈的模型胶囊 `[ ✦ 模型名 ▾ ]`
+ * - 对话进行中：上行会话标题，下行紧凑模型副标题，整块可点切换模型
+ * - 角色对话：左侧头像直达角色详情，右侧双行展示角色名与当前模型
  */
 @Composable
-internal fun AgentModelPickerButton(
+internal fun AgentTopBarChatHeader(
+    conversationTitle: String?,
+    character: RoleplayChatUi?,
     state: AgentModelPickerUiState,
     isStreaming: Boolean,
-    popupAnchorTopPx: Int,
-    popupMaxHeight: Dp,
     onModelSelected: (String) -> Unit,
+    onOpenCharacter: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showPopup by remember { mutableStateOf(false) }
     var showSheet by remember { mutableStateOf(false) }
-    // 每次打开面板换一个 key，搜索词、筛选与滚动位置都从头开始。
     var sheetSession by remember { mutableIntStateOf(0) }
     val selected = state.selectedModel
     val enabled = !isStreaming && !state.isChanging && state.providerGroups.isNotEmpty()
@@ -109,44 +121,192 @@ internal fun AgentModelPickerButton(
             showSheet = false
         }
     }
-    val density = LocalDensity.current
-    val popupWindowInsetPx = with(density) { 14.dp.roundToPx() }
-    val popupPositionProvider = remember(popupAnchorTopPx, popupWindowInsetPx) {
-        InputPopupPositionProvider(
-            inputContainerTopPx = popupAnchorTopPx,
-            windowHorizontalInsetPx = popupWindowInsetPx,
-        )
-    }
+
     val currentModel = selected?.displayName ?: stringResource(R.string.model_not_selected)
     val switchModelDescription = stringResource(R.string.model_switch_current, currentModel)
     val anchor = rememberCouiMenuAnchor()
+    val uiStyle = LocalUiStyle.current
+    val isCoui = uiStyle == AppearanceUiStyle.COUI
+    val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    val ink = MiuixTheme.colorScheme.onSurface.copy(alpha = 1f)
+    val subtitleColor = ink.copy(alpha = if (isDark) 0.56f else 0.52f)
+    val chevronColor = ink.copy(alpha = if (isDark) 0.46f else 0.42f)
+    val interactionSource = remember { MutableInteractionSource() }
+
+    val triggerModelPicker: () -> Unit = {
+        if (state.modelCount <= ModelPopupLimit) {
+            anchor.open { showPopup = true }
+        } else {
+            sheetSession += 1
+            showSheet = true
+        }
+    }
+
     Box(modifier = modifier) {
-        IconButton(
-            onClick = {
-                if (state.modelCount <= ModelPopupLimit) {
-                    anchor.open { showPopup = true }
-                } else {
-                    sheetSession += 1
-                    showSheet = true
+        when {
+            character != null -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable(onClick = onOpenCharacter)
+                            .padding(2.dp),
+                    ) {
+                        CharacterAvatar(
+                            name = character.characterName,
+                            avatarPath = character.avatarPath,
+                            size = 30.dp,
+                            shape = CircleShape,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column(
+                        modifier = Modifier
+                            .couiMenuAnchor(anchor)
+                            .clip(RoundedCornerShape(10.dp))
+                            .then(
+                                if (isCoui) {
+                                    Modifier.couiButtonFeedback(isDark, interactionSource, enabled = enabled)
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                enabled = enabled,
+                                role = Role.Button,
+                                onClick = triggerModelPicker,
+                            )
+                            .semantics { contentDescription = switchModelDescription }
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                    ) {
+                        Text(
+                            text = character.characterName,
+                            style = MiuixTheme.textStyles.body2.copy(
+                                fontSize = 15.sp,
+                                lineHeight = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MiuixTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        ModelSubtitleRow(
+                            selected = selected,
+                            modelName = currentModel,
+                            textColor = subtitleColor,
+                            chevronColor = chevronColor,
+                            showChevron = enabled,
+                        )
+                    }
                 }
-            },
-            enabled = enabled,
-            minWidth = ChatInputActionSize,
-            minHeight = ChatInputActionSize,
-            modifier = Modifier
-                .couiMenuAnchor(anchor)
-                .semantics {
-                    contentDescription = switchModelDescription
-                },
-        ) {
-            ModelBrandMark(
-                modelId = selected?.modelId,
-                sourceType = selected?.providerSourceType,
-                size = ChatInputActionIconSize,
-            )
+            }
+
+            !conversationTitle.isNullOrBlank() -> {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .couiMenuAnchor(anchor)
+                        .clip(RoundedCornerShape(12.dp))
+                        .then(
+                            if (isCoui) {
+                                Modifier.couiButtonFeedback(isDark, interactionSource, enabled = enabled)
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            enabled = enabled,
+                            role = Role.Button,
+                            onClick = triggerModelPicker,
+                        )
+                        .semantics { contentDescription = switchModelDescription }
+                        .padding(horizontal = 10.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = conversationTitle,
+                        style = MiuixTheme.textStyles.body1.copy(
+                            fontSize = 15.5.sp,
+                            lineHeight = 19.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        color = MiuixTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    ModelSubtitleRow(
+                        selected = selected,
+                        modelName = currentModel,
+                        textColor = subtitleColor,
+                        chevronColor = chevronColor,
+                        showChevron = enabled,
+                    )
+                }
+            }
+
+            else -> {
+                val pillFill = ink.copy(alpha = if (isDark) 0.08f else 0.042f)
+                val pillBorder = ink.copy(alpha = if (isDark) 0.12f else 0.07f)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .couiMenuAnchor(anchor)
+                        .heightIn(min = 34.dp)
+                        .clip(CircleShape)
+                        .background(pillFill, CircleShape)
+                        .border(0.5.dp, pillBorder, CircleShape)
+                        .then(
+                            if (isCoui) {
+                                Modifier.couiButtonFeedback(isDark, interactionSource, enabled = enabled)
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            enabled = enabled,
+                            role = Role.Button,
+                            onClick = triggerModelPicker,
+                        )
+                        .semantics { contentDescription = switchModelDescription }
+                        .padding(start = 11.dp, end = if (enabled) 8.dp else 12.dp, top = 6.dp, bottom = 6.dp),
+                ) {
+                    ModelBrandMark(
+                        modelId = selected?.modelId,
+                        sourceType = selected?.providerSourceType,
+                        size = 15.dp,
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = currentModel,
+                        style = MiuixTheme.textStyles.body2.copy(
+                            fontSize = 14.sp,
+                            lineHeight = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                        ),
+                        color = MiuixTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 180.dp),
+                    )
+                    if (enabled) {
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Icon(
+                            imageVector = Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = chevronColor,
+                        )
+                    }
+                }
+            }
         }
 
-        when (LocalUiStyle.current) {
+        when (uiStyle) {
             AppearanceUiStyle.COUI -> {
                 val menuItems = remember(state.providerGroups, state.selectedModel?.id) {
                     val multipleGroups = state.providerGroups.size > 1
@@ -197,13 +357,13 @@ internal fun AgentModelPickerButton(
                     }
                 }
             }
+
             AppearanceUiStyle.MIUIX -> {
-                OverlayListPopup(
-                    show = showPopup && popupAnchorTopPx > 0,
-                    popupPositionProvider = popupPositionProvider,
-                    alignment = PopupPositionProvider.Align.TopEnd,
+                WindowListPopup(
+                    show = showPopup,
+                    alignment = PopupPositionProvider.Align.Start,
                     onDismissRequest = { showPopup = false },
-                    maxHeight = popupMaxHeight,
+                    maxHeight = 360.dp,
                     minWidth = ModelPopupWidth,
                 ) {
                     ModelQuickList(
@@ -215,7 +375,7 @@ internal fun AgentModelPickerButton(
                     )
                 }
 
-                OverlayBottomSheet(
+                WindowBottomSheet(
                     show = showSheet,
                     title = stringResource(R.string.model_picker_title),
                     onDismissRequest = { showSheet = false },
@@ -232,6 +392,46 @@ internal fun AgentModelPickerButton(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ModelSubtitleRow(
+    selected: AgentModelOptionUi?,
+    modelName: String,
+    textColor: Color,
+    chevronColor: Color,
+    showChevron: Boolean,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(top = 1.dp),
+    ) {
+        ModelBrandMark(
+            modelId = selected?.modelId,
+            sourceType = selected?.providerSourceType,
+            size = 11.dp,
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = modelName,
+            style = MiuixTheme.textStyles.footnote2.copy(
+                fontSize = 11.5.sp,
+                lineHeight = 14.sp,
+            ),
+            color = textColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 168.dp),
+        )
+        if (showChevron) {
+            Icon(
+                imageVector = Icons.Rounded.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(13.dp),
+                tint = chevronColor,
+            )
         }
     }
 }

@@ -148,8 +148,8 @@ internal fun SpeechDictationButton(
     IconButton(
         onClick = { if (state.active) controller.finish() else request() },
         enabled = enabled && state.phase != EtaSpeechPhase.RECOGNIZING,
-        minWidth = ChatInputActionSize,
-        minHeight = ChatInputActionSize,
+        minWidth = 34.dp,
+        minHeight = 34.dp,
         modifier = modifier,
     ) {
         Icon(
@@ -157,11 +157,11 @@ internal fun SpeechDictationButton(
             contentDescription = stringResource(
                 if (state.active) R.string.speech_dictation_finish else R.string.speech_dictation,
             ),
-            modifier = Modifier.size(ChatInputActionIconSize),
+            modifier = Modifier.size(20.dp),
             tint = if (state.active) {
                 MiuixTheme.colorScheme.primary
             } else {
-                MiuixTheme.colorScheme.onSurface
+                MiuixTheme.colorScheme.onSurface.copy(alpha = 0.68f)
             },
         )
     }

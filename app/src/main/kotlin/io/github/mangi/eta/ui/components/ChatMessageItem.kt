@@ -396,8 +396,10 @@ private fun UserMessageBubble(
         modifier = modifier
             .fillMaxWidth()
             .padding(
-                horizontal = if (assistantOverlay) 16.dp else 20.dp,
-                vertical = if (assistantOverlay) 4.dp else 8.dp,
+                start = if (assistantOverlay) 16.dp else 20.dp,
+                end = if (assistantOverlay) 16.dp else 20.dp,
+                top = if (assistantOverlay) 4.dp else 16.dp,
+                bottom = if (assistantOverlay) 4.dp else 6.dp,
             ),
         horizontalArrangement = Arrangement.End,
     ) {
@@ -978,8 +980,10 @@ private fun AgentMessageBlock(
         modifier = modifier
             .fillMaxWidth()
             .padding(
-                horizontal = if (assistantOverlay) 16.dp else 20.dp,
-                vertical = 8.dp,
+                start = if (assistantOverlay) 16.dp else 20.dp,
+                end = if (assistantOverlay) 16.dp else 20.dp,
+                top = 4.dp,
+                bottom = 6.dp,
             ),
     ) {
         if (character != null) {

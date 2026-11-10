@@ -300,6 +300,47 @@ internal object ChatActionIcons {
         }
     }
 
+    /** 顶栏与菜单共用的“新建对话”线性气泡加号图标（24x24 视口）。 */
+    val NewChat: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "ChatNewConversation",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 1.85f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(4.38f, 16.4f)
+                arcTo(
+                    horizontalEllipseRadius = 8.8f,
+                    verticalEllipseRadius = 8.8f,
+                    theta = 0f,
+                    isMoreThanHalf = true,
+                    isPositiveArc = true,
+                    x1 = 7.6f,
+                    y1 = 19.62f,
+                )
+                lineTo(2.9f, 21.1f)
+                close()
+            }
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 1.85f,
+                strokeLineCap = StrokeCap.Round,
+            ) {
+                moveTo(8.7f, 12f)
+                horizontalLineTo(15.3f)
+                moveTo(12f, 8.7f)
+                verticalLineTo(15.3f)
+            }
+        }.build()
+    }
+
     private inline fun icon(
         name: String,
         block: ImageVector.Builder.() -> Unit,

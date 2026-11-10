@@ -162,6 +162,14 @@ internal class AgentAppState(
     )
         private set
 
+    val currentConversationTitle: String?
+        get() {
+            val state = homeState
+            if (state.messages.isEmpty() && !state.hasEarlierMessages) return null
+            val id = conversationPaneState.selectedConversationId ?: return null
+            return conversationTitles[id]?.takeIf(String::isNotBlank)
+        }
+
     init {
         refreshConversationSummaries()
         observeRuntimeSelection()
