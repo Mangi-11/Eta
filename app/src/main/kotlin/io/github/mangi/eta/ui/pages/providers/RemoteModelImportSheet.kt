@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -45,6 +45,7 @@ import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
+import io.github.mangi.eta.ui.components.coui.couiPrimaryDialogAction
 import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -70,6 +71,12 @@ internal fun RemoteModelImportSheet(
 ) {
     var shown by remember { mutableStateOf(pending) }
     if (pending != null) shown = pending
+    var selected by remember(pending) { mutableStateOf(emptySet<String>()) }
+    val confirmText = if (selected.isNotEmpty()) {
+        stringResource(R.string.remote_model_import_confirm, selected.size)
+    } else {
+        stringResource(R.string.remote_model_import_pick_hint)
+    }
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
             val dark = CouiTheme.isDark
@@ -78,7 +85,14 @@ internal fun RemoteModelImportSheet(
                 onDismissRequest = onDismissRequest,
                 dark = dark,
                 title = stringResource(R.string.remote_model_import_title),
-                confirmAction = CouiDialogAction(
+                // 正文由弹窗滚动承载，提交入口必须留在独立操作栏中。
+                confirmAction = couiPrimaryDialogAction(
+                    text = confirmText,
+                    onClick = { pending?.let { onConfirm(it, selected) } },
+                    enabled = pending != null && selected.isNotEmpty(),
+                    dark = dark,
+                ),
+                dismissAction = CouiDialogAction(
                     text = stringResource(R.string.action_cancel),
                     onClick = onDismissRequest,
                 ),
@@ -90,6 +104,9 @@ internal fun RemoteModelImportSheet(
                     key(current) {
                         RemoteModelImportContent(
                             pending = current,
+                            selected = selected,
+                            onSelectionChange = { selected = it },
+                            confirmText = confirmText,
                             onConfirm = { selected -> onConfirm(current, selected) },
                         )
                     }
@@ -107,6 +124,9 @@ internal fun RemoteModelImportSheet(
                     key(current) {
                         RemoteModelImportContent(
                             pending = current,
+                            selected = selected,
+                            onSelectionChange = { selected = it },
+                            confirmText = confirmText,
                             onConfirm = { selected -> onConfirm(current, selected) },
                         )
                     }
@@ -119,11 +139,13 @@ internal fun RemoteModelImportSheet(
 @Composable
 private fun RemoteModelImportContent(
     pending: RemoteModelImport,
+    selected: Set<String>,
+    onSelectionChange: (Set<String>) -> Unit,
+    confirmText: String,
     onConfirm: (Set<String>) -> Unit,
 ) {
     val candidates = pending.candidates
     var query by remember { mutableStateOf("") }
-    var selected by remember { mutableStateOf(emptySet<String>()) }
     val visible = remember(candidates, query) {
         val search = ModelSearchQuery(query)
         candidates.filter { search.matches(it.displayName, it.modelId) }
@@ -136,8 +158,8 @@ private fun RemoteModelImportContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(sheetHeight)
-            .then(if (uiStyle == AppearanceUiStyle.COUI) Modifier else Modifier.navigationBarsPadding()),
+            .heightIn(max = sheetHeight)
+            .then(if (uiStyle == AppearanceUiStyle.MIUIX) Modifier.navigationBarsPadding() else Modifier),
     ) {
         Row(
             modifier = Modifier
@@ -153,7 +175,7 @@ private fun RemoteModelImportContent(
             )
             val toggleAll: () -> Unit = {
                 val ids = visible.mapTo(mutableSetOf()) { it.modelId }
-                selected = if (allVisibleSelected) selected - ids else selected + ids
+                onSelectionChange(if (allVisibleSelected) selected - ids else selected + ids)
             }
             val toggleText = stringResource(
                 if (allVisibleSelected) R.string.page_select_none_ba20eb else R.string.page_select_all_3e44b2,
@@ -203,7 +225,7 @@ private fun RemoteModelImportContent(
         LazyColumn(
             contentPadding = PaddingValues(vertical = 4.dp),
             modifier = Modifier
-                .weight(1f)
+                .weight(1f, fill = false)
                 .fillMaxWidth(),
         ) {
             if (visible.isEmpty()) {
@@ -225,27 +247,12 @@ private fun RemoteModelImportContent(
                     model = model,
                     checked = checked,
                     onToggle = {
-                        selected = if (checked) selected - model.modelId else selected + model.modelId
+                        onSelectionChange(if (checked) selected - model.modelId else selected + model.modelId)
                     },
                 )
             }
         }
-        val confirmText = when {
-            selected.isNotEmpty() -> stringResource(R.string.remote_model_import_confirm, selected.size)
-            else -> stringResource(R.string.remote_model_import_pick_hint)
-        }
-        if (uiStyle == AppearanceUiStyle.COUI) {
-            CouiButton(
-                text = confirmText,
-                onClick = { onConfirm(selected) },
-                enabled = selected.isNotEmpty(),
-                role = CouiButtonRole.Primary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 8.dp, bottom = 12.dp),
-            )
-        } else {
+        if (uiStyle == AppearanceUiStyle.MIUIX) {
             TextButton(
                 text = confirmText,
                 onClick = { onConfirm(selected) },
