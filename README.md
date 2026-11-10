@@ -223,6 +223,8 @@ AI 时代下，处理外部 PR 变得比以往更加困难：大量由 AI 生成
 
 ## 许可证
 
-Eta 采用 [PolyForm Noncommercial License 1.0.0](LICENSE)，未经[作者](https://github.com/Mangi-11)书面授权，禁止个人二次分发、贩卖、收费代装及其他商业使用。
+Copyright © 2026 [蛮吉 (Mangi-11)](https://github.com/Mangi-11)
+
+本项目基于 GPL-3.0 开源，详情请参阅 [LICENSE](LICENSE)。
 
 <sub></sub>社区：<a href="https://linux.do">LINUX DO</sub>

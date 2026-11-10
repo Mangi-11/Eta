@@ -210,6 +210,8 @@ For feature requests, bug reports, or contributions, feel free to share your ide
 
 ## License
 
-Eta uses the [PolyForm Noncommercial License 1.0.0](LICENSE); personal redistribution, sales, paid installation, and other commercial use require prior written permission from the [author](https://github.com/Mangi-11).
+Copyright © 2026 [蛮吉 (Mangi-11)](https://github.com/Mangi-11)
+
+This project is open source under GPL-3.0; see [LICENSE](LICENSE) for details.
 
 <sub>Community: <a href="https://linux.do">LINUX DO</a></sub>

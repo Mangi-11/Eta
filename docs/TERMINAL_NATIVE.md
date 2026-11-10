@@ -30,4 +30,4 @@ ANDROID_NDK_HOME=/path/to/android-ndk scripts/build-terminal-native.sh
 
 脚本只生成 ARM64 ELF，并把实际脚本、版本目录、PTY 源码及补丁自动打入 `app/src/main/assets/native-sources/eta-native-build.tgz`，该包不应手工修改。APK 的 `assets/native-sources` 还包含 PRoot、talloc 和 libandroid-shmem 的原始源码；源码资源使用 `.tgz` 后缀，避免 Android 资源打包自动解压 `.gz` 文件后改变名称与校验值。`assets/licenses` 包含各自许可证。解压构建包恢复仓库相对路径，再把原始源码所在目录传给 `ETA_NATIVE_SOURCES`，即可重建随包组件。
 
-源码包与重新生成的二进制需要一起更新。相关第三方程序和补丁适用各自开源许可证，Eta 主项目的非商业许可证不限制这些独立第三方程序授予的权利；详见[第三方声明](THIRD_PARTY_NOTICES.md)。
+源码包与重新生成的二进制需要一起更新。相关第三方程序和补丁继续适用各自开源许可证；详见[第三方声明](THIRD_PARTY_NOTICES.md)。

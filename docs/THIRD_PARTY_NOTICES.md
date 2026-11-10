@@ -4,7 +4,7 @@
 
 Eta 的免 Root Linux 后端以独立进程运行 [PRoot](https://github.com/termux/proot)，并静态链接 [talloc](https://talloc.samba.org/) 与 [libandroid-shmem](https://github.com/termux/libandroid-shmem)。PRoot 源码采用 GPL-2.0-or-later；talloc 采用 LGPL-3.0-or-later；libandroid-shmem 采用 BSD-3-Clause。附带的组合 PRoot 可执行程序按 GPL-3.0-or-later 分发，各组件版权与许可证保留。
 
-APK 的 `assets/native-sources` 附带校验过的原始源码，以及从实际构建入口自动生成的脚本、PTY 源码和补丁包；`assets/licenses` 附带许可证全文。构建脚本与说明位于 [终端原生组件](TERMINAL_NATIVE.md)。这些独立第三方程序保持其开源许可权利，不受 Eta 主项目非商业许可证的附加限制。
+APK 的 `assets/native-sources` 附带校验过的原始源码，以及从实际构建入口自动生成的脚本、PTY 源码和补丁包；`assets/licenses` 附带许可证全文。构建脚本与说明位于 [终端原生组件](TERMINAL_NATIVE.md)。这些独立第三方程序继续适用各自许可证。
 
 ## models.dev 模型目录
 
@@ -28,7 +28,7 @@ Eta 的应用界面支持 [COUI-Kit](https://github.com/itoseo/COUI-Kit)（`io.g
 
 Eta 使用 [DexKit](https://github.com/LuckyPray/DexKit) 解析系统应用的 DEX 特征，定位经过混淆的 Hook 目标。依赖版本以 `gradle/libs.versions.toml` 为准，官方发布记录见 [Releases](https://github.com/LuckyPray/DexKit/releases)。
 
-DexKit 的 JVM 接口等非 `Core/` 代码采用 [Apache License 2.0](https://github.com/LuckyPray/DexKit/blob/2.2.0/LICENSE)，`Core/` 原生解析代码采用 [GNU LGPL v3](https://github.com/LuckyPray/DexKit/blob/2.2.0/Core/LICENSE)。Eta 通过官方 AAR 使用其独立原生动态库；上游源码、构建配置与版权声明可在 [官方源码](https://github.com/LuckyPray/DexKit/tree/2.2.0) 获取。这些第三方组件保留原有许可证权利，不受 Eta 主项目非商业许可证的附加限制。
+DexKit 的 JVM 接口等非 `Core/` 代码采用 [Apache License 2.0](https://github.com/LuckyPray/DexKit/blob/2.2.0/LICENSE)，`Core/` 原生解析代码采用 [GNU LGPL v3](https://github.com/LuckyPray/DexKit/blob/2.2.0/Core/LICENSE)。Eta 通过官方 AAR 使用其独立原生动态库；上游源码、构建配置与版权声明可在 [官方源码](https://github.com/LuckyPray/DexKit/tree/2.2.0) 获取。这些第三方组件继续适用各自许可证。
 
 ## JetBrains Mono
 
