@@ -39,7 +39,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,12 +67,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
@@ -685,6 +688,8 @@ private fun PendingImageStrip(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    val imagePreviewer = LocalChatImagePreviewer.current
+    val itemBounds = remember { HashMap<String, Rect>() }
     var previousCount by remember { mutableIntStateOf(images.size) }
     LaunchedEffect(images.size) {
         if (images.size > previousCount && images.isNotEmpty()) {
@@ -698,10 +703,10 @@ private fun PendingImageStrip(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        items(
+        itemsIndexed(
             items = images,
-            key = { it.id },
-        ) { image ->
+            key = { _, item -> item.id },
+        ) { index, image ->
             Box(
                 modifier = Modifier
                     .animateItem(
@@ -713,14 +718,40 @@ private fun PendingImageStrip(
                         fadeOutSpec = tween(durationMillis = 120),
                     )
                     .attachmentItemEntrance()
-                    .size(60.dp)
+                    .size(64.dp)
+                    .onGloballyPositioned { coords ->
+                        if (coords.isAttached) itemBounds[image.id] = coords.boundsInWindow()
+                    }
+                    .graphicsLayer {
+                        alpha = if (imagePreviewer?.isPresenting(PendingImagesGroupKey, index) == true) 0f else 1f
+                    }
                     .clip(RoundedCornerShape(12.dp))
-                    .background(MiuixTheme.colorScheme.surfaceContainer),
+                    .background(MiuixTheme.colorScheme.surfaceContainer)
+                    .border(
+                        width = 0.5.dp,
+                        color = MiuixTheme.colorScheme.outline.copy(alpha = 0.55f),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                    .then(
+                        if (imagePreviewer != null) {
+                            Modifier.clickable {
+                                imagePreviewer.open(
+                                    images = images.map { it.dataUrl },
+                                    initialIndex = index,
+                                    groupKey = PendingImagesGroupKey,
+                                    sourceBoundsProvider = { page -> images.getOrNull(page)?.let { itemBounds[it.id] } },
+                                    sourceCornerRadius = 12.dp,
+                                )
+                            }
+                        } else {
+                            Modifier
+                        },
+                    ),
             ) {
                 rememberDataUrlBitmap(image.dataUrl)?.let { bitmap ->
                     Image(
                         bitmap = bitmap,
-                        contentDescription = null,
+                        contentDescription = stringResource(R.string.chat_view_image),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
                     )
@@ -753,3 +784,5 @@ private fun PendingImageStrip(
         }
     }
 }
+
+private const val PendingImagesGroupKey = "pending_images_strip"

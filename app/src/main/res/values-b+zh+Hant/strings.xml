@@ -1319,6 +1319,7 @@
   <string name="chat_previous_candidate">上一則候選回覆</string>
   <string name="chat_next_candidate">下一則候選回覆</string>
   <string name="chat_image_attachment">圖片附件</string>
+  <string name="chat_view_image">查看圖片</string>
   <string name="chat_edit_preserve_following">儲存後原位更新這則訊息，並保留後續對話</string>
   <string name="chat_save_message">儲存訊息</string>
   <string name="chat_character_story_start">故事從這裡開始</string>

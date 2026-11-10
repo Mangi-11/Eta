@@ -18,11 +18,12 @@ import kotlin.math.min
 import kotlin.math.sqrt
 
 internal const val MAX_AGENT_IMAGE_BYTES = 12 * 1024 * 1024
+internal const val CHAT_PREVIEW_MAX_LONG_EDGE = 1_920
 
 /** 仅负责为工具截图和聊天预览生成独立的图片副本。 */
 internal object AgentModelImageEncoder {
     private const val MODEL_JPEG_QUALITY = 95
-    private const val PREVIEW_JPEG_QUALITY = 80
+    private const val PREVIEW_JPEG_QUALITY = 88
 
     private data class EncodingProfile(
         val format: Bitmap.CompressFormat,
@@ -50,9 +51,10 @@ internal object AgentModelImageEncoder {
         mimeType = "image/jpeg",
         quality = MODEL_JPEG_QUALITY,
     )
+    // 聊天图片支持点击全屏缩放查看文字细节（如聊天记录与终端长截图），保留高清边长上限。
     private val previewProfile = EncodingProfile(
-        maxLongEdge = 512,
-        maxPixels = 256_000L,
+        maxLongEdge = CHAT_PREVIEW_MAX_LONG_EDGE,
+        maxPixels = 1_800_000L,
         format = Bitmap.CompressFormat.JPEG,
         mimeType = "image/jpeg",
         quality = PREVIEW_JPEG_QUALITY,

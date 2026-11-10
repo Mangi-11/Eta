@@ -189,7 +189,7 @@ class AgentImageCodecTest {
     fun chatPreviewIsIndependentFromTheOriginalFile() {
         val context = RuntimeEnvironment.getApplication()
         val sourceFile = File(context.cacheDir, "image-preview-${System.nanoTime()}.jpg")
-        val bitmap = patternedBitmap(width = 1_200, height = 800)
+        val bitmap = patternedBitmap(width = 2_400, height = 1_600)
         FileOutputStream(sourceFile).use { output ->
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output)
         }
@@ -206,7 +206,8 @@ class AgentImageCodecTest {
 
             assertEquals(sourceFile.absolutePath, source.reference)
             assertEquals("image/jpeg", preview.mimeType)
-            assertTrue(maxOf(preview.width!!, preview.height!!) <= 512)
+            assertTrue(maxOf(preview.width!!, preview.height!!) <= CHAT_PREVIEW_MAX_LONG_EDGE)
+            assertTrue(preview.width < 2_400)
             assertEquals(originalSize, sourceFile.length())
         } finally {
             sourceFile.delete()
@@ -217,7 +218,7 @@ class AgentImageCodecTest {
     fun pickedAttachmentPreviewDoesNotReopenThePickerUri() {
         val context = RuntimeEnvironment.getApplication()
         val sourceFile = File(context.cacheDir, "picked-image-${System.nanoTime()}.jpg")
-        val bitmap = patternedBitmap(width = 1_200, height = 800)
+        val bitmap = patternedBitmap(width = 2_400, height = 1_600)
         FileOutputStream(sourceFile).use { output ->
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output)
         }
@@ -234,7 +235,7 @@ class AgentImageCodecTest {
             ?: error("无法从已读取的附件生成预览")
 
         assertEquals("image/jpeg", preview.mimeType)
-        assertTrue(maxOf(preview.width!!, preview.height!!) <= 512)
+        assertTrue(maxOf(preview.width!!, preview.height!!) <= CHAT_PREVIEW_MAX_LONG_EDGE)
     }
 
     @Test
