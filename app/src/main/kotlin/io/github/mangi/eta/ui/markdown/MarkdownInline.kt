@@ -6,13 +6,13 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.em
+import io.github.mangi.eta.ui.components.EtaMonospace
 import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
@@ -29,9 +29,14 @@ import org.intellij.markdown.parser.LinkMap
 internal data class MarkdownInlineStyle(
     val linkColor: Color,
     val codeBackground: Color,
+    val strongColor: Color = Color.Unspecified,
+    val codeColor: Color = Color.Unspecified,
 ) {
     companion object {
-        val Default = MarkdownInlineStyle(linkColor = Color(0xFF3482FF), codeBackground = Color(0x1F808080))
+        val Default = MarkdownInlineStyle(
+            linkColor = Color(0xFF3482FF),
+            codeBackground = Color(0x1F808080),
+        )
     }
 }
 
@@ -76,7 +81,9 @@ internal class MarkdownInlineBuilder(
         state.afterHardBreak = false
         when (type) {
             MarkdownTokenTypes.WHITE_SPACE -> append(' ')
-            MarkdownElementTypes.STRONG -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
+            MarkdownElementTypes.STRONG -> withStyle(
+                SpanStyle(fontWeight = FontWeight.Bold, color = style.strongColor),
+            ) {
                 appendChildren(node, state)
             }
             MarkdownElementTypes.EMPH -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
@@ -204,7 +211,10 @@ internal class MarkdownInlineBuilder(
                 openers.remove(opener)
                 val style = when {
                     run.char == '~' -> SpanStyle(textDecoration = TextDecoration.LineThrough)
-                    run.length == 2 -> SpanStyle(fontWeight = FontWeight.SemiBold)
+                    run.length == 2 -> SpanStyle(
+                        fontWeight = FontWeight.Bold,
+                        color = this@MarkdownInlineBuilder.style.strongColor,
+                    )
                     else -> SpanStyle(fontStyle = FontStyle.Italic)
                 }
                 pairs[opener.start] = PairedInline(
@@ -237,8 +247,9 @@ internal class MarkdownInlineBuilder(
                             contentEnd = index,
                             nextIndex = index + 1,
                             style = SpanStyle(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 0.88.em,
+                                fontFamily = EtaMonospace,
+                                fontSize = 0.87.em,
+                                color = style.codeColor,
                                 background = style.codeBackground,
                             ),
                             padSpaces = true,
@@ -253,12 +264,13 @@ internal class MarkdownInlineBuilder(
     private fun AnnotatedString.Builder.appendCode(code: String) {
         withStyle(
             SpanStyle(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 0.88.em,
+                fontFamily = EtaMonospace,
+                fontSize = 0.87.em,
+                color = style.codeColor,
                 background = style.codeBackground,
             ),
         ) {
-            // 前后半角空格让底色不贴着字形，读起来像一个独立的代码片段。
+            // 前后窄空格让底色不紧贴字形边缘，读起来像独立的代码标记。
             append(' ')
             append(code)
             append(' ')
@@ -344,7 +356,14 @@ internal class MarkdownInlineBuilder(
 
     private fun linkAnnotation(url: String) = LinkAnnotation.Url(
         url = url,
-        styles = TextLinkStyles(style = SpanStyle(color = style.linkColor, fontWeight = FontWeight.Medium)),
+        styles = TextLinkStyles(
+            style = SpanStyle(color = style.linkColor, fontWeight = FontWeight.Medium),
+            pressedStyle = SpanStyle(
+                color = style.linkColor,
+                fontWeight = FontWeight.Medium,
+                background = style.linkColor.copy(alpha = 0.12f),
+            ),
+        ),
     )
 
     private fun codeSpanText(node: ASTNode): String {

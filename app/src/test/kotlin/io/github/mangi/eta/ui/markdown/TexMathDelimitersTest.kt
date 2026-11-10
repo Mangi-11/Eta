@@ -1,6 +1,6 @@
 package io.github.mangi.eta.ui.markdown
 
-import androidx.compose.ui.text.font.FontFamily
+import io.github.mangi.eta.ui.components.EtaMonospace
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -14,7 +14,7 @@ class TexMathDelimitersTest {
         val formula = "a_i + b_j = \\frac{1}{2}"
         assertTrue(paragraph.text.text.contains(formula))
         assertTrue(paragraph.text.spanStyles.any { range ->
-            range.item.fontFamily == FontFamily.Monospace &&
+            range.item.fontFamily == EtaMonospace &&
                 paragraph.text.text.substring(range.start, range.end).contains(formula)
         })
     }
@@ -104,7 +104,7 @@ class TexMathDelimitersTest {
             assertEquals(source, TexMathDelimiters.normalize(source))
         }
         val paragraph = blocks("价格 \$4 和 \$20 每百万").single() as MarkdownParagraph
-        assertFalse(paragraph.text.spanStyles.any { it.item.fontFamily == FontFamily.Monospace })
+        assertFalse(paragraph.text.spanStyles.any { it.item.fontFamily == EtaMonospace })
     }
 
     @Test

@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckBox
@@ -40,11 +42,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
@@ -62,7 +67,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
+import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.StatusWarning
 import kotlinx.coroutines.delay
@@ -117,24 +124,16 @@ internal fun LazyMarkdownContent(
             val previous = document.blocks.getOrNull(blockIndex - 1)
             val blockGapSp = markdownBlockGap(previous, block, style.tone)
             if (block is MarkdownList && block.items.isNotEmpty()) {
-                val itemGap = when {
-                    block.loose -> if (answer) 10.dp else 8.dp
-                    else -> if (answer) 4.dp else 2.dp
-                }
-                val markerWidth = if (block.ordered) {
-                    val digits = (block.items.lastOrNull()?.number ?: 1).toString().length
-                    (digits * 9 + 8).dp
-                } else {
-                    14.dp
-                }
+                val markerWidth = listMarkerWidth(block)
                 block.items.forEachIndexed { itemIndex, listItem ->
+                    val prevItem = block.items.getOrNull(itemIndex - 1)
                     item(key = (block.offset.toLong() shl 32) or (listItem.offset.toLong() and 0xFFFFFFFFL)) {
                         if (itemIndex == 0) {
                             if (blockGapSp.value > 0f) {
                                 Spacer(Modifier.height(with(density) { blockGapSp.toDp() }))
                             }
-                        } else {
-                            Spacer(Modifier.height(itemGap))
+                        } else if (prevItem != null) {
+                            Spacer(Modifier.height(listItemGap(prevItem, listItem, block.loose, answer)))
                         }
                         MarkdownListItemRow(
                             item = listItem,
@@ -162,8 +161,9 @@ internal fun LazyMarkdownContent(
 private class MarkdownRenderScope(
     val style: MarkdownStyle,
     val reveal: SmoothTextRevealCoordinator?,
+    val inQuote: Boolean = false,
 ) {
-    fun muted() = MarkdownRenderScope(style.muted(), reveal)
+    fun quoted() = MarkdownRenderScope(style.quoted(), reveal, inQuote = true)
 }
 
 /** 嵌套列表的层级只影响 marker 字形，用 CompositionLocal 传递，块组件不必逐层转发。 */
@@ -182,7 +182,7 @@ private fun MarkdownBlockColumn(
             key(block.offset) {
                 val previous = blocks.getOrNull(index - 1)
                 val gap = if (compact) {
-                    markdownCompactGap(previous, scope.style.tone)
+                    markdownCompactGap(previous, block, scope.style.tone)
                 } else {
                     markdownBlockGap(previous, block, scope.style.tone)
                 }
@@ -212,9 +212,9 @@ private fun MarkdownBlockView(block: MarkdownBlock, scope: MarkdownRenderScope) 
         is MarkdownRule -> Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 2.dp)
                 .height(0.5.dp)
-                .background(scope.style.dividerColor),
+                .background(scope.style.ruleColor),
         )
     }
 }
@@ -253,17 +253,24 @@ private fun MarkdownCodeBlock(block: MarkdownCode, scope: MarkdownRenderScope) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .squircleSurface(color = style.codeBackground, cornerRadius = 12.dp),
+            .squircleSurface(color = style.codeBackground, cornerRadius = 12.dp)
+            .squircleBorder(width = 0.5.dp, color = style.subtleBorderColor, cornerRadius = 12.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 14.dp, end = 4.dp, top = 2.dp),
+                .heightIn(min = 34.dp)
+                .background(style.codeHeaderBackground)
+                .padding(start = 14.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = block.language ?: stringResource(R.string.markdown_code_block),
-                style = MiuixTheme.textStyles.footnote2,
+                style = MiuixTheme.textStyles.footnote2.copy(
+                    fontFamily = if (block.language != null) EtaMonospace else null,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
                 color = style.secondaryColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -271,12 +278,18 @@ private fun MarkdownCodeBlock(block: MarkdownCode, scope: MarkdownRenderScope) {
             )
             CopyButton(text = block.text.text, tint = style.secondaryColor)
         }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(0.5.dp)
+                .background(style.subtleBorderColor),
+        )
         // 代码不折行，长行横向滚动，保留缩进与对齐。
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 11.dp),
         ) {
             MarkdownText(block, style.code, scope, softWrap = false)
         }
@@ -314,18 +327,25 @@ private fun CopyButton(text: String, tint: Color) {
 
 // ── 引用与提示 ──────────────────────────────────────────────────────────
 
+private val QuoteContainerShape = RoundedCornerShape(
+    topStart = 3.dp,
+    bottomStart = 3.dp,
+    topEnd = 10.dp,
+    bottomEnd = 10.dp,
+)
+
 @Composable
 private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope) {
-    val barColor = scope.style.dividerColor
-    val mutedScope = remember(scope) { scope.muted() }
-    MarkdownBlockColumn(
-        blocks = block.blocks,
-        scope = mutedScope,
-        compact = false,
-        modifier = Modifier
+    val style = scope.style
+    val barColor = style.quoteBarColor
+    val quotedScope = remember(scope) { scope.quoted() }
+    // 聊天中的顶层引用常承载模型拟好的回复话术或核心摘录，采用轻底色便签容器与细边条；
+    // 嵌套引用只保留细内线，避免多层底色叠加显得笨重。
+    val quoteModifier = if (scope.inQuote) {
+        Modifier
             .fillMaxWidth()
             .drawBehind {
-                val width = 3.dp.toPx()
+                val width = 2.dp.toPx()
                 drawLine(
                     color = barColor,
                     start = Offset(width / 2, width / 2),
@@ -334,30 +354,53 @@ private fun MarkdownQuoteBlock(block: MarkdownQuote, scope: MarkdownRenderScope)
                     cap = StrokeCap.Round,
                 )
             }
-            .padding(start = 14.dp),
+            .padding(start = 12.dp)
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .clip(QuoteContainerShape)
+            .background(style.quoteBackground)
+            .drawBehind {
+                drawRect(
+                    color = barColor,
+                    size = Size(2.5.dp.toPx(), size.height),
+                )
+            }
+            .padding(start = 13.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
+    }
+    MarkdownBlockColumn(
+        blocks = block.blocks,
+        scope = quotedScope,
+        compact = false,
+        modifier = quoteModifier,
     )
 }
 
 @Composable
 private fun MarkdownAlertBlock(block: MarkdownAlert, scope: MarkdownRenderScope) {
     val accent = block.kind.accentColor()
+    val fillAlpha = if (scope.style.isDark) 0.10f else 0.055f
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .squircleSurface(color = accent.copy(alpha = 0.08f), cornerRadius = 12.dp)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .squircleSurface(color = accent.copy(alpha = fillAlpha), cornerRadius = 12.dp)
+            .squircleBorder(width = 0.5.dp, color = accent.copy(alpha = 0.20f), cornerRadius = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 11.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = block.kind.icon,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(15.dp),
                 tint = accent,
             )
             Spacer(Modifier.width(6.dp))
             Text(
                 text = stringResource(block.kind.label),
-                style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.SemiBold),
+                style = MiuixTheme.textStyles.body2.copy(
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
                 color = accent,
             )
         }
@@ -399,25 +442,40 @@ private val AlertImportantColor = Color(0xFF8B5CF6)
 
 // ── 列表 ────────────────────────────────────────────────────────────────
 
+private fun listMarkerWidth(block: MarkdownList): Dp = if (block.ordered) {
+    val digits = (block.items.lastOrNull()?.number ?: 1).toString().length
+    // 单位数序号起始贴齐正文左边界，多位数按最长序号预留槽位，保证列表项正文左边缘统一。
+    if (digits <= 1) 18.dp else (digits * 9 + 6).dp
+} else {
+    14.dp
+}
+
+private fun MarkdownListItem.hasStructuredContent(): Boolean =
+    blocks.size > 1 || blocks.any { it !is MarkdownParagraph }
+
+private fun listItemGap(
+    previous: MarkdownListItem,
+    current: MarkdownListItem,
+    loose: Boolean,
+    answer: Boolean,
+): Dp = when {
+    loose -> if (answer) 11.dp else 8.dp
+    previous.hasStructuredContent() || current.hasStructuredContent() -> if (answer) 10.dp else 7.dp
+    else -> if (answer) 6.dp else 4.dp
+}
+
 @Composable
 private fun MarkdownListBlock(block: MarkdownList, scope: MarkdownRenderScope) {
     val depth = LocalListDepth.current
     val answer = scope.style.tone == MarkdownTone.Answer
-    val itemGap = when {
-        block.loose -> if (answer) 10.dp else 8.dp
-        else -> if (answer) 4.dp else 2.dp
-    }
-    // 序号按本列表最长的数字预留宽度，各项正文左边缘对齐。
-    val markerWidth = if (block.ordered) {
-        val digits = (block.items.lastOrNull()?.number ?: 1).toString().length
-        (digits * 9 + 8).dp
-    } else {
-        14.dp
-    }
+    val markerWidth = listMarkerWidth(block)
     Column(Modifier.fillMaxWidth()) {
         block.items.forEachIndexed { index, item ->
             key(item.offset) {
-                if (index > 0) Spacer(Modifier.height(itemGap))
+                val previous = block.items.getOrNull(index - 1)
+                if (previous != null) {
+                    Spacer(Modifier.height(listItemGap(previous, item, block.loose, answer)))
+                }
                 MarkdownListItemRow(
                     item = item,
                     ordered = block.ordered,
@@ -440,6 +498,7 @@ private fun MarkdownListItemRow(
     markerWidth: Dp,
     scope: MarkdownRenderScope,
 ) {
+    val useBaselineAlignment = ordered && item.checked == null
     Row(Modifier.fillMaxWidth()) {
         ListMarker(item = item, ordered = ordered, depth = depth, width = markerWidth, scope = scope)
         CompositionLocalProvider(LocalListDepth provides depth + 1) {
@@ -449,7 +508,7 @@ private fun MarkdownListItemRow(
                 compact = !loose,
                 modifier = Modifier
                     .weight(1f)
-                    .alignByBaseline(),
+                    .then(if (useBaselineAlignment) Modifier.alignByBaseline() else Modifier),
             )
         }
     }
@@ -465,39 +524,77 @@ private fun RowScope.ListMarker(
 ) {
     val style = scope.style
     val reveal = scope.reveal
+    val firstBlock = item.blocks.firstOrNull()
+    val firstLineHeightSp = if (firstBlock is MarkdownHeading) {
+        style.heading(firstBlock.level).lineHeight
+    } else {
+        style.body.lineHeight
+    }
+    val topInset = if (firstBlock is MarkdownQuote && !scope.inQuote) 8.dp else 0.dp
     // 在 graphicsLayer 内读取显现进度：块开始显现只让 marker 图层更新，不触发重组。
     val visibility = Modifier.graphicsLayer {
         alpha = if (listMarkerVisible(reveal != null, item.markerRevealKey, reveal?.started?.value)) 1f else 0f
     }
     val markerModifier = visibility
-        .padding(end = 8.dp)
+        .padding(end = 6.dp)
         .widthIn(min = width)
     when {
         item.checked != null -> {
-            val lineHeight = with(LocalDensity.current) { style.body.lineHeight.toDp() }
-            Box(markerModifier.height(lineHeight), contentAlignment = Alignment.Center) {
+            val lineHeight = with(LocalDensity.current) { firstLineHeightSp.toDp() }
+            Box(
+                modifier = markerModifier
+                    .padding(top = topInset)
+                    .height(lineHeight),
+                contentAlignment = Alignment.CenterStart,
+            ) {
                 Icon(
                     imageVector = if (item.checked) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(17.dp),
                     tint = if (item.checked) MiuixTheme.colorScheme.primary else style.markerColor,
                 )
             }
         }
         ordered -> Text(
             text = "${item.number}.",
-            style = style.body,
+            style = style.body.copy(fontWeight = FontWeight.Medium),
             color = style.markerColor,
-            textAlign = TextAlign.End,
+            textAlign = TextAlign.Start,
             modifier = markerModifier.alignByBaseline(),
         )
-        else -> Text(
-            text = BULLETS[depth % BULLETS.size],
-            style = style.body,
-            color = style.markerColor,
-            textAlign = TextAlign.Center,
-            modifier = markerModifier.alignByBaseline(),
-        )
+        else -> {
+            val lineHeight = with(LocalDensity.current) { firstLineHeightSp.toDp() }
+            val bulletColor = style.markerColor
+            val answer = style.tone == MarkdownTone.Answer
+            Box(
+                modifier = markerModifier
+                    .padding(top = topInset)
+                    .height(lineHeight)
+                    .drawBehind {
+                        // 自绘几何圆点替代字体自带的 "•"，跨 ColorOS / HyperOS 字库保持尺寸与视觉重心一致。
+                        val diameter = (if (answer) 5.dp else 4.dp).toPx()
+                        val center = Offset(x = diameter / 2f + 2.dp.toPx(), y = size.height * 0.52f)
+                        when (depth % 3) {
+                            0 -> drawCircle(color = bulletColor, radius = diameter / 2f, center = center)
+                            1 -> drawCircle(
+                                color = bulletColor,
+                                radius = diameter / 2f,
+                                center = center,
+                                style = Stroke(width = 1.2.dp.toPx()),
+                            )
+                            else -> {
+                                val side = (if (answer) 4.dp else 3.5.dp).toPx()
+                                drawRoundRect(
+                                    color = bulletColor,
+                                    topLeft = Offset(center.x - side / 2f, center.y - side / 2f),
+                                    size = Size(side, side),
+                                    cornerRadius = CornerRadius(1.dp.toPx()),
+                                )
+                            }
+                        }
+                    },
+            )
+        }
     }
 }
 
@@ -511,8 +608,6 @@ internal fun listMarkerVisible(
     started: Set<RevealBlockKey>?,
 ): Boolean = !revealActive || (markerKey != null && started?.contains(markerKey) == true)
 
-private val BULLETS = listOf("•", "◦", "▪")
-
 // ── 表格 ────────────────────────────────────────────────────────────────
 
 /**
@@ -525,11 +620,13 @@ private fun MarkdownTableBlock(block: MarkdownTable, scope: MarkdownRenderScope)
     val bodyStyles = remember(style, block.alignments) {
         block.alignments.map { align -> style.table.copy(textAlign = align.textAlign) }
     }
-    val headerStyles = remember(bodyStyles) {
-        bodyStyles.map { it.copy(fontWeight = FontWeight.SemiBold) }
+    val headerStyles = remember(bodyStyles, style.strongColor) {
+        bodyStyles.map { it.copy(fontWeight = FontWeight.Bold, color = style.strongColor) }
     }
     var grid by remember { mutableStateOf(TableGrid.Empty) }
-    val lineColor = style.dividerColor
+    val borderColor = style.subtleBorderColor
+    val rowLineColor = style.subtleBorderColor
+    val columnLineColor = style.subtleBorderColor.copy(alpha = style.subtleBorderColor.alpha * 0.65f)
     val headerColor = style.tableHeaderBackground
     val columns = block.header.size
     val rows = remember(block) { listOf(block.header) + block.rows }
@@ -543,7 +640,7 @@ private fun MarkdownTableBlock(block: MarkdownTable, scope: MarkdownRenderScope)
         ) {
             Layout(
                 modifier = Modifier
-                    .squircleBorder(width = 0.5.dp, color = lineColor, cornerRadius = 12.dp)
+                    .squircleBorder(width = 0.5.dp, color = borderColor, cornerRadius = 12.dp)
                     .squircleClip(cornerRadius = 12.dp)
                     .drawBehind {
                         val current = grid
@@ -553,12 +650,12 @@ private fun MarkdownTableBlock(block: MarkdownTable, scope: MarkdownRenderScope)
                         var y = 0f
                         current.rowHeights.dropLast(1).forEach { height ->
                             y += height
-                            drawLine(lineColor, Offset(0f, y), Offset(size.width, y), stroke)
+                            drawLine(rowLineColor, Offset(0f, y), Offset(size.width, y), stroke)
                         }
                         var x = 0f
                         current.columnWidths.dropLast(1).forEach { width ->
                             x += width
-                            drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), stroke)
+                            drawLine(columnLineColor, Offset(x, 0f), Offset(x, size.height), stroke)
                         }
                     },
                 content = {
@@ -569,7 +666,7 @@ private fun MarkdownTableBlock(block: MarkdownTable, scope: MarkdownRenderScope)
                                 style = if (rowIndex == 0) headerStyles[column] else bodyStyles[column],
                                 scope = scope,
                                 // 单元格以固定宽度测量，不需要 fill；fill 会干扰列宽的固有尺寸查询。
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                             )
                         }
                     }

@@ -2,10 +2,10 @@ package io.github.mangi.eta.ui.markdown
 
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import io.github.mangi.eta.ui.components.EtaMonospace
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -22,8 +22,8 @@ class MarkdownInlineTest {
         val paragraph = paragraphOf("**这不代表你的真机。**但你研究")
 
         assertEquals("这不代表你的真机。但你研究", paragraph.text.text)
-        assertTrue(paragraph.text.hasSpanCovering("这不代表你的真机。") { it.fontWeight == FontWeight.SemiBold })
-        assertFalse(paragraph.text.hasSpanCovering("但你研究") { it.fontWeight == FontWeight.SemiBold })
+        assertTrue(paragraph.text.hasSpanCovering("这不代表你的真机。") { it.fontWeight == FontWeight.Bold })
+        assertFalse(paragraph.text.hasSpanCovering("但你研究") { it.fontWeight == FontWeight.Bold })
     }
 
     @Test
@@ -31,8 +31,8 @@ class MarkdownInlineTest {
         val paragraph = paragraphOf("**我建议你先别把假期变成“大厂题库全背一遍”。**先准备好：")
 
         assertFalse(paragraph.text.text.contains('*'))
-        assertTrue(paragraph.text.hasSpanCovering("我建议你先别把假期变成“大厂题库全背一遍”。") { it.fontWeight == FontWeight.SemiBold })
-        assertFalse(paragraph.text.hasSpanCovering("先准备好") { it.fontWeight == FontWeight.SemiBold })
+        assertTrue(paragraph.text.hasSpanCovering("我建议你先别把假期变成“大厂题库全背一遍”。") { it.fontWeight == FontWeight.Bold })
+        assertFalse(paragraph.text.hasSpanCovering("先准备好") { it.fontWeight == FontWeight.Bold })
     }
 
     @Test
@@ -40,8 +40,8 @@ class MarkdownInlineTest {
         val paragraph = paragraphOf("发现 **Android 17 的 `mmd`（内存管理守护程序）**值得你了解")
 
         assertFalse(paragraph.text.text.contains('*'))
-        assertTrue(paragraph.text.hasSpanCovering("内存管理守护程序") { it.fontWeight == FontWeight.SemiBold })
-        assertTrue(paragraph.text.hasSpanCovering("mmd") { it.fontFamily == FontFamily.Monospace })
+        assertTrue(paragraph.text.hasSpanCovering("内存管理守护程序") { it.fontWeight == FontWeight.Bold })
+        assertTrue(paragraph.text.hasSpanCovering("mmd") { it.fontFamily == EtaMonospace })
     }
 
     @Test
@@ -49,7 +49,7 @@ class MarkdownInlineTest {
         val paragraph = paragraphOf("未闭合 **标记")
 
         assertEquals("未闭合 **标记", paragraph.text.text)
-        assertFalse(paragraph.text.hasSpanCovering("标记") { it.fontWeight == FontWeight.SemiBold })
+        assertFalse(paragraph.text.hasSpanCovering("标记") { it.fontWeight == FontWeight.Bold })
     }
 
     @Test
@@ -81,7 +81,7 @@ class MarkdownInlineTest {
         val paragraph = paragraphOf("普通 **加粗** 普通")
 
         assertEquals("普通 加粗 普通", paragraph.text.text)
-        assertTrue(paragraph.text.hasSpanCovering("加粗") { it.fontWeight == FontWeight.SemiBold })
+        assertTrue(paragraph.text.hasSpanCovering("加粗") { it.fontWeight == FontWeight.Bold })
     }
 
     @Test
@@ -89,7 +89,7 @@ class MarkdownInlineTest {
         val paragraph = paragraphOf("**加粗 *斜体* 结束**接")
 
         assertFalse(paragraph.text.text.contains('*'))
-        assertTrue(paragraph.text.hasSpanCovering("结束") { it.fontWeight == FontWeight.SemiBold })
+        assertTrue(paragraph.text.hasSpanCovering("结束") { it.fontWeight == FontWeight.Bold })
         assertTrue(paragraph.text.hasSpanCovering("斜体") { it.fontStyle == FontStyle.Italic })
     }
 
@@ -98,9 +98,9 @@ class MarkdownInlineTest {
         val partial = paragraphOf("**它。", isComplete = false)
         val complete = paragraphOf("**它。**但", isComplete = true)
 
-        assertTrue(partial.text.hasSpanCovering("它。") { it.fontWeight == FontWeight.SemiBold })
+        assertTrue(partial.text.hasSpanCovering("它。") { it.fontWeight == FontWeight.Bold })
         assertEquals("它。但", complete.text.text)
-        assertTrue(complete.text.hasSpanCovering("它。") { it.fontWeight == FontWeight.SemiBold })
+        assertTrue(complete.text.hasSpanCovering("它。") { it.fontWeight == FontWeight.Bold })
     }
 
     @Test
@@ -109,7 +109,7 @@ class MarkdownInlineTest {
 
         assertFalse(paragraph.text.text.contains('<'))
         assertTrue(paragraph.text.text.contains("Ctrl"))
-        assertTrue(paragraph.text.hasSpanCovering("Ctrl") { it.fontFamily == FontFamily.Monospace })
+        assertTrue(paragraph.text.hasSpanCovering("Ctrl") { it.fontFamily == EtaMonospace })
     }
 
     private fun paragraphOf(source: String, isComplete: Boolean = true): MarkdownParagraph =

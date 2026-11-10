@@ -3,8 +3,8 @@ package io.github.mangi.eta.ui.markdown
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import io.github.mangi.eta.ui.components.EtaMonospace
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -74,7 +74,7 @@ class StreamingGfmParserTest {
 
         assertEquals("说明 **压力**", snapshot.renderedSource)
         val paragraph = snapshot.document.blocks.single() as MarkdownParagraph
-        assertTrue(paragraph.text.hasSpanCovering("压力") { it.fontWeight == FontWeight.SemiBold })
+        assertTrue(paragraph.text.hasSpanCovering("压力") { it.fontWeight == FontWeight.Bold })
     }
 
     @Test
@@ -86,7 +86,7 @@ class StreamingGfmParserTest {
 
         assertEquals("执行 `adb shell`", snapshot.renderedSource)
         val paragraph = snapshot.document.blocks.single() as MarkdownParagraph
-        assertTrue(paragraph.text.hasSpanCovering("adb shell") { it.fontFamily == FontFamily.Monospace })
+        assertTrue(paragraph.text.hasSpanCovering("adb shell") { it.fontFamily == EtaMonospace })
     }
 
     @Test
@@ -141,7 +141,7 @@ class StreamingGfmParserTest {
         assertTrue(blocks.any { it is MarkdownHeading && it.level == 2 })
         assertTrue(blocks.any { it is MarkdownCode && it.language == "kotlin" })
         val completion = blocks.filterIsInstance<MarkdownParagraph>().single()
-        assertTrue(completion.text.hasSpanCovering("完成") { it.fontWeight == FontWeight.SemiBold })
+        assertTrue(completion.text.hasSpanCovering("完成") { it.fontWeight == FontWeight.Bold })
     }
 
     @Test

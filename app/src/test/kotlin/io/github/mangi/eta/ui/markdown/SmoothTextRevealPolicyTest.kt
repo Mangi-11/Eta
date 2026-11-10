@@ -215,20 +215,26 @@ class SmoothTextRevealPolicyTest {
         val subHeading = MarkdownHeading(12, level = 3, text = AnnotatedString("子节"))
         val list = MarkdownList(16, ordered = false, loose = false, items = emptyList())
         val table = MarkdownTable(20, alignments = emptyList(), header = emptyList(), rows = emptyList())
+        val rule = MarkdownRule(24)
+        val quote = MarkdownQuote(28, blocks = emptyList())
 
         assertEquals(0.sp, markdownBlockGap(null, first, MarkdownTone.Answer))
-        assertEquals(12.sp, markdownBlockGap(first, second, MarkdownTone.Answer))
-        assertEquals(22.sp, markdownBlockGap(first, heading, MarkdownTone.Answer))
-        assertEquals(18.sp, markdownBlockGap(first, subHeading, MarkdownTone.Answer))
-        assertEquals(8.sp, markdownBlockGap(heading, second, MarkdownTone.Answer))
+        assertEquals(11.sp, markdownBlockGap(first, second, MarkdownTone.Answer))
+        assertEquals(20.sp, markdownBlockGap(first, heading, MarkdownTone.Answer))
+        assertEquals(16.sp, markdownBlockGap(first, subHeading, MarkdownTone.Answer))
+        assertEquals(6.sp, markdownBlockGap(heading, second, MarkdownTone.Answer))
         assertEquals(8.sp, markdownBlockGap(heading, subHeading, MarkdownTone.Answer))
-        assertEquals(14.sp, markdownBlockGap(first, list, MarkdownTone.Answer))
-        assertEquals(14.sp, markdownBlockGap(table, first, MarkdownTone.Answer))
+        assertEquals(8.sp, markdownBlockGap(first, list, MarkdownTone.Answer))
+        assertEquals(13.sp, markdownBlockGap(table, first, MarkdownTone.Answer))
+        assertEquals(16.sp, markdownBlockGap(first, rule, MarkdownTone.Answer))
+        assertEquals(16.sp, markdownBlockGap(rule, heading, MarkdownTone.Answer))
+        assertEquals(5.sp, markdownCompactGap(first, list, MarkdownTone.Answer))
+        assertEquals(8.sp, markdownCompactGap(first, quote, MarkdownTone.Answer))
 
         // 思考语气的间距整体收敛。
         assertEquals(0.sp, markdownBlockGap(null, first, MarkdownTone.Thinking))
-        assertEquals(9.sp, markdownBlockGap(first, second, MarkdownTone.Thinking))
-        assertEquals(16.5.sp, markdownBlockGap(first, heading, MarkdownTone.Thinking))
+        assertEquals(8.25.sp, markdownBlockGap(first, second, MarkdownTone.Thinking))
+        assertEquals(15.sp, markdownBlockGap(first, heading, MarkdownTone.Thinking))
     }
 
     @Test

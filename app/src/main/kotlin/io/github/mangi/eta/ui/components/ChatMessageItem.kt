@@ -103,6 +103,7 @@ import io.github.mangi.eta.agent.model.AgentFileReferencePromptCodec
 import io.github.mangi.eta.agent.overlay.toolDisplayName
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.markdown.EditorialLineHeightStyle
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.ui.markdown.StreamingMarkdown
@@ -377,7 +378,10 @@ private fun UserMessageBubble(
             SelectionContainer {
                 Text(
                     text = visiblePrompt.request,
-                    style = MiuixTheme.textStyles.body1,
+                    style = MiuixTheme.textStyles.body1.copy(
+                        lineHeight = 23.sp,
+                        lineHeightStyle = EditorialLineHeightStyle,
+                    ),
                     color = MiuixTheme.colorScheme.onSurface,
                 )
             }
@@ -731,7 +735,10 @@ private fun AgentMessageBlock(
                 SelectionContainer {
                     Text(
                         text = message.content,
-                        style = MiuixTheme.textStyles.body1,
+                        style = MiuixTheme.textStyles.body1.copy(
+                            lineHeight = 25.sp,
+                            lineHeightStyle = EditorialLineHeightStyle,
+                        ),
                         color = MiuixTheme.colorScheme.onSurface,
                     )
                 }
@@ -1062,11 +1069,12 @@ internal fun ThinkingRow(
                         )
                     } ?: stringResource(R.string.reasoning_completed)
                 },
-                style = MiuixTheme.textStyles.body2,
+                style = MiuixTheme.textStyles.body2.copy(fontSize = 13.5.sp),
                 color = if (message.isStreaming) {
                     MiuixTheme.colorScheme.onSurface
                 } else {
-                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    val dark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+                    MiuixTheme.colorScheme.onSurface.copy(alpha = if (dark) 0.56f else 0.52f)
                 },
                 modifier = Modifier.weight(1f, fill = !compact),
             )
@@ -1075,7 +1083,7 @@ internal fun ThinkingRow(
                 contentDescription = stringResource(
                     if (expanded) R.string.reasoning_collapse else R.string.reasoning_expand,
                 ),
-                modifier = Modifier.padding(start = 4.dp, end = if (compact) 8.dp else 0.dp),
+                modifier = Modifier.padding(start = 4.dp, end = if (compact) 4.dp else 0.dp),
             )
         }
 
@@ -1094,9 +1102,9 @@ internal fun ThinkingRow(
                     .fillMaxWidth()
                     .padding(
                         start = if (compact) 0.dp else 12.dp,
-                        end = if (compact) 8.dp else 12.dp,
-                        top = if (compact) 0.dp else 8.dp,
-                        bottom = if (compact) 8.dp else 12.dp,
+                        end = if (compact) 4.dp else 12.dp,
+                        top = if (compact) 3.dp else 8.dp,
+                        bottom = if (compact) 10.dp else 12.dp,
                     )
                 if (streamingState != null &&
                     (message.isStreaming || completedDocument == null || tailWindow)

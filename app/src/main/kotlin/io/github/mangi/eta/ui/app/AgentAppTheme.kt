@@ -166,7 +166,7 @@ fun AgentAppTheme(
                         onSurfaceContainer = couiNative.onSurface,
                         onSurfaceVariantSummary = couiNative.onSurfaceVariant,
                         onSurfaceVariantActions = couiNative.onSurfaceVariant,
-                        outline = if (isDark) Color(0x26FFFFFF) else Color(0x16000000),
+                        outline = if (isDark) Color(0xFF3A3C42) else Color(0xFFDCDFE4),
                         dividerLine = couiNative.outlineVariant,
                     )
                 }
