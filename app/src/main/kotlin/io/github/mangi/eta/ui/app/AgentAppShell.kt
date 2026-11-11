@@ -228,7 +228,8 @@ internal fun AgentAppShell(
                 }
             }
             AppearanceUiStyle.MIUIX -> {
-                val scrollBehavior = MiuixScrollBehavior()
+                // 首页顶栏高度固定，不参与折叠；未绑定顶栏的滚动行为会吞掉聊天列表的单向滑动。
+                val scrollBehavior = if (currentRoute is AppRoute.Home) null else MiuixScrollBehavior()
                 val backdrop = rememberTopBarBackdrop()
                 val topBarColor = topBarContainerColor(backdrop)
                 Scaffold(
@@ -268,7 +269,10 @@ internal fun AgentAppShell(
                         modifier = Modifier
                             .fillMaxSize()
                             .captureForTopBar(backdrop)
-                            .nestedScroll(scrollBehavior.nestedScrollConnection),
+                            .then(
+                                if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                                else Modifier,
+                            ),
                     ) {
                         content(padding)
                     }
@@ -403,7 +407,7 @@ private fun CouiTopBarOverflowMenu(
 @Composable
 private fun AgentTopBar(
     route: AppRoute?,
-    scrollBehavior: ScrollBehavior,
+    scrollBehavior: ScrollBehavior?,
     color: Color,
     onBack: () -> Unit,
     onOpenConversationPane: () -> Unit,

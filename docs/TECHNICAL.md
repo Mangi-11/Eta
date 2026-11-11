@@ -152,7 +152,7 @@ Linux 环境页按当前环境、环境配置、文件与目录、扩展工具�
 
 设置与管理页面统一使用 `EtaPreference` 系列组件：普通行、开关、单选、复选和选择菜单共享布局、图标间距与正文对齐分割线，支持无图标、长摘要、自定义正文及底部操作。功能入口使用 `EtaFeatureCard`，按钮与对话框通过 `EtaTextButton`、`EtaWindowDialog`、`EtaOverlayDialog` 复用 Miuix 的交互和宿主机制。尺寸、分类色与页面主题集中定义；标准页面骨架自动接入设置主题，Monet 与深色配置沿用 App 主题。具体组件选择、分组规则和插槽合同见 [设置与管理组件](UI_COMPONENTS.md)。
 
-外观配置保存在现有 `eta_settings` DataStore。主题根统一解析跟随系统、浅色、深色、Monet 色彩风格、强调色与纯黑背景，并同步系统栏和 Markdown 的 Material 颜色桥接。顶栏使用 COUI 渐进模糊或 Miuix `LayerBackdrop` 捕获滚动内容，聊天输入胶囊通过底部连续垂直渐隐悬浮于消息流上方。页面滚动继续使用 Miuix 越界回弹和边界触感反馈，横屏安全区由 display cutout 与导航栏 Insets 共同约束。
+外观配置保存在现有 `eta_settings` DataStore。主题根统一解析跟随系统、浅色、深色、Monet 色彩风格、强调色与纯黑背景，并同步系统栏和 Markdown 的 Material 颜色桥接。顶栏使用 COUI 渐进模糊或 Miuix `LayerBackdrop` 捕获滚动内容，聊天输入胶囊通过底部连续垂直渐隐悬浮于消息流上方。Miuix 聊天顶栏高度固定，聊天内容不接入壳层的折叠顶栏滚动连接，双向滚动由消息列表处理。页面滚动继续使用 Miuix 越界回弹和边界触感反馈，横屏安全区由 display cutout 与导航栏 Insets 共同约束。
 
 - **Eta Runtime 配置**：默认思考、网页浏览、设备直达、敏感信息读取、敏感设备操作和终端/文件工具保存在 App 私有配置中，不依赖 LSPosed。Runtime 在请求开始和每次工具执行前读取当前值；升级时会兼容迁移已有 RemotePreferences 值。
 - **Hook 配置**：`EtaApp` 在 `Application.onCreate` 注册 `XposedServiceHelper`，框架通过 `XposedProvider` 推送 binder 后拿到 `XposedService`。系统助手接管、Gemini 和一圈即搜等 Hook 开关通过 `XposedService.getRemotePreferences()` 写入 LSPosed 数据库；服务未连接时这些开关保持不可修改。
