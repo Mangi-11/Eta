@@ -1361,9 +1361,9 @@
   <string name="chat_character_input_hint">对%1$s说点什么…</string>
   <string name="chat_character_typing">%1$s 正在回复…</string>
   <string name="speech_tts_gemini">Gemini</string>
-  <string name="speech_asr_mimo">Mimo</string>
-  <string name="speech_tts_mimo">Mimo</string>
-  <string name="speech_mimo_tts_connection_note">使用Mimo 开放平台的 API Key，播报凭据独立保存。自定义地址填写包含 /v1 的 API 基础地址，不附加接口路径。</string>
+  <string name="speech_asr_mimo">MIMO · 语音识别</string>
+  <string name="speech_tts_mimo">MIMO</string>
+  <string name="speech_mimo_tts_connection_note">使用 MIMO 开放平台的 API Key，播报凭据独立保存。自定义地址填写包含 /v1 的 API 基础地址，不附加接口路径。</string>
   <string name="speech_mimo_voice_note">默认音色随服务区域选择。朗读风格可填写“自然、温和，语速稍慢”，留空使用默认风格。手动填写须使用当前模型支持的预置音色 ID，不会创建或克隆音色。</string>
   <string name="speech_voice_manual">手动填写音色 ID</string>
   <string name="speech_voice_mimo_default">默认</string>
@@ -1379,8 +1379,8 @@
   <string name="speech_voice_chinese_male">中文男声</string>
   <string name="speech_voice_english_female">英文女声</string>
   <string name="speech_voice_english_male">英文男声</string>
-  <string name="speech_asr_note_mimo">使用 Mimo 语音识别模型，录音完成后返回文字；点击完成或松手结束录音，不提供实时预览。</string>
-  <string name="speech_mimo_asr_connection_note">使用Mimo 开放平台的 API Key。自定义地址填写包含 /v1 的 API 基础地址，不附加接口路径；无需配置 OSS。</string>
+  <string name="speech_asr_note_mimo">录音结束后返回文字，不提供实时预览或停顿自动发送。点击完成结束录音；按住说话时松手发送。</string>
+  <string name="speech_mimo_asr_connection_note">使用 MIMO 开放平台的 API Key。自定义地址填写包含 /v1 的 API 基础地址，不附加接口路径；无需配置 OSS。</string>
   <string name="speech_recognition_language">识别语言</string>
   <string name="speech_language_auto">自动识别</string>
   <string name="speech_language_chinese">中文</string>

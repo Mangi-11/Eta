@@ -2,6 +2,8 @@ package io.github.mangi.eta.agent.voice
 
 import android.app.Application
 import android.graphics.Insets
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
@@ -23,6 +25,8 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import io.github.mangi.eta.data.model.AppearanceSettings
+import io.github.mangi.eta.data.model.AppearanceThemeMode
+import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.app.AgentAppTheme
 import io.github.mangi.eta.ui.model.AgentMessageUi
@@ -206,6 +210,43 @@ class EtaVoicePanelTouchTest {
         }
 
     @Test
+    fun replyBackgroundCoversNavigationAreaWhileInputAvoidsIt() {
+        for (style in AppearanceUiStyle.entries) {
+            for (theme in listOf(AppearanceThemeMode.LIGHT, AppearanceThemeMode.DARK)) {
+                withPanel(appearance = AppearanceSettings(uiStyle = style, themeMode = theme)) { panel ->
+                    panel.showReply()
+                    for (navigationBottom in listOf(48, 144)) {
+                        panel.setBottomInsets(navigationBottom = navigationBottom)
+                        panel.advance(3)
+                        panel.assertNavigationBackgroundCovered(navigationBottom)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun keyboardAndNavigationInsetsAreNotAddedTogether() = withPanel { panel ->
+        panel.showReply()
+        panel.setBottomInsets(navigationBottom = 48)
+        panel.advance(3)
+        val baseline = panel.textInputBottom()
+        for (imeBottom in listOf(120, 240, 360, 240, 0)) {
+            panel.setBottomInsets(navigationBottom = 48, imeBottom = imeBottom)
+            panel.advance(3)
+            assertEquals(baseline - (maxOf(48, imeBottom) - 48), panel.textInputBottom(), 1f)
+        }
+    }
+
+    @Test
+    fun inputAvoidsSideNavigationAndDisplayCutouts() = withPanel { panel ->
+        panel.showReply()
+        panel.setBottomInsets(navigationBottom = 0, navigationRight = 96, cutoutLeft = 72)
+        panel.advance(3)
+        panel.assertHorizontalInsetsRespected(left = 72, right = 96)
+    }
+
+    @Test
     fun dismissingDuringEntranceDoesNotRequestKeyboardLater() =
         withPanel(recognitionEnabled = false, initialFrames = 1) { panel ->
             panel.advance(20)
@@ -218,10 +259,11 @@ class EtaVoicePanelTouchTest {
     private fun withPanel(
         recognitionEnabled: Boolean = true,
         initialFrames: Int = 180,
+        appearance: AppearanceSettings = AppearanceSettings(),
         block: (Panel) -> Unit,
     ) {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
-        val panel = Panel(controller.get(), recognitionEnabled) { controller.windowFocusChanged(true) }
+        val panel = Panel(controller.get(), recognitionEnabled, appearance) { controller.windowFocusChanged(true) }
         try {
             panel.advance(initialFrames)
             block(panel)
@@ -234,6 +276,7 @@ class EtaVoicePanelTouchTest {
     private class Panel(
         val activity: ComponentActivity,
         recognitionEnabled: Boolean,
+        appearance: AppearanceSettings,
         private val onGainWindowFocus: () -> Unit,
     ) {
         val state = mutableStateOf(EtaVoiceUiState())
@@ -262,7 +305,7 @@ class EtaVoicePanelTouchTest {
             val view = ComposeView(activity)
             view.setParentCompositionContext(recomposer)
             view.setContent {
-                AgentAppTheme(AppearanceSettings(), applyInterfaceScale = false) {
+                AgentAppTheme(appearance, applyInterfaceScale = false) {
                     CompositionLocalProvider(
                         LocalSquircleEnabled provides false,
                         LocalSoftwareKeyboardController provides keyboard,
@@ -367,6 +410,38 @@ class EtaVoicePanelTouchTest {
                 .setInsets(WindowInsets.Type.ime(), Insets.of(0, 0, 0, bottom))
                 .setVisible(WindowInsets.Type.ime(), bottom > 0)
                 .build())
+        }
+
+        fun setBottomInsets(navigationBottom: Int, imeBottom: Int = 0, navigationRight: Int = 0, cutoutLeft: Int = 0) {
+            root().view.dispatchApplyWindowInsets(WindowInsets.Builder()
+                .setInsets(WindowInsets.Type.navigationBars(), Insets.of(0, 0, navigationRight, navigationBottom))
+                .setVisible(WindowInsets.Type.navigationBars(), true)
+                .setInsets(WindowInsets.Type.displayCutout(), Insets.of(cutoutLeft, 0, 0, 0))
+                .setInsets(WindowInsets.Type.ime(), Insets.of(0, 0, 0, imeBottom))
+                .setVisible(WindowInsets.Type.ime(), imeBottom > 0)
+                .build())
+        }
+
+        fun assertHorizontalInsetsRespected(left: Int, right: Int) {
+            val bounds = requireNotNull(findTextInput(root().semanticsOwner.unmergedRootSemanticsNode)).boundsInRoot
+            assertTrue("输入框必须避开左侧挖孔", bounds.left >= left)
+            assertTrue("输入框必须避开侧边导航栏", bounds.right <= root().view.width - right)
+        }
+
+        fun assertNavigationBackgroundCovered(navigationBottom: Int) {
+            val view = root().view
+            assertTrue("输入框必须避开导航区域", textInputBottom() < view.height - navigationBottom)
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            try {
+                view.draw(Canvas(bitmap))
+                val inset = dp(4f).toInt()
+                val contentColor = bitmap.getPixel(view.width / 2, view.height - navigationBottom - inset)
+                val navigationColor = bitmap.getPixel(view.width / 2, view.height - inset)
+                assertEquals("回复面板底色必须实际绘制为不透明", 255, contentColor ushr 24)
+                assertEquals("浮窗底色应连续覆盖导航区域，不能露出下层窗口", contentColor, navigationColor)
+            } finally {
+                bitmap.recycle()
+            }
         }
 
         fun hasMicrophone(): Boolean {

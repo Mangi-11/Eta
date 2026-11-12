@@ -256,6 +256,71 @@ class SpeechPlaybackTest {
         }
     }
 
+    @Test fun sessionAndSegmentSynthesisReceiveTheSameReadableBody() {
+        val markdown = """
+            # 操作说明
+
+            开始前请确认权限，并查看[帮助说明](https://example.invalid/help)。
+            下载地址：https://example.invalid/download?token=fixture
+
+            | 内部项目 | 标记 |
+            | --- | --- |
+            | table_item | table_value |
+
+            ```kotlin
+            codeCommand()
+            ```
+
+            ![imageAlt](https://example.invalid/diagram.png)
+
+            <div>htmlOnlyContent</div>
+
+            完成后返回聊天。
+        """.trimIndent()
+        var previousText: String? = null
+        for (provider in listOf(TtsProvider.QWEN, TtsProvider.MIMO)) {
+            val output = FakeOutput()
+            val submitted = java.util.concurrent.CopyOnWriteArrayList<String>()
+            var sessions = 0
+            var segments = 0
+            val controller = SpeechPlaybackController(context, scope,
+                streamSynthesize = { _, _, chunks, audio ->
+                    sessions++
+                    submitted.addAll(chunks)
+                    audio(byteArrayOf(1, 2))
+                },
+                synthesize = { _, _, text, audio ->
+                    segments++
+                    submitted += text
+                    audio(byteArrayOf(1, 2))
+                },
+                createOutput = { output },
+            )
+            try {
+                speakUntilClosed(controller, output, markdown, provider)
+                assertEquals(if (provider == TtsProvider.QWEN) 1 else 0, sessions)
+                assertEquals(if (provider == TtsProvider.MIMO) 1 else 0, segments)
+                val spoken = submitted.joinToString("\n")
+                for (text in listOf(
+                    "操作说明", "开始前请确认权限", "帮助说明", "完成后返回聊天",
+                )) {
+                    assertTrue(spoken.contains(text))
+                }
+                for (text in listOf(
+                    "https://", "example.invalid", "codeCommand",
+                    "内部项目", "标记", "table_item", "table_value", "表格",
+                    "imageAlt", "htmlOnlyContent", "链接见正文", "请查看正文", "图片见正文", "内容见正文",
+                )) {
+                    assertFalse(spoken.contains(text))
+                }
+                previousText?.let { assertEquals(it, spoken) }
+                previousText = spoken
+                assertTrue(output.finished)
+                assertNull(controller.state.value.error)
+            } finally { controller.stop() }
+        }
+    }
+
     @Test fun httpProviderFailureIsNotRetriedOrSentToAnotherProvider() {
         for (provider in listOf(TtsProvider.GEMINI, TtsProvider.MINIMAX, TtsProvider.MIMO)) {
             val output = FakeOutput()
