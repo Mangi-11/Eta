@@ -451,12 +451,9 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         }
     }
 
-    private fun showKeyboard(status: EtaVoiceStatus = EtaVoiceStatus.InputRequest) {
+    private fun showKeyboard() {
         entryInputPending = false
-        uiState = uiState.copy(
-            phase = EtaVoicePhase.READY,
-            status = status,
-        )
+        uiState = uiState.copy(phase = EtaVoicePhase.READY)
         updateSoftInput(visible = true)
         inputFocusRequestKey++
     }
@@ -483,7 +480,6 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         val runId = activeRunId ?: return
         uiState = uiState.copy(
             phase = EtaVoicePhase.PROCESSING,
-            status = EtaVoiceStatus.Reasoning,
             messages = uiState.messages + UserMessageUi(
                 id = "user-$runId",
                 content = normalized,
@@ -531,13 +527,11 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                 if (result.ok) {
                     uiState = uiState.copy(
                         phase = EtaVoicePhase.READY,
-                        status = EtaVoiceStatus.Completed,
                         messages = finishRunMessages(runId, result),
                     )
                 } else {
                     uiState = uiState.copy(
                         phase = EtaVoicePhase.ERROR,
-                        status = EtaVoiceStatus.Failed(result.error),
                         messages = finishRunMessages(runId, result),
                     )
                 }
@@ -603,7 +597,6 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         state: EtaVoiceUiState,
     ): EtaVoiceUiState {
         var messages = runMessageProjector.applyEvent(runId, event, state.messages)
-        var status = state.status
         var phase = state.phase
         when (event) {
             is AgentEvent.UserSupplementReceived -> {
@@ -612,19 +605,10 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                     messages = messages + UserMessageUi(id = id, content = event.text)
                 }
             }
-            is AgentEvent.ToolStarted -> status = EtaVoiceStatus.RunningTool(event.name)
-            is AgentEvent.HostedToolStarted -> status = EtaVoiceStatus.RunningTool(event.name)
-            is AgentEvent.RunFailed -> {
-                phase = EtaVoicePhase.ERROR
-                status = EtaVoiceStatus.Failed(event.reason)
-            }
-            is AgentEvent.ContextCompaction,
-            is AgentEvent.ModelRetryScheduled,
-            is AgentEvent.ProviderRequestStarted,
-            -> status = EtaVoiceStatus.Reasoning
+            is AgentEvent.RunFailed -> phase = EtaVoicePhase.ERROR
             else -> Unit
         }
-        return state.copy(messages = messages, phase = phase, status = status)
+        return state.copy(messages = messages, phase = phase)
     }
 
     private fun finishRunMessages(
@@ -665,7 +649,6 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
             runJob = null
             uiState = uiState.copy(
                 phase = EtaVoicePhase.READY,
-                status = EtaVoiceStatus.Stopped,
                 messages = runMessageProjector.failRunningTools(
                     SYNTHETIC_STOPPED,
                     runMessageProjector.finalizeText(

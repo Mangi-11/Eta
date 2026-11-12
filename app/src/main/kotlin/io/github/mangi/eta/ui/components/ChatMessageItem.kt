@@ -352,12 +352,13 @@ private fun UserMessageBubble(
         AgentFileReferencePromptCodec.parse(message.content)
     }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val overlayBubbleColor = if (isDark) {
-        Color(0xFF37393D)
-    } else {
-        Color(0xFFE5E7EA)
-    }
     val uiStyle = LocalUiStyle.current
+    val overlayBubbleColor = when {
+        uiStyle == AppearanceUiStyle.COUI && isDark -> Color(0xFF21293A)
+        uiStyle == AppearanceUiStyle.COUI -> Color(0xFFEAF0FC)
+        isDark -> Color(0xFF37393D)
+        else -> Color(0xFFE5E7EA)
+    }
     val imagePreviewer = LocalChatImagePreviewer.current
     val hasTextBubble = visiblePrompt.references.isNotEmpty() || visiblePrompt.request.isNotBlank()
     val canCopy = message.content.isNotBlank()
@@ -566,7 +567,11 @@ private fun UserMessageBubble(
                         )
                     }
                     if (hasTextBubble) {
-                        val bubbleShape = if (assistantOverlay) OverlayUserBubbleShape else UserBubbleShape
+                        val bubbleShape = when {
+                            assistantOverlay && uiStyle == AppearanceUiStyle.COUI -> OverlayCouiUserBubbleShape
+                            assistantOverlay -> OverlayUserBubbleShape
+                            else -> UserBubbleShape
+                        }
                         Column(
                             modifier = Modifier
                                 .widthIn(max = 316.dp)
@@ -591,8 +596,8 @@ private fun UserMessageBubble(
                                     },
                                 )
                                 .padding(
-                                    horizontal = if (assistantOverlay) 12.dp else 16.dp,
-                                    vertical = if (assistantOverlay) 8.dp else 10.5.dp,
+                                    horizontal = if (assistantOverlay) 14.dp else 16.dp,
+                                    vertical = if (assistantOverlay) 9.dp else 10.5.dp,
                                 ),
                         ) {
                             bubbleContent()
@@ -623,6 +628,13 @@ private val OverlayUserBubbleShape = RoundedCornerShape(
     topEnd = 14.dp,
     bottomEnd = 4.dp,
     bottomStart = 14.dp,
+)
+
+private val OverlayCouiUserBubbleShape = RoundedCornerShape(
+    topStart = 20.dp,
+    topEnd = 20.dp,
+    bottomEnd = 5.dp,
+    bottomStart = 20.dp,
 )
 
 /**

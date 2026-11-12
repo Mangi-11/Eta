@@ -256,6 +256,29 @@ class EtaVoicePanelTouchTest {
             assertEquals(0, panel.keyboardShows)
         }
 
+    @Test
+    fun voiceCapsuleSwitchesSmoothlyBetweenListeningAndKeyboard() = withPanel { panel ->
+        panel.speech.value = EtaSpeechState(phase = EtaSpeechPhase.LISTENING)
+        panel.advance(30)
+        assertFalse(panel.hasTextInput())
+        assertTrue(panel.hasActionDescription(R.string.voice_use_keyboard))
+        assertTrue(panel.hasActionDescription(R.string.voice_finish_speech))
+        panel.assertSuggestionCapsulesTopUnclipped()
+        panel.clickActionDescription(R.string.voice_use_keyboard)
+        assertEquals(1, panel.keyboardSwitches)
+        panel.speech.value = EtaSpeechState()
+        panel.advance(30)
+        assertTrue(panel.hasTextInput())
+        assertTrue(panel.hasMicrophone())
+        panel.assertSuggestionCapsulesTopUnclipped()
+    }
+
+    @Test
+    fun sheetTopEdgeCoversLeftAndRightHorizontalSpanWithoutDiagonalClip() = withPanel { panel ->
+        panel.showReply()
+        panel.assertSheetTopSpanUnclipped()
+    }
+
     private fun withPanel(
         recognitionEnabled: Boolean = true,
         initialFrames: Int = 180,
@@ -280,6 +303,7 @@ class EtaVoicePanelTouchTest {
         private val onGainWindowFocus: () -> Unit,
     ) {
         val state = mutableStateOf(EtaVoiceUiState())
+        val speech = mutableStateOf(EtaSpeechState())
         val recognitionEnabled = mutableStateOf(recognitionEnabled)
         private val entranceComplete = mutableStateOf(false)
         private val inputFocusRequestKey = mutableStateOf(-1)
@@ -289,6 +313,7 @@ class EtaVoicePanelTouchTest {
         var revealDurationMs = 0L
         private var inputActivated = false
         var keyboardShows = 0
+        var keyboardSwitches = 0
         var microphoneStarts = 0
         private val keyboard = object : SoftwareKeyboardController {
             override fun show() { keyboardShows++ }
@@ -314,7 +339,7 @@ class EtaVoicePanelTouchTest {
                             speechLevel = { 0f },
                             state = state.value,
                             input = "",
-                            speech = EtaSpeechState(),
+                            speech = speech.value,
                             recognitionEnabled = this.recognitionEnabled.value,
                             entranceComplete = entranceComplete.value,
                             onEntranceFinished = {
@@ -332,7 +357,7 @@ class EtaVoicePanelTouchTest {
                             onCancelSpeech = {},
                             onFinishSpeech = {},
                             onOpenSpeechSettings = {},
-                            onKeyboard = {},
+                            onKeyboard = { keyboardSwitches++ },
                             inputFocusRequestKey = inputFocusRequestKey.value,
                             canOpenConversation = state.value.phase == EtaVoicePhase.READY &&
                                 state.value.messages.isNotEmpty(),
@@ -354,6 +379,7 @@ class EtaVoicePanelTouchTest {
         fun close() {
             recomposer.cancel()
             scope.cancel()
+            shadowOf(android.os.Looper.getMainLooper()).idle()
         }
 
         fun showReply(processing: Boolean = false) {
@@ -444,11 +470,89 @@ class EtaVoicePanelTouchTest {
             }
         }
 
-        fun hasMicrophone(): Boolean {
-            val description = activity.getString(R.string.voice_tap_to_speak)
-            fun find(node: SemanticsNode): Boolean =
-                node.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(description) == true ||
-                    node.children.any(::find)
+        fun assertSuggestionCapsulesTopUnclipped() {
+            val view = root().view
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            try {
+                view.draw(Canvas(bitmap))
+                for (label in listOf("总结屏幕内容", "解释当前页面", "提取关键信息")) {
+                    val node = requireNotNull(findByText(label)) { "未找到建议胶囊：$label" }
+                    val bounds = node.boundsInRoot
+                    val sampleX = bounds.center.x.toInt()
+                    val topPixel = bitmap.getPixel(sampleX, (bounds.top + dp(3f)).toInt())
+                    val bottomPixel = bitmap.getPixel(sampleX, (bounds.bottom - dp(3f)).toInt())
+                    assertTrue(
+                        "建议胶囊顶部不应被斜向裁切：$label topAlpha=${topPixel ushr 24}",
+                        (topPixel ushr 24) > 235,
+                    )
+                    assertTrue(
+                        "建议胶囊上下边缘亮度应连续一致：$label top=${Integer.toHexString(topPixel)} bottom=${Integer.toHexString(bottomPixel)}",
+                        kotlin.math.abs(((topPixel shr 16) and 0xFF) - ((bottomPixel shr 16) and 0xFF)) <= 8,
+                    )
+                }
+            } finally {
+                bitmap.recycle()
+            }
+        }
+
+        fun assertSheetTopSpanUnclipped() {
+            val view = root().view
+            val handle = handleBounds()
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            try {
+                view.draw(Canvas(bitmap))
+                val sampleY = (handle.top + dp(6f)).toInt()
+                val leftPixel = bitmap.getPixel(dp(44f).toInt(), sampleY)
+                val rightPixel = bitmap.getPixel((view.width - dp(44f)).toInt(), sampleY)
+                assertEquals("回复面板左上圆角内侧应完全覆盖底色", 255, leftPixel ushr 24)
+                assertEquals("回复面板右上圆角内侧应完全覆盖底色", 255, rightPixel ushr 24)
+            } finally {
+                bitmap.recycle()
+            }
+        }
+
+        private fun findByText(text: String): SemanticsNode? {
+            fun find(node: SemanticsNode): SemanticsNode? {
+                val texts = node.config.getOrNull(SemanticsProperties.Text)
+                if (texts?.any { it.text == text } == true &&
+                    node.config.getOrNull(SemanticsProperties.Role) != null
+                ) {
+                    return node
+                }
+                return node.children.firstNotNullOfOrNull(::find)
+            }
+            return find(root().semanticsOwner.unmergedRootSemanticsNode)
+                ?: run {
+                    fun findTextParent(node: SemanticsNode): SemanticsNode? {
+                        if (node.children.any { child ->
+                                child.config.getOrNull(SemanticsProperties.Text)?.any { it.text == text } == true
+                            }
+                        ) {
+                            return node
+                        }
+                        return node.children.firstNotNullOfOrNull(::findTextParent)
+                    }
+                    findTextParent(root().semanticsOwner.unmergedRootSemanticsNode)
+                }
+        }
+
+        fun hasMicrophone(): Boolean = hasActionDescription(R.string.voice_tap_to_speak)
+
+        fun hasActionDescription(resId: Int): Boolean = findByDescription(resId) != null
+
+        fun clickActionDescription(resId: Int) {
+            val node = requireNotNull(findByDescription(resId))
+            assertTrue(node.config[SemanticsActions.OnClick].action?.invoke() == true)
+        }
+
+        private fun findByDescription(resId: Int): SemanticsNode? {
+            val description = activity.getString(resId)
+            fun find(node: SemanticsNode): SemanticsNode? {
+                if (node.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(description) == true) {
+                    return node
+                }
+                return node.children.firstNotNullOfOrNull(::find)
+            }
             return find(root().semanticsOwner.unmergedRootSemanticsNode)
         }
 

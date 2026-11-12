@@ -305,15 +305,11 @@
   <string name="system_notice_interrupted">The run was interrupted. Partial output is preserved; unfinished actions were not retried.</string>
   <string name="tool_status_unknown">Result unknown</string>
   <string name="voice_listening">Listening...</string>
-  <string name="voice_processing">Processing…</string>
   <string name="voice_tap_to_speak">Tap to speak</string>
-  <string name="voice_request_failed">The request failed. Please try again.</string>
-  <string name="voice_input_request">Enter a request</string>
-  <string name="voice_completed">Completed</string>
-  <string name="voice_failed">Eta failed to complete the task</string>
-  <string name="voice_running_tool">Eta is running %1$s</string>
   <string name="voice_input_hint">Message Eta…</string>
   <string name="voice_send">Send</string>
+  <string name="voice_handoff_pull">Pull up to open Eta</string>
+  <string name="voice_handoff_release">Release to open Eta</string>
   <string name="ui_core_memory_user_name_long_term_preferences_aa6ff9"># core memory
 - User name:
 - Long-term preferences:</string>

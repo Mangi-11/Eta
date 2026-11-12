@@ -6,24 +6,30 @@ import android.graphics.BitmapShader
 import android.graphics.RuntimeShader
 import android.graphics.Shader
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.core.AndroidAgentLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -32,24 +38,40 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 @Composable
-internal fun EtaAssistantWave(active: Boolean, level: () -> Float, modifier: Modifier = Modifier) {
+internal fun EtaAssistantWave(
+    active: Boolean,
+    level: () -> Float,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
+    val currentLevel by rememberUpdatedState(level)
     val effect by produceState<EtaWaveEffect?>(null) {
         value = withContext(Dispatchers.IO) {
             try {
                 EtaWaveEffect(context)
             } catch (error: Exception) {
-                if (error is kotlinx.coroutines.CancellationException) throw error
+                if (error is CancellationException) throw error
                 AndroidAgentLogger.warn("Eta assistant wave unavailable: type=${error.javaClass.simpleName}")
                 null
             }
         }
     }
     var elapsed by remember { mutableFloatStateOf(0f) }
+    var smoothedLevel by remember { mutableFloatStateOf(0f) }
     var unavailable by remember { mutableStateOf(false) }
     var entranceReachedBottom by remember { mutableStateOf(false) }
     var waveVisible by remember { mutableStateOf(false) }
     val clock = remember { longArrayOf(0L) }
+
+    val waveAlpha by animateFloatAsState(
+        targetValue = if (active && entranceReachedBottom) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = if (active) 220 else 280,
+            easing = FastOutSlowInEasing,
+        ),
+        label = "assistant_wave_alpha",
+    )
+
     LaunchedEffect(Unit) {
         delay(ASSISTANT_EDGE_ARRIVAL_MS)
         entranceReachedBottom = true
@@ -65,22 +87,30 @@ internal fun EtaAssistantWave(active: Boolean, level: () -> Float, modifier: Mod
             withFrameNanos { now ->
                 if (clock[0] == 0L) clock[0] = now
                 elapsed = (now - clock[0]) / 1_000_000_000f
+                val raw = if (active) currentLevel().coerceIn(0f, 1f) else 0f
+                val factor = if (raw > smoothedLevel) 0.28f else 0.10f
+                smoothedLevel += (raw - smoothedLevel) * factor
                 waveVisible = true
             }
             if (!active) {
                 if (stoppedAt < 0f) stoppedAt = elapsed
-                if (elapsed - stoppedAt >= 0.3f) break
+                if (elapsed - stoppedAt >= 0.32f) break
             }
         }
         if (!active) waveVisible = false
     }
-    Canvas(modifier.fillMaxWidth().height(65.dp)) {
-        if (!entranceReachedBottom || !waveVisible) return@Canvas
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .graphicsLayer { alpha = waveAlpha },
+    ) {
+        if (!entranceReachedBottom || !waveVisible || waveAlpha <= 0.005f) return@Canvas
         // 部分 ROM 在窗口切换时使用软件画布，RuntimeShader 只能提交到硬件画布。
         if (!unavailable && drawContext.canvas.nativeCanvas.isHardwareAccelerated) {
             effect?.let {
                 try {
-                    it.update(elapsed, active, level(), size.width, size.height)
+                    it.update(elapsed, active, smoothedLevel, size.width, size.height)
                     drawRect(it.brush)
                 } catch (error: RuntimeException) {
                     unavailable = true

@@ -285,9 +285,7 @@
   <string name="system_notice_interrupted">任务已中断。已保留部分输出，未自动重试尚未完成的操作。</string>
   <string name="tool_status_unknown">结果未知</string>
   <string name="voice_listening">聆听中...</string>
-  <string name="voice_processing">正在处理…</string>
   <string name="voice_tap_to_speak">点击说话</string>
-  <string name="voice_request_failed">请求失败，请重试。</string>
   <string name="overlay_supplement">补充</string>
   <string name="overlay_capsule_toggle">%1$s，点击展开控制</string>
   <string name="overlay_supplement_hint">补充指令，Eta 会继续当前任务</string>
@@ -697,12 +695,10 @@
   <string name="page_unauthorized_86bddc">未授权</string>
   <string name="page_use_standard_chat_completions_ee4b1a">使用 Chat Completions API</string>
   <string name="page_using_typed_items_with_semantic_streaming_events_f9c906">使用 Responses API、typed Items 与语义化流式事件</string>
-  <string name="voice_input_request">输入请求</string>
-  <string name="voice_completed">已完成</string>
-  <string name="voice_failed">Eta 执行失败</string>
-  <string name="voice_running_tool">Eta 正在执行 %1$s</string>
   <string name="voice_input_hint">发消息问 Eta…</string>
   <string name="voice_send">发送</string>
+  <string name="voice_handoff_pull">继续上拉进入 Eta</string>
+  <string name="voice_handoff_release">松手进入 Eta</string>
   <string name="injected_reasoning">Eta 正在思考…</string>
   <string name="injected_executing">Eta 正在执行任务…</string>
   <string name="injected_completed">Eta 已完成本轮任务</string>
