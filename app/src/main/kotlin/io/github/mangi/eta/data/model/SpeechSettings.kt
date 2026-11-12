@@ -2,11 +2,13 @@ package io.github.mangi.eta.data.model
 
 import kotlinx.serialization.Serializable
 
-@Serializable
-enum class AsrProvider { QWEN_REALTIME, QWEN_FLASH, QWEN_FILE, DOUBAO }
+private const val MIMO_SPEECH_BASE_URL = "https://api.xiaomimimo.com/v1"
 
 @Serializable
-enum class TtsProvider { NONE, QWEN, DOUBAO, GEMINI, MINIMAX }
+enum class AsrProvider { QWEN_REALTIME, QWEN_FLASH, QWEN_FILE, DOUBAO, MIMO }
+
+@Serializable
+enum class TtsProvider { NONE, QWEN, DOUBAO, GEMINI, MINIMAX, MIMO }
 
 @Serializable
 enum class SpeechRegion { BEIJING, SINGAPORE }
@@ -21,6 +23,19 @@ data class QwenSpeechConfig(
         else "https://dashscope-intl.aliyuncs.com"
     }
 }
+
+@Serializable
+enum class MimoAsrLanguage(val apiId: String) {
+    AUTO("auto"),
+    CHINESE("zh"),
+    ENGLISH("en"),
+}
+
+@Serializable
+data class MimoAsrConfig(
+    val baseUrl: String = MIMO_SPEECH_BASE_URL,
+    val language: MimoAsrLanguage = MimoAsrLanguage.AUTO,
+)
 
 @Serializable
 data class DoubaoSpeechConfig(
@@ -59,6 +74,13 @@ data class MiniMaxTtsConfig(
 )
 
 @Serializable
+data class MimoTtsConfig(
+    val baseUrl: String = MIMO_SPEECH_BASE_URL,
+    val voice: String = "mimo_default",
+    val style: String = "",
+)
+
+@Serializable
 data class SpeechOssConfig(
     val region: String = "cn-beijing",
     val endpoint: String = "https://oss-cn-beijing.aliyuncs.com",
@@ -89,6 +111,8 @@ data class SpeechSettings(
     val refineTranscript: Boolean = false,
     /** 只控制 Eta 自身的语音输入，关闭时保留服务配置以便再次开启。 */
     val recognitionEnabled: Boolean = true,
+    val mimoAsr: MimoAsrConfig = MimoAsrConfig(),
+    val mimoTts: MimoTtsConfig = MimoTtsConfig(),
 ) {
     companion object {
         const val DEFAULT_AUTO_SEND_SILENCE_MS = 2_000
@@ -98,6 +122,7 @@ data class SpeechSettings(
 
 internal enum class SpeechCredentialField {
     QWEN_ASR, QWEN_TTS, DOUBAO_ASR, DOUBAO_TTS, GEMINI_TTS, MINIMAX_TTS, OSS_KEY_ID, OSS_KEY_SECRET,
+    MIMO_ASR, MIMO_TTS,
 }
 
 /** 凭据不属于 Settings，避免被普通配置导出或调试输出带出。 */
@@ -111,6 +136,8 @@ class SpeechCredentials(
     val ossAccessKeySecret: String = "",
     val geminiTts: String = "",
     val minimaxTts: String = "",
+    val mimoAsr: String = "",
+    val mimoTts: String = "",
 ) {
     internal fun withValue(field: SpeechCredentialField, value: String): SpeechCredentials = SpeechCredentials(
         qwenAsr = if (field == SpeechCredentialField.QWEN_ASR) value else qwenAsr,
@@ -121,6 +148,8 @@ class SpeechCredentials(
         ossAccessKeySecret = if (field == SpeechCredentialField.OSS_KEY_SECRET) value else ossAccessKeySecret,
         geminiTts = if (field == SpeechCredentialField.GEMINI_TTS) value else geminiTts,
         minimaxTts = if (field == SpeechCredentialField.MINIMAX_TTS) value else minimaxTts,
+        mimoAsr = if (field == SpeechCredentialField.MIMO_ASR) value else mimoAsr,
+        mimoTts = if (field == SpeechCredentialField.MIMO_TTS) value else mimoTts,
     )
 
     override fun toString(): String = "SpeechCredentials(redacted)"

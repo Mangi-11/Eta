@@ -7,7 +7,7 @@ import io.github.mangi.eta.data.model.TtsProvider
 internal data class SpeechVoicePreset(
     val id: String,
     @param:StringRes val name: Int,
-    @param:StringRes val summary: Int,
+    @param:StringRes val summary: Int? = null,
 )
 
 internal object SpeechVoicePresets {
@@ -71,11 +71,24 @@ internal object SpeechVoicePresets {
         SpeechVoicePreset("Chinese (Mandarin)_News_Anchor", R.string.speech_voice_minimax_news, R.string.speech_voice_female),
     )
 
+    private val mimo = listOf(
+        SpeechVoicePreset("mimo_default", R.string.speech_voice_mimo_default),
+        SpeechVoicePreset("冰糖", R.string.speech_voice_mimo_bingtang, R.string.speech_voice_chinese_female),
+        SpeechVoicePreset("茉莉", R.string.speech_voice_mimo_moli, R.string.speech_voice_chinese_female),
+        SpeechVoicePreset("苏打", R.string.speech_voice_mimo_suda, R.string.speech_voice_chinese_male),
+        SpeechVoicePreset("白桦", R.string.speech_voice_mimo_baihua, R.string.speech_voice_chinese_male),
+        SpeechVoicePreset("Mia", R.string.speech_voice_mimo_mia, R.string.speech_voice_english_female),
+        SpeechVoicePreset("Chloe", R.string.speech_voice_mimo_chloe, R.string.speech_voice_english_female),
+        SpeechVoicePreset("Milo", R.string.speech_voice_mimo_milo, R.string.speech_voice_english_male),
+        SpeechVoicePreset("Dean", R.string.speech_voice_mimo_dean, R.string.speech_voice_english_male),
+    )
+
     fun forProvider(provider: TtsProvider): List<SpeechVoicePreset> = when (provider) {
         TtsProvider.QWEN -> qwen
         TtsProvider.DOUBAO -> doubao
         TtsProvider.GEMINI -> gemini
         TtsProvider.MINIMAX -> minimax
+        TtsProvider.MIMO -> mimo
         TtsProvider.NONE -> emptyList()
     }
 }

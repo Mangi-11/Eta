@@ -171,7 +171,7 @@ class SpeechPlaybackTest {
         provider: TtsProvider = TtsProvider.QWEN,
     ) {
         controller.speak("stream", text, SpeechSettings(tts = provider),
-            SpeechCredentials(qwenTts = "test-key", geminiTts = "test-key", minimaxTts = "test-key"))
+            SpeechCredentials(qwenTts = "test-key", geminiTts = "test-key", minimaxTts = "test-key", mimoTts = "test-key"))
         val deadline = System.nanoTime() + 3_000_000_000
         while (!output.closed && System.nanoTime() < deadline) {
             shadowOf(Looper.getMainLooper()).idle()
@@ -234,7 +234,7 @@ class SpeechPlaybackTest {
     }
 
     @Test fun httpProvidersUseOrderedSegmentsWithoutAttemptingWebSocketSessions() {
-        for (provider in listOf(TtsProvider.GEMINI, TtsProvider.MINIMAX)) {
+        for (provider in listOf(TtsProvider.GEMINI, TtsProvider.MINIMAX, TtsProvider.MIMO)) {
             val output = FakeOutput()
             val segments = java.util.concurrent.CopyOnWriteArrayList<String>()
             val controller = SpeechPlaybackController(context, scope,
@@ -257,7 +257,7 @@ class SpeechPlaybackTest {
     }
 
     @Test fun httpProviderFailureIsNotRetriedOrSentToAnotherProvider() {
-        for (provider in listOf(TtsProvider.GEMINI, TtsProvider.MINIMAX)) {
+        for (provider in listOf(TtsProvider.GEMINI, TtsProvider.MINIMAX, TtsProvider.MIMO)) {
             val output = FakeOutput()
             var attempts = 0
             val controller = SpeechPlaybackController(context, scope,

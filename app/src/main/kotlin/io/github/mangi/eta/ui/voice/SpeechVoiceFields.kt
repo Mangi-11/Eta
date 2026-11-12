@@ -25,6 +25,7 @@ internal fun SpeechVoiceSection(store: SpeechSettingsStore) {
         TtsProvider.DOUBAO -> settings.doubaoVoice
         TtsProvider.GEMINI -> settings.geminiTts.voice
         TtsProvider.MINIMAX -> settings.minimaxTts.voice
+        TtsProvider.MIMO -> settings.mimoTts.voice
     }
     val presets = SpeechVoicePresets.forProvider(settings.tts)
     val presetIndex = presets.indexOfFirst { it.id == voice }
@@ -38,6 +39,7 @@ internal fun SpeechVoiceSection(store: SpeechSettingsStore) {
                 TtsProvider.DOUBAO -> settings.copy(doubaoVoice = it)
                 TtsProvider.GEMINI -> settings.copy(geminiTts = settings.geminiTts.copy(voice = it))
                 TtsProvider.MINIMAX -> settings.copy(minimaxTts = settings.minimaxTts.copy(voice = it))
+                TtsProvider.MIMO -> settings.copy(mimoTts = settings.mimoTts.copy(voice = it))
             },
         )
     }
@@ -46,14 +48,20 @@ internal fun SpeechVoiceSection(store: SpeechSettingsStore) {
         editingCustom = preset == null
         if (preset != null) change(preset.id) else if (!custom) change("")
     }
+    val customLabel = stringResource(
+        if (settings.tts == TtsProvider.MIMO) R.string.speech_voice_manual else R.string.speech_voice_custom,
+    )
 
     Column {
         SpeechGroupCard(title = stringResource(R.string.speech_group_voice)) {
             when (LocalUiStyle.current) {
                 AppearanceUiStyle.COUI -> {
                     val labels = presets.map { preset ->
-                        "${stringResource(preset.name)} · ${stringResource(preset.summary)}"
-                    } + stringResource(R.string.speech_voice_custom)
+                        listOfNotNull(
+                            stringResource(preset.name),
+                            preset.summary?.let { stringResource(it) },
+                        ).joinToString(" · ")
+                    } + customLabel
                     CouiDropdownPreference(
                         title = stringResource(R.string.speech_voice),
                         items = labels,
@@ -65,8 +73,11 @@ internal fun SpeechVoiceSection(store: SpeechSettingsStore) {
                     OverlaySpinnerPreference(
                         title = stringResource(R.string.speech_voice),
                         items = presets.map { preset ->
-                            DropdownItem(text = stringResource(preset.name), summary = stringResource(preset.summary))
-                        } + DropdownItem(text = stringResource(R.string.speech_voice_custom)),
+                            DropdownItem(
+                                text = stringResource(preset.name),
+                                summary = preset.summary?.let { stringResource(it) },
+                            )
+                        } + DropdownItem(text = customLabel),
                         selectedIndex = if (custom) presets.size else presetIndex,
                         onSelectedIndexChange = onSelectIndex,
                     )
@@ -90,6 +101,7 @@ internal fun SpeechVoiceSection(store: SpeechSettingsStore) {
                     TtsProvider.DOUBAO -> R.string.speech_doubao_voice_note
                     TtsProvider.GEMINI -> R.string.speech_gemini_voice_note
                     TtsProvider.MINIMAX -> R.string.speech_minimax_voice_note
+                    TtsProvider.MIMO -> R.string.speech_mimo_voice_note
                     TtsProvider.NONE -> error("No synthesis provider")
                 },
             ),

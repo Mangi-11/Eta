@@ -7,7 +7,7 @@ Eta 的「设置 → 语音」分别配置语音识别（ASR）与语音播报�
 ## 使用方式
 
 - **聊天听写**：点击输入框麦克风开始，点击完成后把最终文字插入当前选区，可编辑后发送。预览文字不会覆盖已有草稿。
-- **助手浮窗**：识别结果直接发起提问。千问实时与豆包流式在停顿后自动发送，停顿时长可选 1、1.5、2（默认）或 3 秒，也可关闭；千问短音频与文件转写需点击完成。长按麦克风进入按住说话，期间停顿不会发送，松手发送，手指移出按钮取消。回答下方提供朗读按钮。
+- **助手浮窗**：识别结果直接发起提问。千问实时与豆包流式在停顿后自动发送，停顿时长可选 1、1.5、2（默认）或 3 秒，也可关闭；千问短音频、文件转写与 Mimo 需点击完成。长按麦克风进入按住说话，期间停顿不会发送，松手发送，手指移出按钮取消。回答下方提供朗读按钮。
 - **文字唤醒**：关闭语音识别后，全局唤醒先播放入场光效，再让文字输入栏淡入并轻微上移，显现完成后才聚焦并请求键盘，可直接使用输入法语音输入。空输入时显示不可点击的发送按钮；输入法收起后也不会重新启动识别。各阶段通过动画完成回调衔接，键盘升降期间由布局阶段的 Insets 保持输入栏与键盘同步。用户提前点击输入框会接管输入，关闭浮窗会取消后续自动聚焦；键盘自身的动画速度由系统和输入法决定。
 - **智能纠错**：开启后，识别结果在交付前用当前对话模型做一次不带工具的保守校对，只修正同音字和被识别成中文谐音的英文术语，不改写正确内容。纠错最多等待 8 秒；未配置对话模型、请求失败、超时或输出长度异常时直接使用原始识别结果。聊天听写与浮窗都生效，会增加少量延迟和模型费用。
 - **回答播报**：聊天回答可手动朗读；朗读期间退到后台或锁屏会继续播放，通知栏显示「Eta 正在朗读」并可停止，离开聊天页才结束。在聊天页「更多」菜单中开启自动朗读后，每轮回答正常结束时自动朗读这一轮的最终回答；停止或失败的回合、切换会话与打开历史都不会补读，关闭开关会停止正在进行的朗读。开启「助手自动播报回答」后，仅播报浮窗中语音提问的成功最终回答，不读取思考、工具日志或代码块。
@@ -27,18 +27,24 @@ Eta 的「设置 → 语音」分别配置语音识别（ASR）与语音播报�
 | 千问短音频 ASR | `qwen3-asr-flash` | 百炼地域、API Key |
 | 千问文件转写 | `qwen3-asr-flash-filetrans` | 百炼地域、API Key、自有 OSS |
 | 豆包流式 ASR | 流式识别 2.0 | API Key；默认资源 ID `volc.seedasr.sauc.duration` |
+| Mimo ASR | 专用语音识别，录音结束后转写 | MiMo API Key；识别语言可选自动、中文、英文 |
 | 千问 TTS | `qwen3-tts-flash-realtime`，不可用时回落 `qwen3-tts-flash` | 百炼地域、独立播报 API Key、音色；默认 Cherry |
 | 豆包 TTS | 语音合成 2.0，双向流式，不可用时回落单向流式 | 独立播报 API Key、音色；默认 VV，资源 ID `seed-tts-2.0` |
 | Gemini TTS | Interactions 语音合成，分段流式 | Google AI Studio API Key、语音模型、音色；可选朗读风格 |
 | MiniMax TTS | HTTP 语音合成，分段流式 | MiniMax API Key、语音模型、音色与语速 |
+| Mimo TTS | 预置音色语音合成，分段流式 | 独立播报 API Key、音色；可选朗读风格 |
 
 千问可选择北京或新加坡，API Key 必须匹配所选地域。高级设置可填写服务根地址，包括业务空间专属域名；不要附加 `/api/v1` 或 `/compatible-mode/v1`。模型与协议绑定，不使用聊天模型列表推断语音能力。千问识别语言留空表示自动识别；指定语言时使用服务支持的语言代码。
+
+Mimo 使用独立保存的识别 API Key、接口基础地址与识别语言，切换服务时保留配置，不自动使用对话模型的凭据。默认连接小米按量计费 API，基础地址以 `/v1` 结尾；使用 Token Plan 或兼容网关时，需填写与凭据匹配的基础地址，不附加 `/chat/completions`。专用识别模型绑定在 `agent/voice/MimoSpeechRecognition.kt`，不使用通用音频理解模型代替转写。录音结束后直接上传 WAV，无需 OSS；保持单次最多 60 秒，不提供边录边识别预览或停顿自动发送。
 
 播报页提供各服务的常用音色，按名称选择，列表标注声音特点、男女声或方言。千问预设适配当前播报模型，豆包预设适配语音合成 2.0；Gemini 预设可朗读中文及其支持的其他语言，MiniMax 预设为普通话。已保存的音色 ID 会自动匹配名称，未匹配的 ID 保留在「自定义音色」中。试听文本可编辑，最多 500 字，使用当前草稿，不会自动保存。
 
 Gemini 与 MiniMax 的模型选项及默认值以 `data/model/SpeechSettings.kt` 为准，各服务分别保存地址、凭据、模型和音色，切换后仍保留原配置。Gemini 的朗读风格与正文分开提交，可填写“自然、温和，语速稍慢”，留空使用默认风格；MiniMax 可调整 0.5～2 倍语速，并启用基础数字文本规范化。
 
 Gemini 使用 Google AI Studio 的原生语音接口，需要账号、地区与模型权限支持；它负责朗读已有回答，不创建 Live 对话会话，请求关闭服务端交互存储。MiniMax 默认连接中国站，海外账号需改为对应站点。自定义地址填写服务根地址，可包含网关前缀，但必须支持所选服务的原生协议；聊天模型兼容地址不能直接作为语音地址。
+
+Mimo 播报使用预置音色模型，模型绑定在 `agent/voice/MimoSpeechSynthesis.kt`。播报凭据、地址、音色和风格与识别配置分开保存。默认音色由服务集群决定，也可选择冰糖、茉莉、苏打、白桦或 Mia、Chloe、Milo、Dean；手动填写时须使用该模型认可的预置音色 ID，Eta 不创建或克隆音色。可用自然语言指定语气、情绪、语速或方言，风格最多填写 500 字，与朗读正文分开提交。基础地址填写规则与 MiMo 识别相同，需包含 `/v1`；设置页试听、聊天手动和自动朗读、助手自动播报均复用该配置。
 
 豆包高级设置可修改资源 ID、服务根地址，或启用旧版 App ID＋Access Token 鉴权。旧版配置的 Access Token 填在对应的凭据输入框。自定义音色应填写所选模型支持的音色 ID，不会在 Eta 内创建或复刻音色。
 
@@ -59,8 +65,9 @@ Eta 上传 WAV 后生成有效期 15 分钟的读取签名 URL，向百炼提交
 - `SpeechInputController` 统一管理 start、finish、cancel 和一次性结果交付。独立进程 `EtaRecognitionService` 仅保留 Android 数字助理角色所需的系统兼容桥接，不向其他应用开放云端凭据。
 - `SpeechRecorder` 采集 16 kHz、单声道 PCM16。录音只暂存在内存中，文件接口封装 WAV；实时发送队列和响应解析均有限额，背压失败明确返回，不静默丢帧。
 - 千问实时协议通过 `text + stash` 替换当前 item 预览，以 completed 为最终文字，等待 session.finished 后结束。自动发送的停顿时长同时作为千问 `silence_duration_ms` 与豆包 `end_window_size`，由服务端判定说完。不自动发送时沿用 800 ms 断句，只影响预览分段。豆包使用专用二进制 codec，支持 Gzip、头扩展和最终包标记，不能套用 JSON WebSocket。
+- MiMo 通过 Chat Completions 接口提交单条 `input_audio` Data URL，使用非流式文本响应；只提交音频和所选语言，不附带聊天历史、Prompt 或工具。官方限制 Base64 编码后不超过 10 MB，Eta 的录音上限满足该限制。只交付正常完成且非空的转写，截断、内容过滤和畸形响应均返回失败；取消会终止 HTTP 请求，不交付旧结果。
 - `SpeechPlaybackController` 负责合成与播放，`SpeechAudioLease` 协调本进程录音、播放和音频焦点。TTS 正文使用 GFM AST 提取可读文字，按句分块，使用 24 kHz PCM16 顺序播放。千问与豆包优先把整篇放进一个流式合成会话（千问实时 WebSocket 的 server_commit 模式，或豆包双向流式的单个 session）；豆包使用 `DoubaoTtsCodec` 处理带事件号与会话 ID 的二进制帧。这两家的流式会话在出声前失败时回落到同服务的逐段请求；出声后再失败直接报错，不从头重读。
-- Gemini 与 MiniMax 直接使用逐段 HTTP 流式合成，不尝试 WebSocket，也不自动重试或切换服务。合成最多领先播放两段，段首段尾各做 5 ms 淡入淡出；分段边界可能产生语调差异。Gemini 解码音频增量并检查最终交互状态，MiniMax 解码十六进制音频并跳过末包聚合音频，避免重复播放。解析器限制事件与音频大小，提前 EOF、空音频、业务错误和非成功终态都返回失败；停止会取消当前 HTTP 调用和后续预取。
+- Gemini、MiniMax 与 MiMo 直接使用逐段 HTTP 流式合成，不尝试 WebSocket，也不自动重试或切换服务。合成最多领先播放两段，段首段尾各做 5 ms 淡入淡出；分段边界可能产生语调差异。Gemini 解码音频增量并检查最终交互状态，MiniMax 解码十六进制音频并跳过末包聚合音频，避免重复播放。MiMo 将正文放在 `assistant` 消息、可选风格放在 `user` 消息，逐块解码 `delta.audio.data` 的 Base64 PCM；收到正常完成状态且音频非空才确认合成成功。解析器限制事件与音频大小，提前 EOF、空音频、业务错误和非成功终态都返回失败；停止会取消当前 HTTP 调用和后续预取。
 - 合成解码层识别裸 PCM 与流式 WAV，校验 WAV 格式并剥离容器头，不把头信息作为音频播放；文件头和采样可以跨响应片段。流式 WAV 长度字段可能是占位值，仅成功收到终止事件才把音频视为完整。`SpeechPcmOutput` 先填充播放缓冲区再启动音轨；不足一个缓冲区的短音频在合成结束后按实际帧数启动。
 - `SpeechTranscriptRefiner` 通过 `RuntimeConfigRepository` 读取当前对话模型，复用 Provider 层发出独立的 `TRANSCRIPT_REFINE` 请求：不带工具、托管搜索与自定义请求体，可关闭思考时关闭，否则使用最低档。识别文字只作为用户消息，取消或超时会取消底层 HTTP 调用。
 - `SpeechSettingsRepository` 隔离持久化；普通配置进入现有 DataStore，凭据用 Android Keystore 的 AES-GCM 加密后保存。凭据不进入 RemotePreferences、会话、日志或数据导出；语音配置目前也不纳入手动备份。不可解密的凭据会要求重新填写，不静默当作空配置。
@@ -73,9 +80,11 @@ Eta 上传 WAV 后生成有效期 15 分钟的读取签名 URL，向百炼提交
 - [千问 ASR HTTP API：短音频与异步文件转写](https://help.aliyun.com/zh/model-studio/qwen-asr-api-reference)
 - [千问实时 ASR 客户端事件](https://help.aliyun.com/zh/model-studio/qwen-asr-realtime-client-events)、[服务端事件](https://help.aliyun.com/zh/model-studio/qwen-asr-realtime-server-events)
 - [豆包流式 ASR 协议](https://www.volcengine.com/docs/6561/1354869)
+- [MiMo 语音识别指南](https://mimo.mi.com/docs/zh-CN/quick-start/usage-guide/audio/Speech-Recognition)、[API 参考](https://mimo.mi.com/docs/zh-CN/api/audio/Speech-Recognition)、[鉴权与接口地址](https://mimo.mi.com/docs/zh-CN/quick-start/summary/first-api-call)
 - [千问 TTS API](https://help.aliyun.com/zh/model-studio/qwen-tts-api)、[音频播放示例](https://help.aliyun.com/zh/model-studio/non-realtime-tts-user-guide)
 - [千问音色列表](https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list)、[豆包音色列表](https://docs.volcengine.com/docs/DoubaoVoice/Tonelist-1?lang=zh)
 - [豆包单向流式 TTS HTTP](https://docs.volcengine.com/docs/DoubaoVoice/unidirectional-streaming-text-to-speech-http?lang=zh)
 - [Gemini 语音合成与音色](https://ai.google.dev/gemini-api/docs/speech-generation)、[Interactions 流式事件](https://ai.google.dev/gemini-api/docs/streaming)
 - [MiniMax 同步语音合成](https://platform.minimax.cn/docs/api-reference/speech-t2a-http)、[系统音色](https://platform.minimax.cn/docs/faq/system-voice-id)
+- [MiMo 语音合成与预置音色](https://mimo.mi.com/docs/zh-CN/quick-start/usage-guide/audio/speech-synthesis-v2.5)、[TTS API 参考](https://mimo.mi.com/docs/zh-CN/api/audio/tts-post)
 - [OSS V4 请求头签名](https://help.aliyun.com/zh/oss/developer-reference/recommend-to-use-signature-version-4)、[URL 签名](https://help.aliyun.com/zh/oss/developer-reference/add-signatures-to-urls)

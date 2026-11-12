@@ -15,6 +15,7 @@ internal suspend fun synthesizeSpeech(settings: SpeechSettings, credentials: Spe
     when (settings.tts) {
         TtsProvider.GEMINI -> return@withTimeout synthesizeGemini(settings.geminiTts, credentials.geminiTts, text, onAudio)
         TtsProvider.MINIMAX -> return@withTimeout synthesizeMiniMax(settings.minimaxTts, credentials.minimaxTts, text, onAudio)
+        TtsProvider.MIMO -> return@withTimeout synthesizeMimo(settings.mimoTts, credentials.mimoTts, text, onAudio)
         TtsProvider.NONE -> throw SpeechFailure(SpeechErrorCode.CONFIGURATION, "请先选择语音播报服务")
         TtsProvider.QWEN, TtsProvider.DOUBAO -> Unit
     }

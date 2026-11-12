@@ -39,7 +39,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun SpeechConnectionSection(store: SpeechSettingsStore, synthesis: Boolean) {
     if (!synthesis) {
-        QwenDoubaoConnectionSection(store, synthesis = false)
+        when (store.settings.asr) {
+            AsrProvider.MIMO -> MimoAsrConnectionSection(store)
+            AsrProvider.QWEN_REALTIME, AsrProvider.QWEN_FLASH, AsrProvider.QWEN_FILE, AsrProvider.DOUBAO ->
+                QwenDoubaoConnectionSection(store, synthesis = false)
+        }
         return
     }
     when (store.settings.tts) {
@@ -47,6 +51,28 @@ internal fun SpeechConnectionSection(store: SpeechSettingsStore, synthesis: Bool
         TtsProvider.QWEN, TtsProvider.DOUBAO -> QwenDoubaoConnectionSection(store, synthesis = true)
         TtsProvider.GEMINI -> GeminiConnectionSection(store)
         TtsProvider.MINIMAX -> MiniMaxConnectionSection(store)
+        TtsProvider.MIMO -> MimoTtsConnectionSection(store)
+    }
+}
+
+@Composable
+internal fun SpeechApiKeyConnectionSection(
+    baseUrl: String,
+    apiKey: String,
+    onBaseUrl: (String) -> Unit,
+    onApiKey: (String) -> Unit,
+    note: String,
+    options: @Composable () -> Unit = {},
+) {
+    Column {
+        SpeechGroupCard(title = stringResource(R.string.speech_group_connection)) {
+            options()
+            SpeechFieldColumn {
+                SpeechField("API Key", apiKey, secret = true, onChange = { onApiKey(it.trim()) })
+                SpeechField(stringResource(R.string.speech_base_url), baseUrl, onChange = { onBaseUrl(it.trim()) })
+            }
+        }
+        SpeechNote(note)
     }
 }
 

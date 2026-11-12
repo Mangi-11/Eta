@@ -122,4 +122,61 @@ class SpeechSettingsTest {
             validateSpeechSettings(restored, SpeechCredentials(), synthesis = true)
         }
     }
+
+    @Test fun mimoConfigurationsDefaultForOldDataAndRoundTripIndependently() {
+        val old = json.decodeFromString<SpeechSettings>(
+            """{"asr":"QWEN_FLASH","language":"ja","tts":"MINIMAX","minimaxTts":{"speed":1.25},"autoSpeak":true}""",
+        )
+        assertEquals(MimoAsrConfig(), old.mimoAsr)
+        assertEquals(MimoTtsConfig(), old.mimoTts)
+        val mimo = old.copy(
+            asr = AsrProvider.MIMO,
+            tts = TtsProvider.MIMO,
+            mimoAsr = MimoAsrConfig(
+                baseUrl = "https://recognition.example.test/v1",
+                language = MimoAsrLanguage.CHINESE,
+            ),
+            mimoTts = MimoTtsConfig(
+                baseUrl = "https://synthesis.example.test/v1",
+                voice = "Mia",
+                style = "自然、温和",
+            ),
+        )
+        assertEquals(mimo, json.decodeFromString<SpeechSettings>(json.encodeToString(mimo)))
+    }
+
+    @Test fun mimoCredentialUpdatesPreserveEachOtherAndExistingProviders() {
+        val oldCredentials = json.decodeFromString<SpeechCredentials>(
+            """{"qwenAsr":"qwen-key","geminiTts":"gemini-key","ossAccessKeySecret":"oss-key"}""",
+        )
+        assertEquals("", oldCredentials.mimoAsr)
+        assertEquals("", oldCredentials.mimoTts)
+        val updated = oldCredentials.withValue(SpeechCredentialField.MIMO_ASR, "asr-key")
+            .withValue(SpeechCredentialField.MIMO_TTS, "tts-key")
+            .withValue(SpeechCredentialField.DOUBAO_ASR, "doubao-key")
+        val restoredCredentials = json.decodeFromString<SpeechCredentials>(json.encodeToString(updated))
+        assertEquals("asr-key", restoredCredentials.mimoAsr)
+        assertEquals("tts-key", restoredCredentials.mimoTts)
+        assertEquals("doubao-key", restoredCredentials.doubaoAsr)
+        assertEquals("qwen-key", restoredCredentials.qwenAsr)
+        assertEquals("gemini-key", restoredCredentials.geminiTts)
+        assertEquals("oss-key", restoredCredentials.ossAccessKeySecret)
+        assertEquals(
+            "tts-key",
+            restoredCredentials.withValue(SpeechCredentialField.MIMO_ASR, "changed-asr-key").mimoTts,
+        )
+    }
+
+    @Test fun mimoSynthesisRequiresPlaybackCredentialsAndBoundedStyle() {
+        val settings = SpeechSettings(tts = TtsProvider.MIMO)
+        assertThrows(SpeechFailure::class.java) {
+            validateSpeechSettings(settings, SpeechCredentials(mimoAsr = "recognition-only"), true)
+        }
+        val credentials = SpeechCredentials(mimoTts = "playback-key")
+        validateSpeechSettings(settings, credentials, true)
+        assertThrows(SpeechFailure::class.java) {
+            validateSpeechSettings(settings.copy(mimoTts = settings.mimoTts.copy(style = "字".repeat(501))),
+                credentials, true)
+        }
+    }
 }

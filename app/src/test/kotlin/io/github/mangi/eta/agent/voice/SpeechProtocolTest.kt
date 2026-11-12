@@ -3,6 +3,8 @@ package io.github.mangi.eta.agent.voice
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.util.zip.GZIPOutputStream
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -94,5 +96,30 @@ class SpeechProtocolTest {
         assertEquals(16000, header.getInt(24))
         assertEquals(4, header.getInt(40))
         assertArrayEquals(byteArrayOf(0, 1, 2, 3), wav.copyOfRange(44, 48))
+    }
+
+    @Test fun recordingCollectionRejectsEmptyAudio() {
+        val frames = Channel<ByteArray>(1).apply { close() }
+        val error = assertThrows(SpeechFailure::class.java) {
+            runBlocking { collectSpeechAudio(frames) }
+        }
+        assertEquals(SpeechErrorCode.NO_SPEECH, error.code)
+    }
+
+    @Test fun recordingCollectionAcceptsItsLimitButRejectsAdditionalFrames() {
+        val pcm = ByteArray(SpeechRecorder.MAX_BYTES)
+        val complete = Channel<ByteArray>(1).apply { trySend(pcm); close() }
+        val wav = runBlocking { collectSpeechAudio(complete) }
+        assertEquals(pcm.size + 44, wav.size)
+
+        val oversized = Channel<ByteArray>(2).apply {
+            trySend(pcm)
+            trySend(byteArrayOf(0, 0))
+            close()
+        }
+        val error = assertThrows(SpeechFailure::class.java) {
+            runBlocking { collectSpeechAudio(oversized) }
+        }
+        assertEquals(SpeechErrorCode.AUDIO, error.code)
     }
 }

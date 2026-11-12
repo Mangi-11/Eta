@@ -60,6 +60,7 @@ internal fun AsrProvider.label(): String = stringResource(
         AsrProvider.QWEN_FLASH -> R.string.speech_asr_qwen_flash
         AsrProvider.QWEN_FILE -> R.string.speech_asr_qwen_file
         AsrProvider.DOUBAO -> R.string.speech_asr_doubao
+        AsrProvider.MIMO -> R.string.speech_asr_mimo
     },
 )
 
@@ -71,6 +72,7 @@ internal fun TtsProvider.label(): String = stringResource(
         TtsProvider.DOUBAO -> R.string.speech_tts_doubao
         TtsProvider.GEMINI -> R.string.speech_tts_gemini
         TtsProvider.MINIMAX -> R.string.speech_tts_minimax
+        TtsProvider.MIMO -> R.string.speech_tts_mimo
     },
 )
 
