@@ -929,8 +929,11 @@ internal class AgentLocalTools(
         }
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
 
+        if (virtualDisplayEnabled() && requestedDisplay != CanvasRoutingPolicy.RequestedDisplay.MAIN && !rootAvailable()) {
+            io.github.mangi.eta.agent.device.RootAccess.awaitOrRetryIfPreviouslyGranted(context)
+        }
         val mainForegroundPkg = AgentAccessibilityService.current()?.currentPackageName(Display.DEFAULT_DISPLAY)
-        val targetCanvas = CanvasRoutingPolicy.decideLaunchTarget(
+        val launchPlan = CanvasRoutingPolicy.decideLaunchPlan(
             virtualDisplayEnabled = virtualDisplayEnabled(),
             backendAvailable = VirtualDisplayController.isBackendAvailable(rootAvailable(), lsposedAvailable()),
             requested = requestedDisplay,
@@ -939,7 +942,7 @@ internal class AgentLocalTools(
             ownPackage = context.packageName,
         )
 
-        val launchedVirtualId = if (targetCanvas == CanvasRoutingPolicy.CanvasTarget.VIRTUAL_DISPLAY) {
+        val launchedVirtualId = if (launchPlan.target == CanvasRoutingPolicy.CanvasTarget.VIRTUAL_DISPLAY) {
             VirtualDisplayController.launchAppOnVirtualDisplay(
                 context = context,
                 packageName = app.packageName,
@@ -966,6 +969,13 @@ internal class AgentLocalTools(
         } else {
             CanvasRoutingPolicy.CanvasTarget.MAIN_DISPLAY.wireName
         }
+        val canvasReason = if (finalCanvas == CanvasRoutingPolicy.CanvasTarget.VIRTUAL_DISPLAY.wireName) {
+            launchPlan.reason
+        } else if (launchPlan.target == CanvasRoutingPolicy.CanvasTarget.VIRTUAL_DISPLAY) {
+            "virtual_create_failed"
+        } else {
+            launchPlan.reason
+        }
 
         val verification = AppLaunchVerification.awaitWindow(
             packageName = app.packageName,
@@ -984,13 +994,19 @@ internal class AgentLocalTools(
             },
             checkCancellation = ::checkCancellation,
         )
-        logger.info("Agent local tool action=launch_app outcome=${verification.launchStatus} canvas=$finalCanvas display=$finalDisplayId")
+        logger.info(
+            "Agent local tool action=launch_app outcome=${verification.launchStatus} " +
+                "canvas=$finalCanvas reason=$canvasReason display=$finalDisplayId " +
+                "root=${io.github.mangi.eta.agent.device.RootAccess.state.value.status.name.lowercase()} " +
+                "lsposed=${lsposedAvailable()}",
+        )
         return JSONObject()
             .put("ok", true)
             .put("tool", "launch_app")
             .put("app_name", app.appName)
             .put("package_name", app.packageName)
             .put("canvas", finalCanvas)
+            .put("canvas_reason", canvasReason)
             .put("display_id", finalDisplayId)
             .put("launch_status", verification.launchStatus)
             .put("window_observation", verification.toJson())
@@ -1042,9 +1058,12 @@ internal class AgentLocalTools(
         if (!HookSupport.resolvesActivity(context, intent)) {
             return errorResult("NO_ACTIVITY", "没有应用可以处理该 URI")
         }
+        if (virtualDisplayEnabled() && !rootAvailable()) {
+            io.github.mangi.eta.agent.device.RootAccess.awaitOrRetryIfPreviouslyGranted(context)
+        }
         val resolvedPkg = context.packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName
         val mainForegroundPkg = AgentAccessibilityService.current()?.currentPackageName(Display.DEFAULT_DISPLAY)
-        val targetCanvas = CanvasRoutingPolicy.decideLaunchTarget(
+        val launchPlan = CanvasRoutingPolicy.decideLaunchPlan(
             virtualDisplayEnabled = virtualDisplayEnabled(),
             backendAvailable = VirtualDisplayController.isBackendAvailable(rootAvailable(), lsposedAvailable()),
             requested = CanvasRoutingPolicy.RequestedDisplay.AUTO,
@@ -1052,7 +1071,7 @@ internal class AgentLocalTools(
             foregroundPackageOnMainDisplay = mainForegroundPkg,
             ownPackage = context.packageName,
         )
-        val virtualId = if (targetCanvas == CanvasRoutingPolicy.CanvasTarget.VIRTUAL_DISPLAY) {
+        val virtualId = if (launchPlan.target == CanvasRoutingPolicy.CanvasTarget.VIRTUAL_DISPLAY) {
             VirtualDisplayController.openUriOnVirtualDisplay(
                 context = context,
                 intent = intent,
@@ -1077,12 +1096,20 @@ internal class AgentLocalTools(
         } else {
             CanvasRoutingPolicy.CanvasTarget.MAIN_DISPLAY.wireName
         }
-        logger.info("Agent local tool action=open_uri outcome=started canvas=$finalCanvas")
+        val canvasReason = if (finalCanvas == CanvasRoutingPolicy.CanvasTarget.VIRTUAL_DISPLAY.wireName) {
+            launchPlan.reason
+        } else if (launchPlan.target == CanvasRoutingPolicy.CanvasTarget.VIRTUAL_DISPLAY) {
+            "virtual_create_failed"
+        } else {
+            launchPlan.reason
+        }
+        logger.info("Agent local tool action=open_uri outcome=started canvas=$finalCanvas reason=$canvasReason")
         return JSONObject()
             .put("ok", true)
             .put("tool", "open_uri")
             .put("scheme", uri.scheme?.lowercase(Locale.ROOT))
             .put("canvas", finalCanvas)
+            .put("canvas_reason", canvasReason)
             .put("display_id", finalDisplayId)
             .also { result ->
                 if (uri.scheme.equals("https", true)) {

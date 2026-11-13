@@ -175,6 +175,11 @@ internal object CanvasRoutingPolicy {
         }
     }
 
+    data class CanvasLaunchPlan(
+        val target: CanvasTarget,
+        val reason: String,
+    )
+
     fun decideLaunchTarget(
         virtualDisplayEnabled: Boolean,
         backendAvailable: Boolean,
@@ -182,24 +187,41 @@ internal object CanvasRoutingPolicy {
         targetPackage: String? = null,
         foregroundPackageOnMainDisplay: String? = null,
         ownPackage: String = "io.github.mangi.eta",
-    ): CanvasTarget {
-        if (!virtualDisplayEnabled || !backendAvailable) return CanvasTarget.MAIN_DISPLAY
-        if (requested == RequestedDisplay.MAIN) return CanvasTarget.MAIN_DISPLAY
+    ): CanvasTarget = decideLaunchPlan(
+        virtualDisplayEnabled = virtualDisplayEnabled,
+        backendAvailable = backendAvailable,
+        requested = requested,
+        targetPackage = targetPackage,
+        foregroundPackageOnMainDisplay = foregroundPackageOnMainDisplay,
+        ownPackage = ownPackage,
+    ).target
+
+    fun decideLaunchPlan(
+        virtualDisplayEnabled: Boolean,
+        backendAvailable: Boolean,
+        requested: RequestedDisplay = RequestedDisplay.AUTO,
+        targetPackage: String? = null,
+        foregroundPackageOnMainDisplay: String? = null,
+        ownPackage: String = "io.github.mangi.eta",
+    ): CanvasLaunchPlan {
+        if (!virtualDisplayEnabled) return CanvasLaunchPlan(CanvasTarget.MAIN_DISPLAY, "virtual_disabled")
+        if (!backendAvailable) return CanvasLaunchPlan(CanvasTarget.MAIN_DISPLAY, "backend_unavailable")
+        if (requested == RequestedDisplay.MAIN) return CanvasLaunchPlan(CanvasTarget.MAIN_DISPLAY, "requested_main")
         val normalizedTarget = targetPackage?.trim().orEmpty()
         if (normalizedTarget.isNotEmpty()) {
             if (normalizedTarget == ownPackage || normalizedTarget in MAIN_DISPLAY_ONLY_PACKAGES) {
-                return CanvasTarget.MAIN_DISPLAY
+                return CanvasLaunchPlan(CanvasTarget.MAIN_DISPLAY, "main_only_package")
             }
             // 同包名应用正处于物理主屏前台：若在虚拟屏启动，Android 会将该 Task 从主屏抽走，直接破坏用户当前视线。
             val normalizedForeground = foregroundPackageOnMainDisplay?.trim().orEmpty()
             if (normalizedForeground.isNotEmpty() && normalizedTarget == normalizedForeground) {
-                return CanvasTarget.MAIN_DISPLAY
+                return CanvasLaunchPlan(CanvasTarget.MAIN_DISPLAY, "already_on_main")
             }
         }
         return when (requested) {
-            RequestedDisplay.VIRTUAL,
-            RequestedDisplay.AUTO -> CanvasTarget.VIRTUAL_DISPLAY
-            RequestedDisplay.MAIN -> CanvasTarget.MAIN_DISPLAY
+            RequestedDisplay.VIRTUAL -> CanvasLaunchPlan(CanvasTarget.VIRTUAL_DISPLAY, "requested_virtual")
+            RequestedDisplay.AUTO -> CanvasLaunchPlan(CanvasTarget.VIRTUAL_DISPLAY, "auto_virtual")
+            RequestedDisplay.MAIN -> CanvasLaunchPlan(CanvasTarget.MAIN_DISPLAY, "requested_main")
         }
     }
 

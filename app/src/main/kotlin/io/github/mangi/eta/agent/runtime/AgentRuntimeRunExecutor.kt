@@ -148,14 +148,10 @@ internal class AgentRuntimeRunExecutor(
             } else {
                 AgentMemoryContext.DISABLED
             }
-            if (request.config.terminalTools) {
-                // 启动探测由 App 拥有；模型首轮等待其结果，避免把检测中的授权当成普通设备。
-                runBlocking {
-                    while (io.github.mangi.eta.agent.device.RootAccess.state.value.isChecking) {
-                        runController.throwIfCancelled()
-                        kotlinx.coroutines.delay(100)
-                    }
-                }
+            if (request.config.terminalTools || request.config.deviceDirectTools) {
+                // 启动探测由 App 拥有；模型首轮等待其结果，并在历史曾授权但临时未就绪时自动复检。
+                runController.throwIfCancelled()
+                io.github.mangi.eta.agent.device.RootAccess.awaitOrRetryIfPreviouslyGranted(appContext)
             }
             val pendingSkillConflict = PendingSkillConflictCapabilityParser.parse(request.history)
             val mcpSnapshot = runBlocking {

@@ -246,8 +246,7 @@ internal object VirtualDisplayCommandMain {
         }
         switchToSystemUidIfPossible()
         return try {
-            val wmgClass = Class.forName("android.view.WindowManagerGlobal")
-            val wms = wmgClass.getMethod("getWindowManagerService").invoke(null)
+            val wms = resolveWindowManagerService()
             // DisplayContent 与 mDisplayImePolicyCache 在刚创建虚拟屏时可能存在短暂异步就绪窗口，短重试后再决定回退主屏。
             CanvasRoutingPolicy.applyDisplayImePolicyHide(
                 wms = wms,
@@ -261,6 +260,36 @@ internal object VirtualDisplayCommandMain {
                 reason = "WMS_LOOKUP_EXCEPTION",
                 errorType = cause.javaClass.simpleName,
             )
+        }
+    }
+
+    private fun resolveWindowManagerService(): Any? {
+        // app_process 未经过 Zygote bindApplication，Android 16/17 上 WindowManagerGlobal.getWindowManagerService()
+        // 可能因读取未初始化的 ApplicationSharedMemory 而抛出 IllegalStateException；优先直接获取 Binder 代理。
+        val directProxy = runCatching {
+            val smClass = Class.forName("android.os.ServiceManager")
+            val binder = smClass.getMethod("getService", String::class.java)
+                .invoke(null, android.content.Context.WINDOW_SERVICE) as? IBinder ?: return@runCatching null
+            val stubClass = Class.forName("android.view.IWindowManager\$Stub")
+            stubClass.getMethod("asInterface", IBinder::class.java).invoke(null, binder)
+        }.getOrNull()
+        if (directProxy != null) return directProxy
+
+        ensureApplicationSharedMemoryInitialized()
+        val wmgClass = Class.forName("android.view.WindowManagerGlobal")
+        return wmgClass.getMethod("getWindowManagerService").invoke(null)
+    }
+
+    private fun ensureApplicationSharedMemoryInitialized() {
+        runCatching {
+            val cls = Class.forName("com.android.internal.os.ApplicationSharedMemory")
+            val alreadyInitialized = runCatching {
+                cls.getMethod("getInstance").invoke(null) != null
+            }.getOrDefault(false)
+            if (!alreadyInitialized) {
+                val inst = cls.getMethod("create").invoke(null)
+                cls.getMethod("setInstance", cls).invoke(null, inst)
+            }
         }
     }
 

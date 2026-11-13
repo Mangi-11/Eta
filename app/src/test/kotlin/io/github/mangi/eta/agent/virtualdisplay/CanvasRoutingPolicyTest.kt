@@ -213,4 +213,40 @@ class CanvasRoutingPolicyTest {
         assertFalse(missingGet.ok)
         assertEquals("GET_POLICY_METHOD_MISSING", missingGet.reason)
     }
+
+    @Test
+    fun decideLaunchPlanReportsDiagnosticReasons() {
+        assertEquals(
+            "virtual_disabled",
+            CanvasRoutingPolicy.decideLaunchPlan(
+                virtualDisplayEnabled = false,
+                backendAvailable = true,
+            ).reason,
+        )
+        assertEquals(
+            "backend_unavailable",
+            CanvasRoutingPolicy.decideLaunchPlan(
+                virtualDisplayEnabled = true,
+                backendAvailable = false,
+            ).reason,
+        )
+        assertEquals(
+            "already_on_main",
+            CanvasRoutingPolicy.decideLaunchPlan(
+                virtualDisplayEnabled = true,
+                backendAvailable = true,
+                targetPackage = "com.tencent.mm",
+                foregroundPackageOnMainDisplay = "com.tencent.mm",
+            ).reason,
+        )
+        assertEquals(
+            "auto_virtual",
+            CanvasRoutingPolicy.decideLaunchPlan(
+                virtualDisplayEnabled = true,
+                backendAvailable = true,
+                targetPackage = "com.sankuai.meituan",
+                foregroundPackageOnMainDisplay = "com.tencent.mm",
+            ).reason,
+        )
+    }
 }
