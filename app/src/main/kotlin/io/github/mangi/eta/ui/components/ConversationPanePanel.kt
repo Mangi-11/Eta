@@ -424,9 +424,10 @@ private fun CouiWorkbenchRow(
         Spacer(Modifier.width(ConversationPanelMetrics.WorkbenchIconGap))
         CouiText(
             text = entry.title,
-            kind = CouiTextKind.Search,
+            kind = CouiTextKind.ItemTitle,
             color = colors.title,
             modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Start,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
