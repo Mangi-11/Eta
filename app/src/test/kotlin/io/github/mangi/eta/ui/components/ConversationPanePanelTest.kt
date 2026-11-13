@@ -3,19 +3,24 @@ package io.github.mangi.eta.ui.components
 import android.app.Application
 import android.content.res.Configuration
 import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.BroadcastFrameClock
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.AbstractComposeView
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -28,6 +33,11 @@ import io.github.mangi.eta.ui.app.AgentAppTheme
 import io.github.mangi.eta.ui.model.ConversationModeUi
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -61,6 +71,9 @@ class ConversationPanePanelTest {
     fun sidePaneComposesAcrossStylesAndThemeModesAndHandlesNavigationActions() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
         val activity = controller.get()
+        val frameClock = BroadcastFrameClock()
+        val recomposeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + frameClock)
+        val recomposer = Recomposer(recomposeScope.coroutineContext)
 
         var appearance by mutableStateOf(
             AppearanceSettings(
@@ -118,7 +131,7 @@ class ConversationPanePanelTest {
         var settingsClicks = 0
 
         try {
-            activity.setContent {
+            mountWithDeterministicRecomposer(activity, recomposeScope, recomposer) {
                 AgentAppTheme(
                     appearance = appearance,
                     applyInterfaceScale = true,
@@ -157,7 +170,7 @@ class ConversationPanePanelTest {
             for (style in listOf(AppearanceUiStyle.COUI, AppearanceUiStyle.MIUIX)) {
                 for (theme in listOf(AppearanceThemeMode.LIGHT, AppearanceThemeMode.DARK)) {
                     appearance = AppearanceSettings(uiStyle = style, themeMode = theme)
-                    pumpFrames(activity)
+                    pumpFrames(activity, frameClock)
 
                     val nodes = collectSemanticsNodes(activity.window.decorView)
                     val allTexts = nodes.flatMap { node ->
@@ -177,7 +190,7 @@ class ConversationPanePanelTest {
 
             // 切回 COUI 浅色验证工作台、底栏与新建按钮交互
             appearance = AppearanceSettings(uiStyle = AppearanceUiStyle.COUI, themeMode = AppearanceThemeMode.LIGHT)
-            pumpFrames(activity)
+            pumpFrames(activity, frameClock)
 
             clickByLabel(activity, activity.getString(R.string.action_new_conversation))
             clickByLabel(activity, activity.getString(R.string.conversation_dock_models))
@@ -200,7 +213,7 @@ class ConversationPanePanelTest {
             // 权限全部就绪后描述切换为正常“权限”，搜索时工作台收起以聚焦结果
             hasPermissionAttention = false
             paneState = paneState.copy(searchQuery = "咖啡")
-            pumpFrames(activity)
+            pumpFrames(activity, frameClock)
 
             assertEquals(false, composedAttention)
             assertEquals("咖啡", composedQuery)
@@ -221,7 +234,7 @@ class ConversationPanePanelTest {
 
             // 点击清空按钮恢复工作台展示
             clickByLabel(activity, activity.getString(R.string.page_clear_84fcd7))
-            pumpFrames(activity)
+            pumpFrames(activity, frameClock)
             assertEquals("", paneState.searchQuery)
             val restoredTexts = collectAllTexts(activity)
             assertTrue(
@@ -231,7 +244,7 @@ class ConversationPanePanelTest {
 
             // 在 MIUIX 模式下也验证新建对话、工作台入口与底栏圆形按钮点击
             appearance = AppearanceSettings(uiStyle = AppearanceUiStyle.MIUIX, themeMode = AppearanceThemeMode.DARK)
-            pumpFrames(activity)
+            pumpFrames(activity, frameClock)
             clickByLabel(activity, activity.getString(R.string.action_new_conversation))
             clickByLabel(activity, activity.getString(R.string.conversation_dock_models))
             clickByLabel(activity, activity.getString(R.string.conversation_dock_characters))
@@ -247,9 +260,11 @@ class ConversationPanePanelTest {
             assertEquals(2, permissionsClicks)
             assertEquals(2, settingsClicks)
         } finally {
-            org.robolectric.shadows.ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+            recomposer.cancel()
+            recomposeScope.cancel()
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
             controller.pause().stop().destroy()
-            org.robolectric.shadows.ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
         }
     }
 
@@ -257,6 +272,9 @@ class ConversationPanePanelTest {
     fun sidePaneShowsEmptyStateWhenNoConversationsExist() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
         val activity = controller.get()
+        val frameClock = BroadcastFrameClock()
+        val recomposeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + frameClock)
+        val recomposer = Recomposer(recomposeScope.coroutineContext)
         var style by mutableStateOf(AppearanceUiStyle.COUI)
         var conversations by mutableStateOf(
             listOf(
@@ -272,7 +290,7 @@ class ConversationPanePanelTest {
         )
 
         try {
-            activity.setContent {
+            mountWithDeterministicRecomposer(activity, recomposeScope, recomposer) {
                 AgentAppTheme(
                     appearance = AppearanceSettings(
                         uiStyle = style,
@@ -308,11 +326,11 @@ class ConversationPanePanelTest {
                     }
                 }
             }
-            pumpFrames(activity)
+            pumpFrames(activity, frameClock)
             assertTrue(collectAllTexts(activity).any { it == "临时对话" })
 
             conversations = emptyList()
-            pumpFrames(activity)
+            pumpFrames(activity, frameClock)
             val couiEmptyTexts = collectAllTexts(activity)
             assertTrue(
                 "COUI empty state title should be shown: $couiEmptyTexts",
@@ -320,7 +338,7 @@ class ConversationPanePanelTest {
             )
 
             style = AppearanceUiStyle.MIUIX
-            pumpFrames(activity)
+            pumpFrames(activity, frameClock)
             val miuixEmptyTexts = collectAllTexts(activity)
             assertTrue(
                 "MIUIX empty state title should be shown: $miuixEmptyTexts",
@@ -331,10 +349,26 @@ class ConversationPanePanelTest {
                 miuixEmptyTexts.any { it == activity.getString(R.string.conversation_empty_hint) },
             )
         } finally {
-            org.robolectric.shadows.ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+            recomposer.cancel()
+            recomposeScope.cancel()
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
             controller.pause().stop().destroy()
-            org.robolectric.shadows.ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
         }
+    }
+
+    private fun mountWithDeterministicRecomposer(
+        activity: ComponentActivity,
+        scope: CoroutineScope,
+        recomposer: Recomposer,
+        content: @Composable () -> Unit,
+    ) {
+        scope.launch { recomposer.runRecomposeAndApplyChanges() }
+        val composeView = ComposeView(activity).apply {
+            setParentCompositionContext(recomposer)
+            setContent(content)
+        }
+        activity.setContentView(composeView)
     }
 
     private fun collectAllTexts(activity: ComponentActivity): List<String> =
@@ -355,15 +389,15 @@ class ConversationPanePanelTest {
         assertEquals(true, clicked)
     }
 
-    private fun pumpFrames(activity: ComponentActivity) {
-        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+    private fun pumpFrames(activity: ComponentActivity, frameClock: BroadcastFrameClock) {
         val looper = shadowOf(Looper.getMainLooper())
-        repeat(3) {
+        repeat(4) {
+            Snapshot.sendApplyNotifications()
             looper.idle()
-            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
+            ShadowLooper.idleMainLooper(16, TimeUnit.MILLISECONDS)
+            frameClock.sendFrame(SystemClock.uptimeMillis() * 1_000_000L)
             measureAndLayoutActivity(activity)
             looper.idle()
-            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
         }
     }
 
