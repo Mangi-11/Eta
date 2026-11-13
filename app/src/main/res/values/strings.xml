@@ -1482,4 +1482,8 @@
   <string name="conversation_branch_title">%1$s · Branch</string>
   <string name="conversation_branch_unavailable">Cannot branch here: only turns with complete context and finished tool calls are supported.</string>
   <string name="conversation_branch_failed">Could not create a branch. The original conversation has been kept. Please try again.</string>
+  <string name="conversation_dock_characters">Characters</string>
+  <string name="conversation_empty_hint">Tap the new chat button above to start</string>
+  <string name="conversation_model_unconfigured">Not set</string>
+  <string name="conversation_permission_attention">Permissions need attention</string>
 </resources>

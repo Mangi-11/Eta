@@ -137,6 +137,7 @@ internal fun AgentAppShell(
     homeCharacter: RoleplayChatUi? = null,
     homeModelPickerState: AgentModelPickerUiState? = null,
     isHomeStreaming: Boolean = false,
+    hasPermissionAttention: Boolean = false,
     onHomeModelSelected: (String) -> Unit = {},
     onOpenCharacter: () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
@@ -290,6 +291,7 @@ internal fun AgentAppShell(
                 onOpen = onOpenConversationPane,
                 onDismiss = onDismissConversationPane,
                 onSearchChange = onSearchConversations,
+                onNewConversation = onNewConversation,
                 onConversationSelected = onSelectConversation,
                 onConversationTogglePin = onConversationTogglePin,
                 onConversationRename = onConversationRename,
@@ -301,6 +303,8 @@ internal fun AgentAppShell(
                 onOpenSkills = onOpenSkills,
                 onOpenCharacters = onOpenCharacters,
                 onOpenPermissions = onOpenPermissions,
+                activeModelLabel = homeModelPickerState?.selectedModel?.displayName,
+                hasPermissionAttention = hasPermissionAttention,
             ) {
                 pageContent()
             }

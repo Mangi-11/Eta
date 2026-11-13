@@ -1463,4 +1463,8 @@
   <string name="conversation_branch_title">%1$s · 分支</string>
   <string name="conversation_branch_unavailable">无法从此处分支：仅支持上下文完整且工具调用已结束的轮次。</string>
   <string name="conversation_branch_failed">创建分支失败，原对话已保留，请重试。</string>
+  <string name="conversation_dock_characters">角色</string>
+  <string name="conversation_empty_hint">点击右上角按钮即可开始新对话</string>
+  <string name="conversation_model_unconfigured">未配置</string>
+  <string name="conversation_permission_attention">权限待处理</string>
 </resources>
