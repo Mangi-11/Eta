@@ -1,8 +1,12 @@
 package io.github.mangi.eta.ui.components
 
 import android.app.Application
+import android.content.res.Configuration
+import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
@@ -27,15 +31,31 @@ import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.LooperMode
+import org.robolectric.shadows.ShadowLooper
 
 @RunWith(RobolectricTestRunner::class)
-@Config(application = Application::class, sdk = [34])
+@Config(application = Application::class, sdk = [36])
+@LooperMode(LooperMode.Mode.PAUSED)
 class ConversationPanePanelTest {
+
+    @Suppress("DEPRECATION")
+    @Before
+    fun resetLocaleForEnglishAssertions() {
+        val resources = RuntimeEnvironment.getApplication().resources
+        val configuration = Configuration(resources.configuration).apply {
+            setLocale(Locale.US)
+        }
+        resources.updateConfiguration(configuration, resources.displayMetrics)
+    }
 
     @Test
     fun sidePaneComposesAcrossStylesAndThemeModesAndHandlesNavigationActions() {
@@ -337,10 +357,13 @@ class ConversationPanePanelTest {
 
     private fun pumpFrames(activity: ComponentActivity) {
         androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        val looper = shadowOf(Looper.getMainLooper())
         repeat(3) {
-            org.robolectric.shadows.ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+            looper.idle()
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
             measureAndLayoutActivity(activity)
-            org.robolectric.shadows.ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+            looper.idle()
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
         }
     }
 
