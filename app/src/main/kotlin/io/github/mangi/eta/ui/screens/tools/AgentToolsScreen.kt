@@ -367,7 +367,7 @@ private fun ToolCategoryFilterStrip(
                 ) {
                     CouiText(
                         text = label,
-                        kind = CouiTextKind.Description,
+                        kind = CouiTextKind.GroupFooter,
                         color = if (selected) Color.White else colors.title,
                         maxLines = 1,
                     )

@@ -19,6 +19,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -185,7 +186,7 @@ internal fun CouiPreference(
                     .widthIn(max = 162.dp)
                     .padding(start = 16.dp),
                 text = value,
-                kind = CouiTextKind.PreferenceValue,
+                kind = CouiTextKind.ItemValue,
                 color = resolvedValueColor,
                 textAlign = TextAlign.End,
                 maxLines = 2,
@@ -363,17 +364,17 @@ internal fun <T> CouiPopupPreference(
                     .padding(start = 16.dp),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                style = rememberCouiTextStyle(CouiTextKind.PreferenceValue).copy(
+                style = rememberCouiTextStyle(CouiTextKind.ItemValue).copy(
                     color = if (enabled) colors.summary else colors.disabled,
                     textAlign = TextAlign.End,
                 ),
             )
             CouiIcon(
-                imageVector = CouiIcons.Popup,
+                imageVector = Icons.Rounded.UnfoldMore,
                 contentDescription = null,
                 modifier = Modifier
                     .padding(start = 4.dp)
-                    .size(14.dp, 24.dp),
+                    .size(16.dp),
                 tint = Color(if (dark) 0x4DFFFFFF else 0x42000000),
             )
         }
@@ -524,7 +525,7 @@ internal fun CouiPreferenceRow(
         title = {
             Text(
                 text = title,
-                kind = CouiTextKind.PreferenceTitle,
+                kind = CouiTextKind.ItemTitle,
                 color = resolvedTitleColor,
                 textAlign = TextAlign.Start,
             )
@@ -533,7 +534,7 @@ internal fun CouiPreferenceRow(
             @Composable {
                 Text(
                     text = text,
-                    kind = CouiTextKind.PreferenceSummary,
+                    kind = CouiTextKind.ItemSummary,
                     color = resolvedSummaryColor,
                     textAlign = TextAlign.Start,
                 )
@@ -550,7 +551,7 @@ internal fun CouiSettingsArrow(
     color: Color,
 ) {
     CouiIcon(
-        imageVector = if (back) CouiIcons.Back else CouiIcons.Next,
+        imageVector = if (back) CouiIcons.Outlined.Back else CouiIcons.Outlined.Next,
         contentDescription = null,
         modifier = modifier,
         tint = color,

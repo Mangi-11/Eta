@@ -86,7 +86,7 @@ internal fun CharacterLibraryScreen(
                         onClick = importCard,
                     )
                     CouiTopAppBarIconButton(
-                        icon = CouiIcons.Add,
+                        icon = CouiIcons.Outlined.Add,
                         contentDescription = "创建角色",
                         enabled = !store.busy,
                         onClick = createCharacter,

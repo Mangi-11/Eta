@@ -89,14 +89,14 @@ internal fun SkillSwitchRow(
                 title = {
                     CouiText(
                         text = skill.name,
-                        kind = CouiTextKind.PreferenceTitle,
+                        kind = CouiTextKind.ItemTitle,
                         color = if (enabled) colors.title else colors.disabled,
                     )
                 },
                 summary = {
                     CouiText(
                         text = description,
-                        kind = CouiTextKind.PreferenceSummary,
+                        kind = CouiTextKind.ItemSummary,
                         color = if (enabled) colors.summary else colors.disabled,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -114,7 +114,7 @@ internal fun SkillSwitchRow(
                             contentAlignment = Alignment.Center,
                         ) {
                             CouiIcon(
-                                imageVector = CouiIcons.More,
+                                imageVector = CouiIcons.Outlined.More,
                                 contentDescription = stringResource(R.string.skills_more_named, skill.name),
                                 modifier = Modifier.size(20.dp),
                                 tint = colors.summary,

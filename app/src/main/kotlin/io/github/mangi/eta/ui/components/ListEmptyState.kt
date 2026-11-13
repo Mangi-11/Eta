@@ -70,14 +70,14 @@ internal fun ListEmptyState(
                 }
                 CouiText(
                     text = title,
-                    kind = if (summary != null) CouiTextKind.PreferenceTitle else CouiTextKind.Body,
+                    kind = if (summary != null) CouiTextKind.ItemTitle else CouiTextKind.Search,
                     color = if (summary != null) colors.title else colors.summary,
                     textAlign = TextAlign.Center,
                 )
                 summary?.let {
                     CouiText(
                         text = it,
-                        kind = CouiTextKind.Description,
+                        kind = CouiTextKind.GroupFooter,
                         color = colors.summary,
                         textAlign = TextAlign.Center,
                     )

@@ -145,7 +145,7 @@ internal fun ToolSwitchRow(
                     ) {
                         CouiText(
                             text = tool.title,
-                            kind = CouiTextKind.PreferenceTitle,
+                            kind = CouiTextKind.ItemTitle,
                             color = colors.title,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -160,7 +160,7 @@ internal fun ToolSwitchRow(
                             ) {
                                 CouiText(
                                     text = requirementText,
-                                    kind = CouiTextKind.Description,
+                                    kind = CouiTextKind.GroupFooter,
                                     color = colors.summary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -171,7 +171,7 @@ internal fun ToolSwitchRow(
 
                     CouiText(
                         text = description,
-                        kind = CouiTextKind.PreferenceSummary,
+                        kind = CouiTextKind.ItemSummary,
                         color = colors.summary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -189,7 +189,7 @@ internal fun ToolSwitchRow(
                         ) {
                             CouiText(
                                 text = actionLabel,
-                                kind = CouiTextKind.Description,
+                                kind = CouiTextKind.GroupFooter,
                                 color = colors.accent,
                                 maxLines = 1,
                             )

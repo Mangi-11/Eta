@@ -313,7 +313,7 @@ private fun PaneBrandHeader(modifier: Modifier = Modifier) {
         if (isCoui) {
             CouiText(
                 text = stringResource(R.string.app_name),
-                kind = CouiTextKind.SectionTitle,
+                kind = CouiTextKind.TopBar,
                 color = CouiPageDefaults.themeColors(dark).title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

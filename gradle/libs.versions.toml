@@ -1,24 +1,24 @@
 [versions]
 ndk = "30.0.16248370"
-agp = "9.4.1"
-kotlin = "2.4.20"
-ksp = "2.3.12"
+agp = "9.5.1"
+kotlin = "2.4.21"
+ksp = "2.3.13"
 libxposedApi = "102.0.0"
 libxposedService = "102.0.0"
 dexkit = "2.3.0"
-coui = "0.0.1-alpha7"
+coui = "0.0.1-alpha11"
 miuix = "0.9.4"
 materialIcons = "1.7.8"
-androidx-navigationevent = "1.1.2"
+androidx-navigationevent = "1.2.0"
 androidx-lifecycle = "2.11.0"
 activityCompose = "1.13.0"
-intellijMarkdown = "0.7.16"
-datastore = "1.2.1"
-okhttp = "5.5.0"
+intellijMarkdown = "0.7.18"
+datastore = "1.3.0"
+okhttp = "5.5.1"
 nimbusJoseJwt = "10.10"
-jsoup = "1.23.2"
+jsoup = "1.24.1"
 desugarJdkLibs = "2.1.5"
-kotlinx-serialization = "1.11.0"
+kotlinx-serialization = "1.13.0"
 kotlinx-coroutines = "1.11.0"
 hiddenApiBypass = "6.1"
 room = "2.8.5"
@@ -36,6 +36,7 @@ libxposed-api = { group = "io.github.libxposed", name = "api", version.ref = "li
 libxposed-service = { group = "io.github.libxposed", name = "service", version.ref = "libxposedService" }
 dexkit = { group = "org.luckypray", name = "dexkit", version.ref = "dexkit" }
 coui = { group = "io.github.itoseo", name = "coui", version.ref = "coui" }
+coui-icons = { group = "io.github.itoseo", name = "coui-icons", version.ref = "coui" }
 miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui-android", version.ref = "miuix" }
 miuix-blur = { group = "top.yukonga.miuix.kmp", name = "miuix-blur-android", version.ref = "miuix" }
 miuix-nav = { group = "top.yukonga.miuix.kmp", name = "miuix-nav-android", version.ref = "miuix" }

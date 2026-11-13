@@ -249,7 +249,7 @@ internal fun SubagentSettingsScreen(
                 onBack = onBack,
                 actions = {
                     CouiTopAppBarIconButton(
-                        icon = CouiIcons.Add,
+                        icon = CouiIcons.Outlined.Add,
                         contentDescription = "新建 Subagent",
                         onClick = {
                             editorError = null

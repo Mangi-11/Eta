@@ -85,7 +85,7 @@ internal fun EtaChoiceChip(
             ) {
                 CouiText(
                     text = text,
-                    kind = CouiTextKind.Description,
+                    kind = CouiTextKind.GroupFooter,
                     color = content,
                     maxLines = 1,
                 )

@@ -81,7 +81,7 @@ internal fun rememberCouiSystemToolbarStyle(
 ): CouiToolbarStyle {
     val density = LocalDensity.current.density
     val contour = LocalCouiContourGlowEnabled.current
-    val textStyle = rememberCouiTextStyle(CouiTextKind.Toolbar)
+    val textStyle = rememberCouiTextStyle(CouiTextKind.TopBar)
     return CouiTopAppBarButtonDefaults.style(dark).copy(
         contentColor = colors.title,
         textStyle = textStyle,
@@ -100,7 +100,7 @@ internal fun CouiBackButton(
     backDescription: String = stringResource(R.string.action_back),
 ) {
     CouiTopAppBarIconButton(
-        icon = CouiIcons.Back,
+        icon = CouiIcons.Outlined.Back,
         contentDescription = backDescription,
         onClick = onClick,
         modifier = modifier,
@@ -213,7 +213,7 @@ internal fun CouiTopAppBarTextButton(
         }
     } else {
         val source = remember { MutableInteractionSource() }
-        val textStyle = rememberCouiTextStyle(CouiTextKind.SearchCancel)
+        val textStyle = rememberCouiTextStyle(CouiTextKind.ItemValue)
         val textColor = if (enabled) colors.accent else colors.disabled
         Box(
             modifier = modifier

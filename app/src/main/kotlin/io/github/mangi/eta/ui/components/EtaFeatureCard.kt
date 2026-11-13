@@ -75,7 +75,7 @@ internal fun EtaFeatureCard(
                 Spacer(Modifier.height(8.dp))
                 CouiText(
                     text = title,
-                    kind = CouiTextKind.PreferenceTitle,
+                    kind = CouiTextKind.ItemTitle,
                     color = colors.title,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -83,7 +83,7 @@ internal fun EtaFeatureCard(
                 Spacer(Modifier.height(4.dp))
                 CouiText(
                     text = summary,
-                    kind = CouiTextKind.PreferenceSummary,
+                    kind = CouiTextKind.ItemSummary,
                     color = colors.summary,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,

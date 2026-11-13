@@ -154,7 +154,7 @@ internal fun ModelProviderListScreen(
                                 } else {
                                     stringResource(R.string.provider_no_matches)
                                 },
-                                kind = CouiTextKind.PreferenceSummary,
+                                kind = CouiTextKind.ItemSummary,
                                 color = colors.summary,
                             )
                         }
@@ -369,7 +369,7 @@ private fun ProviderListItem(
                     ) {
                         CouiText(
                             text = provider.name,
-                            kind = CouiTextKind.PreferenceTitle,
+                            kind = CouiTextKind.ItemTitle,
                             color = if (isSelected) colors.accent else colors.title,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -384,7 +384,7 @@ private fun ProviderListItem(
                     if (provider.baseUrl.isNotBlank()) {
                         CouiText(
                             text = provider.baseUrl,
-                            kind = CouiTextKind.PreferenceSummary,
+                            kind = CouiTextKind.ItemSummary,
                             color = colors.summary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -392,7 +392,7 @@ private fun ProviderListItem(
                     }
                     CouiText(
                         text = subtitle,
-                        kind = CouiTextKind.Description,
+                        kind = CouiTextKind.GroupFooter,
                         color = colors.summary,
                         modifier = Modifier.padding(top = 2.dp),
                     )

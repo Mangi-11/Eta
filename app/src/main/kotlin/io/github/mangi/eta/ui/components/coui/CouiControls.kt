@@ -216,7 +216,7 @@ internal fun CouiButton(
     ) {
         Text(
             text = text,
-            kind = CouiTextKind.PreferenceTitle,
+            kind = CouiTextKind.ItemTitle,
             color = textColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -256,7 +256,7 @@ internal fun CouiTextField(
     val hintColor = if (dark) Color(0x59FFFFFF) else Color(0x4D000000)
     val containerColor = if (dark) Color(0x1AFFFFFF) else Color(0x0D000000)
     val shape = CouiShape(14.dp, 2f)
-    val textStyle = rememberCouiTextStyle(CouiTextKind.Body).copy(
+    val textStyle = rememberCouiTextStyle(CouiTextKind.Search).copy(
         color = if (enabled) colors.title else colors.disabled,
         textAlign = TextAlign.Start,
     )
@@ -280,7 +280,7 @@ internal fun CouiTextField(
                 if (!label.isNullOrEmpty()) {
                     Text(
                         text = label,
-                        kind = CouiTextKind.Description,
+                        kind = CouiTextKind.GroupFooter,
                         color = if (focused && enabled) colors.accent else colors.summary,
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Start,
@@ -291,7 +291,7 @@ internal fun CouiTextField(
                 if (!rightLabel.isNullOrEmpty()) {
                     Text(
                         text = rightLabel,
-                        kind = CouiTextKind.Description,
+                        kind = CouiTextKind.GroupFooter,
                         color = if (rightLabelColor != Color.Unspecified) rightLabelColor else colors.summary,
                         textAlign = TextAlign.End,
                     )
@@ -326,7 +326,7 @@ internal fun CouiTextField(
                 if (value.isEmpty() && !effectivePlaceholder.isNullOrEmpty()) {
                     Text(
                         text = effectivePlaceholder,
-                        kind = CouiTextKind.Body,
+                        kind = CouiTextKind.Search,
                         color = hintColor,
                         textAlign = TextAlign.Start,
                         maxLines = if (singleLine) 1 else maxLines,
@@ -526,7 +526,7 @@ internal fun <T : Any> CouiChipTabs(
                 ) {
                     Text(
                         text = label,
-                        kind = CouiTextKind.PreferenceValue,
+                        kind = CouiTextKind.ItemValue,
                         color = if (selected) Color.White else colors.title,
                         maxLines = 1,
                     )

@@ -1111,12 +1111,12 @@ private fun ModelEditDialog(
                             ) {
                                 CouiText(
                                     text = thinkingTitle,
-                                    kind = CouiTextKind.PreferenceTitle,
+                                    kind = CouiTextKind.ItemTitle,
                                     color = colors.title,
                                 )
                                 CouiText(
                                     text = thinkingSummary,
-                                    kind = CouiTextKind.PreferenceSummary,
+                                    kind = CouiTextKind.ItemSummary,
                                     color = colors.summary,
                                 )
                             }
@@ -1158,7 +1158,7 @@ private fun ModelEditDialog(
                             CouiText(
                                 text = if (nativeGemini) "可手动选择档位，是否支持由服务端校验。Default 始终可用。"
                                 else stringResource(R.string.ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d),
-                                kind = CouiTextKind.Description,
+                                kind = CouiTextKind.GroupFooter,
                                 color = colors.summary,
                             )
                         }
@@ -1167,7 +1167,7 @@ private fun ModelEditDialog(
                     error?.let { message ->
                         CouiText(
                             text = message,
-                            kind = CouiTextKind.Description,
+                            kind = CouiTextKind.GroupFooter,
                             color = StatusError,
                         )
                     }

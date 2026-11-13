@@ -204,7 +204,7 @@ internal fun McpServersScreen(
                 onBack = onBack,
                 actions = {
                     CouiTopAppBarIconButton(
-                        icon = CouiIcons.Add,
+                        icon = CouiIcons.Outlined.Add,
                         contentDescription = stringResource(R.string.mcp_add_server),
                         onClick = { showAdd = true },
                     )
@@ -936,7 +936,7 @@ private fun McpToolSwitchRow(
                     Column(modifier = Modifier.weight(1f)) {
                         CouiText(
                             text = displayTitle,
-                            kind = CouiTextKind.PreferenceTitle,
+                            kind = CouiTextKind.ItemTitle,
                             color = colors.title,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -944,7 +944,7 @@ private fun McpToolSwitchRow(
                         if (showRawName) {
                             CouiText(
                                 text = tool.name,
-                                kind = CouiTextKind.Description,
+                                kind = CouiTextKind.GroupFooter,
                                 color = colors.summary.copy(alpha = 0.75f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -1018,7 +1018,7 @@ private fun McpToolSwitchRow(
                     ) {
                         CouiText(
                             text = if (expanded) "收起说明" else "展开说明",
-                            kind = CouiTextKind.Description,
+                            kind = CouiTextKind.GroupFooter,
                             color = colors.accent,
                         )
                         CouiIcon(
