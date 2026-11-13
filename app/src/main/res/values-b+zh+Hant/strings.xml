@@ -1374,4 +1374,17 @@
   <string name="conversation_empty_hint">點按右上角按鈕即可開始新對話</string>
   <string name="conversation_model_unconfigured">未設定</string>
   <string name="conversation_permission_attention">權限待處理</string>
+  <string name="conversation_title_settings_title">自動產生對話標題</string>
+  <string name="conversation_title_settings_group">一般與模型</string>
+  <string name="conversation_title_settings_enabled">啟用自動產生標題</string>
+  <string name="conversation_title_settings_model">產生標題模型</string>
+  <string name="conversation_title_settings_follow_conversation">跟隨對話模型</string>
+  <string name="conversation_title_settings_follow_conversation_with_name">跟隨對話模型 (%1$s)</string>
+  <string name="conversation_title_settings_follow_conversation_hint">預設使用目前對話或主模型</string>
+  <string name="conversation_title_settings_reasoning_effort">思考等級</string>
+  <string name="conversation_title_settings_reasoning_auto_minimal">自動（優先關閉或最低）</string>
+  <string name="conversation_title_settings_reasoning_provider_default">模型預設</string>
+  <string name="conversation_title_settings_reasoning_unsupported">目前模型不支援調整思考</string>
+  <string name="conversation_title_settings_note">新對話首輪回覆完成後將在背景自動提煉簡短標題；建議單獨設定輕量小模型並關閉或降低思考等級，避免較大的主力模型浪費 Token。</string>
+  <string name="conversation_title_settings_disabled">已關閉</string>
 </resources>

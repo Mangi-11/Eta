@@ -71,7 +71,7 @@ import io.github.mangi.eta.ui.components.EtaChoiceChip
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.ModelBrandMark
+import io.github.mangi.eta.ui.components.OptionalModelPickerContent
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
@@ -272,10 +272,11 @@ internal fun SubagentSettingsScreen(
                         material = rememberCouiDialogMaterial(dark),
                         backdrop = rememberCouiWindowBackdrop(),
                     ) {
-                        SubagentModelPickerContent(
+                        OptionalModelPickerContent(
                             pickerState = pickerState,
                             selectedSecondaryModelId = resolvedSecondary?.model?.id,
-                            primaryModelName = primaryModelName,
+                            followTitle = "跟随主模型",
+                            followSubtitle = primaryModelName?.let { "当前：$it" } ?: "默认继承会话正在使用的主模型",
                             onSelectModel = { modelId ->
                                 showModelSheet = false
                                 scope.launch {
@@ -491,10 +492,11 @@ internal fun SubagentSettingsScreen(
                         onDismissRequest = { showModelSheet = false },
                         insideMargin = DpSize(0.dp, 0.dp),
                     ) {
-                        SubagentModelPickerContent(
+                        OptionalModelPickerContent(
                             pickerState = pickerState,
                             selectedSecondaryModelId = resolvedSecondary?.model?.id,
-                            primaryModelName = primaryModelName,
+                            followTitle = "跟随主模型",
+                            followSubtitle = primaryModelName?.let { "当前：$it" } ?: "默认继承会话正在使用的主模型",
                             onSelectModel = { modelId ->
                                 showModelSheet = false
                                 scope.launch {
@@ -697,209 +699,6 @@ internal fun SubagentSettingsScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SubagentModelPickerContent(
-    pickerState: io.github.mangi.eta.ui.model.AgentModelPickerUiState,
-    selectedSecondaryModelId: String?,
-    primaryModelName: String?,
-    onSelectModel: (String?) -> Unit,
-) {
-    var query by remember { mutableStateOf("") }
-    var providerFilter by remember { mutableStateOf<String?>(null) }
-    val filteredGroups = remember(pickerState.providerGroups, query, providerFilter) {
-        pickerState.filterGroups(query)
-            .filter { providerFilter == null || it.providerId == providerFilter }
-    }
-    val density = LocalDensity.current
-    val sheetHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() } * 0.68f
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(sheetHeight)
-            .then(if (isCoui) Modifier else Modifier.navigationBarsPadding()),
-    ) {
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiSearchBarBox(
-                    query = query,
-                    onQueryChange = { query = it },
-                    placeholder = "搜索模型或服务商",
-                    backgroundColor = Color.Transparent,
-                )
-                if (pickerState.providerGroups.size > 1) {
-                    val tabItems = remember(pickerState.providerGroups) {
-                        listOf("" to "全部") + pickerState.providerGroups.map { it.providerId to it.providerName }
-                    }
-                    CouiChipTabs(
-                        items = tabItems,
-                        selectedKey = providerFilter.orEmpty(),
-                        onSelectedKeyChange = { key -> providerFilter = key.takeIf { it.isNotEmpty() } },
-                        backgroundColor = Color.Transparent,
-                    )
-                }
-            }
-            AppearanceUiStyle.MIUIX -> {
-                InputField(
-                    query = query,
-                    onQueryChange = { query = it },
-                    onSearch = {},
-                    expanded = false,
-                    onExpandedChange = {},
-                    label = "搜索模型或服务商",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-                if (pickerState.providerGroups.size > 1) {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        item(key = "filter:all") {
-                            EtaChoiceChip(
-                                text = "全部",
-                                selected = providerFilter == null,
-                                onClick = { providerFilter = null },
-                            )
-                        }
-                        items(
-                            items = pickerState.providerGroups,
-                            key = { "filter:${it.providerId}" },
-                        ) { group ->
-                            EtaChoiceChip(
-                                text = group.providerName,
-                                selected = providerFilter == group.providerId,
-                                onClick = {
-                                    providerFilter = if (providerFilter == group.providerId) null else group.providerId
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(bottom = 16.dp),
-        ) {
-            if (query.isBlank() && providerFilter == null) {
-                item(key = "inherit_primary") {
-                    SubagentModelRow(
-                        title = "跟随主模型",
-                        subtitle = primaryModelName?.let { "当前：$it" } ?: "默认继承会话正在使用的主模型",
-                        modelId = pickerState.selectedModel?.modelId,
-                        sourceType = pickerState.selectedModel?.providerSourceType,
-                        selected = selectedSecondaryModelId == null,
-                        onClick = { onSelectModel(null) },
-                    )
-                }
-            }
-            filteredGroups.forEach { group ->
-                if (providerFilter == null) {
-                    item(key = "header:${group.providerId}") {
-                        Text(
-                            text = group.providerName,
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp),
-                        )
-                    }
-                }
-                items(
-                    items = group.models,
-                    key = { model -> "model:${model.providerId}:${model.id}" },
-                ) { model ->
-                    SubagentModelOptionRow(
-                        model = model,
-                        selected = model.id == selectedSecondaryModelId,
-                        onClick = { onSelectModel(model.id) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SubagentModelOptionRow(
-    model: AgentModelOptionUi,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    SubagentModelRow(
-        title = model.displayName,
-        subtitle = model.modelId.takeIf { !it.equals(model.displayName, ignoreCase = true) },
-        modelId = model.modelId,
-        sourceType = model.providerSourceType,
-        selected = selected,
-        onClick = onClick,
-    )
-}
-
-@Composable
-private fun SubagentModelRow(
-    title: String,
-    subtitle: String?,
-    modelId: String?,
-    sourceType: String?,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 2.dp)
-            .squircleSurface(
-                color = if (selected) {
-                    MiuixTheme.colorScheme.tertiaryContainer
-                } else {
-                    MiuixTheme.colorScheme.surface.copy(alpha = 0f)
-                },
-                cornerRadius = 14.dp,
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ModelBrandMark(
-            modelId = modelId,
-            sourceType = sourceType,
-            size = 20.dp,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MiuixTheme.textStyles.body1,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (selected) MiuixTheme.colorScheme.onTertiaryContainer else MiuixTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (!subtitle.isNullOrBlank()) {
-                Text(
-                    text = subtitle,
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        if (selected) {
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.onTertiaryContainer,
-                modifier = Modifier.size(18.dp),
-            )
         }
     }
 }

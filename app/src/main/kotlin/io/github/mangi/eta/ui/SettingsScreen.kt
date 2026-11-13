@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.AccountTree
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Code
@@ -394,6 +395,12 @@ private fun SettingsPageContent(
                         key = Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED,
                         icon = Icons.Rounded.Layers,
                         iconTint = SettingsIconColors.Blue,
+                    )
+                    CouiIconDivider()
+                    CouiPreference(
+                        title = stringResource(R.string.conversation_title_settings_title),
+                        icon = { CouiSettingsIcon(Icons.Rounded.AutoAwesome, SettingsIconColors.Blue) },
+                        onClick = { onNavigate(AppRoute.ConversationTitleSettings) },
                     )
                     CouiIconDivider()
                     CouiPreference(
@@ -815,6 +822,16 @@ private fun SettingsPageContent(
                             key = Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED,
                             icon = Icons.Rounded.Layers,
                             iconTint = SettingsIconColors.Blue,
+                        )
+                        ArrowPreference(
+                            title = stringResource(R.string.conversation_title_settings_title),
+                            startAction = {
+                                SettingsIcon(
+                                    icon = Icons.Rounded.AutoAwesome,
+                                    tint = SettingsIconColors.Blue,
+                                )
+                            },
+                            onClick = { onNavigate(AppRoute.ConversationTitleSettings) },
                         )
                         ArrowPreference(
                             title = stringResource(R.string.ui_memory_b55ff5),

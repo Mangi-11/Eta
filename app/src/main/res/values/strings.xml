@@ -1486,4 +1486,17 @@
   <string name="conversation_empty_hint">Tap the new chat button above to start</string>
   <string name="conversation_model_unconfigured">Not set</string>
   <string name="conversation_permission_attention">Permissions need attention</string>
+  <string name="conversation_title_settings_title">Auto-generate titles</string>
+  <string name="conversation_title_settings_group">General &amp; Model</string>
+  <string name="conversation_title_settings_enabled">Enable auto-title</string>
+  <string name="conversation_title_settings_model">Title generation model</string>
+  <string name="conversation_title_settings_follow_conversation">Follow conversation model</string>
+  <string name="conversation_title_settings_follow_conversation_with_name">Follow conversation model (%1$s)</string>
+  <string name="conversation_title_settings_follow_conversation_hint">Uses the current conversation or default model</string>
+  <string name="conversation_title_settings_reasoning_effort">Reasoning level</string>
+  <string name="conversation_title_settings_reasoning_auto_minimal">Auto (minimal / off)</string>
+  <string name="conversation_title_settings_reasoning_provider_default">Model default</string>
+  <string name="conversation_title_settings_reasoning_unsupported">Not supported by selected model</string>
+  <string name="conversation_title_settings_note">Automatically summarizes a short title after the first turn of a new conversation. Using a lightweight small model with minimal or disabled reasoning helps save tokens.</string>
+  <string name="conversation_title_settings_disabled">Disabled</string>
 </resources>

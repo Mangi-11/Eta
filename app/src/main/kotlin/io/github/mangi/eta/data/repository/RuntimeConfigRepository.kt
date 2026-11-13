@@ -6,6 +6,7 @@ import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
+import io.github.mangi.eta.data.model.ConversationTitleSettings
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
@@ -40,6 +41,74 @@ internal object RuntimeConfigRepository {
 
     suspend fun setSubagentSettings(settings: SubagentSettings) {
         SettingsDataStore.setSubagentSettings(settings)
+    }
+
+    fun conversationTitleSettingsFlow() = SettingsDataStore.conversationTitleSettingsFlow()
+
+    suspend fun setConversationTitleSettings(settings: ConversationTitleSettings) {
+        SettingsDataStore.setConversationTitleSettings(settings)
+    }
+
+    /**
+     * 解析对话标题生成所用的模型与思考配置。
+     *
+     * 关闭自动标题时返回 `null`；若指定了独立标题模型且仍启用则优先使用，否则平滑回退到
+     * 会话当前模型（或全局默认模型）。思考等级未显式指定时默认取最低可用档位以节省 Token。
+     */
+    suspend fun titleGeneratorConfig(
+        conversationModelId: String? = null,
+    ): AgentModelClient.ModelConfig? {
+        val settings = SettingsDataStore.conversationTitleSettings()
+        if (!settings.enabled) return null
+        val customModelId = settings.modelId?.takeIf { it.isNotBlank() }
+        val base = if (customModelId != null) {
+            ProviderRepository.ensureBuiltInsMerged()
+            ProviderRepository.allProviders().enabledModel(customModelId)?.let { (provider, model) ->
+                buildRuntimeConfig(provider, model)
+            }
+        } else {
+            null
+        } ?: runtimeConfigFor(conversationModelId) ?: return null
+        return applyTitleGenerationSettings(base, settings)
+    }
+
+    internal fun applyTitleGenerationSettings(
+        base: AgentModelClient.ModelConfig,
+        settings: ConversationTitleSettings,
+    ): AgentModelClient.ModelConfig {
+        val explicitEffort = settings.resolvedReasoningEffort
+        val capabilities = base.reasoningCapabilities
+        val effort = when {
+            explicitEffort != null -> when {
+                capabilities != null -> capabilities.normalize(explicitEffort)
+                explicitEffort == ReasoningEffort.OFF -> ReasoningEffort.OFF
+                else -> base.effectiveReasoningEffort
+            }
+            capabilities != null -> {
+                val selectable = capabilities.selectableEfforts
+                if (ReasoningEffort.OFF in selectable) {
+                    ReasoningEffort.OFF
+                } else {
+                    selectable.filter { it != ReasoningEffort.DEFAULT }
+                        .minByOrNull(ReasoningEffort::rank)
+                        ?: ReasoningEffort.DEFAULT
+                }
+            }
+            else -> base.effectiveReasoningEffort
+        }
+        return base.copy(
+            terminalTools = false,
+            browserTools = false,
+            deviceDirectTools = false,
+            deviceSensitiveReadTools = false,
+            deviceSensitiveActionTools = false,
+            subagentTools = false,
+            hostedWebSearchEnabled = false,
+            autoCompactionEnabled = false,
+            supportsSearchSuggestions = false,
+            thinkingEnabled = effort.enablesReasoning,
+            reasoningEffort = effort,
+        )
     }
 
     /**

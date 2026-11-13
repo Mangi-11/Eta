@@ -51,6 +51,9 @@ class LocaleResourcesTest {
         assertEquals("Retrying model request", localizedString("en-US", R.string.system_notice_model_retry))
         assertEquals("模型请求重试", localizedString("zh-CN", R.string.system_notice_model_retry))
         assertEquals("模型請求重試", localizedString("zh-TW", R.string.system_notice_model_retry))
+        assertEquals("Auto-generate titles", localizedString("en-US", R.string.conversation_title_settings_title))
+        assertEquals("自动生成对话标题", localizedString("zh-CN", R.string.conversation_title_settings_title))
+        assertEquals("自動產生對話標題", localizedString("zh-TW", R.string.conversation_title_settings_title))
         assertEquals(
             "1 task is running. Return to Eta to check progress.",
             localizedQuantity("en-US", R.plurals.execution_summary, 1),
