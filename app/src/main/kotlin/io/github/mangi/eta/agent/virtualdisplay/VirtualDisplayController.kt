@@ -150,7 +150,17 @@ internal object VirtualDisplayController {
                     }
                 }
                 manager.registerDisplayListener(listener, handler)
-                if (!isDisplayUsable(manager, id)) return null
+                if (!isDisplayUsable(manager, id)) {
+                    val display = runCatching { manager.getDisplay(id) }.getOrNull()
+                    val flags = display?.flags ?: 0
+                    AndroidAgentLogger.warn(
+                        "Virtual display rejected: displayId=$id reason=DISPLAY_NOT_USABLE " +
+                            "present=${display != null} valid=${display?.isValid == true} " +
+                            "flags=0x${Integer.toHexString(flags)} " +
+                            "missing=${CanvasRoutingPolicy.missingDisplayFlagsDescription(flags)}",
+                    )
+                    return null
+                }
                 synchronized(lock) {
                     if (rootBridge?.isAlive == false || !sessionState.activate(token, id)) return null
                     displayResources = VirtualDisplaySessionResources(

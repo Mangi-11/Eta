@@ -107,13 +107,18 @@ internal object VirtualDisplaySystemHooks {
             try {
                 val result = chain.proceed(args.toTypedArray())
                 if (result is Int && CanvasRoutingPolicy.isVirtualDisplay(result)) {
-                    if (!applyDisplayImePolicyHide(result)) {
+                    val imeResult = applyDisplayImePolicyHide(result)
+                    if (!imeResult.ok) {
                         try {
                             releaseInvoker.invoke(chain.thisObject, args[1])
                         } catch (exception: Exception) {
                             hooks.logger.warn("Virtual display cleanup failed: type=${exception.javaClass.simpleName}")
                         }
-                        hooks.logger.warn("Virtual display rejected: code=DISPLAY_IME_ISOLATION_UNAVAILABLE")
+                        hooks.logger.warn(
+                            "Virtual display rejected: code=DISPLAY_IME_ISOLATION_UNAVAILABLE " +
+                                "reason=${imeResult.reason} actualPolicy=${imeResult.actualPolicy} " +
+                                "errorType=${imeResult.errorType}",
+                        )
                         return@intercept Display.INVALID_DISPLAY
                     }
                     activeEtaDisplayIds.add(result)
@@ -175,20 +180,18 @@ internal object VirtualDisplaySystemHooks {
         }
     }
 
-    private fun applyDisplayImePolicyHide(displayId: Int): Boolean {
+    private fun applyDisplayImePolicyHide(displayId: Int): CanvasRoutingPolicy.ImePolicyCheckResult {
         return try {
             val wmgClass = Class.forName("android.view.WindowManagerGlobal")
-            val wms = wmgClass.getMethod("getWindowManagerService").invoke(null) ?: return false
-            val setPolicy = wms.javaClass.methods.firstOrNull {
-                it.name == "setDisplayImePolicy" && it.parameterCount == 2
-            } ?: return false
-            val getPolicy = wms.javaClass.methods.firstOrNull {
-                it.name == "getDisplayImePolicy" && it.parameterCount == 1
-            } ?: return false
-            setPolicy.invoke(wms, displayId, CanvasRoutingPolicy.DISPLAY_IME_POLICY_HIDE)
-            getPolicy.invoke(wms, displayId) == CanvasRoutingPolicy.DISPLAY_IME_POLICY_HIDE
-        } catch (_: Exception) {
-            false
+            val wms = wmgClass.getMethod("getWindowManagerService").invoke(null)
+            CanvasRoutingPolicy.applyDisplayImePolicyHide(wms = wms, displayId = displayId)
+        } catch (exception: Exception) {
+            val cause = (exception as? java.lang.reflect.InvocationTargetException)?.cause ?: exception
+            CanvasRoutingPolicy.ImePolicyCheckResult(
+                ok = false,
+                reason = "WMS_LOOKUP_EXCEPTION",
+                errorType = cause.javaClass.simpleName,
+            )
         }
     }
 

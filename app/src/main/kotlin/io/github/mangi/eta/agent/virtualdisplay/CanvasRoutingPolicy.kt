@@ -65,6 +65,83 @@ internal object CanvasRoutingPolicy {
         return flags and required == required
     }
 
+    fun missingDisplayFlagsDescription(flags: Int): String {
+        val missing = buildList {
+            if ((flags and DISPLAY_FLAG_TRUSTED) == 0) add("TRUSTED")
+            if ((flags and DISPLAY_FLAG_OWN_FOCUS) == 0) add("OWN_FOCUS")
+            if ((flags and DISPLAY_FLAG_STEAL_TOP_FOCUS_DISABLED) == 0) add("STEAL_TOP_FOCUS_DISABLED")
+        }
+        return missing.joinToString(",")
+    }
+
+    data class ImePolicyCheckResult(
+        val ok: Boolean,
+        val reason: String,
+        val actualPolicy: Int? = null,
+        val errorType: String? = null,
+    )
+
+    fun applyDisplayImePolicyHide(
+        wms: Any?,
+        displayId: Int,
+        retryDelaysMs: LongArray = longArrayOf(),
+        sleep: (Long) -> Unit = Thread::sleep,
+    ): ImePolicyCheckResult {
+        if (!isVirtualDisplay(displayId)) {
+            return ImePolicyCheckResult(ok = false, reason = "INVALID_DISPLAY_ID")
+        }
+        if (wms == null) {
+            return ImePolicyCheckResult(ok = false, reason = "WMS_UNAVAILABLE")
+        }
+        val methods = wms.javaClass.methods
+        val setPolicy = methods.firstOrNull {
+            it.name == "setDisplayImePolicy" && it.parameterCount == 2
+        } ?: return ImePolicyCheckResult(ok = false, reason = "SET_POLICY_METHOD_MISSING")
+        val getPolicy = methods.firstOrNull {
+            it.name == "getDisplayImePolicy" && it.parameterCount == 1
+        } ?: return ImePolicyCheckResult(ok = false, reason = "GET_POLICY_METHOD_MISSING")
+
+        var lastActual: Int? = null
+        for (attempt in 0..retryDelaysMs.size) {
+            if (attempt > 0) {
+                val delayMs = retryDelaysMs[attempt - 1]
+                if (delayMs > 0L) {
+                    try {
+                        sleep(delayMs)
+                    } catch (_: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        return ImePolicyCheckResult(
+                            ok = false,
+                            reason = "IME_POLICY_INTERRUPTED",
+                            actualPolicy = lastActual,
+                        )
+                    }
+                }
+            }
+            try {
+                setPolicy.invoke(wms, displayId, DISPLAY_IME_POLICY_HIDE)
+                val actual = getPolicy.invoke(wms, displayId) as? Int
+                if (actual == DISPLAY_IME_POLICY_HIDE) {
+                    return ImePolicyCheckResult(ok = true, reason = "OK", actualPolicy = actual)
+                }
+                lastActual = actual
+            } catch (exception: Exception) {
+                val cause = (exception as? java.lang.reflect.InvocationTargetException)?.cause ?: exception
+                return ImePolicyCheckResult(
+                    ok = false,
+                    reason = "IME_POLICY_EXCEPTION",
+                    actualPolicy = lastActual,
+                    errorType = cause.javaClass.simpleName,
+                )
+            }
+        }
+        return ImePolicyCheckResult(
+            ok = false,
+            reason = "IME_POLICY_MISMATCH",
+            actualPolicy = lastActual,
+        )
+    }
+
     private val MAIN_DISPLAY_ONLY_PACKAGES = setOf(
         "android",
         "com.android.systemui",

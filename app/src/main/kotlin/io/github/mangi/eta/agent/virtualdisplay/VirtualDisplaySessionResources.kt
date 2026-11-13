@@ -93,6 +93,7 @@ internal class RootVirtualDisplayBridge private constructor(
                 val readyLatch = CountDownLatch(1)
                 val disconnected = AtomicBoolean(false)
                 var resolvedDisplayId: Int? = null
+                var failureResultLine: String? = null
                 val payload = JSONObject()
                     .put("action", "hold_display")
                     .put("user_id", DeviceToolContract.appUserId(appContext))
@@ -112,6 +113,7 @@ internal class RootVirtualDisplayBridge private constructor(
                                         .trim().toIntOrNull()
                                     readyLatch.countDown()
                                 } else if (line.startsWith(VirtualDisplayCommandMain.RESULT_PREFIX)) {
+                                    failureResultLine = line
                                     readyLatch.countDown()
                                 }
                             }
@@ -135,7 +137,18 @@ internal class RootVirtualDisplayBridge private constructor(
                 val id = resolvedDisplayId
                 if (!awaited || id == null || !CanvasRoutingPolicy.isVirtualDisplay(id) ||
                     disconnected.get() || !started.isAlive
-                ) return null
+                ) {
+                    AndroidAgentLogger.warn(
+                        formatFailureSummary(
+                            resultLine = failureResultLine,
+                            awaited = awaited,
+                            resolvedDisplayId = id,
+                            disconnected = disconnected.get(),
+                            alive = started.isAlive,
+                        ),
+                    )
+                    return null
+                }
                 accepted = true
                 return RootVirtualDisplayBridge(id, started, supervisor, disconnected)
             } catch (exception: Exception) {
@@ -154,6 +167,33 @@ internal class RootVirtualDisplayBridge private constructor(
                     }
                 }
             }
+        }
+
+        internal fun formatFailureSummary(
+            resultLine: String?,
+            awaited: Boolean,
+            resolvedDisplayId: Int?,
+            disconnected: Boolean,
+            alive: Boolean,
+        ): String {
+            val rawJson = resultLine?.removePrefix(VirtualDisplayCommandMain.RESULT_PREFIX)?.trim()
+            val parsed = rawJson?.takeIf { it.startsWith("{") }?.let { runCatching { JSONObject(it) }.getOrNull() }
+            if (parsed != null) {
+                val parts = buildList {
+                    parsed.optString("code").takeIf { it.isNotBlank() }?.let { add("code=$it") }
+                    parsed.optString("reason").takeIf { it.isNotBlank() }?.let { add("reason=$it") }
+                    parsed.optString("flags").takeIf { it.isNotBlank() }?.let { add("flags=$it") }
+                    parsed.optString("missing").takeIf { it.isNotBlank() }?.let { add("missing=$it") }
+                    if (parsed.has("actual_policy")) add("actualPolicy=${parsed.opt("actual_policy")}")
+                    parsed.optString("error_type").takeIf { it.isNotBlank() }?.let { add("errorType=$it") }
+                    parsed.optString("type").takeIf { it.isNotBlank() }?.let { add("type=$it") }
+                    if (parsed.has("uid")) add("uid=${parsed.opt("uid")}")
+                }
+                if (parts.isNotEmpty()) {
+                    return "Virtual display bridge rejected: ${parts.joinToString(" ")}"
+                }
+            }
+            return "Virtual display bridge rejected: awaited=$awaited displayId=$resolvedDisplayId disconnected=$disconnected alive=$alive"
         }
     }
 }

@@ -132,4 +132,85 @@ class CanvasRoutingPolicyTest {
         }
         assertFalse(CanvasRoutingPolicy.hasRequiredDisplayFlags(CanvasRoutingPolicy.FLAG_TRUSTED))
     }
+
+    @Test
+    fun missingDisplayFlagsDescriptionReportsMissingBits() {
+        val full = (1 shl 7) or (1 shl 11) or (1 shl 12)
+        assertEquals("", CanvasRoutingPolicy.missingDisplayFlagsDescription(full))
+        assertEquals(
+            "OWN_FOCUS,STEAL_TOP_FOCUS_DISABLED",
+            CanvasRoutingPolicy.missingDisplayFlagsDescription(1 shl 7),
+        )
+        assertEquals(
+            "TRUSTED,OWN_FOCUS,STEAL_TOP_FOCUS_DISABLED",
+            CanvasRoutingPolicy.missingDisplayFlagsDescription(0),
+        )
+    }
+
+    @Test
+    fun applyDisplayImePolicyHideRetriesTransientFallbackBeforeSucceeding() {
+        class FakeWms {
+            var calls = 0
+            var policy = CanvasRoutingPolicy.DISPLAY_IME_POLICY_FALLBACK_DISPLAY
+            fun setDisplayImePolicy(displayId: Int, newPolicy: Int) {
+                calls++
+                if (calls >= 2 && displayId == 5) {
+                    policy = newPolicy
+                }
+            }
+            fun getDisplayImePolicy(displayId: Int): Int =
+                if (displayId == 5) policy else CanvasRoutingPolicy.DISPLAY_IME_POLICY_LOCAL
+        }
+        val delays = mutableListOf<Long>()
+        val result = CanvasRoutingPolicy.applyDisplayImePolicyHide(
+            wms = FakeWms(),
+            displayId = 5,
+            retryDelaysMs = longArrayOf(15L, 30L),
+            sleep = { delays.add(it) },
+        )
+        assertTrue(result.ok)
+        assertEquals(CanvasRoutingPolicy.DISPLAY_IME_POLICY_HIDE, result.actualPolicy)
+        assertEquals(listOf(15L), delays)
+    }
+
+    @Test
+    fun applyDisplayImePolicyHideReportsMismatchAndExceptionsExplicitly() {
+        class MismatchedWms {
+            fun setDisplayImePolicy(displayId: Int, newPolicy: Int) = Unit
+            fun getDisplayImePolicy(displayId: Int): Int = CanvasRoutingPolicy.DISPLAY_IME_POLICY_FALLBACK_DISPLAY
+        }
+        val mismatch = CanvasRoutingPolicy.applyDisplayImePolicyHide(
+            wms = MismatchedWms(),
+            displayId = 3,
+            retryDelaysMs = longArrayOf(10L),
+            sleep = {},
+        )
+        assertFalse(mismatch.ok)
+        assertEquals("IME_POLICY_MISMATCH", mismatch.reason)
+        assertEquals(CanvasRoutingPolicy.DISPLAY_IME_POLICY_FALLBACK_DISPLAY, mismatch.actualPolicy)
+
+        class ThrowingWms {
+            fun setDisplayImePolicy(displayId: Int, newPolicy: Int) {
+                throw SecurityException("denied")
+            }
+            fun getDisplayImePolicy(displayId: Int): Int = 1
+        }
+        val failed = CanvasRoutingPolicy.applyDisplayImePolicyHide(
+            wms = ThrowingWms(),
+            displayId = 3,
+        )
+        assertFalse(failed.ok)
+        assertEquals("IME_POLICY_EXCEPTION", failed.reason)
+        assertEquals("SecurityException", failed.errorType)
+
+        class IncompleteWms {
+            fun setDisplayImePolicy(displayId: Int, newPolicy: Int) = Unit
+        }
+        val missingGet = CanvasRoutingPolicy.applyDisplayImePolicyHide(
+            wms = IncompleteWms(),
+            displayId = 3,
+        )
+        assertFalse(missingGet.ok)
+        assertEquals("GET_POLICY_METHOD_MISSING", missingGet.reason)
+    }
 }
