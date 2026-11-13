@@ -838,55 +838,60 @@ internal class AgentBrowserSession(
         return JSONObject().put("value", value)
     }
 
+    // callOnMain 将 WebView 绘制切到主线程，随后的位图编码留在浏览器执行线程；Lint ThreadConstraint 无法识别跨线程同步桥接。
+    @SuppressLint("ThreadConstraint")
     private fun captureViewport(view: WebView, preview: Boolean = false): BrowserImage {
-        val bitmap = callOnMain {
-            layoutOffscreenOnMain(view)
-            val sourceWidth = view.width.coerceAtLeast(1)
-            val sourceHeight = view.height.coerceAtLeast(1)
-            val scale = if (preview) minOf(
-                1f,
-                PREVIEW_MAX_WIDTH.toFloat() / sourceWidth,
-                PREVIEW_MAX_HEIGHT.toFloat() / sourceHeight,
-            ) else 1f
-            val width = (sourceWidth * scale).roundToInt().coerceAtLeast(1)
-            val height = (sourceHeight * scale).roundToInt().coerceAtLeast(1)
-            // Bitmap Canvas 已决定截图采用软件绘制，不能修改共享 WebView 的持久图层类型。
-            val captured = createBitmap(width, height)
-            try {
-                Canvas(captured).also { canvas ->
-                    if (preview) {
-                        canvas.drawColor(Color.WHITE)
-                        canvas.scale(scale, scale)
-                    }
-                    view.draw(canvas)
-                }
-                captured
-            } catch (failure: Throwable) {
-                captured.recycle()
-                throw failure
-            }
-        }
-        // 主线程仅绘制，模型截图的必要编码留在浏览器执行线程；预览不参与模型输入。
-        return try {
-            if (preview) {
-                val bytes = ByteArrayOutputStream().use { stream ->
-                    check(bitmap.compress(Bitmap.CompressFormat.JPEG, PREVIEW_QUALITY, stream))
-                    stream.toByteArray()
-                }
-                BrowserImage(
-                    dataUrl = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP),
-                    mimeType = "image/jpeg", bytes = bytes.size,
-                    width = bitmap.width, height = bitmap.height,
-                )
-            } else {
-                val image = AgentImageCodec.fromScreenBitmap(bitmap, source = "agent_browser")
-                BrowserImage(
-                    dataUrl = image.reference, mimeType = image.mimeType, bytes = image.bytes,
-                    width = bitmap.width, height = bitmap.height,
-                )
-            }
-        } finally { bitmap.recycle() }
+        val bitmap = captureViewportBitmap(view, preview)
+        return encodeViewportBitmap(bitmap, preview)
     }
+
+    private fun captureViewportBitmap(view: WebView, preview: Boolean): Bitmap = callOnMain {
+        layoutOffscreenOnMain(view)
+        val sourceWidth = view.width.coerceAtLeast(1)
+        val sourceHeight = view.height.coerceAtLeast(1)
+        val scale = if (preview) minOf(
+            1f,
+            PREVIEW_MAX_WIDTH.toFloat() / sourceWidth,
+            PREVIEW_MAX_HEIGHT.toFloat() / sourceHeight,
+        ) else 1f
+        val width = (sourceWidth * scale).roundToInt().coerceAtLeast(1)
+        val height = (sourceHeight * scale).roundToInt().coerceAtLeast(1)
+        // Bitmap Canvas 已决定截图采用软件绘制，不能修改共享 WebView 的持久图层类型。
+        val captured = createBitmap(width, height)
+        try {
+            Canvas(captured).also { canvas ->
+                if (preview) {
+                    canvas.drawColor(Color.WHITE)
+                    canvas.scale(scale, scale)
+                }
+                view.draw(canvas)
+            }
+            captured
+        } catch (failure: Throwable) {
+            captured.recycle()
+            throw failure
+        }
+    }
+
+    private fun encodeViewportBitmap(bitmap: Bitmap, preview: Boolean): BrowserImage = try {
+        if (preview) {
+            val bytes = ByteArrayOutputStream().use { stream ->
+                check(bitmap.compress(Bitmap.CompressFormat.JPEG, PREVIEW_QUALITY, stream))
+                stream.toByteArray()
+            }
+            BrowserImage(
+                dataUrl = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP),
+                mimeType = "image/jpeg", bytes = bytes.size,
+                width = bitmap.width, height = bitmap.height,
+            )
+        } else {
+            val image = AgentImageCodec.fromScreenBitmap(bitmap, source = "agent_browser")
+            BrowserImage(
+                dataUrl = image.reference, mimeType = image.mimeType, bytes = image.bytes,
+                width = bitmap.width, height = bitmap.height,
+            )
+        }
+    } finally { bitmap.recycle() }
 
     private fun baseEnvelope(action: String, ok: Boolean, status: String): JSONObject {
         val snapshot = snapshots.value
