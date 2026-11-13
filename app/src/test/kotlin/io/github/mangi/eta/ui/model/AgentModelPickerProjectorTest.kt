@@ -289,6 +289,90 @@ class AgentModelPickerProjectorTest {
         assertEquals("6.8", formatTokensPerSecond(6.81))
     }
 
+    @Test
+    fun deriveSessionStatsSummary_splitsCacheWriteMissAndSeparatesCompactionAndSubagent() {
+        val subagentSnapshot = io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot(
+            subagentId = "sub-1",
+            subagentType = "explore",
+            description = "检索文件",
+            usage = io.github.mangi.eta.agent.subagent.SubagentUsageSnapshot(
+                inputTokens = 5_000,
+                cachedTokens = 4_000,
+                cacheWriteTokens = 500,
+                outputTokens = 300,
+            ),
+        ).encode()
+        val messages = listOf(
+            UserMessageUi(id = "u1", content = "问题1"),
+            AgentMessageUi(
+                id = "a1",
+                content = "回答1",
+                usage = TokenUsageUi(
+                    contextTokens = 10_200,
+                    inputTokens = 10_000,
+                    outputTokens = 200,
+                    cachedTokens = 7_000,
+                    cacheWriteTokens = 2_000,
+                    stepCount = 1,
+                ),
+            ),
+            ToolActivityMessageUi(
+                id = "t1",
+                toolName = "subagent",
+                status = ToolActivityStatusUi.Success,
+                argumentsSummary = "explore · 检索文件",
+                command = subagentSnapshot,
+            ),
+            SystemNoticeMessageUi(
+                id = "c1",
+                code = SystemNoticeCode.ContextCompaction,
+                detail = "上下文已压缩",
+                archiveId = "fold-1",
+                tokensBefore = 80_000,
+                usage = TokenUsageUi(
+                    inputTokens = 80_500,
+                    cachedTokens = 78_000,
+                    cacheWriteTokens = 500,
+                    outputTokens = 1_000,
+                    requestKind = io.github.mangi.eta.agent.runtime.AgentTokenUsage.REQUEST_KIND_COMPACTION,
+                ),
+            ),
+            UserMessageUi(id = "u2", content = "问题2"),
+            AgentMessageUi(
+                id = "a2",
+                content = "回答2",
+                usage = TokenUsageUi(
+                    contextTokens = 12_200,
+                    inputTokens = 12_000,
+                    outputTokens = 200,
+                    cachedTokens = 4_000,
+                    cacheWriteTokens = 8_000,
+                    stepCount = 1,
+                ),
+            ),
+        )
+
+        val stats = deriveSessionStatsSummary(messages)
+
+        assertEquals(22_000, stats.promptTokens)
+        assertEquals(11_000, stats.cachedTokens)
+        assertEquals(10_000, stats.cacheWriteTokens)
+        assertEquals(1_000, stats.uncachedInputTokens)
+        assertEquals(true, stats.hasCacheWriteTokens)
+        assertEquals(1, stats.compactionCount)
+        assertEquals(80_500, stats.compactionPromptTokens)
+        assertEquals(78_000, stats.compactionCachedTokens)
+        assertEquals(500, stats.compactionCacheWriteTokens)
+        assertEquals(2_000, stats.compactionUncachedTokens)
+        assertEquals("fold-1", stats.lastCompactionArchiveId)
+        assertEquals(1, stats.subagentCount)
+        assertEquals(5_000, stats.subagentPromptTokens)
+        assertEquals(4_000, stats.subagentCachedTokens)
+        assertEquals(300, stats.subagentOutputTokens)
+        // 总用量 = 普通轮次 (22000 + 400) + 压缩 (80500 + 1000) + 子智能体 (5000 + 300)
+        assertEquals(109_200, stats.totalTokens)
+    }
+
     private fun provider(
         id: String,
         name: String = id,

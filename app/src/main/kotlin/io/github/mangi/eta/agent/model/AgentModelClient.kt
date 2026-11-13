@@ -366,6 +366,7 @@ internal object AgentModelClient {
         val compactedUserTurns: Int = 0,
         val summaryThroughUserTurn: Int = 0,
         val messageId: String = "",
+        val compactionArchiveId: String = "",
     )
 
     fun interface ToolExecutor {

@@ -15,6 +15,10 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     private val TOP_LEVEL_COMBINATORS = listOf("oneOf", "anyOf", "allOf")
     private const val TRANSIENT_BLOCK = "_eta_transient"
+    private val COMPACTION_PROTECTED_FIELDS = setOf(
+        "model", "stream", "messages", "input", "instructions", "system",
+        "system_instruction", "tools", "tool_choice",
+    )
 
     override val id: String = "anthropic_messages"
 
@@ -50,7 +54,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             .url(ProviderUrls.anthropicMessagesUrl(config.baseUrl))
             .headers(headers)
             .post(
-                buildRequestJson(config, request.messages, request.effectiveTools)
+                buildRequestJson(config, request.messages, request.effectiveTools, request.purpose)
                     .toString()
                     .toRequestBody(JSON_MEDIA_TYPE)
             )
@@ -84,14 +88,19 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
     private fun buildRequestJson(
         config: AgentModelClient.ModelConfig,
         messages: JSONArray,
-        tools: JSONArray
+        tools: JSONArray,
+        purpose: ProviderRequestPurpose = ProviderRequestPurpose.CHAT,
     ): JSONObject {
         val systemParts = mutableListOf<String>()
         val anthropicMessages = JSONArray()
         // 当前轮（最后一条真实用户消息之后）的助手消息都原样带回签名块：工具循环中逐轮保持
-        // 同一前缀，缓存才能在每一轮续用；更早轮次统一去掉思考，形态在各轮之间同样稳定。
+        // 同一前缀，缓存才能在每一轮续用；压缩指令消息不推进当前轮起点，以免丢失当前轮签名缓存。
         val currentTurnStart = (messages.length() - 1 downTo 0).firstOrNull { index ->
-            messages.optJSONObject(index)?.let { it.optString("role") == "user" && !it.optBoolean("_eta_observation") } == true
+            messages.optJSONObject(index)?.let {
+                it.optString("role") == "user" &&
+                    !it.optBoolean("_eta_observation") &&
+                    !it.optBoolean("_eta_compaction_prompt")
+            } == true
         } ?: -1
         for (index in 0 until messages.length()) {
             val message = messages.optJSONObject(index) ?: continue
@@ -126,6 +135,13 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             }
         }
 
+        // Anthropic 修改 tool_choice 会使整个 messages 缓存失效；压缩主路径保持与对话一致的 tool_choice，
+        // 靠指令禁止调用工具并在流中拦截，从而兼顾 tools/system/messages 全链路缓存命中。
+        val customBody = if (purpose == ProviderRequestPurpose.COMPACTION) {
+            config.customBody.filterNot { it.key in COMPACTION_PROTECTED_FIELDS }
+        } else {
+            config.customBody
+        }
         return JSONObject()
             .put("model", config.model)
             .put("max_tokens", defaultMaxTokens(config.model))
@@ -141,9 +157,9 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
                     request.put("tools", converted)
                 }
                 markConversationBreakpoint(anthropicMessages)
-                RequestBodyMerge.mergeCustomBody(request, config.customBody)
+                RequestBodyMerge.mergeCustomBody(request, customBody)
                 val explicitMaxTokens = request.opt("max_tokens")
-                    .takeIf { config.customBody.any { body -> body.key == "max_tokens" } }
+                    .takeIf { customBody.any { body -> body.key == "max_tokens" } }
                 ProviderReasoning.applyAnthropicRequest(request, config)
                 if (explicitMaxTokens != null) request.put("max_tokens", explicitMaxTokens)
             }
@@ -563,15 +579,16 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
      */
     private fun parseUsage(usage: JSONObject?): AgentTokenUsage? {
         usage ?: return null
+        val input = usage.firstInt("input_tokens")
+        val cacheRead = usage.firstInt("cache_read_input_tokens")
+        val cacheWrite = usage.firstInt("cache_creation_input_tokens")
         return AgentTokenUsage(
-            contextTokens = usage.firstInt("input_tokens")?.let { input ->
-                input + (usage.firstInt("cache_read_input_tokens") ?: 0) +
-                    (usage.firstInt("cache_creation_input_tokens") ?: 0)
-            },
-            inputTokens = usage.firstInt("input_tokens"),
+            contextTokens = input?.let { it + (cacheRead ?: 0) + (cacheWrite ?: 0) },
+            inputTokens = input,
             outputTokens = usage.firstInt("output_tokens"),
             reasoningTokens = usage.firstInt("thinking_output_tokens"),
-            cachedTokens = usage.firstInt("cache_read_input_tokens")
+            cachedTokens = cacheRead,
+            cacheWriteTokens = cacheWrite,
         ).takeUnless { it.isEmpty }
     }
 
@@ -585,6 +602,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
         outputTokens = later.outputTokens ?: outputTokens,
         reasoningTokens = later.reasoningTokens ?: reasoningTokens,
         cachedTokens = later.cachedTokens ?: cachedTokens,
+        cacheWriteTokens = later.cacheWriteTokens ?: cacheWriteTokens,
     )
 
     private fun parseJsonObject(raw: String): JSONObject =
@@ -607,6 +625,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             outputTokens?.let { json.put("output_tokens", it) }
             reasoningTokens?.let { json.put("reasoning_tokens", it) }
             cachedTokens?.let { json.put("cached_tokens", it) }
+            cacheWriteTokens?.let { json.put("cache_write_tokens", it) }
         }
 
 

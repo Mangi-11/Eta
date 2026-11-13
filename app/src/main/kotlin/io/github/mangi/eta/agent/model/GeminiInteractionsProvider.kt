@@ -35,7 +35,7 @@ internal object GeminiInteractionsProvider : AgentProviderClient {
             }.build()
         val httpRequest = Request.Builder().url(ProviderUrls.geminiInteractionsUrl(config.baseUrl))
             .headers(headers)
-            .post(GeminiInteractionsRequest.build(config, request.messages, request.effectiveTools)
+            .post(GeminiInteractionsRequest.build(config, request.messages, request.effectiveTools, request.purpose)
                 .toString().toRequestBody(jsonMediaType))
             .build()
         val call = AgentHttpClient.modelClient(request.purpose).newCall(httpRequest)

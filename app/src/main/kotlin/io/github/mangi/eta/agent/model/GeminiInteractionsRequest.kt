@@ -12,14 +12,29 @@ internal object GeminiInteractionsRequest {
         "model", "input", "system_instruction", "tools", "stream", "store", "previous_interaction_id",
         "background", "agent", "agent_config", "environment", "environment_id", "webhook_config",
     )
+    private val COMPACTION_EXTRA_BLOCKED_FIELDS = setOf("messages", "instructions", "system", "tool_choice")
 
-    fun build(config: AgentModelClient.ModelConfig, messages: JSONArray, tools: JSONArray): JSONObject {
+    fun build(
+        config: AgentModelClient.ModelConfig,
+        messages: JSONArray,
+        tools: JSONArray,
+        purpose: ProviderRequestPurpose = ProviderRequestPurpose.CHAT,
+    ): JSONObject {
         val body = JSONObject()
         if (config.extraBodyJson.isNotBlank()) {
             val extra = JSONObject(config.extraBodyJson)
-            for (key in extra.keys()) if (key !in protectedFields) body.put(key, extra.get(key))
+            for (key in extra.keys()) {
+                if (key !in protectedFields && (purpose != ProviderRequestPurpose.COMPACTION || key !in COMPACTION_EXTRA_BLOCKED_FIELDS)) {
+                    body.put(key, extra.get(key))
+                }
+            }
         }
-        RequestBodyMerge.mergeCustomBody(body, config.customBody.filterNot { it.key in protectedFields })
+        RequestBodyMerge.mergeCustomBody(
+            body,
+            config.customBody.filterNot {
+                it.key in protectedFields || (purpose == ProviderRequestPurpose.COMPACTION && it.key in COMPACTION_EXTRA_BLOCKED_FIELDS)
+            },
+        )
         body.put("model", config.model.removePrefix("models/"))
             .put("input", GeminiInteractionHistory.input(messages))
             .put("stream", true)
@@ -47,7 +62,11 @@ internal object GeminiInteractionsRequest {
         generation.remove("tool_choice")
         generation.remove("thinking_level")
         generation.remove("thinking_summaries")
-        if (searchEnabled && tools.length() > 0) generation.put("tool_choice", "validated")
+        if (purpose == ProviderRequestPurpose.COMPACTION && converted.length() > 0) {
+            generation.put("tool_choice", "none")
+        } else if (searchEnabled && tools.length() > 0) {
+            generation.put("tool_choice", "validated")
+        }
         val effort = config.effectiveReasoningEffort
         if (effort != ReasoningEffort.DEFAULT) {
             require(effort != ReasoningEffort.OFF) { "当前 Gemini 模型不支持关闭思考，请选择 Default 或支持的思考档位。" }

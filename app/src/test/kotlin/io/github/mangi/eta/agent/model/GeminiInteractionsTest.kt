@@ -329,6 +329,15 @@ class GeminiInteractionsTest {
         assertFalse(generation.has("thinking_level"))
         assertTrue(request.getJSONArray("tools").getJSONObject(0).getJSONObject("parameters").has("oneOf"))
         assertEquals("google_search", request.getJSONArray("tools").getJSONObject(1).getString("type"))
+
+        val compactionRequest = GeminiInteractionsRequest.build(
+            cfg,
+            JSONArray().put(AgentConversationCodec.userTextMessage("摘要")),
+            tools,
+            ProviderRequestPurpose.COMPACTION,
+        )
+        assertEquals("none", compactionRequest.getJSONObject("generation_config").getString("tool_choice"))
+        assertEquals(2, compactionRequest.getJSONArray("tools").length())
     }
 
     @Test

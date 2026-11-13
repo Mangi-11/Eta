@@ -1,22 +1,107 @@
 package io.github.mangi.eta.agent.model
 
 import com.sun.net.httpserver.HttpServer
-import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.roleplay.CharacterCardCodec
 import io.github.mangi.eta.agent.roleplay.RoleplayRunContext
+import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.data.model.CustomBody
-import kotlinx.serialization.json.JsonPrimitive
+import io.github.mangi.eta.data.model.OpenAiEndpointMode
+import io.github.mangi.eta.data.model.ProviderTypes
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.serialization.json.JsonPrimitive
 import org.json.JSONArray
 import org.json.JSONObject
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AgentCompactionProviderTest {
     @Test
-    fun allProtocolsDisableToolsAndIgnoreCustomInputOverridesForSummaries() {
-        assertIsolatedRequests(ProviderRequestPurpose.COMPACTION)
+    fun compactionKeepsToolsAndProtectsProtocolFieldsAcrossAllProtocols() {
+        listOf(
+            OpenAiChatCompletionsProvider,
+            OpenAiResponsesProvider,
+            AnthropicMessagesProvider,
+            GeminiInteractionsProvider,
+        ).forEach { provider ->
+            val captured = AtomicReference<JSONObject>()
+            val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+            server.createContext("/") { exchange ->
+                captured.set(JSONObject(exchange.requestBody.bufferedReader().readText()))
+                val body = """{"error":{"code":"fixture_rejected"}}""".toByteArray()
+                exchange.sendResponseHeaders(400, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+            server.start()
+            try {
+                val baseUrl = if (provider === GeminiInteractionsProvider) {
+                    "http://127.0.0.1:${server.address.port}/v1beta"
+                } else {
+                    "http://127.0.0.1:${server.address.port}"
+                }
+                val config = AgentModelClient.ModelConfig(
+                    providerType = when (provider) {
+                        AnthropicMessagesProvider -> ProviderTypes.ANTHROPIC
+                        GeminiInteractionsProvider -> ProviderTypes.GEMINI
+                        else -> ProviderTypes.OPENAI_COMPATIBLE
+                    },
+                    baseUrl = baseUrl,
+                    apiKey = "fixture",
+                    model = "fixture",
+                    reasoningEffort = io.github.mangi.eta.data.model.ReasoningEffort.DEFAULT,
+                    openAiEndpointMode = if (provider === OpenAiResponsesProvider) {
+                        OpenAiEndpointMode.RESPONSES
+                    } else {
+                        OpenAiEndpointMode.CHAT_COMPLETIONS
+                    },
+                    systemPrompt = "总结规则",
+                    hostedWebSearchEnabled = provider === OpenAiResponsesProvider,
+                    extraBodyJson = """{"tools":[{"type":"web_search"}],"input":"BAD_INPUT","temperature":0.2}""",
+                    customBody = listOf(
+                        CustomBody("messages", JsonPrimitive("BAD_MESSAGES")),
+                        CustomBody("tool_choice", JsonPrimitive("required")),
+                    ),
+                )
+                val tools = AgentToolCatalog.build(terminalTools = false, browserTools = false)
+                val request = ProviderRequest(
+                    config = config,
+                    messages = JSONArray().put(AgentConversationCodec.userTextMessage("总结以下历史")),
+                    tools = tools,
+                    purpose = ProviderRequestPurpose.COMPACTION,
+                )
+                assertThrows(AgentModelFailure::class.java) {
+                    provider.complete(request, AgentRunController())
+                }
+                val body = captured.get()
+                assertNotNull(body)
+                assertTrue(body.getJSONArray("tools").length() > 0)
+                when (provider) {
+                    OpenAiChatCompletionsProvider,
+                    OpenAiResponsesProvider,
+                    -> {
+                        assertEquals("none", body.getString("tool_choice"))
+                        assertEquals(0.2, body.getDouble("temperature"), 0.0001)
+                    }
+                    AnthropicMessagesProvider -> {
+                        // Anthropic 保留原始 tool_choice 以复用 messages 缓存，并屏蔽受保护协议字段覆盖。
+                        assertFalse(body.has("tool_choice"))
+                    }
+                    GeminiInteractionsProvider -> {
+                        assertEquals("none", body.getJSONObject("generation_config").getString("tool_choice"))
+                        assertEquals(0.2, body.getDouble("temperature"), 0.0001)
+                    }
+                }
+                assertFalse(body.toString().contains("BAD_INPUT"))
+                assertFalse(body.toString().contains("BAD_MESSAGES"))
+                assertTrue(body.toString().contains("总结以下历史"))
+            } finally {
+                server.stop(0)
+            }
+        }
     }
 
     @Test
@@ -77,8 +162,8 @@ class AgentCompactionProviderTest {
             try {
                 val config = AgentModelClient.ModelConfig(
                     baseUrl = "http://127.0.0.1:${server.address.port}", apiKey = "fixture",
-                    model = "fixture", openAiEndpointMode = if (provider === OpenAiResponsesProvider) io.github.mangi.eta.data.model.OpenAiEndpointMode.RESPONSES
-                        else io.github.mangi.eta.data.model.OpenAiEndpointMode.CHAT_COMPLETIONS, systemPrompt = "总结规则", hostedWebSearchEnabled = true,
+                    model = "fixture", openAiEndpointMode = if (provider === OpenAiResponsesProvider) OpenAiEndpointMode.RESPONSES
+                        else OpenAiEndpointMode.CHAT_COMPLETIONS, systemPrompt = "总结规则", hostedWebSearchEnabled = true,
                     extraBodyJson = """{"tools":[{"type":"web_search"}],"input":"BAD_INPUT"}""",
                     customBody = listOf(CustomBody("messages", JsonPrimitive("BAD_MESSAGES"))),
                 )

@@ -199,8 +199,46 @@ class AnthropicMessagesProviderTest {
             assertEquals(1_050, last.contextInputTokens)
             assertEquals(100, last.usage.inputTokens)
             assertEquals(900, last.usage.cachedTokens)
+            assertEquals(50, last.usage.cacheWriteTokens)
             assertEquals(42, last.usage.outputTokens)
         }
+    }
+
+    @Test
+    fun compactionPromptPreservesCurrentTurnThinkingSignaturesForCacheHit() {
+        val assistant = JSONObject()
+            .put("role", "assistant")
+            .put("content", "")
+            .put(
+                "tool_calls",
+                JSONArray().put(
+                    JSONObject().put("id", "toolu_1").put("type", "function")
+                        .put("function", JSONObject().put("name", "device_info").put("arguments", "{}")),
+                ),
+            )
+            .also { msg ->
+                AnthropicEphemeralState.attachContentBlocks(
+                    msg,
+                    JSONArray()
+                        .put(JSONObject().put("type", "thinking").put("thinking", "").put("signature", "SIG_CURRENT"))
+                        .put(JSONObject().put("type", "tool_use").put("id", "toolu_1").put("name", "device_info").put("input", JSONObject())),
+                )
+            }
+        val messages = JSONArray()
+            .put(JSONObject().put("role", "system").put("content", "系统"))
+            .put(AgentConversationCodec.userTextMessage("问题"))
+            .put(assistant)
+            .put(JSONObject().put("role", "tool").put("tool_call_id", "toolu_1").put("content", "结果"))
+            .put(AgentConversationCodec.userTextMessage("生成摘要").put("_eta_compaction_prompt", true))
+
+        val requestBody = AtomicReference<String>()
+        withAnthropicServer(event("message_stop", JSONObject()), onRequest = requestBody::set) { baseUrl ->
+            AnthropicMessagesProvider.complete(
+                providerRequest(baseUrl).copy(messages = messages, purpose = ProviderRequestPurpose.COMPACTION),
+                AgentRunController(),
+            )
+        }
+        assertTrue(requestBody.get().contains("SIG_CURRENT"))
     }
 
     @Test

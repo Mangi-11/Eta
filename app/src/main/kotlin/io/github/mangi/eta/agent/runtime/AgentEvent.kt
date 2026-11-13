@@ -21,14 +21,30 @@ internal sealed interface AgentEvent {
         val tokensBefore: Int? = null,
         val tokensAfter: Int? = null,
         val reasonCode: String = "",
+        val usage: AgentTokenUsage? = null,
+        val archiveId: String = "",
     ) : AgentEvent {
         val displayMessage: String get() = when (phase) {
             PHASE_STARTED -> RUNNING_DETAIL
-            PHASE_COMPLETED -> "上下文已压缩，用量将在下一次模型响应后更新。"
+            PHASE_COMPLETED -> {
+                val archiveTag = archiveId.takeIf { it.isNotBlank() }?.let { "（$it）" }.orEmpty()
+                "上下文已压缩$archiveTag，用量将在下一次模型响应后更新。"
+            }
             else -> "上下文压缩失败，原始上下文已保留。"
         }
-        override fun toLogLine(): String =
-            "context_compaction phase=${phase.toSafeLogToken()}, before=$tokensBefore, after=$tokensAfter, code=${reasonCode.toSafeLogToken()}"
+        override fun toLogLine(): String = buildString {
+            append("context_compaction phase=").append(phase.toSafeLogToken())
+            append(", before=").append(tokensBefore)
+            append(", after=").append(tokensAfter)
+            append(", code=").append(reasonCode.toSafeLogToken())
+            if (archiveId.isNotBlank()) append(", archive_id=").append(archiveId.toSafeLogToken())
+            usage?.let { u ->
+                append(", in=").append(u.inputTokens)
+                append(", cache=").append(u.cachedTokens)
+                append(", cache_write=").append(u.cacheWriteTokens)
+                append(", out=").append(u.outputTokens)
+            }
+        }
 
         companion object {
             const val PHASE_STARTED = "started"
@@ -148,7 +164,9 @@ internal sealed interface AgentEvent {
         val usage: AgentTokenUsage
     ) : AgentEvent {
         override fun toLogLine(): String =
-            "usage_received round=$round, ctx=${usage.contextTokens}, in=${usage.inputTokens}, out=${usage.outputTokens}, reasoning=${usage.reasoningTokens}, cache=${usage.cachedTokens}"
+            "usage_received round=$round, kind=${(usage.requestKind ?: AgentTokenUsage.REQUEST_KIND_CHAT).toSafeLogToken()}, " +
+                "ctx=${usage.contextTokens}, in=${usage.inputTokens}, out=${usage.outputTokens}, " +
+                "reasoning=${usage.reasoningTokens}, cache=${usage.cachedTokens}, cache_write=${usage.cacheWriteTokens}"
     }
 
     data class UserSupplementReceived(

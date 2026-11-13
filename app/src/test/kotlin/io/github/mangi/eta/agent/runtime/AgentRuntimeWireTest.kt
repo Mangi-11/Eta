@@ -104,6 +104,19 @@ class AgentRuntimeWireTest {
             AgentEvent.ContextCompaction("manual", "started"),
             AgentEvent.ContextCompaction("automatic", "completed", tokensBefore = 765_000),
             AgentEvent.ContextCompaction("legacy", "completed", tokensBefore = 9_000, tokensAfter = 2_000),
+            AgentEvent.ContextCompaction(
+                operationId = "rich",
+                phase = "completed",
+                tokensBefore = 100_000,
+                usage = AgentTokenUsage(
+                    inputTokens = 98_000,
+                    outputTokens = 1_200,
+                    cachedTokens = 94_000,
+                    cacheWriteTokens = 1_000,
+                    requestKind = AgentTokenUsage.REQUEST_KIND_COMPACTION,
+                ),
+                archiveId = "fold-2",
+            ),
         )) {
             val bundle = AgentRuntimeWire.eventToBundle(event)
             assertEquals(event.tokensBefore != null, bundle.containsKey("tokens_before"))
@@ -681,6 +694,8 @@ class AgentRuntimeWireTest {
                     outputTokens = 320,
                     reasoningTokens = 80,
                     cachedTokens = 900,
+                    cacheWriteTokens = 150,
+                    requestKind = AgentTokenUsage.REQUEST_KIND_CHAT,
                 ),
             ),
             AgentEvent.ToolStarted(

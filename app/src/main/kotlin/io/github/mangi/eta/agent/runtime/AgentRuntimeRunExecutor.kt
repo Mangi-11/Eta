@@ -250,14 +250,25 @@ internal class AgentRuntimeRunExecutor(
             toolExecutor = routingExecutor
             toolsBinding = runController.register(routingExecutor::close)
             timing.preparationFinished(skillContext.installedSkills.size)
-            val historyTool = conversationId?.let { id ->
-                ConversationHistoryTool {
-                    val checkpoint = runBlocking { EtaDatabase.get(appContext).conversationDao().contextCheckpoint(id) }
-                    val journal = AgentConversationCodec.decodeTranscript(checkpoint?.journalJson)
-                        .ifEmpty { AgentConversationCodec.decodeTranscript(checkpoint?.historyJson) }
-                    journal + session.transcript
+            val historyTool = if (request.operation == AgentRuntimeWire.OP_CHAT) {
+                val id = conversationId
+                if (id != null) {
+                    ConversationHistoryTool {
+                        val checkpoint = runBlocking { EtaDatabase.get(appContext).conversationDao().contextCheckpoint(id) }
+                        val journal = AgentConversationCodec.decodeTranscript(checkpoint?.journalJson)
+                            .ifEmpty { AgentConversationCodec.decodeTranscript(checkpoint?.historyJson) }
+                        journal + session.transcript
+                    }
+                } else {
+                    val baseHistory = request.history + listOfNotNull(
+                        request.prompt.takeIf { it.isNotBlank() || request.images.isNotEmpty() }?.let { prompt ->
+                            AgentModelClient.buildUserHistoryMessage(prompt, request.images)
+                                .copy(messageId = "user-${request.runId}")
+                        },
+                    )
+                    ConversationHistoryTool { baseHistory + session.transcript }
                 }
-            }
+            } else null
             val subagentAllowed = {
                 request.config.subagentTools && currentPermissions().subagentTools
             }

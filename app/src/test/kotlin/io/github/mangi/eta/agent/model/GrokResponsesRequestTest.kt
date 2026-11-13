@@ -107,7 +107,7 @@ class GrokResponsesRequestTest {
     }
 
     @Test
-    fun nonChatPurposesCannotSendToolsOrCustomConversationOverrides() {
+    fun nonChatPurposesProtectConversationAndEnforceToolPolicy() {
         val configured = config().copy(
             hostedWebSearchEnabled = true,
             extraBodyJson = """{"tools":[{"type":"web_search"}],"input":"overridden-input"}""",
@@ -118,8 +118,13 @@ class GrokResponsesRequestTest {
                 ProviderRequest(configured, userMessages(), fullToolCatalog(), purpose = purpose),
             ).jsonBody()
 
-            assertFalse(purpose.name, body.has("tools"))
-            assertFalse(purpose.name, body.has("tool_choice"))
+            if (purpose == ProviderRequestPurpose.COMPACTION) {
+                assertTrue(purpose.name, body.getJSONArray("tools").length() > 1)
+                assertEquals(purpose.name, "none", body.getString("tool_choice"))
+            } else {
+                assertFalse(purpose.name, body.has("tools"))
+                assertFalse(purpose.name, body.has("tool_choice"))
+            }
             assertEquals("系统约束", body.getString("instructions"))
             assertEquals("测试请求", body.getJSONArray("input").getJSONObject(0).getString("content"))
             assertTrue(body.getJSONArray("include").strings().contains("reasoning.encrypted_content"))

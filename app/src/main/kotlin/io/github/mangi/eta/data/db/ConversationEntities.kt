@@ -127,6 +127,8 @@ internal data class ConversationMessageEntity(
     @ColumnInfo(name = "output_tokens") val outputTokens: Int? = null,
     @ColumnInfo(name = "reasoning_tokens") val reasoningTokens: Int? = null,
     @ColumnInfo(name = "cached_tokens") val cachedTokens: Int? = null,
+    @ColumnInfo(name = "cache_write_tokens") val cacheWriteTokens: Int? = null,
+    @ColumnInfo(name = "compaction_archive_id") val compactionArchiveId: String? = null,
     @ColumnInfo(name = "step_count") val stepCount: Int? = null,
     @ColumnInfo(name = "llm_ms") val llmMs: Long? = null,
     @ColumnInfo(name = "tool_ms") val toolMs: Long? = null,

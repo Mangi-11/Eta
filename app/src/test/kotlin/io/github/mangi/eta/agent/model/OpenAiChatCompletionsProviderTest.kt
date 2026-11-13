@@ -473,6 +473,29 @@ class OpenAiChatCompletionsProviderTest {
         }
     }
 
+    @Test
+    fun parseUsageCapturesDeepSeekCacheMissAndCacheWriteTokens() {
+        val usage = JSONObject()
+            .put("prompt_cache_hit_tokens", 9_000)
+            .put("prompt_cache_miss_tokens", 1_000)
+            .put("cache_creation_input_tokens", 250)
+            .put("completion_tokens", 120)
+        val body = buildString {
+            append(sseChunk(JSONObject().put("content", "ok"), finishReason = "stop"))
+            append(usageChunk(usage))
+            append("data: [DONE]\n\n")
+        }
+        withSseServer(body) { baseUrl ->
+            val events = mutableListOf<ProviderEvent>()
+            OpenAiChatCompletionsProvider.complete(providerRequest(baseUrl), AgentRunController(), events::add)
+            val parsed = events.filterIsInstance<ProviderEvent.Usage>().single().usage
+            assertEquals(10_000, parsed.inputTokens)
+            assertEquals(9_000, parsed.cachedTokens)
+            assertEquals(250, parsed.cacheWriteTokens)
+            assertEquals(120, parsed.outputTokens)
+        }
+    }
+
     private fun providerRequest(
         baseUrl: String,
         configTransform: (AgentModelClient.ModelConfig) -> AgentModelClient.ModelConfig = { it }

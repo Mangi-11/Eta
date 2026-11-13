@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.model
 
 import androidx.compose.runtime.Immutable
+import io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSetting
@@ -46,13 +47,40 @@ internal data class SessionStatsSummaryUi(
     val decodeTokens: Int = 0,
     val promptTokens: Int = 0,
     val uncachedInputTokens: Int = 0,
+    val cacheWriteTokens: Int = 0,
+    val hasCacheWriteTokens: Boolean = false,
     val cachedTokens: Int = 0,
     val outputTokens: Int = 0,
     val reasoningTokens: Int = 0,
+    val compactionCount: Int = 0,
+    val compactionPromptTokens: Int = 0,
+    val compactionUncachedTokens: Int = 0,
+    val compactionCacheWriteTokens: Int = 0,
+    val compactionCachedTokens: Int = 0,
+    val compactionOutputTokens: Int = 0,
+    val lastCompactionPromptTokens: Int? = null,
+    val lastCompactionCachedTokens: Int? = null,
+    val lastCompactionCacheWriteTokens: Int? = null,
+    val lastCompactionOutputTokens: Int? = null,
+    val lastCompactionArchiveId: String = "",
+    val lastCompactionPaybackTurns: Int? = null,
+    val lastCompactionTurnsAfter: Int = 0,
+    val lastCompactionPaidBack: Boolean = false,
+    val subagentCount: Int = 0,
+    val subagentPromptTokens: Int = 0,
+    val subagentCachedTokens: Int = 0,
+    val subagentOutputTokens: Int = 0,
+    val ttlOrPrefixMissTokens: Int = 0,
+    val compactionRepayTokens: Int = 0,
     val hasTokenUsage: Boolean = false,
 ) {
     val totalTokens: Int
-        get() = promptTokens + outputTokens
+        get() = promptTokens +
+            outputTokens +
+            compactionPromptTokens +
+            compactionOutputTokens +
+            subagentPromptTokens +
+            subagentOutputTokens
 
     val hasPerformanceStats: Boolean
         get() = llmMs > 0L || toolMs > 0L || ttftSteps > 0 || (decodeMs > 0L && decodeTokens > 0)
@@ -179,48 +207,108 @@ internal fun deriveSessionStatsSummary(messages: List<AgentChatMessageUi>): Sess
     var decodeTokens = 0
     var promptTokens = 0
     var uncachedInputTokens = 0
+    var cacheWriteTokens = 0
+    var hasCacheWriteTokens = false
     var cachedTokens = 0
     var outputTokens = 0
     var reasoningTokens = 0
+    var compactionCount = 0
+    var compactionPromptTokens = 0
+    var compactionUncachedTokens = 0
+    var compactionCacheWriteTokens = 0
+    var compactionCachedTokens = 0
+    var compactionOutputTokens = 0
+    var lastCompactionPromptTokens: Int? = null
+    var lastCompactionCachedTokens: Int? = null
+    var lastCompactionCacheWriteTokens: Int? = null
+    var lastCompactionOutputTokens: Int? = null
+    var lastCompactionArchiveId = ""
+    var subagentCount = 0
+    var subagentPromptTokens = 0
+    var subagentCachedTokens = 0
+    var subagentOutputTokens = 0
     var hasTokenUsage = false
 
     messages.forEach { message ->
-        if (message !is AgentMessageUi) return@forEach
-        val usage = message.usage ?: return@forEach
-        val turnSteps = (usage.stepCount ?: 1).coerceAtLeast(1)
-        turns += 1
-        steps += turnSteps
-        usage.llmMs?.takeIf { it > 0L }?.let { llmMs += it }
-        usage.toolMs?.takeIf { it > 0L }?.let { toolMs += it }
-        val recordedTtftSteps = usage.ttftSteps ?: if (usage.ttftMs != null) 1 else 0
-        if (recordedTtftSteps > 0 && usage.ttftMs != null && usage.ttftMs > 0L) {
-            ttftMs += usage.ttftMs
-            ttftSteps += recordedTtftSteps
-        }
-        val turnDecodeTokens = usage.decodeTokens ?: usage.outputTokens
-        if (usage.decodeMs != null && usage.decodeMs > 0L && turnDecodeTokens != null && turnDecodeTokens > 0) {
-            decodeMs += usage.decodeMs
-            decodeTokens += turnDecodeTokens
-        }
-        val rawInput = usage.inputTokens ?: 0
-        val rawCache = usage.cachedTokens ?: 0
-        val rawOut = usage.outputTokens ?: 0
-        val rawReasoning = usage.reasoningTokens ?: 0
-        if (usage.inputTokens != null || usage.cachedTokens != null || usage.outputTokens != null || usage.contextTokens != null) {
-            hasTokenUsage = true
-            val turnPrompt = when {
-                rawInput >= rawCache && rawInput > 0 -> rawInput
-                rawInput > 0 && rawCache > 0 -> rawInput + rawCache
-                else -> maxOf(rawInput, rawCache, ((usage.contextTokens ?: 0) - rawOut).coerceAtLeast(0))
+        when (message) {
+            is AgentMessageUi -> {
+                val usage = message.usage ?: return@forEach
+                val turnSteps = (usage.stepCount ?: 1).coerceAtLeast(1)
+                turns += 1
+                steps += turnSteps
+                usage.llmMs?.takeIf { it > 0L }?.let { llmMs += it }
+                usage.toolMs?.takeIf { it > 0L }?.let { toolMs += it }
+                val recordedTtftSteps = usage.ttftSteps ?: if (usage.ttftMs != null) 1 else 0
+                if (recordedTtftSteps > 0 && usage.ttftMs != null && usage.ttftMs > 0L) {
+                    ttftMs += usage.ttftMs
+                    ttftSteps += recordedTtftSteps
+                }
+                val turnDecodeTokens = usage.decodeTokens ?: usage.outputTokens
+                if (usage.decodeMs != null && usage.decodeMs > 0L && turnDecodeTokens != null && turnDecodeTokens > 0) {
+                    decodeMs += usage.decodeMs
+                    decodeTokens += turnDecodeTokens
+                }
+                val rawOut = usage.outputTokens ?: 0
+                val rawReasoning = usage.reasoningTokens ?: 0
+                if (usage.inputTokens != null ||
+                    usage.cachedTokens != null ||
+                    usage.cacheWriteTokens != null ||
+                    usage.outputTokens != null ||
+                    usage.contextTokens != null
+                ) {
+                    hasTokenUsage = true
+                    val breakdown = CacheUsageDiagnostics.resolvePromptBreakdown(usage)
+                    if (breakdown.hasWriteTokens) hasCacheWriteTokens = true
+                    promptTokens += breakdown.promptTokens
+                    uncachedInputTokens += breakdown.uncachedInputTokens
+                    cacheWriteTokens += breakdown.cacheWriteTokens
+                    cachedTokens += breakdown.cacheReadTokens
+                    outputTokens += rawOut
+                    reasoningTokens += rawReasoning
+                }
             }
-            val turnUncached = (turnPrompt - rawCache).coerceAtLeast(0)
-            promptTokens += turnPrompt
-            uncachedInputTokens += turnUncached
-            cachedTokens += rawCache
-            outputTokens += rawOut
-            reasoningTokens += rawReasoning
+            is SystemNoticeMessageUi -> {
+                if (message.code == SystemNoticeCode.ContextCompaction && !message.running) {
+                    val usage = message.usage ?: return@forEach
+                    val breakdown = CacheUsageDiagnostics.resolvePromptBreakdown(usage)
+                    val out = usage.outputTokens ?: 0
+                    if (breakdown.promptTokens > 0 || out > 0 || breakdown.cacheReadTokens > 0) {
+                        hasTokenUsage = true
+                        compactionCount += 1
+                        compactionPromptTokens += breakdown.promptTokens
+                        compactionUncachedTokens += breakdown.uncachedInputTokens
+                        compactionCacheWriteTokens += breakdown.cacheWriteTokens
+                        compactionCachedTokens += breakdown.cacheReadTokens
+                        compactionOutputTokens += out
+                        lastCompactionPromptTokens = breakdown.promptTokens
+                        lastCompactionCachedTokens = breakdown.cacheReadTokens
+                        lastCompactionCacheWriteTokens = breakdown.cacheWriteTokens
+                        lastCompactionOutputTokens = out
+                        lastCompactionArchiveId = message.archiveId
+                        usage.llmMs?.takeIf { it > 0L }?.let { llmMs += it }
+                    }
+                }
+            }
+            is ToolActivityMessageUi -> {
+                if (message.toolName == "subagent" && !message.command.isNullOrBlank()) {
+                    val snapshot = SubagentActivitySnapshot.decode(message.command)
+                    snapshot?.usage?.let { subUsage ->
+                        if (subUsage.inputTokens > 0 || subUsage.outputTokens > 0 || subUsage.cachedTokens > 0) {
+                            hasTokenUsage = true
+                            subagentCount += 1
+                            subagentPromptTokens += subUsage.inputTokens
+                            subagentCachedTokens += subUsage.cachedTokens
+                            subagentOutputTokens += subUsage.outputTokens
+                        }
+                    }
+                }
+            }
+            else -> Unit
         }
     }
+
+    val diagnostics = CacheUsageDiagnostics.analyze(messages)
+    val payback = diagnostics.lastCompactionPayback
 
     return SessionStatsSummaryUi(
         turns = turns,
@@ -233,9 +321,31 @@ internal fun deriveSessionStatsSummary(messages: List<AgentChatMessageUi>): Sess
         decodeTokens = decodeTokens,
         promptTokens = promptTokens,
         uncachedInputTokens = uncachedInputTokens,
+        cacheWriteTokens = cacheWriteTokens,
+        hasCacheWriteTokens = hasCacheWriteTokens,
         cachedTokens = cachedTokens,
         outputTokens = outputTokens,
         reasoningTokens = reasoningTokens,
+        compactionCount = compactionCount,
+        compactionPromptTokens = compactionPromptTokens,
+        compactionUncachedTokens = compactionUncachedTokens,
+        compactionCacheWriteTokens = compactionCacheWriteTokens,
+        compactionCachedTokens = compactionCachedTokens,
+        compactionOutputTokens = compactionOutputTokens,
+        lastCompactionPromptTokens = lastCompactionPromptTokens,
+        lastCompactionCachedTokens = lastCompactionCachedTokens,
+        lastCompactionCacheWriteTokens = lastCompactionCacheWriteTokens,
+        lastCompactionOutputTokens = lastCompactionOutputTokens,
+        lastCompactionArchiveId = lastCompactionArchiveId,
+        lastCompactionPaybackTurns = payback?.paybackTurns,
+        lastCompactionTurnsAfter = payback?.turnsAfter ?: 0,
+        lastCompactionPaidBack = payback?.paidBack ?: false,
+        subagentCount = subagentCount,
+        subagentPromptTokens = subagentPromptTokens,
+        subagentCachedTokens = subagentCachedTokens,
+        subagentOutputTokens = subagentOutputTokens,
+        ttlOrPrefixMissTokens = diagnostics.attribution.ttlOrPrefixMissTokens,
+        compactionRepayTokens = diagnostics.attribution.compactionRepayTokens,
         hasTokenUsage = hasTokenUsage,
     )
 }

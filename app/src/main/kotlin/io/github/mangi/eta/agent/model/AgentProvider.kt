@@ -57,11 +57,12 @@ internal data class ProviderRequest(
                 apiKey = "",
             )
         } ?: config
-        return if (!purpose.allowsTools) {
+        return if (!purpose.allowsTools && purpose != ProviderRequestPurpose.COMPACTION) {
             connected.copy(hostedWebSearchEnabled = false, extraBodyJson = "", customBody = emptyList())
         } else connected
     }
-    val effectiveTools: JSONArray get() = if (purpose.allowsTools) tools else JSONArray()
+    val effectiveTools: JSONArray get() =
+        if (purpose.allowsTools || purpose == ProviderRequestPurpose.COMPACTION) tools else JSONArray()
 }
 
 internal data class ProviderResponse(

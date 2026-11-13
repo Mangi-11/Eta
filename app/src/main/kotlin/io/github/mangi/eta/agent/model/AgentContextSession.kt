@@ -17,6 +17,10 @@ internal class AgentContextSession(
     private val onContextSnapshot: (AgentContextSnapshot) -> Unit,
     private val transcriptSize: () -> Int = { 0 },
     private val roleplay: Boolean = false,
+    private val mainToolsProvider: () -> JSONArray = { JSONArray() },
+    private val mainSessionId: String = operationId,
+    private val messageProjector: ((JSONArray) -> JSONArray)? = null,
+    private val enableCacheReuse: Boolean = false,
 ) {
     private val contextWindow = config.knownContextWindow
     private var inputTokens: Int? = null
@@ -84,9 +88,19 @@ internal class AgentContextSession(
         val operation = java.util.UUID.randomUUID().toString()
         onEvent(AgentEvent.ContextCompaction(operation, AgentEvent.ContextCompaction.PHASE_STARTED, before))
         try {
-            val candidate = AgentContextCompactor(config, provider, runController, roleplay = roleplay).compact(
+            val outcome = AgentContextCompactor(
+                config = config,
+                provider = provider,
+                controller = runController,
+                roleplay = roleplay,
+                mainTools = mainToolsProvider(),
+                mainSessionId = mainSessionId,
+                messageProjector = messageProjector,
+                enableCacheReuse = enableCacheReuse,
+            ).compactWithOutcome(
                 messages, systemCount, sensitiveIds(),
             )
+            val candidate = outcome.messages
             runController.throwIfCancelled()
             val wasCompacted = compacted
             compacted = true
@@ -99,7 +113,15 @@ internal class AgentContextSession(
             while (messages.length() > 0) messages.remove(messages.length() - 1)
             for (index in 0 until candidate.length()) messages.put(candidate.getJSONObject(index))
             inputTokens = null
-            onEvent(AgentEvent.ContextCompaction(operation, AgentEvent.ContextCompaction.PHASE_COMPLETED, before))
+            onEvent(
+                AgentEvent.ContextCompaction(
+                    operationId = operation,
+                    phase = AgentEvent.ContextCompaction.PHASE_COMPLETED,
+                    tokensBefore = before,
+                    usage = outcome.usage,
+                    archiveId = outcome.archiveId,
+                ),
+            )
         } catch (failure: Exception) {
             runController.throwIfCancelled()
             onEvent(AgentEvent.ContextCompaction(operation, "failed", before,

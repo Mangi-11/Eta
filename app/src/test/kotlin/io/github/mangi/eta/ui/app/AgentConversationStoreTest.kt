@@ -127,7 +127,22 @@ class AgentConversationStoreTest {
                         outputTokens = 40,
                         reasoningTokens = 20,
                         cachedTokens = 10,
+                        cacheWriteTokens = 5,
                     ),
+                ),
+                SystemNoticeMessageUi(
+                    id = "compaction-1",
+                    code = SystemNoticeCode.ContextCompaction,
+                    detail = "上下文已压缩（fold-1）",
+                    usage = TokenUsageUi(
+                        inputTokens = 95,
+                        outputTokens = 12,
+                        cachedTokens = 90,
+                        cacheWriteTokens = 2,
+                        requestKind = io.github.mangi.eta.agent.runtime.AgentTokenUsage.REQUEST_KIND_COMPACTION,
+                    ),
+                    archiveId = "fold-1",
+                    tokensBefore = 92,
                 ),
             ),
             history = listOf(

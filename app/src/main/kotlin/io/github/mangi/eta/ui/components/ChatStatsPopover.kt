@@ -231,23 +231,76 @@ internal fun ContextUsageStatsPopoverPopup(
                 )
             }
             if (stats.hasTokenUsage) {
-                if (cacheHit != null) {
-                    StatsDetailRow(label = "缓存命中", value = "$cacheHit%")
-                }
-                StatsDetailRow(
-                    label = "未缓存输入",
-                    value = "${formatExactTokenCount(stats.uncachedInputTokens)} tok",
-                )
-                if (stats.cachedTokens > 0) {
+                if (stats.promptTokens > 0 || stats.outputTokens > 0) {
+                    if (cacheHit != null) {
+                        StatsDetailRow(label = "缓存命中", value = "$cacheHit%")
+                    }
                     StatsDetailRow(
-                        label = "缓存读取",
-                        value = "${formatExactTokenCount(stats.cachedTokens)} tok",
+                        label = "未命中",
+                        value = "${formatExactTokenCount(stats.uncachedInputTokens)} tok",
+                    )
+                    if (stats.hasCacheWriteTokens || stats.cacheWriteTokens > 0) {
+                        StatsDetailRow(
+                            label = "缓存写入",
+                            value = "${formatExactTokenCount(stats.cacheWriteTokens)} tok",
+                        )
+                    }
+                    if (stats.cachedTokens > 0) {
+                        StatsDetailRow(
+                            label = "缓存读取",
+                            value = "${formatExactTokenCount(stats.cachedTokens)} tok",
+                        )
+                    }
+                    StatsOutputRow(
+                        outputTokens = stats.outputTokens,
+                        reasoningTokens = stats.reasoningTokens,
                     )
                 }
-                StatsOutputRow(
-                    outputTokens = stats.outputTokens,
-                    reasoningTokens = stats.reasoningTokens,
-                )
+                if (stats.compactionCount > 0) {
+                    val lastIn = stats.lastCompactionPromptTokens ?: stats.compactionPromptTokens
+                    val lastCached = stats.lastCompactionCachedTokens ?: stats.compactionCachedTokens
+                    val lastHit = formatCacheHitPercent(lastCached, lastIn)
+                    val label = when {
+                        stats.compactionCount == 1 && stats.lastCompactionArchiveId.isNotBlank() ->
+                            "最近压缩（${stats.lastCompactionArchiveId}）"
+                        stats.compactionCount == 1 -> "最近压缩"
+                        else -> "压缩请求（${stats.compactionCount} 次）"
+                    }
+                    val detailValue = buildString {
+                        append("${formatExactTokenCount(lastIn)} tok")
+                        lastHit?.let { append(" · 命中 $it%") }
+                    }
+                    StatsDetailRow(label = label, value = detailValue)
+                    if (stats.compactionCount > 1) {
+                        StatsDetailRow(
+                            label = "压缩累计",
+                            value = "${formatExactTokenCount(stats.compactionPromptTokens + stats.compactionOutputTokens)} tok",
+                        )
+                    }
+                    stats.lastCompactionPaybackTurns?.let { paybackTurns ->
+                        val paybackValue = if (stats.lastCompactionPaidBack) {
+                            "已回本（已 ${stats.lastCompactionTurnsAfter} 轮）"
+                        } else {
+                            "需 $paybackTurns 轮（已 ${stats.lastCompactionTurnsAfter} 轮）"
+                        }
+                        StatsDetailRow(label = "压缩回本", value = paybackValue)
+                    }
+                }
+                if (stats.subagentCount > 0) {
+                    val subLabel = if (stats.subagentCount == 1) "子智能体" else "子智能体（${stats.subagentCount} 次）"
+                    val subHit = formatCacheHitPercent(stats.subagentCachedTokens, stats.subagentPromptTokens)
+                    val subValue = buildString {
+                        append("${formatExactTokenCount(stats.subagentPromptTokens)} tok")
+                        subHit?.let { append(" · 命中 $it%") }
+                    }
+                    StatsDetailRow(label = subLabel, value = subValue)
+                }
+                if (stats.ttlOrPrefixMissTokens > 5_000) {
+                    StatsDetailRow(
+                        label = "非增量未命中",
+                        value = "${formatExactTokenCount(stats.ttlOrPrefixMissTokens)} tok",
+                    )
+                }
             }
         }
 

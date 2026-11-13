@@ -7,6 +7,7 @@ import io.github.mangi.eta.agent.model.AgentModelExecutionException
 import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.agent.skill.SkillContext
 import io.github.mangi.eta.agent.terminal.TerminalExecutionContext
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
@@ -406,6 +407,14 @@ internal class SubagentExecutor(
         private val roundTexts = linkedMapOf<Int, StringBuilder>()
         private var finalOutput = ""
         private var errorText: String? = null
+        private var latestTurnUsage: AgentTokenUsage? = null
+        private var latestStepUsage: AgentTokenUsage? = null
+        private var compactionInputTokens = 0
+        private var compactionCachedTokens = 0
+        private var compactionCacheWriteTokens = 0
+        private var compactionOutputTokens = 0
+        private var compactionReasoningTokens = 0
+        private var compactionLlmMs = 0L
 
         fun onChildEvent(event: AgentEvent): Boolean = synchronized(lock) {
             when (event) {
@@ -514,6 +523,29 @@ internal class SubagentExecutor(
                     true
                 }
 
+                is AgentEvent.UsageReceived -> {
+                    if (event.usage.stepCount != null) {
+                        latestTurnUsage = event.usage
+                    } else {
+                        latestStepUsage = event.usage
+                    }
+                    false
+                }
+
+                is AgentEvent.ContextCompaction -> {
+                    if (event.phase == AgentEvent.ContextCompaction.PHASE_COMPLETED) {
+                        event.usage?.let { usage ->
+                            compactionInputTokens += usage.inputTokens ?: 0
+                            compactionCachedTokens += usage.cachedTokens ?: 0
+                            compactionCacheWriteTokens += usage.cacheWriteTokens ?: 0
+                            compactionOutputTokens += usage.outputTokens ?: 0
+                            compactionReasoningTokens += usage.reasoningTokens ?: 0
+                            compactionLlmMs += usage.llmMs ?: 0L
+                        }
+                    }
+                    false
+                }
+
                 else -> false
             }
         }
@@ -561,6 +593,25 @@ internal class SubagentExecutor(
             } else {
                 roundTexts.values.lastOrNull()?.toString()?.trim().orEmpty().takeLast(MAX_OUTPUT_CHARS)
             }
+            val baseUsage = latestTurnUsage ?: latestStepUsage
+            val totalInput = (baseUsage?.inputTokens ?: 0) + compactionInputTokens
+            val totalCached = (baseUsage?.cachedTokens ?: 0) + compactionCachedTokens
+            val totalCacheWrite = (baseUsage?.cacheWriteTokens ?: 0) + compactionCacheWriteTokens
+            val totalOutput = (baseUsage?.outputTokens ?: 0) + compactionOutputTokens
+            val totalReasoning = (baseUsage?.reasoningTokens ?: 0) + compactionReasoningTokens
+            val totalLlmMs = (baseUsage?.llmMs ?: 0L) + compactionLlmMs
+            val usageSnapshot = if (
+                totalInput > 0 || totalCached > 0 || totalCacheWrite > 0 || totalOutput > 0 || totalLlmMs > 0L
+            ) {
+                SubagentUsageSnapshot(
+                    inputTokens = totalInput,
+                    cachedTokens = totalCached,
+                    cacheWriteTokens = totalCacheWrite,
+                    outputTokens = totalOutput,
+                    reasoningTokens = totalReasoning,
+                    llmMs = totalLlmMs,
+                )
+            } else null
             SubagentActivitySnapshot(
                 subagentId = subagentId,
                 subagentType = subagentType,
@@ -573,6 +624,7 @@ internal class SubagentExecutor(
                 steps = steps.takeLast(MAX_STEPS),
                 output = liveOutput,
                 error = errorText,
+                usage = usageSnapshot,
             )
         }
 

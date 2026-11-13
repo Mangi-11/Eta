@@ -58,10 +58,15 @@ internal class AgentLoop(
     private val toolBatchLock = Any()
     private var pendingToolImageMessage: JSONObject? = null
     private val turnMetrics = TurnMetricsAccumulator()
+    private var precedingTools: JSONArray? = null
     private val context = AgentContextSession(
         config, messages, systemCount, operationId, provider, runController,
         { sensitiveToolCallIds }, onEvent, onContextSnapshot, { transcript.length() },
         roleplay = roleplayContext != null,
+        mainToolsProvider = { precedingTools ?: tools },
+        mainSessionId = sessionId,
+        messageProjector = { source -> roleplayContext?.projectMessages(source) ?: source },
+        enableCacheReuse = true,
     )
     private var supplementIndex = initialSupplementIndex
 
@@ -91,7 +96,6 @@ internal class AgentLoop(
 
     fun run(): Result {
         var round = 1
-        var precedingTools: JSONArray? = null
 
         while (true) {
             runController.throwIfCancelled()
@@ -629,6 +633,7 @@ internal class AgentLoop(
         private var outputTokens: Int? = null
         private var reasoningTokens: Int? = null
         private var cachedTokens: Int? = null
+        private var cacheWriteTokens: Int? = null
 
         fun reset() {
             stepCount = 0
@@ -643,6 +648,7 @@ internal class AgentLoop(
             outputTokens = null
             reasoningTokens = null
             cachedTokens = null
+            cacheWriteTokens = null
         }
 
         fun recordStep(
@@ -668,12 +674,15 @@ internal class AgentLoop(
             stepUsage?.outputTokens?.let { outputTokens = (outputTokens ?: 0) + it }
             stepUsage?.reasoningTokens?.let { reasoningTokens = (reasoningTokens ?: 0) + it }
             stepUsage?.cachedTokens?.let { cachedTokens = (cachedTokens ?: 0) + it }
+            stepUsage?.cacheWriteTokens?.let { cacheWriteTokens = (cacheWriteTokens ?: 0) + it }
             return AgentTokenUsage(
                 contextTokens = contextTokens,
                 inputTokens = inputTokens,
                 outputTokens = outputTokens,
                 reasoningTokens = reasoningTokens,
                 cachedTokens = cachedTokens,
+                cacheWriteTokens = cacheWriteTokens,
+                requestKind = AgentTokenUsage.REQUEST_KIND_CHAT,
                 stepCount = stepCount.takeIf { it > 0 },
                 llmMs = llmMs.takeIf { stepCount > 0 },
                 toolMs = toolMs.takeIf { it > 0L },

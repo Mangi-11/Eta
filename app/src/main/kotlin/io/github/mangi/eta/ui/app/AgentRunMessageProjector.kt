@@ -56,9 +56,16 @@ internal class AgentRunMessageProjector(
         is AgentEvent.ContextCompaction -> {
             val id = "assistant-$runId-compaction-${event.operationId}"
             messages.filterNot { it.id == id } + SystemNoticeMessageUi(
-                id = id, code = SystemNoticeCode.ContextCompaction, detail = event.displayMessage,
+                id = id,
+                code = SystemNoticeCode.ContextCompaction,
+                detail = event.displayMessage,
                 contextTokens = event.tokensAfter,
                 running = event.phase == AgentEvent.ContextCompaction.PHASE_STARTED,
+                usage = event.usage?.takeUnless { it.isEmpty }?.toUi()?.copy(
+                    requestKind = AgentTokenUsage.REQUEST_KIND_COMPACTION,
+                ),
+                archiveId = event.archiveId,
+                tokensBefore = event.tokensBefore,
             )
         }
         is AgentEvent.ModelRetryScheduled -> scheduleModelRetry(runId, event, messages)
@@ -758,6 +765,8 @@ internal fun AgentTokenUsage.toUi(): TokenUsageUi =
         outputTokens = outputTokens,
         reasoningTokens = reasoningTokens,
         cachedTokens = cachedTokens,
+        cacheWriteTokens = cacheWriteTokens,
+        requestKind = requestKind,
         stepCount = stepCount,
         llmMs = llmMs,
         toolMs = toolMs,
