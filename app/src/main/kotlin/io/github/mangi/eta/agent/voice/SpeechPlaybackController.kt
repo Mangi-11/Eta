@@ -49,8 +49,9 @@ internal class SpeechPlaybackController(
         job = scope.launch(Dispatchers.Main.immediate) {
             try {
                 lease = SpeechAudioLease(context, interruptOnScreenOff) { stop() }.also { it.acquire(playback = false) }
-                val config = settings ?: SpeechSettingsRepository.settings()
-                val secrets = credentials ?: SpeechSettingsRepository.credentials(context)
+                val rawConfig = settings ?: SpeechSettingsRepository.settings()
+                val rawSecrets = credentials ?: SpeechSettingsRepository.credentials(context)
+                val (config, secrets) = SpeechSettingsRepository.resolveDeepSeekFallback(rawConfig, rawSecrets)
                 validateSpeechSettings(config, secrets, synthesis = true)
                 val readable = withContext(Dispatchers.Default) { SpeechText.readable(text) }
                 if (readable.isBlank()) throw SpeechFailure(SpeechErrorCode.NO_SPEECH, "这条消息没有可朗读的正文")

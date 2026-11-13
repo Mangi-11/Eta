@@ -57,3 +57,21 @@ internal fun MimoAsrConnectionSection(store: SpeechSettingsStore) {
         }
     }
 }
+
+@Composable
+internal fun DeepSeekAsrConnectionSection(store: SpeechSettingsStore) {
+    val config = store.settings.deepseekAsr
+    SpeechApiKeyConnectionSection(
+        baseUrl = config.baseUrl,
+        apiKey = store.credentials.deepseekAsr,
+        onBaseUrl = { store.edit(store.settings.copy(deepseekAsr = config.copy(baseUrl = it))) },
+        onApiKey = { store.credential(SpeechCredentialField.DEEPSEEK_ASR, it) },
+        note = stringResource(
+            if (store.hasProviderDeepSeekKey) {
+                R.string.speech_deepseek_asr_connection_note_with_provider
+            } else {
+                R.string.speech_deepseek_asr_connection_note
+            },
+        ),
+    )
+}

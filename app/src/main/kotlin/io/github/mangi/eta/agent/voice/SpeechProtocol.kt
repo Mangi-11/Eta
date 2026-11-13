@@ -24,7 +24,12 @@ internal fun Throwable.speechFailure(): SpeechFailure = when (this) {
     else -> SpeechFailure(SpeechErrorCode.PROTOCOL, "语音服务返回了无法处理的数据")
 }
 
-internal fun validateSpeechSettings(settings: SpeechSettings, secrets: SpeechCredentials, synthesis: Boolean) {
+internal fun validateSpeechSettings(
+    settings: SpeechSettings,
+    secrets: SpeechCredentials,
+    synthesis: Boolean,
+    hasProviderDeepSeekKey: Boolean = false,
+) {
     if (!synthesis && !settings.recognitionEnabled) return
     fun required(value: String, name: String) {
         if (value.isBlank()) throw SpeechFailure(SpeechErrorCode.CONFIGURATION, "请先配置$name")
@@ -67,11 +72,20 @@ internal fun validateSpeechSettings(settings: SpeechSettings, secrets: SpeechCre
                     throw SpeechFailure(SpeechErrorCode.CONFIGURATION, "朗读风格请控制在 500 字以内")
                 }
             }
+            TtsProvider.DEEPSEEK -> {
+                if (!hasProviderDeepSeekKey) required(secrets.deepseekTts, "DeepSeek 播报 API Key")
+                required(settings.deepseekTts.voice, "音色")
+                speechBaseUrl(settings.deepseekTts.baseUrl)
+            }
         }
     } else when (settings.asr) {
         AsrProvider.MIMO -> {
             required(secrets.mimoAsr, "MiMo 识别 API Key")
             speechBaseUrl(settings.mimoAsr.baseUrl)
+        }
+        AsrProvider.DEEPSEEK -> {
+            if (!hasProviderDeepSeekKey) required(secrets.deepseekAsr, "DeepSeek 识别 API Key")
+            speechBaseUrl(settings.deepseekAsr.baseUrl)
         }
         AsrProvider.DOUBAO -> {
             required(secrets.doubaoAsr, "豆包识别凭据")

@@ -27,6 +27,10 @@ internal suspend fun recognizeSpeechFile(
                 onProgress("正在识别")
                 recognizeMimoSpeech(settings.mimoAsr, credentials.mimoAsr, wav)
             }
+            AsrProvider.DEEPSEEK -> {
+                onProgress("正在识别")
+                recognizeDeepSeekSpeech(settings.deepseekAsr, credentials.deepseekAsr, wav)
+            }
             AsrProvider.QWEN_FLASH -> {
                 onProgress("正在识别")
                 recognizeQwenShortAudio(settings, credentials, wav)

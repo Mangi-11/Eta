@@ -11,31 +11,51 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
 
-internal class SpeechSocket(request: Request) : Closeable {
+internal class SpeechSocketFrame(val binary: Boolean, val bytes: ByteArray)
+
+internal class SpeechSocket(
+    request: Request,
+    private val typed: Boolean = false,
+) : Closeable {
     private val ready = CompletableDeferred<Unit>()
     val messages = Channel<ByteArray>(32)
+    val frames = Channel<SpeechSocketFrame>(32)
     private val socket = SpeechHttp.client.newWebSocket(request, object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) { ready.complete(Unit) }
-        override fun onMessage(webSocket: WebSocket, text: String) = receive(webSocket, text.toByteArray(Charsets.UTF_8))
-        override fun onMessage(webSocket: WebSocket, bytes: ByteString) = receive(webSocket, bytes.toByteArray())
+        override fun onMessage(webSocket: WebSocket, text: String) =
+            receive(webSocket, binary = false, text.toByteArray(Charsets.UTF_8))
+        override fun onMessage(webSocket: WebSocket, bytes: ByteString) =
+            receive(webSocket, binary = true, bytes.toByteArray())
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             val failure = response?.let {
                 try { SpeechHttp.checkStatus(it.code); null } catch (error: SpeechFailure) { error }
             } ?: t.speechFailure()
             ready.completeExceptionally(failure)
             messages.close(failure)
+            frames.close(failure)
             response?.close()
         }
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
             webSocket.close(code, null)
             messages.close()
+            frames.close()
         }
-        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { messages.close() }
+        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            messages.close()
+            frames.close()
+        }
     })
 
-    private fun receive(socket: WebSocket, bytes: ByteArray) {
-        if (bytes.size > SpeechHttp.MAX_JSON_BYTES || !messages.trySend(bytes).isSuccess) {
-            messages.close(SpeechFailure(SpeechErrorCode.BACKPRESSURE, "语音数据处理不及时，请重试"))
+    private fun receive(socket: WebSocket, binary: Boolean, bytes: ByteArray) {
+        val accepted = if (typed) {
+            frames.trySend(SpeechSocketFrame(binary, bytes)).isSuccess
+        } else {
+            messages.trySend(bytes).isSuccess
+        }
+        if (bytes.size > SpeechHttp.MAX_JSON_BYTES || !accepted) {
+            val failure = SpeechFailure(SpeechErrorCode.BACKPRESSURE, "语音数据处理不及时，请重试")
+            messages.close(failure)
+            frames.close(failure)
             socket.cancel()
         }
     }
@@ -52,5 +72,6 @@ internal class SpeechSocket(request: Request) : Closeable {
         socket.cancel()
         ready.cancel()
         messages.cancel()
+        frames.cancel()
     }
 }

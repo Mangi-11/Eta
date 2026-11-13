@@ -3,12 +3,13 @@ package io.github.mangi.eta.data.model
 import kotlinx.serialization.Serializable
 
 private const val MIMO_SPEECH_BASE_URL = "https://api.xiaomimimo.com/v1"
+private const val DEEPSEEK_SPEECH_BASE_URL = "https://api.deepseek.com"
 
 @Serializable
-enum class AsrProvider { QWEN_REALTIME, QWEN_FLASH, QWEN_FILE, DOUBAO, MIMO }
+enum class AsrProvider { QWEN_REALTIME, QWEN_FLASH, QWEN_FILE, DOUBAO, MIMO, DEEPSEEK }
 
 @Serializable
-enum class TtsProvider { NONE, QWEN, DOUBAO, GEMINI, MINIMAX, MIMO }
+enum class TtsProvider { NONE, QWEN, DOUBAO, GEMINI, MINIMAX, MIMO, DEEPSEEK }
 
 @Serializable
 enum class SpeechRegion { BEIJING, SINGAPORE }
@@ -81,6 +82,18 @@ data class MimoTtsConfig(
 )
 
 @Serializable
+data class DeepSeekAsrConfig(
+    val baseUrl: String = DEEPSEEK_SPEECH_BASE_URL,
+)
+
+@Serializable
+data class DeepSeekTtsConfig(
+    val baseUrl: String = DEEPSEEK_SPEECH_BASE_URL,
+    val voice: String = "stella",
+    val filterMarkdown: Boolean = true,
+)
+
+@Serializable
 data class SpeechOssConfig(
     val region: String = "cn-beijing",
     val endpoint: String = "https://oss-cn-beijing.aliyuncs.com",
@@ -113,6 +126,8 @@ data class SpeechSettings(
     val recognitionEnabled: Boolean = true,
     val mimoAsr: MimoAsrConfig = MimoAsrConfig(),
     val mimoTts: MimoTtsConfig = MimoTtsConfig(),
+    val deepseekAsr: DeepSeekAsrConfig = DeepSeekAsrConfig(),
+    val deepseekTts: DeepSeekTtsConfig = DeepSeekTtsConfig(),
 ) {
     companion object {
         const val DEFAULT_AUTO_SEND_SILENCE_MS = 2_000
@@ -122,7 +137,7 @@ data class SpeechSettings(
 
 internal enum class SpeechCredentialField {
     QWEN_ASR, QWEN_TTS, DOUBAO_ASR, DOUBAO_TTS, GEMINI_TTS, MINIMAX_TTS, OSS_KEY_ID, OSS_KEY_SECRET,
-    MIMO_ASR, MIMO_TTS,
+    MIMO_ASR, MIMO_TTS, DEEPSEEK_ASR, DEEPSEEK_TTS,
 }
 
 /** 凭据不属于 Settings，避免被普通配置导出或调试输出带出。 */
@@ -138,6 +153,8 @@ class SpeechCredentials(
     val minimaxTts: String = "",
     val mimoAsr: String = "",
     val mimoTts: String = "",
+    val deepseekAsr: String = "",
+    val deepseekTts: String = "",
 ) {
     internal fun withValue(field: SpeechCredentialField, value: String): SpeechCredentials = SpeechCredentials(
         qwenAsr = if (field == SpeechCredentialField.QWEN_ASR) value else qwenAsr,
@@ -150,6 +167,8 @@ class SpeechCredentials(
         minimaxTts = if (field == SpeechCredentialField.MINIMAX_TTS) value else minimaxTts,
         mimoAsr = if (field == SpeechCredentialField.MIMO_ASR) value else mimoAsr,
         mimoTts = if (field == SpeechCredentialField.MIMO_TTS) value else mimoTts,
+        deepseekAsr = if (field == SpeechCredentialField.DEEPSEEK_ASR) value else deepseekAsr,
+        deepseekTts = if (field == SpeechCredentialField.DEEPSEEK_TTS) value else deepseekTts,
     )
 
     override fun toString(): String = "SpeechCredentials(redacted)"

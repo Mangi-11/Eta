@@ -67,7 +67,12 @@ internal fun SpeechSynthesisScreen(onBack: () -> Unit) {
                 }
                 SpeechSaveBlock(store) {
                     if (store.settings.tts != TtsProvider.NONE) {
-                        validateSpeechSettings(store.settings, store.credentials, synthesis = true)
+                        validateSpeechSettings(
+                            store.settings,
+                            store.credentials,
+                            synthesis = true,
+                            hasProviderDeepSeekKey = store.hasProviderDeepSeekKey,
+                        )
                     }
                 }
                 CouiPageBottomSpacer()
@@ -109,7 +114,12 @@ internal fun SpeechSynthesisScreen(onBack: () -> Unit) {
                 item(key = "save") {
                     SpeechSaveBlock(store) {
                         if (store.settings.tts != TtsProvider.NONE) {
-                            validateSpeechSettings(store.settings, store.credentials, synthesis = true)
+                            validateSpeechSettings(
+                                store.settings,
+                                store.credentials,
+                                synthesis = true,
+                                hasProviderDeepSeekKey = store.hasProviderDeepSeekKey,
+                            )
                         }
                     }
                 }

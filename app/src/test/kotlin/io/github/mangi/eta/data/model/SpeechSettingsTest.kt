@@ -89,6 +89,37 @@ class SpeechSettingsTest {
         assertEquals("SpeechCredentials(redacted)", restored.toString())
     }
 
+    @Test fun deepseekSpeechValidationRespectsProviderFallback() {
+        validateSpeechSettings(
+            SpeechSettings(asr = AsrProvider.DEEPSEEK),
+            SpeechCredentials(),
+            synthesis = false,
+            hasProviderDeepSeekKey = true,
+        )
+        assertThrows(SpeechFailure::class.java) {
+            validateSpeechSettings(
+                SpeechSettings(asr = AsrProvider.DEEPSEEK),
+                SpeechCredentials(),
+                synthesis = false,
+                hasProviderDeepSeekKey = false,
+            )
+        }
+        validateSpeechSettings(
+            SpeechSettings(tts = TtsProvider.DEEPSEEK),
+            SpeechCredentials(),
+            synthesis = true,
+            hasProviderDeepSeekKey = true,
+        )
+        assertThrows(SpeechFailure::class.java) {
+            validateSpeechSettings(
+                SpeechSettings(tts = TtsProvider.DEEPSEEK),
+                SpeechCredentials(),
+                synthesis = true,
+                hasProviderDeepSeekKey = false,
+            )
+        }
+    }
+
     @Test fun newProvidersValidateOnlyTheirOwnCredentialsAndOptions() {
         for (provider in listOf(TtsProvider.GEMINI, TtsProvider.MINIMAX)) {
             val settings = SpeechSettings(tts = provider)

@@ -74,10 +74,11 @@ internal class SpeechInputController(
         mutableState.value = SpeechInputState(phase = EtaSpeechPhase.STARTING, progress = "正在连接")
         job = scope.launch(Dispatchers.Main.immediate) {
             try {
-                val config = settings ?: SpeechSettingsRepository.settings()
-                if (!config.recognitionEnabled) return@launch
+                val rawConfig = settings ?: SpeechSettingsRepository.settings()
+                if (!rawConfig.recognitionEnabled) return@launch
                 lease = SpeechAudioLease(context) { cancel() }.also { it.acquire(playback = false) }
-                val secrets = credentials ?: SpeechSettingsRepository.credentials(context)
+                val rawSecrets = credentials ?: SpeechSettingsRepository.credentials(context)
+                val (config, secrets) = SpeechSettingsRepository.resolveDeepSeekFallback(rawConfig, rawSecrets)
                 validateSpeechSettings(config, secrets, synthesis = false)
                 val endpointSilenceMs = if (automaticEndpoint && !holdToTalk) config.autoSendSilenceMs else 0
                 val audio = createRecorder()

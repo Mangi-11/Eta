@@ -49,10 +49,11 @@ internal fun SpeechRecognitionScreen(onBack: () -> Unit, onOpenOss: () -> Unit) 
         AsrProvider.QWEN_FLASH -> R.string.speech_asr_note_flash
         AsrProvider.QWEN_FILE -> R.string.speech_asr_note_file
         AsrProvider.MIMO -> R.string.speech_asr_note_mimo
+        AsrProvider.DEEPSEEK -> R.string.speech_asr_note_deepseek
     }
     val showQwenLanguage = when (settings.asr) {
         AsrProvider.QWEN_REALTIME, AsrProvider.QWEN_FLASH, AsrProvider.QWEN_FILE -> true
-        AsrProvider.DOUBAO, AsrProvider.MIMO -> false
+        AsrProvider.DOUBAO, AsrProvider.MIMO, AsrProvider.DEEPSEEK -> false
     }
 
     when (LocalUiStyle.current) {
@@ -111,7 +112,12 @@ internal fun SpeechRecognitionScreen(onBack: () -> Unit, onOpenOss: () -> Unit) 
                     SpeechNote(stringResource(R.string.speech_recognition_disabled_note))
                 }
                 SpeechSaveBlock(store) {
-                    validateSpeechSettings(store.settings, store.credentials, synthesis = false)
+                    validateSpeechSettings(
+                        store.settings,
+                        store.credentials,
+                        synthesis = false,
+                        hasProviderDeepSeekKey = store.hasProviderDeepSeekKey,
+                    )
                 }
                 CouiPageBottomSpacer()
             }

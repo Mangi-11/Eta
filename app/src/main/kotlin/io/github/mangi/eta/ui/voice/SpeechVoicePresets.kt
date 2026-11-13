@@ -83,12 +83,18 @@ internal object SpeechVoicePresets {
         SpeechVoicePreset("Dean", R.string.speech_voice_mimo_dean, R.string.speech_voice_english_male),
     )
 
+    private val deepseek = listOf(
+        SpeechVoicePreset("stella", R.string.speech_voice_deepseek_stella, R.string.speech_voice_female),
+        SpeechVoicePreset("tide", R.string.speech_voice_deepseek_tide, R.string.speech_voice_male),
+    )
+
     fun forProvider(provider: TtsProvider): List<SpeechVoicePreset> = when (provider) {
         TtsProvider.QWEN -> qwen
         TtsProvider.DOUBAO -> doubao
         TtsProvider.GEMINI -> gemini
         TtsProvider.MINIMAX -> minimax
         TtsProvider.MIMO -> mimo
+        TtsProvider.DEEPSEEK -> deepseek
         TtsProvider.NONE -> emptyList()
     }
 }

@@ -31,6 +31,8 @@ internal class SpeechSettingsStore(
         private set
     var loaded by mutableStateOf(false)
         private set
+    var hasProviderDeepSeekKey by mutableStateOf(false)
+        private set
     var saving by mutableStateOf(false)
         private set
     var message by mutableStateOf<String?>(null)
@@ -47,6 +49,7 @@ internal class SpeechSettingsStore(
         scope.launch {
             try {
                 settings = SpeechSettingsRepository.settings()
+                hasProviderDeepSeekKey = SpeechSettingsRepository.deepSeekProviderCredentials() != null
                 try {
                     credentials = SpeechSettingsRepository.credentials(context)
                 } catch (_: SpeechCredentialsUnavailable) {

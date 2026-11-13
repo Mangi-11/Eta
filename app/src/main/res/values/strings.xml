@@ -1378,6 +1378,17 @@
   <string name="speech_tts_gemini">Gemini</string>
   <string name="speech_asr_mimo">MIMO · 语音识别</string>
   <string name="speech_tts_mimo">MIMO</string>
+  <string name="speech_asr_deepseek">DeepSeek · 语音识别</string>
+  <string name="speech_tts_deepseek">DeepSeek</string>
+  <string name="speech_asr_note_deepseek">录音结束后返回文字，不提供实时预览或停顿自动发送。单次最长 120 秒、最大 8 MiB，语种自动识别。</string>
+  <string name="speech_deepseek_asr_connection_note">填写 DeepSeek API Key，无需配置 OSS；若留空且已在模型提供商中配置 DeepSeek，将自动复用其凭据。</string>
+  <string name="speech_deepseek_asr_connection_note_with_provider">已检测到模型提供商中的 DeepSeek 凭据，API Key 留空将自动复用，也可填写独立 Key 覆盖；无需配置 OSS。</string>
+  <string name="speech_deepseek_tts_connection_note">填写 DeepSeek API Key，支持流式语音合成；若留空且已在模型提供商中配置 DeepSeek，将自动复用其凭据。</string>
+  <string name="speech_deepseek_tts_connection_note_with_provider">已检测到模型提供商中的 DeepSeek 凭据，API Key 留空将自动复用，也可填写独立 Key 覆盖。</string>
+  <string name="speech_deepseek_voice_note">支持海星（stella）和暗潮（tide）两种预设音色，语种根据文本自动识别。</string>
+  <string name="speech_voice_deepseek_stella">海星</string>
+  <string name="speech_voice_deepseek_tide">暗潮</string>
+  <string name="speech_filter_markdown">朗读前过滤 Markdown 格式</string>
   <string name="speech_mimo_tts_connection_note">使用 MIMO 开放平台的 API Key，播报凭据独立保存。自定义地址填写包含 /v1 的 API 基础地址，不附加接口路径。</string>
   <string name="speech_mimo_voice_note">默认音色随服务区域选择。朗读风格可填写“自然、温和，语速稍慢”，留空使用默认风格。手动填写须使用当前模型支持的预置音色 ID，不会创建或克隆音色。</string>
   <string name="speech_voice_manual">手动填写音色 ID</string>

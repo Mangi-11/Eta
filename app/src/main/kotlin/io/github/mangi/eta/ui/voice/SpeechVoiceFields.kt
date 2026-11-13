@@ -26,6 +26,7 @@ internal fun SpeechVoiceSection(store: SpeechSettingsStore) {
         TtsProvider.GEMINI -> settings.geminiTts.voice
         TtsProvider.MINIMAX -> settings.minimaxTts.voice
         TtsProvider.MIMO -> settings.mimoTts.voice
+        TtsProvider.DEEPSEEK -> settings.deepseekTts.voice
     }
     val presets = SpeechVoicePresets.forProvider(settings.tts)
     val presetIndex = presets.indexOfFirst { it.id == voice }
@@ -40,6 +41,7 @@ internal fun SpeechVoiceSection(store: SpeechSettingsStore) {
                 TtsProvider.GEMINI -> settings.copy(geminiTts = settings.geminiTts.copy(voice = it))
                 TtsProvider.MINIMAX -> settings.copy(minimaxTts = settings.minimaxTts.copy(voice = it))
                 TtsProvider.MIMO -> settings.copy(mimoTts = settings.mimoTts.copy(voice = it))
+                TtsProvider.DEEPSEEK -> settings.copy(deepseekTts = settings.deepseekTts.copy(voice = it))
             },
         )
     }
@@ -102,6 +104,7 @@ internal fun SpeechVoiceSection(store: SpeechSettingsStore) {
                     TtsProvider.GEMINI -> R.string.speech_gemini_voice_note
                     TtsProvider.MINIMAX -> R.string.speech_minimax_voice_note
                     TtsProvider.MIMO -> R.string.speech_mimo_voice_note
+                    TtsProvider.DEEPSEEK -> R.string.speech_deepseek_voice_note
                     TtsProvider.NONE -> error("No synthesis provider")
                 },
             ),

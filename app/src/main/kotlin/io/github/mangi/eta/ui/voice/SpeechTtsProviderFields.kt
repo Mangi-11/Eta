@@ -11,7 +11,9 @@ import io.github.mangi.eta.data.model.SpeechCredentialField
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
+import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
 internal fun GeminiConnectionSection(store: SpeechSettingsStore) {
@@ -114,6 +116,24 @@ internal fun MimoTtsConnectionSection(store: SpeechSettingsStore) {
 }
 
 @Composable
+internal fun DeepSeekTtsConnectionSection(store: SpeechSettingsStore) {
+    val config = store.settings.deepseekTts
+    SpeechApiKeyConnectionSection(
+        baseUrl = config.baseUrl,
+        apiKey = store.credentials.deepseekTts,
+        onBaseUrl = { store.edit(store.settings.copy(deepseekTts = config.copy(baseUrl = it))) },
+        onApiKey = { store.credential(SpeechCredentialField.DEEPSEEK_TTS, it) },
+        note = stringResource(
+            if (store.hasProviderDeepSeekKey) {
+                R.string.speech_deepseek_tts_connection_note_with_provider
+            } else {
+                R.string.speech_deepseek_tts_connection_note
+            },
+        ),
+    )
+}
+
+@Composable
 internal fun SpeechDeliveryFields(store: SpeechSettingsStore) {
     when (store.settings.tts) {
         TtsProvider.GEMINI, TtsProvider.MIMO -> {
@@ -162,6 +182,29 @@ internal fun SpeechDeliveryFields(store: SpeechSettingsStore) {
                                 store.edit(store.settings.copy(minimaxTts = config.copy(speed = it)))
                             }
                         },
+                    )
+                }
+            }
+        }
+        TtsProvider.DEEPSEEK -> {
+            val config = store.settings.deepseekTts
+            val onToggle: (Boolean) -> Unit = { checked ->
+                store.edit(store.settings.copy(deepseekTts = config.copy(filterMarkdown = checked)))
+            }
+            when (LocalUiStyle.current) {
+                AppearanceUiStyle.COUI -> {
+                    Divider()
+                    CouiSwitchPreference(
+                        title = stringResource(R.string.speech_filter_markdown),
+                        checked = config.filterMarkdown,
+                        onCheckedChange = onToggle,
+                    )
+                }
+                AppearanceUiStyle.MIUIX -> {
+                    SwitchPreference(
+                        title = stringResource(R.string.speech_filter_markdown),
+                        checked = config.filterMarkdown,
+                        onCheckedChange = onToggle,
                     )
                 }
             }
