@@ -55,6 +55,7 @@ import io.github.mangi.eta.ui.screens.enhance.SystemEnhanceScreen
 import io.github.mangi.eta.ui.screens.mcp.McpServersScreen
 import io.github.mangi.eta.ui.screens.memory.AgentMemoryScreen
 import io.github.mangi.eta.ui.screens.permissions.PermissionHealthScreen
+import io.github.mangi.eta.ui.screens.settings.AssistantOverlaySettingsScreen
 import io.github.mangi.eta.ui.screens.settings.ConversationTitleSettingsScreen
 import io.github.mangi.eta.ui.screens.skills.AgentSkillsScreen
 import io.github.mangi.eta.ui.screens.subagent.SubagentSettingsScreen
@@ -275,11 +276,12 @@ class UiStyleThemeAndScreensTest {
                         )
                         27 -> AgentAppRoot()
                         28 -> ConversationTitleSettingsScreen(onBack = { backPressedCount++ })
+                        29 -> AssistantOverlaySettingsScreen(onBack = { backPressedCount++ })
                     }
                 }
             }
 
-            for (index in 0..28) {
+            for (index in 0..29) {
                 screenIndex = index
                 for (style in listOf(AppearanceUiStyle.COUI, AppearanceUiStyle.MIUIX)) {
                     uiStyle = style

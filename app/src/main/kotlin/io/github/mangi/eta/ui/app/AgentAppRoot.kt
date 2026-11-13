@@ -89,6 +89,7 @@ import io.github.mangi.eta.ui.screens.mcp.McpServerDetailScreen
 import io.github.mangi.eta.ui.screens.mcp.McpServersScreen
 import io.github.mangi.eta.ui.screens.memory.AgentMemoryScreen
 import io.github.mangi.eta.ui.screens.permissions.PermissionHealthScreen
+import io.github.mangi.eta.ui.screens.settings.AssistantOverlaySettingsScreen
 import io.github.mangi.eta.ui.screens.settings.ConversationTitleSettingsScreen
 import io.github.mangi.eta.ui.screens.skills.AgentSkillsScreen
 import io.github.mangi.eta.ui.screens.subagent.SubagentSettingsScreen
@@ -516,6 +517,9 @@ fun AgentAppRoot(
             }
             entry<AppRoute.ConversationTitleSettings>(swipeDismiss = swipeDismiss) {
                 ConversationTitleSettingsScreen(onBack = ::popRoute)
+            }
+            entry<AppRoute.AssistantOverlaySettings>(swipeDismiss = swipeDismiss) {
+                AssistantOverlaySettingsScreen(onBack = ::popRoute)
             }
             entry<AppRoute.Skills>(swipeDismiss = swipeDismiss) {
                 LaunchedEffect(Unit) {

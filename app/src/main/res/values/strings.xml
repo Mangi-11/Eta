@@ -1499,4 +1499,12 @@
   <string name="conversation_title_settings_reasoning_unsupported">Not supported by selected model</string>
   <string name="conversation_title_settings_note">Automatically summarizes a short title after the first turn of a new conversation. Using a lightweight small model with minimal or disabled reasoning helps save tokens.</string>
   <string name="conversation_title_settings_disabled">Disabled</string>
+  <string name="assistant_overlay_settings_title">Floating assistant</string>
+  <string name="assistant_overlay_settings_group">Model &amp; Reasoning</string>
+  <string name="assistant_overlay_settings_model">Assistant model</string>
+  <string name="assistant_overlay_settings_follow_primary">Follow primary model</string>
+  <string name="assistant_overlay_settings_follow_primary_with_name">Follow primary model (%1$s)</string>
+  <string name="assistant_overlay_settings_follow_primary_hint">Uses the default main conversation model</string>
+  <string name="assistant_overlay_settings_reasoning_follow_default">Follow default</string>
+  <string name="assistant_overlay_settings_note">Independently configure the model and reasoning level for the floating assistant triggered by the power key or system assistant. For quick everyday tasks, choosing a fast lightweight model with lower or disabled reasoning helps reduce latency and token usage.</string>
 </resources>

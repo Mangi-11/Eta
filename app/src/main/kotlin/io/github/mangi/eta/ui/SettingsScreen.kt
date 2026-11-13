@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Dashboard
@@ -512,6 +513,17 @@ private fun SettingsPageContent(
                         },
                         onClick = openAssistantSettings,
                     )
+                    CouiIconDivider()
+                    CouiPreference(
+                        title = stringResource(R.string.assistant_overlay_settings_title),
+                        icon = {
+                            CouiSettingsIcon(
+                                Icons.Rounded.ChatBubble,
+                                SettingsIconColors.Blue,
+                            )
+                        },
+                        onClick = { onNavigate(AppRoute.AssistantOverlaySettings) },
+                    )
                     if (prefs != null || hasConnectedFramework) {
                         CouiIconDivider()
                         CouiDropdownPreference(
@@ -947,6 +959,16 @@ private fun SettingsPageContent(
                                 )
                             },
                             onClick = openAssistantSettings,
+                        )
+                        ArrowPreference(
+                            title = stringResource(R.string.assistant_overlay_settings_title),
+                            startAction = {
+                                SettingsIcon(
+                                    icon = Icons.Rounded.ChatBubble,
+                                    tint = SettingsIconColors.Blue,
+                                )
+                            },
+                            onClick = { onNavigate(AppRoute.AssistantOverlaySettings) },
                         )
                         if (prefs != null || hasConnectedFramework) {
                             OverlayDropdownPreference(

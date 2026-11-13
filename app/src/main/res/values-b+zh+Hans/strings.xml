@@ -1480,4 +1480,12 @@
   <string name="conversation_title_settings_reasoning_unsupported">当前模型不支持调节思考</string>
   <string name="conversation_title_settings_note">新对话首轮回复完成后将在后台自动提炼简短标题；建议单独配置轻量小模型并关闭或降低思考等级，避免较大的主力模型浪费 Token。</string>
   <string name="conversation_title_settings_disabled">已关闭</string>
+  <string name="assistant_overlay_settings_title">全局浮窗助手</string>
+  <string name="assistant_overlay_settings_group">模型与思考</string>
+  <string name="assistant_overlay_settings_model">浮窗助手模型</string>
+  <string name="assistant_overlay_settings_follow_primary">跟随主模型</string>
+  <string name="assistant_overlay_settings_follow_primary_with_name">跟随主模型 (%1$s)</string>
+  <string name="assistant_overlay_settings_follow_primary_hint">默认继承主对话当前使用的模型</string>
+  <string name="assistant_overlay_settings_reasoning_follow_default">跟随默认</string>
+  <string name="assistant_overlay_settings_note">单独配置电源键或系统助手唤起的全局对话浮窗所使用的模型与思考等级；日常轻量指令可选用响应更快的轻量模型并降低或关闭思考，主对话仍保留主力模型。</string>
 </resources>

@@ -1,6 +1,7 @@
 package io.github.mangi.eta.data.repository
 
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.data.model.AssistantOverlaySettings
 import io.github.mangi.eta.data.model.ConversationTitleSettings
 import io.github.mangi.eta.data.model.CustomHeader
 import io.github.mangi.eta.data.model.Model
@@ -173,5 +174,53 @@ class RuntimeConfigRepositoryTest {
         )
         assertEquals(ReasoningEffort.OFF, plainAuto.reasoningEffort)
         assertFalse(plainAuto.thinkingEnabled)
+    }
+
+    @Test
+    fun assistantOverlaySettingsFollowDefaultOrApplyExplicitReasoningEffort() {
+        val base = AgentModelClient.ModelConfig(
+            baseUrl = "https://api.example.com/v1",
+            apiKey = "key",
+            model = "fast-overlay-model",
+            systemPrompt = "",
+            thinkingEnabled = true,
+            reasoningEffort = ReasoningEffort.DEFAULT,
+            reasoningCapabilities = ModelReasoningCapabilities(
+                supportedEfforts = listOf(ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH),
+                canDisable = true,
+            ),
+        )
+
+        val followDefaultThinkingOn = RuntimeConfigRepository.applyAssistantOverlaySettings(
+            base = base,
+            settings = AssistantOverlaySettings(modelId = null, reasoningEffort = null),
+            defaultThinkingEnabled = true,
+        )
+        assertEquals(ReasoningEffort.DEFAULT, followDefaultThinkingOn.reasoningEffort)
+        assertEquals(true, followDefaultThinkingOn.thinkingEnabled)
+
+        val followDefaultThinkingOff = RuntimeConfigRepository.applyAssistantOverlaySettings(
+            base = base,
+            settings = AssistantOverlaySettings(modelId = null, reasoningEffort = null),
+            defaultThinkingEnabled = false,
+        )
+        assertEquals(ReasoningEffort.OFF, followDefaultThinkingOff.reasoningEffort)
+        assertFalse(followDefaultThinkingOff.thinkingEnabled)
+
+        val explicitOff = RuntimeConfigRepository.applyAssistantOverlaySettings(
+            base = base,
+            settings = AssistantOverlaySettings(modelId = "m1", reasoningEffort = ReasoningEffort.OFF.wireValue),
+            defaultThinkingEnabled = true,
+        )
+        assertEquals(ReasoningEffort.OFF, explicitOff.reasoningEffort)
+        assertFalse(explicitOff.thinkingEnabled)
+
+        val explicitLow = RuntimeConfigRepository.applyAssistantOverlaySettings(
+            base = base,
+            settings = AssistantOverlaySettings(modelId = "m1", reasoningEffort = ReasoningEffort.LOW.wireValue),
+            defaultThinkingEnabled = false,
+        )
+        assertEquals(ReasoningEffort.LOW, explicitLow.reasoningEffort)
+        assertEquals(true, explicitLow.thinkingEnabled)
     }
 }
