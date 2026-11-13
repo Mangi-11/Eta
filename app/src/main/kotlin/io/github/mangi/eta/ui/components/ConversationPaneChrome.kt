@@ -8,6 +8,8 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -84,7 +86,9 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -573,48 +577,93 @@ internal fun ConversationPaneBottomDock(
                 .windowInsetsPadding(dockInsets)
                 .padding(
                     start = if (canUseCouiNativeSearchBar) 0.dp else ConversationPanelMetrics.PaneHorizontalPadding,
-                    end = if (canUseCouiNativeSearchBar && searchExpanded) 0.dp else ConversationPanelMetrics.PaneHorizontalPadding,
+                    end = if (canUseCouiNativeSearchBar) 0.dp else ConversationPanelMetrics.PaneHorizontalPadding,
                     top = ConversationPanelMetrics.BottomDockVerticalPadding + 10.dp,
                     bottom = ConversationPanelMetrics.BottomDockVerticalPadding,
                 ),
         ) {
             if (canUseCouiNativeSearchBar) {
-                Row(
+                val buttonsProgress by animateFloatAsState(
+                    targetValue = if (searchExpanded) 0f else 1f,
+                    animationSpec = spring(dampingRatio = 0.86f, stiffness = 380f),
+                    label = "CouiDockButtonsProgress",
+                )
+                Layout(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SearchBar(
-                        modifier = if (searchExpanded) Modifier.fillMaxWidth() else Modifier.weight(1f),
-                        state = searchState,
-                        query = query,
-                        onQueryChange = onSearchChange,
-                        onExpandedChange = { next ->
-                            searchExpanded = next
-                            if (!next) onSearchChange("")
-                        },
-                        placeholder = searchPlaceholder,
-                        cancelText = cancelText,
-                        clearDescription = clearDescription,
-                        dark = couiDark,
-                        backdrop = couiDockBackdrop,
-                        onSearch = { keyboard?.hide() },
+                    content = {
+                        SearchBar(
+                            modifier = Modifier.fillMaxWidth(),
+                            state = searchState,
+                            query = query,
+                            onQueryChange = onSearchChange,
+                            onExpandedChange = { next ->
+                                searchExpanded = next
+                                if (!next) onSearchChange("")
+                            },
+                            placeholder = searchPlaceholder,
+                            cancelText = cancelText,
+                            clearDescription = clearDescription,
+                            dark = couiDark,
+                            backdrop = couiDockBackdrop,
+                            onSearch = { keyboard?.hide() },
+                        )
+                        Row(
+                            modifier = Modifier.graphicsLayer {
+                                val p = buttonsProgress.coerceIn(0f, 1f)
+                                alpha = p
+                                val s = 0.76f + 0.24f * p
+                                scaleX = s
+                                scaleY = s
+                            },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            PaneDockCircleButton(
+                                icon = ConversationPaneIcons.Permissions,
+                                contentDescription = permissionsDesc,
+                                showBadge = hasPermissionAttention,
+                                couiBackdrop = couiDockBackdrop,
+                                onClick = { if (!searchExpanded) onOpenPermissions() },
+                            )
+                            Spacer(Modifier.width(ConversationPanelMetrics.BottomDockGap))
+                            PaneDockCircleButton(
+                                icon = ConversationPaneIcons.Settings,
+                                contentDescription = settingsDesc,
+                                showBadge = false,
+                                couiBackdrop = couiDockBackdrop,
+                                onClick = { if (!searchExpanded) onOpenSettings() },
+                            )
+                        }
+                    },
+                ) { measurables, constraints ->
+                    val buttonsPlaceable = measurables[1].measure(
+                        constraints.copy(minWidth = 0, minHeight = 0),
                     )
-                    if (!searchExpanded) {
-                        PaneDockCircleButton(
-                            icon = ConversationPaneIcons.Permissions,
-                            contentDescription = permissionsDesc,
-                            showBadge = hasPermissionAttention,
-                            couiBackdrop = couiDockBackdrop,
-                            onClick = onOpenPermissions,
+                    val sideMarginPx = ConversationPanelMetrics.PaneHorizontalPadding.roundToPx()
+                    val gapPx = ConversationPanelMetrics.BottomDockGap.roundToPx()
+                    // SearchBar 内部自带 16.dp 右边距，收起态保留 8.dp 视觉间距即可，避免双倍留白。
+                    val reservedRightPx = ((buttonsPlaceable.width + sideMarginPx - (sideMarginPx - gapPx)) * buttonsProgress)
+                        .toInt()
+                        .coerceAtLeast(0)
+                    val searchWidth = (constraints.maxWidth - reservedRightPx).coerceAtLeast(1)
+                    val searchPlaceable = measurables[0].measure(
+                        Constraints.fixedWidth(searchWidth).copy(
+                            minHeight = 0,
+                            maxHeight = constraints.maxHeight,
+                        ),
+                    )
+                    val layoutHeight = maxOf(searchPlaceable.height, buttonsPlaceable.height)
+                    layout(constraints.maxWidth, layoutHeight) {
+                        searchPlaceable.placeRelative(
+                            x = 0,
+                            y = (layoutHeight - searchPlaceable.height) / 2,
                         )
-                        Spacer(Modifier.width(ConversationPanelMetrics.BottomDockGap))
-                        PaneDockCircleButton(
-                            icon = ConversationPaneIcons.Settings,
-                            contentDescription = settingsDesc,
-                            showBadge = false,
-                            couiBackdrop = couiDockBackdrop,
-                            onClick = onOpenSettings,
-                        )
+                        if (buttonsProgress > 0.01f) {
+                            val slideOffset = ((1f - buttonsProgress) * (buttonsPlaceable.width + sideMarginPx) * 0.35f).toInt()
+                            buttonsPlaceable.placeRelative(
+                                x = constraints.maxWidth - sideMarginPx - buttonsPlaceable.width + slideOffset,
+                                y = (layoutHeight - buttonsPlaceable.height) / 2,
+                            )
+                        }
                     }
                 }
             } else {
