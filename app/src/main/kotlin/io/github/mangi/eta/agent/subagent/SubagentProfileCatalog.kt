@@ -8,8 +8,7 @@ import java.nio.file.Files
 /**
  * 管理内置与自定义 Subagent Profile。
  *
- * 自定义 Subagent 存放在默认工作区的 `agents/<name>.md`，采用与 Kimi Code 一致的
- * YAML frontmatter + Markdown 正文格式：
+ * 自定义 Subagent 存放在默认工作区的 `agents/<name>.md`，采用 YAML frontmatter + Markdown 正文格式：
  * ```markdown
  * ---
  * name: bill-analyzer

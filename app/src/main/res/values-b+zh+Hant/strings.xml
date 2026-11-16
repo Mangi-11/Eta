@@ -59,7 +59,6 @@
   <string name="action_more">更多選項</string>
   <string name="action_open_terminal">開啟終端機</string>
   <string name="action_open_browser">開啟瀏覽器</string>
-  <string name="action_launch_kimi_web">啟動 Kimi Web</string>
   <string name="route_tools">工具</string>
   <string name="route_permissions">權限</string>
   <string name="route_system_enhancements">系統增強</string>
@@ -980,15 +979,7 @@
   <string name="linux_ssh_tools">SSH 遠端連線</string>
   <string name="linux_ssh_tools_summary">安裝完整 OpenSSH（sshd、ssh-keygen、ssh-agent 與 sftp-server）；基礎環境已含 ssh/scp/sftp 用戶端</string>
   <string name="linux_ssh_tools_ready">sshd、ssh-keygen 與 ssh-agent 已就緒</string>
-  <string name="linux_kimi_tools">Kimi Code</string>
-  <string name="linux_kimi_tools_summary">透過 npm 安裝最新正式版 Kimi Code；需要先安裝 Node.js 環境</string>
-  <string name="linux_kimi_tools_ready">Kimi Code 已就緒，在終端機執行 kimi 即可開始</string>
   <string name="linux_profile_dependency_missing">請先安裝 %1$s</string>
-  <string name="linux_kimi_web_launch">啟動 Web UI</string>
-  <string name="linux_kimi_web_starting">正在啟動…</string>
-  <string name="linux_kimi_web_failed_start">Kimi Web 啟動失敗</string>
-  <string name="linux_kimi_web_failed_url">未取得 Web UI 位址，請到背景任務查看日誌</string>
-  <string name="linux_kimi_web_failed_browser">沒有可用的瀏覽器</string>
   <string name="linux_profile_stage_checking">檢查 Linux 基礎環境</string>
   <string name="linux_profile_stage_downloading">下載%1$s</string>
   <string name="linux_profile_stage_downloading_percent">下載%1$s · %2$d%%</string>

@@ -58,7 +58,6 @@
   <string name="action_more">More options</string>
   <string name="action_open_terminal">Open terminal</string>
   <string name="action_open_browser">Open browser</string>
-  <string name="action_launch_kimi_web">Launch Kimi Web</string>
   <string name="route_tools">Tools</string>
   <string name="route_skills" translatable="false">Skills</string>
   <string name="route_permissions">Permissions</string>
@@ -1007,15 +1006,7 @@
   <string name="linux_ssh_tools">SSH remote access</string>
   <string name="linux_ssh_tools_summary">Install the full OpenSSH suite (sshd, ssh-keygen, ssh-agent, and sftp-server); the base environment already includes the ssh/scp/sftp client</string>
   <string name="linux_ssh_tools_ready">sshd, ssh-keygen, and ssh-agent are ready</string>
-  <string name="linux_kimi_tools">Kimi Code</string>
-  <string name="linux_kimi_tools_summary">Install the latest Kimi Code release via npm; requires the Node.js environment first</string>
-  <string name="linux_kimi_tools_ready">Kimi Code is ready; run kimi in the terminal</string>
   <string name="linux_profile_dependency_missing">Install %1$s first</string>
-  <string name="linux_kimi_web_launch">Launch Web UI</string>
-  <string name="linux_kimi_web_starting">Starting…</string>
-  <string name="linux_kimi_web_failed_start">Failed to start Kimi Web</string>
-  <string name="linux_kimi_web_failed_url">Web UI address not found; check background task logs</string>
-  <string name="linux_kimi_web_failed_browser">No browser available</string>
   <string name="linux_profile_stage_checking">Checking the Linux base environment</string>
   <string name="linux_profile_stage_downloading">Downloading %1$s</string>
   <string name="linux_profile_stage_downloading_percent">Downloading %1$s · %2$d%%</string>

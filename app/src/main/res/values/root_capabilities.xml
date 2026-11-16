@@ -73,17 +73,6 @@
     <string name="capability_workspace_public_granted">Authorized; the terminal can access public directories</string>
     <string name="capability_workspace_parent">Parent directory</string>
     <string name="capability_workspace_directory">Folder</string>
-    <string name="capability_kimi_checking">Checking Kimi Web…</string>
-    <string name="capability_kimi_install">Install Kimi Web</string>
-    <string name="capability_kimi_preparing">Preparing Kimi Web…</string>
-    <string name="capability_kimi_open">Open Kimi Web · Running</string>
-    <string name="capability_kimi_retry">Kimi Web failed to start · Retry</string>
-    <string name="capability_kimi_stop">Stop Kimi Web</string>
-    <string name="capability_kimi_root_required">This Kimi environment requires Root. Restore authorization, or install a PRoot version in the Linux environment.</string>
-    <string name="capability_kimi_exited">Kimi Web exited. Check its configuration in the terminal and try again.</string>
-    <string name="capability_kimi_not_installed">Install Kimi Code in the Linux environment first</string>
-    <string name="capability_kimi_proot_unavailable">PRoot failed to start. Check or reinstall the standard environment from the Linux environment page.</string>
-    <string name="capability_kimi_logs_unavailable">Cannot read Kimi startup logs. Check the environment in the terminal and try again.</string>
     <string name="capability_workspace_public_denied">Public directory access is not authorized. Retry authorization or import the files through Workspace and files.</string>
     <string name="capability_workspace_files">Workspace files</string>
     <string name="capability_workspace_empty_summary">Import files or generate them through terminal tasks</string>

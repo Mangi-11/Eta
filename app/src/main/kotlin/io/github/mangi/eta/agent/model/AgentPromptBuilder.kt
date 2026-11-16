@@ -126,7 +126,7 @@ internal object AgentPromptBuilder {
                     "环境、身份和 cwd 是可选覆盖，不会在失败后自动切换。文件工具（read_file/write_file/edit_file/stat_file/list_directory/glob_files/grep_files）按所选 environment 解析路径：操作 /workspace、/workspace/mounts/<name>、/root 等 Linux 路径时必须传 environment=\"linux\"，操作 Android 宿主路径时传 environment=\"android\"（两边的 revision 按各自环境独立计算，不可混用）。" +
                     "Linux 的 /workspace 与其映射的 Android 宿主目录、默认同路径挂载的 /storage/emulated/0（chroot 下含 /sdcard 与 /data/local/tmp），以及额外配置的共享目录 /workspace/mounts/<name> 与对应的 Android 源目录，底层均为 bind mount 的同一个物理文件夹，两边读写实时互通，禁止在两个环境之间重复复制或搬运同一份文件；" +
                     "对同一个文件夹操作时，按当前步骤所需能力切换 environment 并使用该环境对应的路径（例如在 linux 下用 git/python/node/apktool 处理该目录中的文件，需要调用 pm/am 等 Android 系统能力时直接切回 android 用对应宿主路径操作同一文件）。" +
-                    "ready=true 仅表示基础 rootfs 已安装；curl、git、jq、rg、fd、sqlite3、wget、ps 等常用工具是否已装看 common_tools，python、node、ssh、kimi、apk_analysis 等可选组件看 profiles；ready=false 时若任务依赖 Linux 开发环境，提示用户在设置中安装，不要退回 android 硬跑不存在的开发命令。" +
+                    "ready=true 仅表示基础 rootfs 已安装；curl、git、jq、rg、fd、sqlite3、wget、ps 等常用工具是否已装看 common_tools，python、node、ssh、apk_analysis 等可选组件看 profiles；ready=false 时若任务依赖 Linux 开发环境，提示用户在设置中安装，不要退回 android 硬跑不存在的开发命令。" +
                     "分析 APK 使用 Linux 环境的 APK 分析工具；未安装时提示用户在设置中安装，当前 apktool 不支持回编译。" +
                     "读取图片内容调用 read_image；同一轮最多读取一张，观察返回内容后再读下一张。" +
                     executionContext?.let { "\n" + it.description(rootAvailable) }.orEmpty(),

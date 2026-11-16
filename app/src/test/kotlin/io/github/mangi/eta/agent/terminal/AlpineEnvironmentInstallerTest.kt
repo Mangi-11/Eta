@@ -118,16 +118,6 @@ class AlpineEnvironmentInstallerTest {
         assertTrue(
             LinuxPackageProfiles.NODE.spec(LinuxDistribution.DEBIAN).packages.contains("libatomic1"),
         )
-        // Kimi Code 是纯 JavaScript 的 npm 包，跑在 Node profile 之上；始终装最新正式版。
-        val kimi = LinuxPackageProfiles.KIMI
-        assertEquals(LinuxPackageProfiles.NODE, kimi.dependsOn)
-        LinuxDistribution.entries.forEach { distribution ->
-            val script = kimi.spec(distribution).setupScript.orEmpty()
-            assertTrue(script.contains("npm install -g"))
-            assertTrue(script.contains("@moonshot-ai/kimi-code@latest"))
-            assertTrue(script.contains("--prefix /usr/local"))
-            assertTrue(script.contains("registry.npmmirror.com"))
-        }
         LinuxDistribution.entries.forEach { distribution ->
             assertTrue(LinuxPackageProfiles.SSH.spec(distribution).packages.isNotEmpty())
         }

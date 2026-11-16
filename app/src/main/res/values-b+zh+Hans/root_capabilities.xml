@@ -72,17 +72,6 @@
     <string name="capability_workspace_public_granted">已授权，终端可访问公共目录</string>
     <string name="capability_workspace_parent">返回上级目录</string>
     <string name="capability_workspace_directory">文件夹</string>
-    <string name="capability_kimi_checking">检查 Kimi Web…</string>
-    <string name="capability_kimi_install">安装 Kimi Web</string>
-    <string name="capability_kimi_preparing">Kimi Web 准备中…</string>
-    <string name="capability_kimi_open">打开 Kimi Web · 运行中</string>
-    <string name="capability_kimi_retry">Kimi Web 启动失败 · 重试</string>
-    <string name="capability_kimi_stop">停止 Kimi Web</string>
-    <string name="capability_kimi_root_required">当前 Kimi 环境需要 Root，请恢复授权或在 Linux 环境中安装 PRoot 版本</string>
-    <string name="capability_kimi_exited">Kimi Web 进程已退出，请在终端检查 Kimi 配置后重试</string>
-    <string name="capability_kimi_not_installed">请先在 Linux 环境中安装 Kimi Code</string>
-    <string name="capability_kimi_proot_unavailable">PRoot 未能启动，请在 Linux 环境中检查或重新安装普通环境</string>
-    <string name="capability_kimi_logs_unavailable">无法读取 Kimi 启动日志，请在终端检查环境后重试</string>
     <string name="capability_workspace_public_denied">公共目录尚未授权。可重试授权，或通过“工作区与文件”导入需要的文件</string>
     <string name="capability_workspace_files">工作区文件</string>
     <string name="capability_workspace_empty_summary">导入文件，或通过终端任务生成文件</string>
