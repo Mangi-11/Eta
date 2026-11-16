@@ -32,6 +32,63 @@ class AgentConversationRevisionReducerTest {
     }
 
     @Test
+    fun editingTurnAfterCompactionKeepsActiveSummaryHistoryAndTrimsJournal() {
+        val summary = AgentModelClient.ConversationMessage(
+            role = "assistant",
+            content = "前两轮摘要",
+            contextSummary = true,
+            compactedUserTurns = 2,
+            summaryThroughUserTurn = 2,
+        )
+        val state = AgentChatUiState(
+            messages = listOf(
+                UserMessageUi("user-1", "第一问"),
+                AgentMessageUi("assistant-1", "第一答"),
+                UserMessageUi("user-2", "第二问"),
+                AgentMessageUi("assistant-2", "第二答"),
+                UserMessageUi("user-3", "第三问"),
+                AgentMessageUi("assistant-3", "第三答"),
+            ),
+            history = listOf(
+                summary,
+                AgentModelClient.ConversationMessage("user", "第三问"),
+                AgentModelClient.ConversationMessage("assistant", "第三答"),
+            ),
+            journal = listOf(
+                AgentModelClient.ConversationMessage("user", "第一问"),
+                AgentModelClient.ConversationMessage("assistant", "第一答"),
+                AgentModelClient.ConversationMessage("user", "第二问"),
+                AgentModelClient.ConversationMessage("assistant", "第二答"),
+                AgentModelClient.ConversationMessage("user", "第三问"),
+                AgentModelClient.ConversationMessage("assistant", "第三答"),
+            ),
+            input = "",
+            isStreaming = false,
+            thinkingEnabled = false,
+        )
+
+        val boundary = AgentConversationRevisionReducer.boundary(state, "user-3")!!
+
+        assertFalse(boundary.contextWasCompacted)
+        assertEquals(listOf(summary), boundary.historyPrefix)
+        assertEquals(
+            listOf("第一问", "第一答", "第二问", "第二答"),
+            boundary.journalPrefix.map { it.content },
+        )
+    }
+
+    @Test
+    fun editingFirstTurnClearsBothHistoryAndJournalPrefixes() {
+        val state = conversationState().copy(journal = conversationState().history)
+
+        val boundary = AgentConversationRevisionReducer.boundary(state, "user-1")!!
+
+        assertFalse(boundary.contextWasCompacted)
+        assertTrue(boundary.historyPrefix.isEmpty())
+        assertTrue(boundary.journalPrefix.isEmpty())
+    }
+
+    @Test
     fun boundaryMapsAssistantToItsUserTurnAndKeepsToolTranscriptPrefix() {
         val state = conversationState()
 

@@ -65,9 +65,19 @@ class GeminiModelFailureTest {
 
     @Test
     fun inputTokenOverflowHasExplicitNonRetryableFailure() {
-        val failure = AgentModelFailure.http(400,
-            """{"error":{"message":"The input token count (123) exceeds the maximum number of tokens allowed (100)."}}""")
-        assertEquals("CONTEXT_OVERFLOW", failure.code)
-        assertFalse(failure.retryable)
+        for (message in listOf(
+            "The input token count (123) exceeds the maximum number of tokens allowed (100).",
+            "Total token count (1500000) exceeds the maximum allowed (1048576).",
+            "Request payload size exceeds the limit: 20971520 bytes.",
+        )) {
+            val failure = AgentModelFailure.http(400, JSONObject().put("error", JSONObject().put("message", message)).toString())
+            assertEquals("CONTEXT_OVERFLOW", failure.code)
+            assertFalse(failure.retryable)
+        }
+        val outputLimitConfigFailure = AgentModelFailure.http(
+            400,
+            """{"error":{"message":"max_output_tokens exceeds the allowed limit"}}""",
+        )
+        assertEquals("HTTP_400", outputLimitConfigFailure.code)
     }
 }

@@ -99,8 +99,11 @@ internal class AgentModelFailure(
             }) return true
             val message = error.optString("message").lowercase()
             return message.contains("maximum context length") || message.contains("prompt is too long") ||
-                message.contains("exceeds the context window") || message.contains("input token count exceeds") ||
-                message.contains("input token count") && message.contains("exceeds the maximum")
+                message.contains("exceeds the context window") || message.contains("too many tokens") ||
+                message.contains("request payload size exceeds") ||
+                ((message.contains("input token count") || message.contains("total token count") ||
+                    message.contains("prompt token")) && message.contains("exceed")) ||
+                (message.contains("exceeds the maximum") && message.contains("input tokens"))
         }
 
         private fun authenticationFailure(error: JSONObject?): AgentModelFailure? {

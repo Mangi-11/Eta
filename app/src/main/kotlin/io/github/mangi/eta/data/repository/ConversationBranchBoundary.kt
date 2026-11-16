@@ -31,8 +31,16 @@ internal object ConversationBranchBoundary {
         journal: List<ConversationMessage>,
         roleplay: RoleplayMessageState,
         targetId: String,
-    ): List<ConversationMessage> {
-        if (targetId !in eligibleMessageIds(messages)) throw ConversationBranchUnavailable()
+    ): List<ConversationMessage> = resolveOrNull(messages, journal, roleplay, targetId)
+        ?: throw ConversationBranchUnavailable()
+
+    fun resolveOrNull(
+        messages: List<ConversationBranchMessage>,
+        journal: List<ConversationMessage>,
+        roleplay: RoleplayMessageState,
+        targetId: String,
+    ): List<ConversationMessage>? {
+        if (targetId !in eligibleMessageIds(messages)) return null
         val transcriptId = roleplay.links[targetId]?.transcriptMessageId
         val matches = journal.withIndex().filter { (_, message) ->
             message.role == "assistant" && message.messageId.isNotBlank() &&
@@ -41,41 +49,41 @@ internal object ConversationBranchBoundary {
         }
         val longest = matches.maxOfOrNull { it.value.messageId.length }
         val exact = matches.filter { it.value.messageId.length == longest }
-        val end = exact.singleOrNull()?.index ?: throw ConversationBranchUnavailable()
+        val end = exact.singleOrNull()?.index ?: return null
         val tail = journal.drop(end + 1).takeWhile { it.role != "user" }
-        if (tail.any { it.role == "assistant" || it.role == "tool" }) throw ConversationBranchUnavailable()
+        if (tail.any { it.role == "assistant" || it.role == "tool" }) return null
         val prefix = journal.take(end + 1)
-        val last = prefix.lastOrNull() ?: throw ConversationBranchUnavailable()
+        val last = prefix.lastOrNull() ?: return null
         if (last.role != "assistant" || (last.content.isBlank() && last.contentJson.isBlank())) {
-            throw ConversationBranchUnavailable()
+            return null
         }
         val turns = prefix.sumOf { it.compactedUserTurns + if (it.role == "user") 1 else 0 }
-        if (prefix.any { it.contextSummary && it.summaryThroughUserTurn > turns }) throw ConversationBranchUnavailable()
-        requireClosedTools(prefix)
+        if (prefix.any { it.contextSummary && it.summaryThroughUserTurn > turns }) return null
+        if (!hasClosedTools(prefix)) return null
         return prefix
     }
 
-    private fun requireClosedTools(messages: List<ConversationMessage>) {
+    private fun hasClosedTools(messages: List<ConversationMessage>): Boolean {
         val pending = mutableSetOf<String>()
         for (message in messages) {
             when (message.role) {
                 "assistant" -> {
-                    if (pending.isNotEmpty()) throw ConversationBranchUnavailable()
+                    if (pending.isNotEmpty()) return false
                     if (message.toolCallsJson.isNotBlank()) {
                         val calls = try { JSONArray(message.toolCallsJson) } catch (_: org.json.JSONException) {
-                            throw ConversationBranchUnavailable()
+                            return false
                         }
                         for (index in 0 until calls.length()) {
                             val id = calls.optJSONObject(index)?.optString("id").orEmpty()
-                            if (id.isBlank() || !pending.add(id)) throw ConversationBranchUnavailable()
+                            if (id.isBlank() || !pending.add(id)) return false
                         }
                     }
                 }
-                "tool" -> if (!pending.remove(message.toolCallId)) throw ConversationBranchUnavailable()
-                "user" -> if (pending.isNotEmpty()) throw ConversationBranchUnavailable()
+                "tool" -> if (!pending.remove(message.toolCallId)) return false
+                "user" -> if (pending.isNotEmpty()) return false
             }
         }
-        if (pending.isNotEmpty()) throw ConversationBranchUnavailable()
+        return pending.isEmpty()
     }
 
     fun remapId(branchId: String, messageId: String): String {

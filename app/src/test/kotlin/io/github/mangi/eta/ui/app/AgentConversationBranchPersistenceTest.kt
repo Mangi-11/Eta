@@ -74,6 +74,39 @@ class AgentConversationBranchPersistenceTest {
     }
 
     @Test
+    fun branchAfterCompactionKeepsActiveSummaryHistoryAndRetainsFullJournalPrefix() = runBlocking {
+        val base = conversation(5)
+        val summary = ConversationMessage(
+            role = "assistant",
+            content = "前三轮摘要",
+            contextSummary = true,
+            compactedUserTurns = 3,
+            summaryThroughUserTurn = 3,
+            compactionArchiveId = "fold-1",
+        )
+        val compacted = base.copy(
+            history = listOf(summary) + base.journal.drop(6),
+        )
+        val persistence = AgentConversationPersistence()
+        persistence.save(context, snapshot(compacted))
+
+        val child = persistence.branch(context, "source", "assistant-4-0", "child", "压缩后分支", 2L)
+        assertEquals(10, child.journal.size)
+        assertEquals(5, child.history.size)
+        assertTrue(child.history.first().contextSummary)
+        assertEquals("前三轮摘要", child.history.first().content)
+        assertEquals(listOf("问题 3", "回答 3", "问题 4", "回答 4"), child.history.drop(1).map { it.content })
+
+        val loaded = AgentConversationStore.loadConversation(context, "child")!!
+        assertEquals(child.history, loaded.history)
+        assertEquals(child.journal, loaded.journal)
+
+        val earlier = persistence.branch(context, "child", "assistant-1-0", "grandchild", "回退早期分支", 3L)
+        assertFalse(earlier.history.any { it.contextSummary })
+        assertEquals(base.journal.take(4).map { it.content }, earlier.history.map { it.content })
+    }
+
+    @Test
     fun queuedOldSnapshotsPreserveCommittedBranchUntilPublicationThenAllowDeletion() = runBlocking {
         val initial = snapshot(conversation(100))
         val persistence = AgentConversationPersistence()

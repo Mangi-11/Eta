@@ -4,6 +4,7 @@ import io.github.mangi.eta.agent.model.AgentModelClient.ConversationMessage
 import io.github.mangi.eta.agent.roleplay.RoleplayMessageState
 import io.github.mangi.eta.data.model.ConversationBranchMessage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -94,6 +95,11 @@ class ConversationBranchBoundaryTest {
         assertThrows(ConversationBranchUnavailable::class.java) {
             ConversationBranchBoundary.resolve(rows, listOf(summary, assistant("a1")), emptyRole, "a1")
         }
+        assertNull(ConversationBranchBoundary.resolveOrNull(rows, listOf(summary, user("u2"), assistant("a2")), emptyRole, "a1"))
+        assertEquals(
+            listOf(summary, user("u2"), assistant("a2")),
+            ConversationBranchBoundary.resolveOrNull(rows, listOf(summary, user("u2"), assistant("a2")), emptyRole, "a2"),
+        )
     }
 
     @Test
