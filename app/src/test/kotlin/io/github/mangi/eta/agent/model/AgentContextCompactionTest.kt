@@ -2,6 +2,8 @@ package io.github.mangi.eta.agent.model
 
 import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.agent.runtime.AgentRuntimeRunExecutor
+import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import org.json.JSONArray
 import org.json.JSONObject
@@ -463,6 +465,61 @@ class AgentContextCompactionTest {
         assertEquals(2, attempts)
         assertEquals("fold-2", secondCompacted.archiveId)
         assertTrue(secondCompacted.messages.toString().contains("fold-2"))
+    }
+
+    @Test
+    fun manualCompactionIncludesConversationHistoryInRunToolsMatchingChat() {
+        assertTrue(AgentRuntimeRunExecutor.supportsHistoryTool(AgentRuntimeWire.OP_CHAT))
+        assertTrue(AgentRuntimeRunExecutor.supportsHistoryTool(AgentRuntimeWire.OP_COMPACT))
+        assertFalse(AgentRuntimeRunExecutor.supportsHistoryTool(AgentRuntimeWire.OP_REWRITE_REPLY))
+
+        val chatAdditionalTools = AgentRuntimeRunExecutor.buildRunTools(
+            mcpTools = JSONArray(),
+            subagentAllowed = true,
+            includeHistoryTool = AgentRuntimeRunExecutor.supportsHistoryTool(AgentRuntimeWire.OP_CHAT),
+            includeCharacterMemoryTools = false,
+        )
+        val compactAdditionalTools = AgentRuntimeRunExecutor.buildRunTools(
+            mcpTools = JSONArray(),
+            subagentAllowed = true,
+            includeHistoryTool = AgentRuntimeRunExecutor.supportsHistoryTool(AgentRuntimeWire.OP_COMPACT),
+            includeCharacterMemoryTools = false,
+        )
+        assertEquals(chatAdditionalTools.toString(), compactAdditionalTools.toString())
+
+        val capturedRequests = mutableListOf<ProviderRequest>()
+        val recordingProvider = provider { request, _ ->
+            capturedRequests += request
+            response("已完成。")
+        }
+
+        AgentModelClient.complete(
+            config = config,
+            prompt = "继续",
+            toolExecutor = AgentModelClient.ToolExecutor { error("不应执行工具") },
+            history = history(),
+            provider = recordingProvider,
+            sessionId = "manual-compact-session",
+            additionalTools = chatAdditionalTools,
+        )
+        AgentModelClient.complete(
+            config = config,
+            prompt = "",
+            toolExecutor = AgentModelClient.ToolExecutor { error("不应执行工具") },
+            history = history(),
+            provider = recordingProvider,
+            sessionId = "manual-compact-session",
+            compactOnly = true,
+            additionalTools = compactAdditionalTools,
+        )
+
+        val chatRequest = capturedRequests.first { it.purpose == ProviderRequestPurpose.CHAT }
+        val compactRequest = capturedRequests.first { it.purpose == ProviderRequestPurpose.COMPACTION }
+        val compactToolNames = (0 until compactRequest.effectiveTools.length()).map { index ->
+            compactRequest.effectiveTools.getJSONObject(index).getJSONObject("function").getString("name")
+        }
+        assertTrue(AgentConversationToolCatalog.READ_HISTORY in compactToolNames)
+        assertEquals(chatRequest.effectiveTools.toString(), compactRequest.effectiveTools.toString())
     }
 
     private fun history() = (1..6).flatMap { turn -> listOf(

@@ -246,7 +246,8 @@ internal class AgentRuntimeRunExecutor(
             toolExecutor = routingExecutor
             toolsBinding = runController.register(routingExecutor::close)
             timing.preparationFinished(skillContext.installedSkills.size)
-            val historyTool = if (request.operation == AgentRuntimeWire.OP_CHAT) {
+            // 手动压缩复用主会话工具目录以保持 Provider 前缀缓存，必须暴露与 OP_CHAT 一致的 conversation_history。
+            val historyTool = if (supportsHistoryTool(request.operation)) {
                 val id = conversationId
                 if (id != null) {
                     ConversationHistoryTool {
@@ -293,20 +294,12 @@ internal class AgentRuntimeRunExecutor(
                     )
                 },
             )
-            val runTools = JSONArray(mcpTools.toString()).also { tools ->
-                if (subagentAllowed()) AgentSubagentToolCatalog.appendSchemas(tools)
-                if (historyTool != null) tools.put(AgentConversationToolCatalog.schema())
-                if (characterMemoryTools != null && memoryEnabled) {
-                    val temp = JSONArray().also(CharacterMemoryTools::appendSchemas)
-                    for (index in 0 until temp.length()) {
-                        val schema = temp.getJSONObject(index)
-                        val name = schema.getJSONObject("function").getString("name")
-                        if (Prefs.isToolEnabled(name)) {
-                            tools.put(schema)
-                        }
-                    }
-                }
-            }
+            val runTools = buildRunTools(
+                mcpTools = mcpTools,
+                subagentAllowed = subagentAllowed(),
+                includeHistoryTool = historyTool != null,
+                includeCharacterMemoryTools = characterMemoryTools != null && memoryEnabled,
+            )
             val runToolExecutor = AgentModelClient.ToolExecutor { call ->
                 if (call.name in AgentSubagentToolCatalog.names) {
                     if (!subagentAllowed()) {
@@ -517,5 +510,31 @@ internal class AgentRuntimeRunExecutor(
                     "Agent runtime event projection failed: type=${throwable.safeLogType()}"
                 }
             }
+    }
+
+    companion object {
+        internal fun supportsHistoryTool(operation: String): Boolean =
+            operation == AgentRuntimeWire.OP_CHAT || operation == AgentRuntimeWire.OP_COMPACT
+
+        internal fun buildRunTools(
+            mcpTools: JSONArray,
+            subagentAllowed: Boolean,
+            includeHistoryTool: Boolean,
+            includeCharacterMemoryTools: Boolean,
+            isToolEnabled: (String) -> Boolean = Prefs::isToolEnabled,
+        ): JSONArray = JSONArray(mcpTools.toString()).also { tools ->
+            if (subagentAllowed) AgentSubagentToolCatalog.appendSchemas(tools)
+            if (includeHistoryTool) tools.put(AgentConversationToolCatalog.schema())
+            if (includeCharacterMemoryTools) {
+                val temp = JSONArray().also(CharacterMemoryTools::appendSchemas)
+                for (index in 0 until temp.length()) {
+                    val schema = temp.getJSONObject(index)
+                    val name = schema.getJSONObject("function").getString("name")
+                    if (isToolEnabled(name)) {
+                        tools.put(schema)
+                    }
+                }
+            }
+        }
     }
 }
