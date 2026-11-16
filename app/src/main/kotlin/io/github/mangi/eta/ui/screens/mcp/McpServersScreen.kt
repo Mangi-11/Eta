@@ -68,6 +68,7 @@ import io.github.mangi.eta.agent.mcp.McpServerManager
 import io.github.mangi.eta.agent.mcp.validateMcpEndpoint
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.McpAuthorizationType
+import io.github.mangi.eta.data.model.McpDiscoveryTruncation
 import io.github.mangi.eta.data.model.McpProtocolMode
 import io.github.mangi.eta.data.model.McpServerSetting
 import io.github.mangi.eta.data.model.McpToolDefinition
@@ -185,9 +186,14 @@ internal fun McpServersScreen(
                     url = ""
                     token = ""
                     error = null
+                    val messageRes = if (it.toolsTruncationReason != null) {
+                        R.string.mcp_server_added_truncated
+                    } else {
+                        R.string.mcp_server_added
+                    }
                     Toast.makeText(
                         context,
-                        resources.getString(R.string.mcp_server_added, it.tools.size),
+                        resources.getString(messageRes, it.tools.size),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }.onFailure {
@@ -236,10 +242,15 @@ internal fun McpServersScreen(
                         )
                     } else {
                         servers.forEachIndexed { index, server ->
+                            val summaryRes = if (server.toolsTruncationReason != null) {
+                                R.string.mcp_server_row_summary_truncated
+                            } else {
+                                R.string.mcp_server_row_summary
+                            }
                             CouiPreference(
                                 title = server.name,
                                 summary = stringResource(
-                                    R.string.mcp_server_row_summary,
+                                    summaryRes,
                                     server.activeTools.size,
                                     server.tools.size,
                                 ),
@@ -352,10 +363,15 @@ internal fun McpServersScreen(
                             )
                         } else {
                             servers.forEach { server ->
+                                val summaryRes = if (server.toolsTruncationReason != null) {
+                                    R.string.mcp_server_row_summary_truncated
+                                } else {
+                                    R.string.mcp_server_row_summary
+                                }
                                 ArrowPreference(
                                     title = server.name,
                                     summary = stringResource(
-                                        R.string.mcp_server_row_summary,
+                                        summaryRes,
                                         server.activeTools.size,
                                         server.tools.size,
                                     ),
@@ -533,7 +549,14 @@ internal fun McpServerDetailScreen(
             Toast.makeText(
                 context,
                 result.fold(
-                    onSuccess = { resources.getString(R.string.mcp_refreshed, it.tools.size) },
+                    onSuccess = {
+                        val messageRes = if (it.toolsTruncationReason != null) {
+                            R.string.mcp_refreshed_truncated
+                        } else {
+                            R.string.mcp_refreshed
+                        }
+                        resources.getString(messageRes, it.tools.size)
+                    },
                     onFailure = { it.message ?: resources.getString(R.string.mcp_refresh_failed) },
                 ),
                 Toast.LENGTH_SHORT,
@@ -599,6 +622,19 @@ internal fun McpServerDetailScreen(
                             }
                         },
                     )
+                }
+
+                server.toolsTruncationReason?.let { reason ->
+                    item(key = "tools-truncated") {
+                        Group {
+                            CouiPreference(
+                                title = stringResource(R.string.mcp_tools_truncated_title, server.tools.size),
+                                summary = stringResource(reason.summaryRes()),
+                                titleColor = dialogColors.destructive,
+                                showChevron = false,
+                            )
+                        }
+                    }
                 }
 
                 if (server.tools.isEmpty()) {
@@ -752,6 +788,22 @@ internal fun McpServerDetailScreen(
                             GroupBatchTogglePill(
                                 allEnabled = allEnabled,
                                 onToggleAll = { onToggleAllTools(!allEnabled) },
+                            )
+                        }
+                    }
+                }
+
+                server.toolsTruncationReason?.let { reason ->
+                    item(key = "tools-truncated") {
+                        Card(
+                            modifier = Modifier
+                                .padding(horizontal = 12.dp)
+                                .padding(bottom = 12.dp),
+                        ) {
+                            BasicComponent(
+                                title = stringResource(R.string.mcp_tools_truncated_title, server.tools.size),
+                                titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
+                                summary = stringResource(reason.summaryRes()),
                             )
                         }
                     }
@@ -1169,3 +1221,10 @@ internal fun collapseDescriptionPreview(raw: String): String =
         }
         .filter { it.isNotEmpty() }
         .joinToString(" · ")
+
+private fun McpDiscoveryTruncation.summaryRes(): Int = when (this) {
+    McpDiscoveryTruncation.TOOL_LIMIT -> R.string.mcp_tools_truncated_tool_limit
+    McpDiscoveryTruncation.PAGE_LIMIT -> R.string.mcp_tools_truncated_page_limit
+    McpDiscoveryTruncation.SIZE_LIMIT -> R.string.mcp_tools_truncated_size_limit
+    McpDiscoveryTruncation.CURSOR_LOOP -> R.string.mcp_tools_truncated_cursor_loop
+}

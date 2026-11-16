@@ -1,6 +1,7 @@
 package io.github.mangi.eta.agent.mcp
 
 import io.github.mangi.eta.agent.model.AgentHttpClient
+import io.github.mangi.eta.data.model.McpDiscoveryTruncation
 import io.github.mangi.eta.data.model.McpProtocolMode
 import io.github.mangi.eta.data.model.McpServerSetting
 import io.github.mangi.eta.data.model.McpToolDefinition
@@ -25,11 +26,13 @@ internal class McpHttpClient(
         val protocolVersion: String,
         val tools: List<McpToolDefinition>,
         val cacheTtlMs: Long?,
+        val truncation: McpDiscoveryTruncation? = null,
     )
 
     private data class ToolList(
         val tools: List<McpToolDefinition>,
         val cacheTtlMs: Long?,
+        val truncation: McpDiscoveryTruncation? = null,
     )
 
     private data class WireResponse(
@@ -117,7 +120,7 @@ internal class McpHttpClient(
         negotiatedVersion = McpProtocolMode.LATEST
         return try {
             val listed = listTools(McpProtocolMode.LATEST, sessionId = null)
-            Discovery(McpProtocolMode.LATEST, listed.tools, listed.cacheTtlMs)
+            Discovery(McpProtocolMode.LATEST, listed.tools, listed.cacheTtlMs, listed.truncation)
         } catch (failure: McpHttpStatusException) {
             if (
                 failure.code in setOf(400, 404, 405) &&
@@ -138,7 +141,12 @@ internal class McpHttpClient(
         val listed = withLegacySessionRetry { sessionId ->
             listTools(requireNotNull(negotiatedVersion), sessionId)
         }
-        return Discovery(requireNotNull(negotiatedVersion), listed.tools, cacheTtlMs = null)
+        return Discovery(
+            protocolVersion = requireNotNull(negotiatedVersion),
+            tools = listed.tools,
+            cacheTtlMs = null,
+            truncation = listed.truncation,
+        )
     }
 
     private fun <T> withLegacySessionRetry(block: (String?) -> T): T {
@@ -203,8 +211,10 @@ internal class McpHttpClient(
 
     private fun listTools(protocolVersion: String, sessionId: String?): ToolList {
         val tools = mutableListOf<McpToolDefinition>()
+        val seenCursors = hashSetOf<String>()
         var cursor: String? = null
         var cacheTtlMs: Long? = null
+        var catalogChars = 0
         repeat(MAX_LIST_PAGES) {
             val params = JSONObject()
             cursor?.let { params.put("cursor", it) }
@@ -231,16 +241,34 @@ internal class McpHttpClient(
             }
             val page = result.optJSONArray("tools") ?: JSONArray()
             for (index in 0 until page.length()) {
-                if (tools.size >= MAX_DISCOVERED_TOOLS) break
-                page.optJSONObject(index)?.let { tools += parseTool(it) }
+                val rawTool = page.optJSONObject(index) ?: continue
+                if (tools.size >= MAX_DISCOVERED_TOOLS) {
+                    return ToolList(tools, cacheTtlMs, McpDiscoveryTruncation.TOOL_LIMIT)
+                }
+                val parsed = parseTool(rawTool)
+                val estimatedChars = estimatedToolChars(parsed)
+                if (tools.isNotEmpty() && catalogChars + estimatedChars > MAX_CATALOG_CHARS) {
+                    return ToolList(tools, cacheTtlMs, McpDiscoveryTruncation.SIZE_LIMIT)
+                }
+                tools += parsed
+                catalogChars += estimatedChars
             }
-            cursor = result.optString("nextCursor").takeIf { it.isNotBlank() }
-            if (cursor == null || tools.size >= MAX_DISCOVERED_TOOLS) {
-                return ToolList(tools, cacheTtlMs)
+            // MCP 规范要求将游标视为不透明字符串：空字符串也是合法游标，仅缺失或 null 表示结束。
+            val nextCursor = if (result.has("nextCursor") && !result.isNull("nextCursor")) {
+                result.optString("nextCursor")
+            } else {
+                null
+            } ?: return ToolList(tools, cacheTtlMs)
+            if (!seenCursors.add(nextCursor)) {
+                return ToolList(tools, cacheTtlMs, McpDiscoveryTruncation.CURSOR_LOOP)
             }
+            cursor = nextCursor
         }
-        return ToolList(tools, cacheTtlMs)
+        return ToolList(tools, cacheTtlMs, McpDiscoveryTruncation.PAGE_LIMIT)
     }
+
+    private fun estimatedToolChars(tool: McpToolDefinition): Int =
+        tool.name.length + tool.title.length + tool.description.length + tool.inputSchemaJson.length + 128
 
     private fun parseTool(source: JSONObject): McpToolDefinition {
         val name = source.optString("name").trim()
@@ -482,7 +510,7 @@ internal class McpHttpClient(
     private fun JSONObject.nullableLong(key: String): Long? =
         if (has(key) && !isNull(key)) optLong(key) else null
 
-    private companion object {
+    internal companion object {
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         const val CLIENT_VERSION = "1"
         const val HEADER_PROTOCOL_VERSION = "MCP-Protocol-Version"
@@ -493,8 +521,9 @@ internal class McpHttpClient(
         const val MAX_ERROR_CHARS = 200
         const val MAX_TITLE_CHARS = 160
         const val MAX_DESCRIPTION_CHARS = 2_000
-        const val MAX_DISCOVERED_TOOLS = 128
-        const val MAX_LIST_PAGES = 8
+        const val MAX_DISCOVERED_TOOLS = 2_048
+        const val MAX_LIST_PAGES = 64
+        const val MAX_CATALOG_CHARS = 2_000_000
         val SUPPORTED_LEGACY_PROTOCOL_VERSIONS = setOf(
             "2024-11-05",
             "2025-03-26",

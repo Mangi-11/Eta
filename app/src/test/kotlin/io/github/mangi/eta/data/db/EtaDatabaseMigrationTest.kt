@@ -60,6 +60,7 @@ class EtaDatabaseMigrationTest {
                 EtaDatabase.MIGRATION_23_24,
                 EtaDatabase.MIGRATION_24_25,
                 EtaDatabase.MIGRATION_25_26,
+                EtaDatabase.MIGRATION_26_27,
             )
             .build()
         try {
@@ -132,6 +133,27 @@ class EtaDatabaseMigrationTest {
             assertEquals(emptyList<RuntimeInFlightRunWithEvents>(), inFlightRuns)
             assertEquals(listOf("mcp-1"), mcpServers.map { it.id })
             assertEquals(null, mcpServers.single().toolsExpireAt)
+            assertEquals(null, mcpServers.single().toolsTruncationReason)
+
+            // 验证超大 MCP 工具目录通过分块表存储与恢复，且删除服务器后触发器自动清理分块。
+            val hugeToolsJson = "[\"${"x".repeat(40_000)}\"]"
+            runBlocking(Dispatchers.IO) {
+                database.mcpServerDao().insert(
+                    mcpServers.single().copy(
+                        id = "mcp-oversized",
+                        toolsJson = hugeToolsJson,
+                        toolsTruncationReason = "tool_limit",
+                    ),
+                )
+                val restored = database.mcpServerDao().serverById("mcp-oversized")!!
+                assertEquals(hugeToolsJson, restored.toolsJson)
+                assertEquals("tool_limit", restored.toolsTruncationReason)
+                assertEquals(1, database.mcpServerDao().delete("mcp-oversized"))
+                assertEquals(
+                    0,
+                    database.mcpServerDao().textChunks("mcp_servers", "mcp-oversized", "tools", 10, 0).size,
+                )
+            }
             assertEquals(null, provider.models.first().contextWindowOverride)
             assertEquals(null, provider.models.first().reasoningOverride)
             assertEquals(null, provider.models.first().reasoningCapabilitiesOverride)

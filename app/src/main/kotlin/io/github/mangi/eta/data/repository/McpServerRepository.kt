@@ -1,6 +1,7 @@
 package io.github.mangi.eta.data.repository
 
 import android.content.Context
+import androidx.room.withTransaction
 import io.github.mangi.eta.data.db.EtaDatabase
 import io.github.mangi.eta.data.db.toDomain
 import io.github.mangi.eta.data.db.toEntity
@@ -20,8 +21,12 @@ internal object McpServerRepository {
         }
     }
 
-    fun serversFlow(): Flow<List<McpServerSetting>> = dao().serversFlow().map { entities ->
-        entities.map { it.toDomain() }
+    fun serversFlow(): Flow<List<McpServerSetting>> = dao().serversFlowRows().map { rows ->
+        val db = EtaDatabase.get(context())
+        db.withTransaction {
+            val serverDao = db.mcpServerDao()
+            rows.map { serverDao.restoreServer(it).toDomain() }
+        }
     }
 
     suspend fun servers(): List<McpServerSetting> = dao().servers().map { it.toDomain() }

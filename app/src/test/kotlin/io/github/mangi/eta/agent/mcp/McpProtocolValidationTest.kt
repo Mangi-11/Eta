@@ -2,6 +2,7 @@ package io.github.mangi.eta.agent.mcp
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import io.github.mangi.eta.data.model.McpDiscoveryTruncation
 import io.github.mangi.eta.data.model.McpProtocolMode
 import io.github.mangi.eta.data.model.McpServerSetting
 import io.github.mangi.eta.data.model.McpToolDefinition
@@ -12,6 +13,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -466,6 +468,173 @@ data: "id":1,"result":{"resultType":"complete","ttlMs":1000,"tools":[]}}
             assertEquals("42", pageHeader.get())
         } finally {
             server.stop(0)
+        }
+    }
+
+    @Test
+    fun discoveryExceedsLegacy128ToolAnd8PageLimitsAcrossSingleAndPaginatedResponses() {
+        val singlePageTools = toolsArray(start = 0, count = 230)
+        val singleServer = localServer { exchange ->
+            val body = JSONObject(exchange.requestBody.bufferedReader().use { it.readText() })
+            exchange.respond(
+                200,
+                JSONObject()
+                    .put("jsonrpc", "2.0")
+                    .put("id", body.getLong("id"))
+                    .put(
+                        "result",
+                        JSONObject()
+                            .put("resultType", "complete")
+                            .put("ttlMs", 60_000L)
+                            .put("tools", singlePageTools),
+                    )
+                    .toString(),
+            )
+        }
+        try {
+            val configured = McpServerSetting(id = "single", name = "Single", url = singleServer.url())
+            val discovery = McpHttpClient(configured, bearerToken = null).use { it.discoverTools() }
+            assertEquals(230, discovery.tools.size)
+            assertNull(discovery.truncation)
+        } finally {
+            singleServer.stop(0)
+        }
+
+        // 10 页 × 25 条 = 250 条，且故意使用空字符串 "" 作为首个 nextCursor（MCP 规范合法不透明游标）。
+        val pageCalls = AtomicInteger()
+        val seenCursors = CopyOnWriteArrayList<String?>()
+        val pagedServer = localServer { exchange ->
+            val body = JSONObject(exchange.requestBody.bufferedReader().use { it.readText() })
+            val params = body.getJSONObject("params")
+            val cursor = if (params.has("cursor") && !params.isNull("cursor")) {
+                params.getString("cursor")
+            } else {
+                null
+            }
+            seenCursors += cursor
+            val pageIndex = pageCalls.getAndIncrement()
+            val result = JSONObject()
+                .put("resultType", "complete")
+                .put("ttlMs", if (pageIndex == 0) 60_000L else 15_000L)
+                .put("tools", toolsArray(start = pageIndex * 25, count = 25))
+            if (pageIndex < 9) {
+                result.put("nextCursor", if (pageIndex == 0) "" else "page-${pageIndex + 1}")
+            }
+            exchange.respond(
+                200,
+                JSONObject()
+                    .put("jsonrpc", "2.0")
+                    .put("id", body.getLong("id"))
+                    .put("result", result)
+                    .toString(),
+            )
+        }
+        try {
+            val configured = McpServerSetting(id = "paged", name = "Paged", url = pagedServer.url())
+            val discovery = McpHttpClient(configured, bearerToken = null).use { it.discoverTools() }
+            assertEquals(250, discovery.tools.size)
+            assertEquals(15_000L, discovery.cacheTtlMs)
+            assertNull(discovery.truncation)
+            assertEquals(10, pageCalls.get())
+            assertEquals(listOf(null, "") + (2..9).map { "page-$it" }, seenCursors)
+        } finally {
+            pagedServer.stop(0)
+        }
+    }
+
+    @Test
+    fun discoveryReportsExplicitTruncationForDuplicateCursorPageLimitAndToolLimit() {
+        val loopServer = localServer { exchange ->
+            val body = JSONObject(exchange.requestBody.bufferedReader().use { it.readText() })
+            exchange.respond(
+                200,
+                JSONObject()
+                    .put("jsonrpc", "2.0")
+                    .put("id", body.getLong("id"))
+                    .put(
+                        "result",
+                        JSONObject()
+                            .put("resultType", "complete")
+                            .put("ttlMs", 10_000L)
+                            .put("tools", toolsArray(start = 0, count = 2))
+                            .put("nextCursor", "same-cursor"),
+                    )
+                    .toString(),
+            )
+        }
+        try {
+            val configured = McpServerSetting(id = "loop", name = "Loop", url = loopServer.url())
+            val discovery = McpHttpClient(configured, bearerToken = null).use { it.discoverTools() }
+            assertEquals(4, discovery.tools.size)
+            assertEquals(McpDiscoveryTruncation.CURSOR_LOOP, discovery.truncation)
+        } finally {
+            loopServer.stop(0)
+        }
+
+        val pageIndex = AtomicInteger()
+        val pageLimitServer = localServer { exchange ->
+            val body = JSONObject(exchange.requestBody.bufferedReader().use { it.readText() })
+            val current = pageIndex.getAndIncrement()
+            exchange.respond(
+                200,
+                JSONObject()
+                    .put("jsonrpc", "2.0")
+                    .put("id", body.getLong("id"))
+                    .put(
+                        "result",
+                        JSONObject()
+                            .put("resultType", "complete")
+                            .put("ttlMs", 10_000L)
+                            .put("tools", toolsArray(start = current, count = 1))
+                            .put("nextCursor", "cursor-$current"),
+                    )
+                    .toString(),
+            )
+        }
+        try {
+            val configured = McpServerSetting(id = "pages", name = "Pages", url = pageLimitServer.url())
+            val discovery = McpHttpClient(configured, bearerToken = null).use { it.discoverTools() }
+            assertEquals(McpHttpClient.MAX_LIST_PAGES, discovery.tools.size)
+            assertEquals(McpDiscoveryTruncation.PAGE_LIMIT, discovery.truncation)
+        } finally {
+            pageLimitServer.stop(0)
+        }
+
+        val oversizedTools = toolsArray(start = 0, count = McpHttpClient.MAX_DISCOVERED_TOOLS + 10)
+        val toolLimitServer = localServer { exchange ->
+            val body = JSONObject(exchange.requestBody.bufferedReader().use { it.readText() })
+            exchange.respond(
+                200,
+                JSONObject()
+                    .put("jsonrpc", "2.0")
+                    .put("id", body.getLong("id"))
+                    .put(
+                        "result",
+                        JSONObject()
+                            .put("resultType", "complete")
+                            .put("ttlMs", 10_000L)
+                            .put("tools", oversizedTools),
+                    )
+                    .toString(),
+            )
+        }
+        try {
+            val configured = McpServerSetting(id = "tools", name = "Tools", url = toolLimitServer.url())
+            val discovery = McpHttpClient(configured, bearerToken = null).use { it.discoverTools() }
+            assertEquals(McpHttpClient.MAX_DISCOVERED_TOOLS, discovery.tools.size)
+            assertEquals(McpDiscoveryTruncation.TOOL_LIMIT, discovery.truncation)
+        } finally {
+            toolLimitServer.stop(0)
+        }
+    }
+
+    private fun toolsArray(start: Int, count: Int): JSONArray = JSONArray().apply {
+        repeat(count) { offset ->
+            put(
+                JSONObject()
+                    .put("name", "tool_${start + offset}")
+                    .put("inputSchema", JSONObject().put("type", "object")),
+            )
         }
     }
 

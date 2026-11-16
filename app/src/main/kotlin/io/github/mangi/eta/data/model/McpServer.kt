@@ -13,6 +13,19 @@ internal object McpAuthorizationType {
     const val BEARER = "bearer"
 }
 
+internal enum class McpDiscoveryTruncation(val wireValue: String) {
+    TOOL_LIMIT("tool_limit"),
+    PAGE_LIMIT("page_limit"),
+    SIZE_LIMIT("size_limit"),
+    CURSOR_LOOP("cursor_loop"),
+    ;
+
+    companion object {
+        fun fromWireValue(value: String?): McpDiscoveryTruncation? =
+            entries.firstOrNull { it.wireValue == value }
+    }
+}
+
 @Serializable
 internal data class McpToolDefinition(
     val name: String,
@@ -40,6 +53,7 @@ internal data class McpServerSetting(
     val lastRefreshedAt: Long? = null,
     val lastProtocolVersion: String? = null,
     val toolsExpireAt: Long? = null,
+    val toolsTruncationReason: McpDiscoveryTruncation? = null,
 ) {
     val activeTools: List<McpToolDefinition>
         get() = if (!enabled) {
