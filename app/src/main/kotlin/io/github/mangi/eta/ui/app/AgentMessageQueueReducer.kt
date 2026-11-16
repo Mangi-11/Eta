@@ -4,11 +4,12 @@ import io.github.mangi.eta.ui.model.AgentChatUiState
 import io.github.mangi.eta.ui.model.QueuedMessageUi
 
 /**
- * 会话内排队发送（Queue）与插话发送（Interrupt）的纯状态转换器。
+ * 会话内排队发送（Queue）与插话发送（Steer）的纯状态转换器。
  *
  * - 排队发送追加到队尾，等待当前回合自然结束后按 FIFO 顺序自动发出。
- * - 插话发送（[QueuedMessageUi.immediateInterrupt]）置入队首并请求中止当前运行，
- *   待当前运行收尾落盘后立即优先发出，避免取消与新运行之间出现历史写入竞态。
+ * - 插话发送优先向当前运行中的 Run 注入 steering 补充指令（不中断工具与请求、保留缓存）；
+ *   在 IPC 提交期间暂时带着 [QueuedMessageUi.immediateInterrupt] 占住队首，被接纳后移除，
+ *   若当前 Run 已结束或不可接纳则退回队首等待收尾后发出。
  * - 用户主动点击停止按钮时保留队列不自动发出，防止想停下时后续排队指令继续跑起来。
  */
 internal object AgentMessageQueueReducer {
@@ -28,6 +29,36 @@ internal object AgentMessageQueueReducer {
             pendingFileReferences = emptyList(),
             messageEdit = null,
             queuedMessages = nextQueue,
+        )
+    }
+
+    /** 将条目置顶到队首并清除插话标记，用于不支持运行时 Steer（如含图片）时等待当前 Run 结束后优先发送。 */
+    fun promoteToQueueHead(
+        state: AgentChatUiState,
+        id: String,
+    ): AgentChatUiState {
+        val target = state.queuedMessages.firstOrNull { it.id == id } ?: return state
+        val rest = state.queuedMessages
+            .filterNot { it.id == id }
+            .map { it.copy(immediateInterrupt = false) }
+        return state.copy(
+            queuedMessages = listOf(target.copy(immediateInterrupt = false)) + rest,
+        )
+    }
+
+    /** 将刚入队且无法立即 Steer 的条目置顶到队首（清除草稿，不中断当前运行）。 */
+    fun enqueueAtHead(
+        state: AgentChatUiState,
+        item: QueuedMessageUi,
+    ): AgentChatUiState {
+        val normalized = item.copy(immediateInterrupt = false)
+        val rest = state.queuedMessages.map { it.copy(immediateInterrupt = false) }
+        return state.copy(
+            input = "",
+            pendingImages = emptyList(),
+            pendingFileReferences = emptyList(),
+            messageEdit = null,
+            queuedMessages = listOf(normalized) + rest,
         )
     }
 
@@ -94,6 +125,15 @@ internal object AgentMessageQueueReducer {
         if (state.queuedMessages.none { it.immediateInterrupt }) return state
         return state.copy(
             queuedMessages = state.queuedMessages.map { it.copy(immediateInterrupt = false) },
+        )
+    }
+
+    fun clearInterruptFlag(state: AgentChatUiState, id: String): AgentChatUiState {
+        if (state.queuedMessages.none { it.id == id && it.immediateInterrupt }) return state
+        return state.copy(
+            queuedMessages = state.queuedMessages.map { item ->
+                if (item.id == id && item.immediateInterrupt) item.copy(immediateInterrupt = false) else item
+            },
         )
     }
 

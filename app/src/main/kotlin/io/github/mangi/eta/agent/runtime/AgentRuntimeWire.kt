@@ -90,6 +90,12 @@ internal object AgentRuntimeWire {
     /** service -> client：返回各运行的会话归属与当前阶段。 */
     const val MSG_QUERY_ACTIVE_RUNS_RESPONSE = 17
 
+    /** client -> service：向运行中的 run 追加下一回合 steering 补充指令，不取消当前请求或工具。 */
+    const val MSG_STEER = 18
+
+    /** service -> client：返回 steering 是否已被当前活跃 run 接纳及分配的补充序号。 */
+    const val MSG_STEER_RESPONSE = 19
+
     private const val MODULE_PACKAGE = "io.github.mangi.eta"
     private const val SERVICE_CLASS = "io.github.mangi.eta.agent.runtime.AgentRuntimeService"
 
@@ -155,6 +161,8 @@ internal object AgentRuntimeWire {
         "handoff_dismiss_entry_surface_on_foreground_operation"
     private const val KEY_CREATED_AT = "created_at"
     private const val KEY_RESULTS = "results"
+    private const val KEY_STEER_TEXT = "steer_text"
+    private const val KEY_SUPPLEMENT_INDEX = "supplement_index"
     private const val MAX_RESULT_CONTENT_CHARS = 64_000
     private const val MAX_RESULT_REASONING_CHARS = 32_000
     private const val MAX_DRAIN_CONTENT_CHARS = 16_000
@@ -662,6 +670,28 @@ internal object AgentRuntimeWire {
     }
 
     fun attachRunSucceeded(bundle: Bundle): Boolean = bundle.getBoolean(KEY_OK)
+
+    fun steerBundle(runId: String, text: String, textCacheDir: File? = null): Bundle = Bundle().apply {
+        putString(KEY_RUN_ID, runId)
+        AgentWireText.put(this, KEY_STEER_TEXT, text, textCacheDir)
+    }
+
+    fun steerTextFromBundle(bundle: Bundle): String =
+        AgentWireText.read(bundle, KEY_STEER_TEXT).orEmpty()
+
+    fun steerResponseBundle(
+        runId: String,
+        accepted: Boolean,
+        supplementIndex: Int = 0,
+    ): Bundle = Bundle().apply {
+        putString(KEY_RUN_ID, runId)
+        putBoolean(KEY_OK, accepted)
+        putInt(KEY_SUPPLEMENT_INDEX, supplementIndex)
+    }
+
+    fun steerAcceptedFromBundle(bundle: Bundle): Boolean = bundle.getBoolean(KEY_OK)
+
+    fun steerSupplementIndexFromBundle(bundle: Bundle): Int = bundle.getInt(KEY_SUPPLEMENT_INDEX)
 
     fun runIdFromBundle(bundle: Bundle): String =
         bundle.getString(KEY_RUN_ID).orEmpty()

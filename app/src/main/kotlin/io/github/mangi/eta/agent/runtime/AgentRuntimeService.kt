@@ -14,6 +14,7 @@ import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -240,6 +241,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             if (!isMessageSenderAllowed(msg)) {
                 if (msg.what == AgentRuntimeWire.MSG_START_RUN) {
                     AgentRuntimeWire.closeImageDescriptors(msg.data)
+                } else if (msg.what == AgentRuntimeWire.MSG_STEER) {
+                    AgentWireText.close(msg.data)
                 }
                 return
             }
@@ -271,6 +274,10 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                 AgentRuntimeWire.MSG_CANCEL -> {
                     val runId = msg.data?.let(AgentRuntimeWire::runIdFromBundle).orEmpty()
                     if (runId.isNotBlank()) cancelRun(runId)
+                }
+
+                AgentRuntimeWire.MSG_STEER -> {
+                    steerRun(msg.data, msg.replyTo)
                 }
 
                 AgentRuntimeWire.MSG_ACK_RESULT -> {
@@ -844,6 +851,56 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             if (displayedRun === run && !guiControl.state.value.userPaused) state.value = run.overlayState
             updateKeepScreenOn()
             publishExecutionState()
+        }
+    }
+
+    private fun steerRun(data: Bundle?, replyTo: Messenger?) {
+        if (data == null) {
+            sendSteerResponse("", replyTo, accepted = false)
+            return
+        }
+        var runId = ""
+        val text = try {
+            runId = AgentRuntimeWire.runIdFromBundle(data)
+            AgentRuntimeWire.steerTextFromBundle(data).trim()
+        } catch (throwable: Throwable) {
+            AndroidAgentLogger.warnThrottled("runtime_invalid_steer_request") {
+                "Agent runtime rejected invalid steer request: type=${throwable.safeLogType()}"
+            }
+            ""
+        } finally {
+            AgentWireText.close(data)
+        }
+        val run = runId.takeIf(String::isNotBlank)?.let(runs::get)
+        val event = if (run != null && text.isNotBlank()) run.supplement(text) else null
+        if (event != null) {
+            AndroidAgentLogger.info(
+                "Agent runtime supplement received: index=${event.index}, chars=${event.text.length}"
+            )
+            run.overlayState = run.overlayState.applyEvent(event)
+            if (displayedRun === run && guiControl.state.value.ownerRunId == run.runId && !guiControl.state.value.userPaused) {
+                state.value = run.overlayState
+            }
+            sendSteerResponse(runId, replyTo, accepted = true, supplementIndex = event.index)
+        } else {
+            sendSteerResponse(runId, replyTo, accepted = false)
+        }
+    }
+
+    private fun sendSteerResponse(
+        runId: String,
+        replyTo: Messenger?,
+        accepted: Boolean,
+        supplementIndex: Int = 0,
+    ) {
+        runCatching {
+            val msg = Message.obtain(null, AgentRuntimeWire.MSG_STEER_RESPONSE)
+            msg.data = AgentRuntimeWire.steerResponseBundle(runId, accepted, supplementIndex)
+            replyTo?.send(msg)
+        }.onFailure { throwable ->
+            AndroidAgentLogger.warnThrottled("runtime_steer_response_delivery_failed") {
+                "Agent runtime steer response failed: type=${throwable.safeLogType()}"
+            }
         }
     }
 

@@ -28,6 +28,7 @@ internal object OpenAiRequestMessages {
                     remove("_eta_compaction_archive_id")
                     remove("_eta_compaction_prompt")
                     remove("_eta_observation")
+                    remove("_eta_steering")
                     remove("_eta_message_id")
                     remove("_eta_character_profile")
                     remove("_eta_assistant_screen_context")

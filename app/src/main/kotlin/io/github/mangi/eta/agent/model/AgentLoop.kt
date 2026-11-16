@@ -326,6 +326,7 @@ internal class AgentLoop(
     private fun steeringMessage(supplement: String): JSONObject =
         AgentConversationCodec.userTextMessage(steeringPrompt(supplement))
             .put("_eta_message_id", "user-$operationId-supplement-${++supplementIndex}")
+            .put("_eta_steering", true)
 
     private fun executeToolBatch(
         round: Int,

@@ -346,6 +346,46 @@ class AnthropicMessagesProviderTest {
     }
 
     @Test
+    fun inRunSteeringPreservesPreviousRoundSignaturesForCachePrefix() {
+        fun toolAssistant(id: String, signature: String) = JSONObject()
+            .put("role", "assistant")
+            .put("content", "")
+            .put("tool_calls", JSONArray().put(JSONObject().put("id", id).put("type", "function")
+                .put("function", JSONObject().put("name", "device_info").put("arguments", "{}"))))
+            .also { message ->
+                AnthropicEphemeralState.attachContentBlocks(message, JSONArray()
+                    .put(JSONObject().put("type", "thinking").put("thinking", "").put("signature", signature))
+                    .put(JSONObject().put("type", "tool_use").put("id", id)
+                        .put("name", "device_info").put("input", JSONObject())))
+            }
+        val messages = JSONArray()
+            .put(JSONObject().put("role", "system").put("content", "系统"))
+            .put(AgentConversationCodec.userTextMessage("问题"))
+            .put(toolAssistant("toolu_1", "FIRST_SIGNATURE"))
+            .put(JSONObject().put("role", "tool").put("tool_call_id", "toolu_1").put("content", "结果一"))
+            .put(toolAssistant("toolu_2", "SECOND_SIGNATURE"))
+            .put(JSONObject().put("role", "tool").put("tool_call_id", "toolu_2").put("content", "结果二"))
+            .put(AgentConversationCodec.userTextMessage("请改用第二种方案").put("_eta_steering", true))
+        val requestBody = AtomicReference<String>()
+        withAnthropicServer(event("message_stop", JSONObject()), onRequest = requestBody::set) { baseUrl ->
+            AnthropicMessagesProvider.complete(
+                providerRequest(baseUrl).copy(messages = messages),
+                AgentRunController(),
+            )
+        }
+
+        val raw = requestBody.get()
+        assertTrue(raw.contains("FIRST_SIGNATURE"))
+        assertTrue(raw.contains("SECOND_SIGNATURE"))
+        assertFalse(raw.contains("_eta_steering"))
+        val sentMessages = JSONObject(raw).getJSONArray("messages")
+        val lastContent = sentMessages.getJSONObject(sentMessages.length() - 1).getJSONArray("content")
+        assertEquals("tool_result", lastContent.getJSONObject(0).getString("type"))
+        assertEquals("text", lastContent.getJSONObject(1).getString("type"))
+        assertTrue(lastContent.getJSONObject(1).has("cache_control"))
+    }
+
+    @Test
     fun thinkingStreamsThroughToolBoundariesAndCompletesBeforeConnectionCloses() {
         val firstDelta = CountDownLatch(1)
         val completed = CountDownLatch(1)

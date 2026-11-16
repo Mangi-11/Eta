@@ -1465,6 +1465,7 @@
   <string name="chat_queue_status_count">排队中 · %1$d</string>
   <string name="chat_queue_interrupting">插话中</string>
   <string name="chat_queue_steer_now">立即插话发送</string>
+  <string name="chat_queue_steer_images_deferred">Messages with images will be sent next after the current task finishes</string>
   <string name="chat_queue_remove">移除排队消息</string>
   <string name="chat_queue_images_only">[%1$d 张图片]</string>
   <string name="chat_queue_files_only">[%1$d 个文件]</string>

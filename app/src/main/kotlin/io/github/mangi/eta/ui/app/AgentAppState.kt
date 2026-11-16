@@ -1309,12 +1309,43 @@ internal class AgentAppState(
 
     fun steerQueuedMessage(id: String) {
         if (!homeState.isConversationLoaded) return
-        val (nextState, promoted) = AgentMessageQueueReducer.promoteToInterrupt(homeState, id)
-        if (promoted == null) return
-        updateCurrentConversation(nextState, updateTimestamp = false)
-        if (nextState.isStreaming && !nextState.isCompacting) {
-            requestInterruptCurrentRun()
-        } else if (!nextState.isStreaming) {
+        val target = homeState.queuedMessages.firstOrNull { it.id == id } ?: return
+        if (homeState.isStreaming && !homeState.isCompacting) {
+            if (target.pendingImages.isNotEmpty()) {
+                val headState = AgentMessageQueueReducer.promoteToQueueHead(homeState, id)
+                if (headState !== homeState) {
+                    updateCurrentConversation(headState, updateTimestamp = false)
+                }
+                Toast.makeText(
+                    appContext,
+                    appContext.getString(R.string.chat_queue_steer_images_deferred),
+                    Toast.LENGTH_SHORT,
+                ).show()
+                return
+            }
+            val fileReferences = target.pendingFileReferences.map { it.reference }
+            if (
+                !AgentFileReferencePolicy.canSend(
+                    references = fileReferences,
+                    terminalToolsEnabled = agentBooleanForUi(Prefs.Keys.AGENT_TERMINAL_TOOLS) &&
+                        (Prefs.isToolEnabled("read_file") || Prefs.isToolEnabled("terminal")),
+                )
+            ) {
+                Toast.makeText(
+                    appContext,
+                    appContext.getString(R.string.state_ui_file_path_reference_requires_opening_the_termina_deca4c),
+                    Toast.LENGTH_SHORT,
+                ).show()
+                return
+            }
+            val (nextState, promoted) = AgentMessageQueueReducer.promoteToInterrupt(homeState, id)
+            if (promoted == null) return
+            updateCurrentConversation(nextState, updateTimestamp = false)
+            steerToActiveRun(selectedConversationId, promoted)
+        } else if (!homeState.isStreaming) {
+            val (nextState, promoted) = AgentMessageQueueReducer.promoteToInterrupt(homeState, id)
+            if (promoted == null) return
+            updateCurrentConversation(nextState, updateTimestamp = false)
             dispatchQueuedMessage(selectedConversationId, promoted)
         }
     }
@@ -1385,14 +1416,26 @@ internal class AgentAppState(
                 content = prompt,
                 pendingImages = pendingImages,
                 pendingFileReferences = pendingFileReferences,
-                immediateInterrupt = immediateInterrupt,
+                immediateInterrupt = immediateInterrupt && pendingImages.isEmpty(),
             )
+            if (immediateInterrupt && pendingImages.isNotEmpty()) {
+                updateCurrentConversation(
+                    state = AgentMessageQueueReducer.enqueueAtHead(homeState, queued),
+                    updateTimestamp = false,
+                )
+                Toast.makeText(
+                    appContext,
+                    appContext.getString(R.string.chat_queue_steer_images_deferred),
+                    Toast.LENGTH_SHORT,
+                ).show()
+                return
+            }
             updateCurrentConversation(
                 state = AgentMessageQueueReducer.enqueue(homeState, queued),
                 updateTimestamp = false,
             )
             if (immediateInterrupt) {
-                requestInterruptCurrentRun()
+                steerToActiveRun(selectedConversationId, queued)
             }
             return
         }
@@ -1421,6 +1464,55 @@ internal class AgentAppState(
             pendingFileReferences = pendingFileReferences,
             editBoundary = editBoundary,
         )
+    }
+
+    private fun steerToActiveRun(
+        conversationId: String?,
+        item: QueuedMessageUi,
+    ) {
+        val targetConversationId = conversationId ?: return
+        fun demoteToQueueHead() {
+            val current = conversationsById[targetConversationId] ?: return
+            val demoted = AgentMessageQueueReducer.clearInterruptFlag(current, item.id)
+            if (demoted !== current) {
+                updateConversation(targetConversationId, demoted, updateTimestamp = false)
+            }
+        }
+        val activeRunId = runStore.activeRunId(targetConversationId)
+        val steerPrompt = AgentFileReferencePromptCodec.format(
+            item.content,
+            item.pendingFileReferences.map { it.reference },
+        ).trim()
+        if (activeRunId == null || steerPrompt.isBlank()) {
+            demoteToQueueHead()
+            return
+        }
+        scope.launch(Dispatchers.IO) {
+            val outcome = AgentRuntimeClient(appContext, AndroidAgentLogger).steerRun(activeRunId, steerPrompt)
+            withContext(Dispatchers.Main) {
+                val current = conversationsById[targetConversationId] ?: return@withContext
+                if (current.queuedMessages.none { it.id == item.id }) return@withContext
+                when (outcome) {
+                    is AgentRuntimeClient.SteerOutcome.Accepted -> {
+                        val updated = AgentMessageQueueReducer.remove(current, item.id)
+                        if (updated !== current) {
+                            updateConversation(targetConversationId, updated, updateTimestamp = false)
+                        }
+                        if (outcome.supplementIndex > 0) {
+                            insertSupplementMessage(
+                                runId = activeRunId,
+                                index = outcome.supplementIndex,
+                                text = steerPrompt,
+                                persist = true,
+                            )
+                        }
+                    }
+                    AgentRuntimeClient.SteerOutcome.Rejected,
+                    AgentRuntimeClient.SteerOutcome.Unavailable,
+                    -> demoteToQueueHead()
+                }
+            }
+        }
     }
 
     private fun dispatchQueuedMessage(
@@ -2247,11 +2339,6 @@ internal class AgentAppState(
         requestCancelRun(runId, byUser = true)
     }
 
-    private fun requestInterruptCurrentRun() {
-        val runId = runStore.activeRunId(selectedConversationId) ?: return
-        requestCancelRun(runId)
-    }
-
     private fun requestCancelRun(runId: String, byUser: Boolean = false) {
         if (!runStore.requestStop(runId, byUser)) return
         scope.launch(Dispatchers.IO) {
@@ -2528,17 +2615,12 @@ internal class AgentAppState(
         persist: Boolean = true,
     ) {
         updateMessages(runId) { messages ->
-            AgentPendingResultRecovery.mergeSupplements(
-                runId = runId,
-                supplements = listOf(
-                    AgentUiHandoffPayload.Supplement(
-                        index = index,
-                        text = text,
-                        createdAt = System.currentTimeMillis(),
-                    )
-                ),
-                messages = messages,
-            )
+            val id = AgentPendingResultRecovery.supplementMessageId(runId, index)
+            if (messages.any { it.id == id }) {
+                messages
+            } else {
+                messages + UserMessageUi(id = id, content = text)
+            }
         }
         refreshConversationSummaries()
         if (persist) persistConversations()

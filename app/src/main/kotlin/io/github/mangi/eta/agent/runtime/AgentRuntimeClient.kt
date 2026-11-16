@@ -29,6 +29,12 @@ internal class AgentRuntimeClient(
         data object Unavailable : AttachOutcome
     }
 
+    sealed interface SteerOutcome {
+        data class Accepted(val supplementIndex: Int) : SteerOutcome
+        data object Rejected : SteerOutcome
+        data object Unavailable : SteerOutcome
+    }
+
     sealed interface ActiveRunQuery {
         data class Known(val runId: String?) : ActiveRunQuery
         data object Unavailable : ActiveRunQuery
@@ -124,6 +130,51 @@ internal class AgentRuntimeClient(
             val msg = Message.obtain(null, AgentRuntimeWire.MSG_CANCEL)
             msg.data = AgentRuntimeWire.ackBundle(runId)
             serviceMessenger.send(msg)
+        }
+    }
+
+    fun steerRun(runId: String, text: String): SteerOutcome {
+        val trimmed = text.trim()
+        if (runId.isBlank() || trimmed.isBlank()) return SteerOutcome.Rejected
+        val responseLatch = CountDownLatch(1)
+        val acceptedRef = AtomicReference<Boolean?>(null)
+        val indexRef = AtomicReference(0)
+        val clientMessenger = Messenger(
+            SteerHandler { accepted, supplementIndex ->
+                acceptedRef.set(accepted)
+                indexRef.set(supplementIndex)
+                responseLatch.countDown()
+            }
+        )
+        val lease = AgentRuntimeConnection.acquire(context, logger)
+            ?: return SteerOutcome.Unavailable
+        val deathRecipient = IBinder.DeathRecipient {
+            responseLatch.countDown()
+        }
+        return try {
+            lease.binder.linkToDeath(deathRecipient, 0)
+            val msg = Message.obtain(null, AgentRuntimeWire.MSG_STEER)
+            msg.replyTo = clientMessenger
+            msg.data = AgentRuntimeWire.steerBundle(runId, trimmed, context.cacheDir)
+            AgentWireText.send(lease.messenger, msg)
+            if (!responseLatch.await(RESPONSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                SteerOutcome.Unavailable
+            } else {
+                when (acceptedRef.get()) {
+                    true -> SteerOutcome.Accepted(indexRef.get())
+                    false -> SteerOutcome.Rejected
+                    null -> SteerOutcome.Unavailable
+                }
+            }
+        } catch (interrupted: InterruptedException) {
+            Thread.currentThread().interrupt()
+            SteerOutcome.Unavailable
+        } catch (throwable: Throwable) {
+            logger.warn("Agent runtime steer failed: type=${throwable.safeLogType()}")
+            SteerOutcome.Unavailable
+        } finally {
+            runCatching { lease.binder.unlinkToDeath(deathRecipient, 0) }
+            lease.close()
         }
     }
 
@@ -379,6 +430,20 @@ internal class AgentRuntimeClient(
                     if (delivery.beginResult()) onResult(msg.data ?: return)
                 AgentRuntimeWire.MSG_ATTACH_RUN_RESPONSE ->
                     delivery.attachResponse(AgentRuntimeWire.attachRunSucceeded(msg.data ?: return))
+            }
+        }
+    }
+
+    private class SteerHandler(
+        private val onResponse: (Boolean, Int) -> Unit,
+    ) : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) {
+            if (msg.what == AgentRuntimeWire.MSG_STEER_RESPONSE) {
+                val data = msg.data ?: return
+                onResponse(
+                    AgentRuntimeWire.steerAcceptedFromBundle(data),
+                    AgentRuntimeWire.steerSupplementIndexFromBundle(data),
+                )
             }
         }
     }

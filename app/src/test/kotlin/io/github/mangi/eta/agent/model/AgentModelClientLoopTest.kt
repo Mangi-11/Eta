@@ -976,4 +976,32 @@ class AgentModelClientLoopTest {
 
     private fun JSONArray.getJSONObjectFromEnd(offset: Int): JSONObject =
         getJSONObject(length() - offset)
+
+    @Test
+    fun steeringMarksInternalFlagAndOpenAiProjectionStripsIt() {
+        val controller = AgentRunController()
+        val provider = ScriptedProvider(
+            responses = listOf(
+                { _, _ ->
+                    controller.steer("继续核对日志")
+                    assistant(content = "第一阶段", finishReason = "stop")
+                },
+                { _, _ -> assistant(content = "已完成", finishReason = "stop") },
+            ),
+        )
+
+        AgentModelClient.complete(
+            config = modelConfig(),
+            prompt = "开始",
+            toolExecutor = AgentModelClient.ToolExecutor { error("不应调用工具") },
+            provider = provider,
+            runController = controller,
+        )
+
+        val steered = provider.requests[1].getJSONObjectFromEnd(1)
+        assertEquals("user", steered.getString("role"))
+        assertTrue(steered.optBoolean("_eta_steering"))
+        val projected = OpenAiRequestMessages.forChatCompletions(provider.requests[1])
+        assertFalse(projected.toString().contains("_eta_steering"))
+    }
 }

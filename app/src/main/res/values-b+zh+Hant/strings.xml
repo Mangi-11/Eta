@@ -1342,6 +1342,7 @@
   <string name="chat_queue_status_count">排隊中 · %1$d</string>
   <string name="chat_queue_interrupting">插話中</string>
   <string name="chat_queue_steer_now">立即插話傳送</string>
+  <string name="chat_queue_steer_images_deferred">包含圖片的訊息將在目前任務完成後優先傳送</string>
   <string name="chat_queue_remove">移除排隊訊息</string>
   <string name="chat_queue_images_only">[%1$d 張圖片]</string>
   <string name="chat_queue_files_only">[%1$d 個檔案]</string>

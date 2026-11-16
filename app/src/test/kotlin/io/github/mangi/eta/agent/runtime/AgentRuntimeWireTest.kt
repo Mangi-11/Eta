@@ -807,4 +807,20 @@ class AgentRuntimeWireTest {
 
         assertEquals(false, handoff.dismissEntrySurfaceOnForegroundOperation)
     }
+
+    @Test
+    fun steerBundlesRoundTripTextAndAcceptanceStatus() {
+        val requestBundle = AgentRuntimeWire.steerBundle("run-steer", "改用另一种实现")
+        assertEquals("run-steer", AgentRuntimeWire.runIdFromBundle(requestBundle))
+        assertEquals("改用另一种实现", AgentRuntimeWire.steerTextFromBundle(requestBundle))
+
+        val acceptedBundle = AgentRuntimeWire.steerResponseBundle("run-steer", accepted = true, supplementIndex = 3)
+        assertEquals("run-steer", AgentRuntimeWire.runIdFromBundle(acceptedBundle))
+        assertEquals(true, AgentRuntimeWire.steerAcceptedFromBundle(acceptedBundle))
+        assertEquals(3, AgentRuntimeWire.steerSupplementIndexFromBundle(acceptedBundle))
+
+        val rejectedBundle = AgentRuntimeWire.steerResponseBundle("run-steer", accepted = false)
+        assertEquals(false, AgentRuntimeWire.steerAcceptedFromBundle(rejectedBundle))
+        assertEquals(0, AgentRuntimeWire.steerSupplementIndexFromBundle(rejectedBundle))
+    }
 }

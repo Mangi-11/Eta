@@ -156,6 +156,30 @@ class AgentMessageQueueReducerTest {
         assertEquals(listOf("q-1"), afterInterruptState.queuedMessages.map { it.id })
     }
 
+    @Test
+    fun promoteToQueueHeadEnqueueAtHeadAndClearInterruptFlagPreserveQueueWithoutInterrupt() {
+        val initial = baseState(isStreaming = true).copy(
+            queuedMessages = listOf(
+                QueuedMessageUi(id = "q-1", content = "第一条"),
+                QueuedMessageUi(id = "q-2", content = "第二条", immediateInterrupt = true),
+            ),
+        )
+        val cleared = AgentMessageQueueReducer.clearInterruptFlag(initial, "q-2")
+        assertFalse(cleared.queuedMessages[1].immediateInterrupt)
+
+        val promotedHead = AgentMessageQueueReducer.promoteToQueueHead(cleared, "q-2")
+        assertEquals(listOf("q-2", "q-1"), promotedHead.queuedMessages.map { it.id })
+        assertFalse(promotedHead.queuedMessages.any { it.immediateInterrupt })
+
+        val enqueuedHead = AgentMessageQueueReducer.enqueueAtHead(
+            state = promotedHead.copy(input = "带图插话"),
+            item = QueuedMessageUi(id = "q-3", content = "带图插话", immediateInterrupt = true),
+        )
+        assertEquals("", enqueuedHead.input)
+        assertEquals(listOf("q-3", "q-2", "q-1"), enqueuedHead.queuedMessages.map { it.id })
+        assertFalse(enqueuedHead.queuedMessages.first().immediateInterrupt)
+    }
+
     private fun baseState(
         isStreaming: Boolean,
         input: String = "",

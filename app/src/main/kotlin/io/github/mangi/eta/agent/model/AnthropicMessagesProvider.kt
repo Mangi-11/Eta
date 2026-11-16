@@ -94,12 +94,14 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
         val systemParts = mutableListOf<String>()
         val anthropicMessages = JSONArray()
         // 当前轮（最后一条真实用户消息之后）的助手消息都原样带回签名块：工具循环中逐轮保持
-        // 同一前缀，缓存才能在每一轮续用；压缩指令消息不推进当前轮起点，以免丢失当前轮签名缓存。
+        // 同一前缀，缓存才能在每一轮续用；压缩指令与运行内 steering 补充不推进当前轮起点，
+        // 以免剥离此前已缓存轮次的思考签名导致前缀缓存失效。
         val currentTurnStart = (messages.length() - 1 downTo 0).firstOrNull { index ->
             messages.optJSONObject(index)?.let {
                 it.optString("role") == "user" &&
                     !it.optBoolean("_eta_observation") &&
-                    !it.optBoolean("_eta_compaction_prompt")
+                    !it.optBoolean("_eta_compaction_prompt") &&
+                    !it.optBoolean("_eta_steering")
             } == true
         } ?: -1
         for (index in 0 until messages.length()) {
