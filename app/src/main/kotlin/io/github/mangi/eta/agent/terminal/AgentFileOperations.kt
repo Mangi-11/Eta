@@ -8,8 +8,10 @@ import java.security.MessageDigest
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal class AgentFileOperations(private val backend: FileToolBackend) {
-    private val textReader = FileToolTextReader(backend)
+internal class AgentFileOperations(
+    private val backend: FileToolBackend,
+    private val textReader: FileToolTextReader = FileToolTextReader(backend),
+) {
 
     fun statFile(path: String): String = fileToolOperation("stat_file") { base("stat_file").put("file", backend.stat(backend.resolve(path)).toJson()) }
 

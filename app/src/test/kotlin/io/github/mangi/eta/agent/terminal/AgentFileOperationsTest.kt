@@ -1,6 +1,11 @@
 package io.github.mangi.eta.agent.terminal
 
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.CharsetDecoder
+import java.nio.charset.CoderResult
+import java.nio.charset.CodingErrorAction
 import java.nio.file.Files
 import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.PosixFilePermissions
@@ -170,5 +175,54 @@ class AgentFileOperationsTest {
             operations.readFile(file.name)
             throw AssertionError("cancelled read accepted")
         } catch (_: InterruptedException) { }
+    }
+
+    @Test fun editAndLimitCheckSurviveDecoderThatBuffersIncompleteTailBytes() {
+        val original = "a".repeat(15_999) + "中文结尾"
+        val file = temporary.newFile("icu_boundary.txt").apply { writeText(original) }
+        val backend = LocalFileToolBackend(temporary.root)
+        val reader = FileToolTextReader(backend) { IcuBufferingUtf8Decoder() }
+        val stat = backend.stat(file.path)
+
+        val firstChunk = reader.read(stat, offset = 0, maxBytes = 16_000)
+        assertEquals("a".repeat(15_999), firstChunk.text)
+        assertEquals(15_999, firstChunk.bytesConsumed)
+        assertFalse(firstChunk.eof)
+
+        val tiny = runCatching {
+            reader.read(stat, offset = 15_999, maxBytes = 1)
+        }.exceptionOrNull() as FileToolException
+        assertEquals("READ_LIMIT_TOO_SMALL", tiny.code)
+
+        val operations = AgentFileOperations(backend, reader)
+        val editResult = JSONObject(operations.editFile(file.name, "中文结尾", "已替换"))
+        assertTrue(editResult.toString(), editResult.getBoolean("ok"))
+        assertEquals(1, editResult.getInt("replacements"))
+        assertEquals("a".repeat(15_999) + "已替换", file.readText())
+    }
+
+    /** 模拟 Android ICU 解码器在非 EOF 块尾把半个 UTF-8 字符吞入内部缓冲的行为。 */
+    private class IcuBufferingUtf8Decoder : CharsetDecoder(Charsets.UTF_8, 1f, 1f) {
+        private val delegate = Charsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+        private var bufferedCount = 0
+
+        override fun implReset() {
+            delegate.reset()
+            bufferedCount = 0
+        }
+
+        override fun decodeLoop(input: ByteBuffer, out: CharBuffer): CoderResult {
+            val result = delegate.decode(input, out, false)
+            if (result.isUnderflow && input.hasRemaining()) {
+                val tail = input.remaining()
+                if (bufferedCount + tail < 4) {
+                    bufferedCount += tail
+                    input.position(input.limit())
+                }
+            }
+            return result
+        }
     }
 }
