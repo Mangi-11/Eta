@@ -1207,7 +1207,7 @@
   <string name="speech_group_voice">声音</string>
   <string name="speech_auto_speak">自动播报回答</string>
   <string name="speech_auto_speak_summary">仅在助手浮窗可见时播报语音提问的最终回答</string>
-  <string name="speech_overview_note">聊天中的语音输入会先转成可编辑文字。回答可手动朗读，开始录音会停止播放。</string>
+  <string name="speech_overview_note">聊天中轻点麦克风可转成可编辑文字，按住说话松手直接发送。回答可手动朗读，开始录音会停止播放。</string>
   <string name="speech_service_and_model">服务与模型</string>
   <string name="speech_asr_qwen_realtime">千问 · 实时识别</string>
   <string name="speech_asr_qwen_flash">千问 · 短音频识别</string>
@@ -1302,6 +1302,8 @@
   <string name="speech_oss_configure">配置自有 OSS</string>
   <string name="speech_dictation">语音输入</string>
   <string name="speech_dictation_finish">完成听写</string>
+  <string name="speech_hold_release_to_cancel">松开取消</string>
+  <string name="speech_hold_recognizing_send">正在识别并发送…</string>
   <string name="speech_read_aloud">朗读回答</string>
   <string name="speech_read_stop">停止朗读</string>
   <string name="speech_disable_auto_read">关闭自动朗读</string>

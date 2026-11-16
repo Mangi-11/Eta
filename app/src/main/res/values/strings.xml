@@ -1226,7 +1226,7 @@
   <string name="speech_group_voice">Voice</string>
   <string name="speech_auto_speak">Speak answers automatically</string>
   <string name="speech_auto_speak_summary">Only speaks final answers to voice questions while the assistant overlay is visible</string>
-  <string name="speech_overview_note">Dictation in chat turns speech into editable text first. Answers can be read aloud manually; recording stops playback.</string>
+  <string name="speech_overview_note">Tap the mic in chat to insert editable text, or hold to speak and release to send. Answers can be read aloud manually; recording stops playback.</string>
   <string name="speech_service_and_model">Service &amp; model</string>
   <string name="speech_asr_qwen_realtime">Qwen · Realtime</string>
   <string name="speech_asr_qwen_flash">Qwen · Short audio</string>
@@ -1322,6 +1322,8 @@
   <string name="speech_oss_configure">Configure your own OSS bucket</string>
   <string name="speech_dictation">Voice input</string>
   <string name="speech_dictation_finish">Finish dictation</string>
+  <string name="speech_hold_release_to_cancel">Release to cancel</string>
+  <string name="speech_hold_recognizing_send">Transcribing and sending…</string>
   <string name="speech_read_aloud">Read aloud</string>
   <string name="speech_read_stop">Stop reading</string>
   <string name="speech_disable_auto_read">Disable auto read-aloud</string>
