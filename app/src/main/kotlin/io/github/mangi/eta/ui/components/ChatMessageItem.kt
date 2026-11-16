@@ -1051,8 +1051,8 @@ private fun AgentMessageBlock(
                 !message.isStreaming &&
                 message.content.isNotBlank() &&
                 revealComplete,
-            enter = fadeIn(tween(160)) + expandVertically(tween(160)),
-            exit = fadeOut(tween(120)) + shrinkVertically(tween(120)),
+            enter = fadeIn(tween(160)) + expandVertically(tween(160), expandFrom = Alignment.Top),
+            exit = fadeOut(tween(120)) + shrinkVertically(tween(120), shrinkTowards = Alignment.Top),
         ) {
             Row(
                 modifier = Modifier
@@ -1282,14 +1282,13 @@ internal fun ThinkingRow(
     }
     // null 表示跟随思考生命周期；用户点过之后只认手动选择。
     var manualExpanded by rememberSaveable(message.id) { mutableStateOf<Boolean?>(null) }
-    val keepStreamingMarkdown = remember(message.id) { message.isStreaming }
-    val streamingState = if (keepStreamingMarkdown) {
-        retainedStreamingState ?: remember(message.id) { StreamingMarkdownState() }
+    val onExpandItem = LocalOnChatItemExpand.current
+    val streamingState = retainedStreamingState ?: if (message.isStreaming) {
+        remember(message.id) { StreamingMarkdownState() }
     } else {
         null
     }
-    val completedDocument = (streamingState ?: retainedStreamingState)
-        ?.snapshot?.completedDocumentFor(message.content)
+    val completedDocument = streamingState?.snapshot?.completedDocumentFor(message.content)
     // 展开态必须在组合期同步推导：若经 LaunchedEffect 晚一帧收起，思考结束的那一帧尾部窗口
     // 已解除而正文仍展开，会以全文高度闪现一帧，再从该高度执行收起动画。
     val expanded = manualExpanded ?: message.isStreaming
@@ -1326,7 +1325,9 @@ internal fun ThinkingRow(
                 .clip(RoundedCornerShape(10.dp))
                 .clickable {
                     // 尾部窗口下点击视为要看全文，保持展开并放开高度限制。
-                    manualExpanded = (tailWindow && expanded) || !expanded
+                    val expanding = (tailWindow && expanded) || !expanded
+                    if (expanding) onExpandItem()
+                    manualExpanded = expanding
                 }
                 .then(
                     if (compact) {
@@ -1383,7 +1384,11 @@ internal fun ThinkingRow(
             )
         }
 
-        AnimatedVisibility(visible = expanded && message.content.isNotBlank()) {
+        AnimatedVisibility(
+            visible = expanded && message.content.isNotBlank(),
+            enter = ExpandDownEnter,
+            exit = CollapseUpExit,
+        ) {
             Column {
                 if (!compact) {
                     Box(
@@ -1402,9 +1407,7 @@ internal fun ThinkingRow(
                         top = if (compact) 3.dp else 8.dp,
                         bottom = if (compact) 10.dp else 12.dp,
                     )
-                if (streamingState != null &&
-                    (message.isStreaming || completedDocument == null || tailWindow)
-                ) {
+                if (streamingState != null && (message.isStreaming || completedDocument == null)) {
                     ThinkingTailWindow(
                         enabled = tailWindow,
                         modifier = contentModifier,

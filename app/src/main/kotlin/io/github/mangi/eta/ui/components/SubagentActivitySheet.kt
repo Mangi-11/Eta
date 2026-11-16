@@ -460,7 +460,11 @@ private fun SubagentStepRow(
                 )
             }
         }
-        AnimatedVisibility(visible = expanded && hasDetail) {
+        AnimatedVisibility(
+            visible = expanded && hasDetail,
+            enter = ExpandDownEnter,
+            exit = CollapseUpExit,
+        ) {
             SelectionContainer {
                 Text(
                     text = step.detail,

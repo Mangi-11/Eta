@@ -120,6 +120,26 @@ class AgentChatScrollPolicyTest {
     }
 
     @Test
+    fun expandingContentSuppressesImmediateBottomReanchorUntilAnimationSettles() {
+        assertFalse(
+            resolveKeepBottomAnchored(
+                current = false,
+                isUserDragging = false,
+                isAtBottom = true,
+                suppressAutoReanchor = true,
+            )
+        )
+        assertTrue(
+            resolveKeepBottomAnchored(
+                current = false,
+                isUserDragging = true,
+                isAtBottom = true,
+                suppressAutoReanchor = true,
+            )
+        )
+    }
+
+    @Test
     fun growingTailOnlyScrollsByTheOverflowDistance() {
         assertEquals(
             BottomFollowDecision(scrollByPx = 24),

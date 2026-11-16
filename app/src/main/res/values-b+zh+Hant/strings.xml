@@ -1390,5 +1390,4 @@
   <string name="assistant_overlay_settings_reasoning_follow_default">跟隨預設</string>
   <string name="assistant_overlay_settings_note">單獨設定電源鍵或系統助手喚起的全域對話浮窗所使用的模型與思考等級；日常輕量指令可選用回應更快的輕量模型並降低或關閉思考，主對話仍保留主力模型。</string>
   <string name="settings_keep_screen_on">執行期間保持螢幕恆亮</string>
-  <string name="settings_keep_screen_on_summary">Agent 執行任務期間防止螢幕自動熄滅</string>
 </resources>

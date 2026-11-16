@@ -1,6 +1,8 @@
 package io.github.mangi.eta.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -42,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -100,6 +103,7 @@ internal fun AgentWorkProcess(
     val steps = remember(messages) { messages.toWorkSteps() }
     // null 表示自动模式；用户点过之后只认手动选择。
     var manualExpanded by rememberSaveable(id) { mutableStateOf<Boolean?>(null) }
+    val onExpandItem = LocalOnChatItemExpand.current
 
     // 以“是否仍是本轮末尾的工作过程”判定收起，而不是 running：思考结束到工具开始之间
     // running 会短暂为 false，按它收起会造成反复开合。展开态在组合期同步推导，与正文
@@ -115,22 +119,16 @@ internal fun AgentWorkProcess(
             messages = messages,
             working = active || running,
             expanded = bodyVisible,
-            onClick = { manualExpanded = !bodyVisible },
+            onClick = {
+                val nextExpanded = !bodyVisible
+                if (nextExpanded) onExpandItem()
+                manualExpanded = nextExpanded
+            },
         )
         AnimatedVisibility(
             visible = bodyVisible,
-            enter = fadeIn(tween(160)) + expandVertically(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
-            ),
-            exit = fadeOut(tween(120)) + shrinkVertically(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
-            ),
+            enter = ExpandDownEnter,
+            exit = CollapseUpExit,
         ) {
             Column(modifier = Modifier.padding(bottom = 6.dp)) {
                 steps.forEachIndexed { index, step ->
@@ -499,3 +497,25 @@ internal val WorkGutterWidth: Dp = 18.dp
 internal val WorkGutterGap: Dp = 8.dp
 private val WorkNodeHaloSize: Dp = 18.dp
 private val WorkDoneIconSize: Dp = 13.5.dp
+
+/**
+ * 用户点击展开列表中的折叠项（工作过程、思考或工具详情）时触发，
+ * 让聊天列表立即释放底部自动跟底，避免展开块被拉到底部而向上顶飞。
+ */
+internal val LocalOnChatItemExpand = staticCompositionLocalOf<() -> Unit> { {} }
+
+internal val ExpandDownEnter: EnterTransition = fadeIn(tween(160)) + expandVertically(
+    animationSpec = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow,
+    ),
+    expandFrom = Alignment.Top,
+)
+
+internal val CollapseUpExit: ExitTransition = fadeOut(tween(120)) + shrinkVertically(
+    animationSpec = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow,
+    ),
+    shrinkTowards = Alignment.Top,
+)
