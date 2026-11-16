@@ -741,6 +741,7 @@ internal object AgentRuntimeWire {
                 putInt("index", event.index)
                 putString("block_id", event.blockId)
                 putString("name", event.name)
+                event.startedAtEpochMs?.let { putLong("started_at_epoch_ms", it) }
             }
 
             is AgentEvent.AssistantBlockDelta -> {
@@ -761,6 +762,7 @@ internal object AgentRuntimeWire {
                 putString("name", event.name)
                 putInt("content_chars", event.contentChars)
                 putString("replacement_content", event.replacementContent)
+                event.elapsedMs?.let { putLong("elapsed_ms", it) }
             }
 
             is AgentEvent.SearchSuggestions -> {
@@ -907,6 +909,7 @@ internal object AgentRuntimeWire {
             index = bundle.getInt("index"),
             blockId = bundle.getString("block_id"),
             name = bundle.getString("name"),
+            startedAtEpochMs = bundle.optionalLong("started_at_epoch_ms"),
         )
 
         "assistant_block_delta" -> AgentEvent.AssistantBlockDelta(
@@ -929,6 +932,7 @@ internal object AgentRuntimeWire {
             name = bundle.getString("name"),
             contentChars = bundle.getInt("content_chars"),
             replacementContent = bundle.getString("replacement_content"),
+            elapsedMs = bundle.optionalLong("elapsed_ms"),
         )
 
         "search_suggestions" -> bundle.getString("html")

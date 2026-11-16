@@ -618,4 +618,138 @@ class AgentRunMessageProjectorTest {
         assertFalse(interruptedNotice.running)
         assertEquals(base + completed, projector.finishContextCompaction(runId, base + completed, "上下文压缩已中断"))
     }
+
+    @Test
+    fun finalizingRunDoesNotOverwriteCompletedThinkingElapsedSecondsAcrossRounds() {
+        var now = 1_000L
+        val projector = AgentRunMessageProjector(nowElapsedRealtime = { now })
+        val runId = "run-multi-round"
+        var messages: List<AgentChatMessageUi> = listOf(UserMessageUi(id = "user-$runId", content = "排查问题"))
+
+        messages = projector.applyEvent(
+            runId,
+            AgentEvent.AssistantBlockStart(1, AgentEvent.AssistantBlockKind.THINKING, 0),
+            messages,
+        )
+        messages = projector.appendReasoningDelta(runId, round = 1, index = 0, delta = "第一轮思考", messages)
+        now = 4_000L
+        messages = projector.startTool(
+            runId,
+            AgentEvent.ToolStarted(round = 1, toolCallId = "call_1", name = "observe_screen", argsPreview = "{}"),
+            projector.finalizeThinkingRound(runId, round = 1, messages),
+        )
+        messages = projector.finishTool(
+            runId,
+            AgentEvent.ToolFinished(
+                round = 1,
+                toolCallId = "call_1",
+                name = "observe_screen",
+                resultSummary = "ok=true",
+                imageCount = 0,
+                imageBytes = 0,
+                success = true,
+            ),
+            messages,
+        )
+
+        now = 64_000L
+        messages = projector.applyEvent(
+            runId,
+            AgentEvent.AssistantBlockStart(2, AgentEvent.AssistantBlockKind.THINKING, 0),
+            messages,
+        )
+        messages = projector.appendReasoningDelta(runId, round = 2, index = 0, delta = "第二轮思考", messages)
+        now = 66_000L
+        messages = projector.appendTextDelta(runId, round = 2, index = 1, delta = "排查完成", messages)
+        messages = projector.finalizeRun(runId, messages)
+
+        val thinkings = messages.filterIsInstance<ThinkingMessageUi>()
+        assertEquals(2, thinkings.size)
+        assertEquals(3, thinkings[0].elapsedSeconds)
+        assertEquals(2, thinkings[1].elapsedSeconds)
+    }
+
+    @Test
+    fun interleavedThinkingInSameRoundKeepsEarlierBlockElapsedSeconds() {
+        var now = 1_000L
+        val projector = AgentRunMessageProjector(nowElapsedRealtime = { now })
+        val runId = "run-same-round"
+        var messages: List<AgentChatMessageUi> = listOf(UserMessageUi(id = "user-$runId", content = "查资料"))
+
+        messages = projector.appendReasoningDelta(runId, round = 1, index = 0, delta = "先判断", messages)
+        now = 3_000L
+        messages = projector.appendTextDelta(runId, round = 1, index = 1, delta = "我查一下。", messages)
+        now = 13_000L
+        messages = projector.appendReasoningDelta(runId, round = 1, index = 2, delta = "再总结", messages)
+        now = 16_000L
+        messages = projector.finalizeThinkingRound(runId, round = 1, messages)
+
+        val thinkings = messages.filterIsInstance<ThinkingMessageUi>()
+        assertEquals(2, thinkings.size)
+        assertEquals(2, thinkings[0].elapsedSeconds)
+        assertEquals(3, thinkings[1].elapsedSeconds)
+    }
+
+    @Test
+    fun replayRestoresCompletedThinkingDurationAndResumesInProgressClock() {
+        var now = 100_000L
+        val projector = AgentRunMessageProjector(nowElapsedRealtime = { now })
+        val runId = "run-replay-clock"
+        val replayEpochMs = 92_000L
+        var messages: List<AgentChatMessageUi> = listOf(UserMessageUi(id = "user-$runId", content = "继续任务"))
+
+        val replayEvents = listOf(
+            AgentEvent.AssistantBlockStart(
+                round = 1,
+                kind = AgentEvent.AssistantBlockKind.THINKING,
+                index = 0,
+                startedAtEpochMs = 10_000L,
+            ),
+            AgentEvent.AssistantBlockDelta(
+                round = 1,
+                kind = AgentEvent.AssistantBlockKind.THINKING,
+                index = 0,
+                deltaChars = 4,
+                delta = "第一轮",
+            ),
+            AgentEvent.AssistantBlockEnd(
+                round = 1,
+                kind = AgentEvent.AssistantBlockKind.THINKING,
+                index = 0,
+                contentChars = 4,
+                elapsedMs = 4_500L,
+            ),
+            AgentEvent.AssistantBlockStart(
+                round = 2,
+                kind = AgentEvent.AssistantBlockKind.THINKING,
+                index = 0,
+                startedAtEpochMs = 80_000L,
+            ),
+            AgentEvent.AssistantBlockDelta(
+                round = 2,
+                kind = AgentEvent.AssistantBlockKind.THINKING,
+                index = 0,
+                deltaChars = 4,
+                delta = "第二轮",
+            ),
+        )
+
+        messages = projector.resetForReplay(runId, messages)
+        replayEvents.forEach { event ->
+            messages = projector.applyEvent(runId, event, messages, replayEpochMs = replayEpochMs)
+        }
+
+        val replayed = messages.filterIsInstance<ThinkingMessageUi>()
+        assertEquals(2, replayed.size)
+        assertFalse(replayed[0].isStreaming)
+        assertEquals(4, replayed[0].elapsedSeconds)
+        assertTrue(replayed[1].isStreaming)
+        assertEquals(12, replayed[1].elapsedSeconds)
+
+        now = 103_000L
+        messages = projector.finalizeThinking(runId, messages)
+        val settled = messages.filterIsInstance<ThinkingMessageUi>()
+        assertEquals(4, settled[0].elapsedSeconds)
+        assertEquals(15, settled[1].elapsedSeconds)
+    }
 }
