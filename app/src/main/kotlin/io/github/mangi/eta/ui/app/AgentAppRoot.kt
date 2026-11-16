@@ -155,10 +155,8 @@ fun AgentAppRoot(
     var navigationResetKey by rememberSaveable { mutableIntStateOf(0) }
     val appViewModel = viewModel<AgentAppViewModel>()
     val agentState = appViewModel.state
-    val runtimeActive by AgentRuntimeService.keepScreenOn.collectAsState()
+    val keepScreenOn by AgentRuntimeService.keepScreenOn.collectAsState()
     val view = LocalView.current
-    val keepScreenOn = backStack.lastOrNull() == AppRoute.Home &&
-        agentState.homeState.isStreaming && runtimeActive
     DisposableEffect(view, keepScreenOn) {
         view.keepScreenOn = keepScreenOn
         onDispose { view.keepScreenOn = false }

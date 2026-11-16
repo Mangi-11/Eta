@@ -2,6 +2,7 @@ package io.github.mangi.eta.agent.runtime
 
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
+import android.annotation.SuppressLint
 import android.app.Service
 import android.app.ActivityOptions
 import android.app.PendingIntent
@@ -9,6 +10,7 @@ import io.github.mangi.eta.ui.MainActivity
 import android.os.Build
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Rect
@@ -17,6 +19,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.Message
 import android.os.Messenger
+import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
 import android.view.Gravity
@@ -103,6 +106,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     @Volatile private var destroyed = false
     @Volatile private var lastGuiOwnerRunId: String? = null
     private var displayedRun: RuntimeRunRegistry.Run? = null
+    private var screenWakeLock: PowerManager.WakeLock? = null
+    private var localPrefsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     private var windowManager: WindowManager? = null
     private var glowView: ComposeView? = null
@@ -153,6 +158,15 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
         AgentOverlayClearance.attach(clearanceHost)
+        Prefs.localAgentPreferences()?.let { prefs ->
+            val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                if (key == Prefs.Keys.AGENT_KEEP_SCREEN_ON_ENABLED) {
+                    mainHandler.post(::updateKeepScreenOn)
+                }
+            }
+            localPrefsListener = listener
+            prefs.registerOnSharedPreferenceChangeListener(listener)
+        }
         serviceScope.launch { guiControl.state.collect(::applyGuiControlState) }
         serviceScope.launch {
             VirtualDisplayController.snapshots.collect { snapshot ->
@@ -191,6 +205,10 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     override fun onDestroy() {
         destroyed = true
         if (activeInstance === this) activeInstance = null
+        localPrefsListener?.let { listener ->
+            Prefs.localAgentPreferences()?.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+        localPrefsListener = null
         setKeepScreenOn(false)
         runs.all().forEach { run ->
             run.releaseIncoming()
@@ -449,6 +467,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             }
         }
         publishExecutionState()
+        updateKeepScreenOn()
         return run
     }
 
@@ -917,12 +936,14 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     }
 
     private fun updateKeepScreenOn() {
-        val guiState = guiControl.state.value
-        val session = guiState.ownerRunId?.let(runs::get)?.session
-        setKeepScreenOn(
-            !guiState.userPaused && session != null && !session.isTerminal &&
-                !session.controller.isCancelled && !session.controller.isPaused,
-        )
+        val enabled = !destroyed &&
+            Prefs.isEnabled(Prefs.Keys.AGENT_KEEP_SCREEN_ON_ENABLED) &&
+            runs.all().any { run ->
+                !run.session.isTerminal &&
+                    !run.session.controller.isCancelled &&
+                    !run.session.controller.isPaused
+            }
+        setKeepScreenOn(enabled)
     }
 
     private fun applyGuiControlState(guiState: GuiControlCoordinator.State) {
@@ -983,9 +1004,25 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         )
     }
 
+    @SuppressLint("WakelockTimeout")
     private fun setKeepScreenOn(enabled: Boolean) {
         keepScreenOnState.value = enabled
         capsuleView?.keepScreenOn = enabled
+        if (enabled) {
+            val wakeLock = screenWakeLock ?: runCatching {
+                @Suppress("DEPRECATION")
+                getSystemService(PowerManager::class.java)
+                    ?.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, WAKE_LOCK_TAG)
+                    ?.apply { setReferenceCounted(false) }
+            }.getOrNull()?.also { screenWakeLock = it }
+            if (wakeLock != null && !wakeLock.isHeld) {
+                runCatching { wakeLock.acquire() }
+            }
+        } else {
+            screenWakeLock?.let { wakeLock ->
+                if (wakeLock.isHeld) runCatching { wakeLock.release() }
+            }
+        }
     }
 
     private fun showOverlay() {
@@ -1500,7 +1537,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         @Volatile
         private var activeInstance: AgentRuntimeService? = null
 
-        // 只投影到 App 与 GUI 浮层的现有窗口，窗口不可见时由系统恢复息屏。
+        // 有活跃任务且开启常亮开关时为 true；同步投影到 App 前台窗口、悬浮窗并持有屏幕唤醒锁。
         private val keepScreenOnState = MutableStateFlow(false)
         val keepScreenOn = keepScreenOnState.asStateFlow()
 
@@ -1510,6 +1547,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         }
 
         private const val ACTION_KEEP_ALIVE = "io.github.mangi.eta.agent.runtime.KEEP_ALIVE"
+        private const val WAKE_LOCK_TAG = "Eta:AgentRun"
         private const val HIDE_DELAY_MS = 2_500L
         private const val RESULT_REVIEW_DELAY_MS = 120_000L
         private const val RESULT_CARD_HEIGHT_RATIO = 0.5f

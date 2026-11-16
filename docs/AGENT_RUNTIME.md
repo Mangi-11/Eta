@@ -315,7 +315,7 @@ Debian 安装基础工具时会刷新 `eta-apt` 入口，旧环境初始化中�
 
 ## 后台执行生命周期
 
-App 本体的当前会话正在回复且处于聊天页时，以及 GUI 运行浮层正在执行时，通过 Android [`View.keepScreenOn`](https://developer.android.com/develop/background-work/background-tasks/awake/screen-on) 保持屏幕常亮，底层使用 `FLAG_KEEP_SCREEN_ON`。仅已有窗口可见时生效；暂停、停止、完成、失败或 Runtime 服务销毁时清除。任务结束后的结果卡片、设置页、空闲会话与纯后台任务不额外保持常亮，无需新增权限，也不修改系统亮度和息屏时间。用户主动锁屏不取消后台任务，但 GUI 操作通常仍需亮屏、解锁；后台执行不因常亮功能获得额外的 CPU 或网络保活保证。
+开启设置中的“运行期间保持屏幕常亮”（默认开启）且有任意未暂停的 Agent run 正在执行时，不管当前处于 Eta 前台（任意页面）还是切至后台/其他应用，由 `AgentRuntimeService` 统一持有 `PowerManager.SCREEN_BRIGHT_WAKE_LOCK`（声明普通权限 `WAKE_LOCK`），并同步投影到 App 前台窗口与 GUI 浮层（`View.keepScreenOn`）防止屏幕超时熄灭。全部运行暂停、停止、完成、失败、关闭开关或 Runtime 服务销毁时立即释放；不修改系统亮度和息屏时间，不唤醒已主动锁屏的设备。用户主动锁屏不取消后台任务，但 GUI 操作通常仍需亮屏、解锁。
 
 `AgentExecutionService` 使用 `specialUse` 前台类型，为当前 Agent 运行、普通终端和 PRoot 后台进程持有任务引用。用户退出页面只断开 UI；最后一个任务结束时服务释放，通知中的停止操作回收它实际持有的任务。普通后台任务保持宿主 tracer 与输出读取，不能像 Root daemon 那样脱离 App 生命周期。Root daemon 保持原有独立生命周期，普通任务清理不会批量停止 Root daemon。Root 用户的原有 Runtime 绑定链路在新增前台服务启动受限时仍可继续，不因新增服务阻断厂商助手入口。
 

@@ -1512,4 +1512,6 @@
   <string name="assistant_overlay_settings_follow_primary_hint">Uses the default main conversation model</string>
   <string name="assistant_overlay_settings_reasoning_follow_default">Follow default</string>
   <string name="assistant_overlay_settings_note">Independently configure the model and reasoning level for the floating assistant triggered by the power key or system assistant. For quick everyday tasks, choosing a fast lightweight model with lower or disabled reasoning helps reduce latency and token usage.</string>
+  <string name="settings_keep_screen_on">Keep screen on while running</string>
+  <string name="settings_keep_screen_on_summary">Prevent screen sleep while an agent task is running</string>
 </resources>

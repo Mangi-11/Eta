@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.BrightnessHigh
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.Cloud
@@ -765,6 +766,16 @@ private fun SettingsPageContent(
                 }
 
                 Group(title = stringResource(R.string.settings_general)) {
+                    SwitchPref(
+                        context = context,
+                        prefs = agentPrefs,
+                        title = stringResource(R.string.settings_keep_screen_on),
+                        summary = stringResource(R.string.settings_keep_screen_on_summary),
+                        key = Prefs.Keys.AGENT_KEEP_SCREEN_ON_ENABLED,
+                        icon = Icons.Rounded.BrightnessHigh,
+                        iconTint = SettingsIconColors.Orange,
+                    )
+                    CouiIconDivider()
                     CouiPreference(
                         title = stringResource(R.string.appearance_title),
                         icon = { CouiSettingsIcon(Icons.Rounded.Palette, SettingsIconColors.Orange) },
@@ -1243,6 +1254,15 @@ private fun SettingsPageContent(
                 item(key = "section_general") {
                     SmallTitle(stringResource(R.string.settings_general))
                     SettingsGroupCard {
+                        SwitchPref(
+                            context = context,
+                            prefs = agentPrefs,
+                            title = stringResource(R.string.settings_keep_screen_on),
+                            summary = stringResource(R.string.settings_keep_screen_on_summary),
+                            key = Prefs.Keys.AGENT_KEEP_SCREEN_ON_ENABLED,
+                            icon = Icons.Rounded.BrightnessHigh,
+                            iconTint = SettingsIconColors.Orange,
+                        )
                         ArrowPreference(
                             title = stringResource(R.string.appearance_title),
                             startAction = {
