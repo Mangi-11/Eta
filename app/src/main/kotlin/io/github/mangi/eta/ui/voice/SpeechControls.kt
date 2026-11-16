@@ -609,25 +609,6 @@ internal fun SpeechInputFeedback(
                 isHold && state.phase == EtaSpeechPhase.LISTENING -> 4
                 else -> 5
             }
-            val displayText = when (displayMode) {
-                0 -> state.error.orEmpty()
-                1 -> stringResource(R.string.speech_hold_release_to_cancel)
-                2 -> state.preview
-                3 -> stringResource(R.string.speech_hold_recognizing_send)
-                4 -> stringResource(R.string.voice_release_to_send)
-                else -> state.preview.ifBlank { state.progress }
-            }
-            val emphasizeHoldText = displayMode == 1 || displayMode == 4
-            val textColor by animateColorAsState(
-                targetValue = when (displayMode) {
-                    1 -> errorColor
-                    4 -> primaryColor
-                    0 -> MiuixTheme.colorScheme.onSurface
-                    else -> MiuixTheme.colorScheme.onSurfaceVariantSummary
-                },
-                animationSpec = tween(durationMillis = 150),
-                label = "speech_feedback_text_color",
-            )
             AnimatedContent(
                 targetState = displayMode,
                 transitionSpec = {
@@ -638,9 +619,28 @@ internal fun SpeechInputFeedback(
                 },
                 modifier = Modifier.weight(1f),
                 label = "speech_feedback_text",
-            ) {
+            ) { mode ->
+                val text = when (mode) {
+                    0 -> state.error.orEmpty()
+                    1 -> stringResource(R.string.speech_hold_release_to_cancel)
+                    2 -> state.preview
+                    3 -> stringResource(R.string.speech_hold_recognizing_send)
+                    4 -> stringResource(R.string.voice_release_to_send)
+                    else -> state.preview.ifBlank { state.progress }
+                }
+                val emphasizeHoldText = mode == 1 || mode == 4
+                val textColor by animateColorAsState(
+                    targetValue = when (mode) {
+                        1 -> errorColor
+                        4 -> primaryColor
+                        0 -> MiuixTheme.colorScheme.onSurface
+                        else -> MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    },
+                    animationSpec = tween(durationMillis = 150),
+                    label = "speech_feedback_text_color",
+                )
                 Text(
-                    text = displayText,
+                    text = text,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     fontWeight = if (emphasizeHoldText) FontWeight.Medium else FontWeight.Normal,
