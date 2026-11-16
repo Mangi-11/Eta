@@ -3,7 +3,6 @@ package io.github.mangi.eta.agent.runtime
 import android.content.SharedPreferences
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.config.Prefs
-import io.github.mangi.eta.data.model.ReasoningEffort
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -17,7 +16,6 @@ internal object AgentRuntimePolicy {
         val deviceDirectTools: Boolean = false,
         val deviceSensitiveReadTools: Boolean = false,
         val deviceSensitiveActionTools: Boolean = false,
-        val thinking: Boolean,
         val autoCompaction: Boolean = Prefs.Keys.BOOLEAN_DEFAULTS.getValue(Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED),
         val subagentTools: Boolean = Prefs.Keys.BOOLEAN_DEFAULTS.getValue(Prefs.Keys.AGENT_SUBAGENT_ENABLED),
         val virtualDisplay: Boolean = Prefs.Keys.BOOLEAN_DEFAULTS.getValue(Prefs.Keys.AGENT_VIRTUAL_DISPLAY_ENABLED),
@@ -32,7 +30,6 @@ internal object AgentRuntimePolicy {
                 preferences.allowed(Prefs.Keys.AGENT_DEVICE_SENSITIVE_READ_TOOLS),
             deviceSensitiveActionTools =
                 preferences.allowed(Prefs.Keys.AGENT_DEVICE_SENSITIVE_ACTION_TOOLS),
-            thinking = preferences.allowed(Prefs.Keys.AGENT_THINKING_ENABLED),
             autoCompaction = preferences.allowed(Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED),
             subagentTools = preferences.allowed(Prefs.Keys.AGENT_SUBAGENT_ENABLED),
             virtualDisplay = preferences.allowed(Prefs.Keys.AGENT_VIRTUAL_DISPLAY_ENABLED),
@@ -42,8 +39,7 @@ internal object AgentRuntimePolicy {
         config: AgentModelClient.ModelConfig,
         permissions: Permissions,
     ): AgentModelClient.ModelConfig {
-        val requestedEffort = config.effectiveReasoningEffort
-        val effectiveEffort = if (permissions.thinking) requestedEffort else ReasoningEffort.OFF
+        val effectiveEffort = config.effectiveReasoningEffort
         val thinkingEnabled = effectiveEffort.enablesReasoning
         val constrained = config.copy(
             terminalTools = config.terminalTools && permissions.terminalTools,

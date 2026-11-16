@@ -21,7 +21,6 @@ class AgentRuntimePolicyTest {
             AgentRuntimePolicy.Permissions(
                 terminalTools = false,
                 browserTools = false,
-                thinking = false,
                 autoCompaction = false,
                 subagentTools = false,
                 virtualDisplay = false,
@@ -41,7 +40,6 @@ class AgentRuntimePolicyTest {
                 deviceDirectTools = true,
                 deviceSensitiveReadTools = true,
                 deviceSensitiveActionTools = true,
-                thinking = true,
                 subagentTools = true,
                 virtualDisplay = true,
             ),
@@ -57,7 +55,6 @@ class AgentRuntimePolicyTest {
             AgentRuntimePolicy.Permissions(
                 terminalTools = false,
                 browserTools = false,
-                thinking = false,
                 autoCompaction = false,
                 subagentTools = false,
                 virtualDisplay = false,
@@ -96,19 +93,37 @@ class AgentRuntimePolicyTest {
             permissions = AgentRuntimePolicy.Permissions(
                 terminalTools = false,
                 browserTools = false,
-                thinking = false,
                 subagentTools = false,
             ),
         )
 
         assertFalse(constrained.terminalTools)
         assertFalse(constrained.browserTools)
-        assertFalse(constrained.thinkingEnabled)
-        assertEquals(ReasoningEffort.OFF, constrained.reasoningEffort)
+        assertTrue(constrained.thinkingEnabled)
+        assertEquals(ReasoningEffort.DEFAULT, constrained.reasoningEffort)
         assertFalse(constrained.deviceDirectTools)
         assertFalse(constrained.deviceSensitiveReadTools)
         assertFalse(constrained.deviceSensitiveActionTools)
         assertFalse(constrained.subagentTools)
+    }
+
+    @Test
+    fun explicitReasoningInRequestIsNotSuppressedWhenDefaultThinkingPreferenceIsOff() {
+        val preferences = booleanPreferences { key, default ->
+            if (key == Prefs.Keys.AGENT_THINKING_ENABLED) false else default
+        }
+        val permissions = AgentRuntimePolicy.permissions(preferences)
+        val constrained = AgentRuntimePolicy.constrain(
+            config = modelConfig(
+                terminalTools = false,
+                browserTools = false,
+                thinking = true,
+            ).copy(reasoningEffort = ReasoningEffort.HIGH),
+            permissions = permissions,
+        )
+
+        assertTrue(constrained.thinkingEnabled)
+        assertEquals(ReasoningEffort.HIGH, constrained.reasoningEffort)
     }
 
     @Test
@@ -122,7 +137,6 @@ class AgentRuntimePolicyTest {
             permissions = AgentRuntimePolicy.Permissions(
                 terminalTools = true,
                 browserTools = true,
-                thinking = true,
                 subagentTools = true,
             ),
         )
@@ -139,7 +153,7 @@ class AgentRuntimePolicyTest {
             config = modelConfig(
                 terminalTools = false,
                 browserTools = false,
-                thinking = true,
+                thinking = false,
             ).copy(
                 extraBodyJson = """{"thinking":{"budget_tokens":4096},"temperature":0.2,"generation_config":{"thinking_level":"high","thinking_summaries":"auto","max_output_tokens":4096}}""",
                 customBody = listOf(
@@ -158,7 +172,6 @@ class AgentRuntimePolicyTest {
             permissions = AgentRuntimePolicy.Permissions(
                 terminalTools = false,
                 browserTools = false,
-                thinking = false,
             ),
         )
 

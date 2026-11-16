@@ -422,6 +422,7 @@
   <string name="ui_reset_built_in_configuration_35b6ec">重設內建設定</string>
   <string name="ui_lock_screen_evokes_automatic_voice_input_1cde18">鎖定畫面喚起自動語音輸入</string>
   <string name="ui_deep_thinking_enabled_by_default_c032d6">預設啟用思考</string>
+  <string name="settings_default_reasoning_effort">預設思考深度</string>
   <string name="tool_tap_area">點按區域</string>
   <string name="tool_current_context">時間與位置</string>
   <string name="tool_memory_get">讀取記憶</string>

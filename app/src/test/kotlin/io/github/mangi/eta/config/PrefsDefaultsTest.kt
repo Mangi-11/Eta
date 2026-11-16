@@ -1,5 +1,8 @@
 package io.github.mangi.eta.config
 
+import android.content.SharedPreferences
+import io.github.mangi.eta.data.model.ReasoningEffort
+import java.lang.reflect.Proxy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -52,4 +55,33 @@ class PrefsDefaultsTest {
             Prefs.Keys.LOCAL_AGENT_KEYS,
         )
     }
+
+    @Test
+    fun defaultReasoningEffortFallsBackFromMissingOffOrUnknownValues() {
+        assertEquals(ReasoningEffort.DEFAULT, Prefs.defaultReasoningEffort(null))
+        assertEquals(ReasoningEffort.DEFAULT, Prefs.defaultReasoningEffort(stringPreferences(null)))
+        assertEquals(ReasoningEffort.DEFAULT, Prefs.defaultReasoningEffort(stringPreferences("off")))
+        assertEquals(ReasoningEffort.DEFAULT, Prefs.defaultReasoningEffort(stringPreferences("none")))
+        assertEquals(ReasoningEffort.DEFAULT, Prefs.defaultReasoningEffort(stringPreferences("unknown")))
+        assertEquals(ReasoningEffort.LOW, Prefs.defaultReasoningEffort(stringPreferences("low")))
+        assertEquals(ReasoningEffort.HIGH, Prefs.defaultReasoningEffort(stringPreferences("HIGH")))
+        assertEquals(ReasoningEffort.MAX, Prefs.defaultReasoningEffort(stringPreferences("max")))
+    }
+
+    private fun stringPreferences(value: String?): SharedPreferences =
+        Proxy.newProxyInstance(
+            javaClass.classLoader,
+            arrayOf(SharedPreferences::class.java),
+        ) { proxy, method, arguments ->
+            when (method.name) {
+                "getString" -> {
+                    val key = arguments?.get(0) as String
+                    if (key == Prefs.Keys.AGENT_DEFAULT_REASONING_EFFORT) value else arguments[1]
+                }
+                "equals" -> proxy === arguments?.firstOrNull()
+                "hashCode" -> System.identityHashCode(proxy)
+                "toString" -> "StringSharedPreferences"
+                else -> error("Unexpected SharedPreferences method: ${method.name}")
+            }
+        } as SharedPreferences
 }

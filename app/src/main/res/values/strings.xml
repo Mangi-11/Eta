@@ -439,6 +439,7 @@
   <string name="ui_reset_built_in_configuration_35b6ec">Reset built-in settings</string>
   <string name="ui_lock_screen_evokes_automatic_voice_input_1cde18">Lock screen evokes automatic voice input</string>
   <string name="ui_deep_thinking_enabled_by_default_c032d6">Reasoning enabled by default</string>
+  <string name="settings_default_reasoning_effort">Default reasoning effort</string>
   <string name="tool_tap_area">Tap area</string>
   <string name="tool_current_context">Time and location</string>
   <string name="tool_memory_get">Read memory</string>

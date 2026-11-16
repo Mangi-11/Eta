@@ -102,7 +102,6 @@ class AgentRuntimeRunExecutorCompactionTest {
                     AgentRuntimePolicy.Permissions(
                         terminalTools = false,
                         browserTools = false,
-                        thinking = false,
                         subagentTools = true,
                     )
                 },

@@ -434,6 +434,7 @@
   <string name="ui_reset_built_in_configuration_35b6ec">重置内置配置</string>
   <string name="ui_lock_screen_evokes_automatic_voice_input_1cde18">锁屏唤起自动语音输入</string>
   <string name="ui_deep_thinking_enabled_by_default_c032d6">默认启用思考</string>
+  <string name="settings_default_reasoning_effort">默认思考深度</string>
   <string name="tool_tap_area">点击区域</string>
   <string name="tool_current_context">时间与位置</string>
   <string name="tool_memory_get">读取记忆</string>
