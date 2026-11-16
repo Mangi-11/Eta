@@ -101,7 +101,14 @@ class AgentConversationBranchPersistenceTest {
         assertEquals(child.history, loaded.history)
         assertEquals(child.journal, loaded.journal)
 
-        val earlier = persistence.branch(context, "child", "assistant-1-0", "grandchild", "回退早期分支", 3L)
+        val earlier = persistence.branch(
+            context,
+            "child",
+            ConversationBranchBoundary.remapId("child", "assistant-1-0"),
+            "grandchild",
+            "回退早期分支",
+            3L,
+        )
         assertFalse(earlier.history.any { it.contextSummary })
         assertEquals(base.journal.take(4).map { it.content }, earlier.history.map { it.content })
     }
