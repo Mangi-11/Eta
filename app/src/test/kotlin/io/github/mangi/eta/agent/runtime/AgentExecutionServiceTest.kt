@@ -11,6 +11,7 @@ import io.github.mangi.eta.agent.overlay.AgentOverlayStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,8 +37,9 @@ class AgentExecutionServiceTest {
             val notification = requireNotNull(shadowOf(controller.get()).lastForegroundNotification)
             assertEquals(Build.VERSION.SDK_INT >= 36, notification.extras.getBoolean("android.requestPromotedOngoing"))
             if (Build.VERSION.SDK_INT >= 36) {
-                assertEquals(Notification.ProgressStyle::class.java.name, notification.extras.getString(Notification.EXTRA_TEMPLATE))
+                assertEquals(Notification.BigTextStyle::class.java.name, notification.extras.getString(Notification.EXTRA_TEMPLATE))
                 assertEquals(context.getString(R.string.overlay_reasoning), notification.extras.getString("android.shortCriticalText"))
+                assertNotNull(notification.getLargeIcon())
             }
 
             AgentExecutionService.updateRunStatus(context, null, activeRunCount = 0)
@@ -45,6 +47,7 @@ class AgentExecutionServiceTest {
             val remaining = context.getSystemService(NotificationManager::class.java).activeNotifications.single().notification
             assertFalse(remaining.extras.getBoolean("android.requestPromotedOngoing"))
             assertFalse(remaining.extras.containsKey("android.shortCriticalText"))
+            assertNull(remaining.getLargeIcon())
             assertTrue(remaining.flags and Notification.FLAG_ONGOING_EVENT != 0)
         } finally {
             AgentExecutionService.release(leaseId)

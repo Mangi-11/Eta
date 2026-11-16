@@ -28,6 +28,7 @@ internal object BackgroundCommandNotification {
         }
         val notification = Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
+            .setColor(0xFF4285F4.toInt())
             .setContentTitle(title)
             .setContentText(task.description.ifBlank { "在终端的后台任务中查看状态和日志" })
             .setSubText(task.exitCode?.let { "退出码 $it" })

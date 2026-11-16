@@ -23,6 +23,7 @@ internal class AssistantSpeechForeground(private val service: Service) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val notification = Notification.Builder(service, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
+            .setColor(0xFF4285F4.toInt())
             .setContentTitle(title)
             .setContentText("仅在助手浮窗可见时运行")
             .setOngoing(true)
