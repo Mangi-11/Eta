@@ -26,8 +26,6 @@
     <string name="capability_root_data_summary">访问其他应用和系统保存的部分数据。需要 Root，具体范围取决于系统、应用版本与已开启的工具权限。</string>
     <string name="capability_root_linux">Linux 与终端增强</string>
     <string name="capability_root_linux_summary">Root 可使用 chroot、系统目录与脱离 App 的守护任务；普通模式可使用私有工作区与 PRoot。</string>
-    <string name="capability_hook_assistants">小布与超级小爱接管</string>
-    <string name="capability_hook_assistants_summary">通过系统助手入口调用 Eta Runtime。需要 LSPosed 启用 Eta、对应助手作用域，以及支持的 ColorOS 或 HyperOS。</string>
     <string name="capability_hook_google">Gemini 与一圈即搜</string>
     <string name="capability_hook_google_summary">在 ColorOS 创建或修复系统能力与触发入口。需要 LSPosed、对应系统与 Google 应用作用域；Google 应用系统化另需 Root。</string>
     <string name="capability_hook_accessibility">无障碍保护</string>

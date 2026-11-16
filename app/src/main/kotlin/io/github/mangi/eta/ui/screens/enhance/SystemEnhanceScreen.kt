@@ -107,12 +107,6 @@ fun SystemEnhanceScreen(
 
                 Group(title = stringResource(R.string.capability_system_features)) {
                     CouiPreference(
-                        title = stringResource(R.string.capability_hook_assistants),
-                        summary = stringResource(R.string.capability_hook_assistants_summary),
-                        showChevron = false,
-                    )
-                    Divider()
-                    CouiPreference(
                         title = stringResource(R.string.capability_hook_google),
                         summary = stringResource(R.string.capability_hook_google_summary),
                         showChevron = false,
@@ -204,10 +198,6 @@ fun SystemEnhanceScreen(
                             .padding(horizontal = 12.dp)
                             .padding(bottom = 12.dp),
                     ) {
-                        BasicComponent(
-                            title = stringResource(R.string.capability_hook_assistants),
-                            summary = stringResource(R.string.capability_hook_assistants_summary),
-                        )
                         BasicComponent(
                             title = stringResource(R.string.capability_hook_google),
                             summary = stringResource(R.string.capability_hook_google_summary),

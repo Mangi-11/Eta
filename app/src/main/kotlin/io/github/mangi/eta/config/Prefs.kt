@@ -13,7 +13,7 @@ import org.json.JSONArray
 /**
  * 模块配置中枢。
  *
- * - Hook 进程（system_server / SystemUI / Google / 系统助手等）在模块加载时调用
+ * - Hook 进程（system_server / SystemUI / Google / 识屏与系统记忆等）在模块加载时调用
  *   [attachRemote]，缓存框架提供的只读 [SharedPreferences]；之后所有拦截回调用 [isEnabled]
  *   读取当前进程持有的 remote preferences。
  * - Eta Runtime 自己消费的开关保存在 App 私有配置中，不依赖 Xposed Service。
@@ -41,8 +41,6 @@ internal object Prefs {
         const val DOUBLE_FINGER_CIRCLE_TO_SEARCH = "double_finger_circle_to_search"
         const val LOCKSCREEN_VOICE_COMMAND = "lockscreen_voice_command"
         const val SCREEN_ON_VOICE_COMMAND = "screen_on_voice_command"
-        const val AGENT_CUSTOM_MODEL = "agent_custom_model"
-        const val AGENT_REQUIRE_PREFIX = "agent_require_prefix"
         const val AGENT_TERMINAL_TOOLS = "agent_terminal_tools"
         const val AGENT_BROWSER_TOOLS = "agent_browser_tools"
         const val AGENT_DEVICE_DIRECT_TOOLS = "agent_device_direct_tools"
@@ -66,8 +64,6 @@ internal object Prefs {
             DOUBLE_FINGER_CIRCLE_TO_SEARCH to false,
             LOCKSCREEN_VOICE_COMMAND to false,
             SCREEN_ON_VOICE_COMMAND to false,
-            AGENT_CUSTOM_MODEL to true,
-            AGENT_REQUIRE_PREFIX to false,
             AGENT_TERMINAL_TOOLS to true,
             AGENT_BROWSER_TOOLS to true,
             AGENT_DEVICE_DIRECT_TOOLS to true,

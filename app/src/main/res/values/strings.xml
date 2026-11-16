@@ -24,7 +24,7 @@
   <string name="settings_language">Language</string>
   <string name="settings_language_system">Follow system</string>
   <string name="app_name">Eta</string>
-  <string name="xposed_description">A system-level AI agent that takes over Breeno and Super XiaoAI, enables Gemini and Circle to Search, and integrates browser, terminal, and device tools.</string>
+  <string name="xposed_description">A system-level AI agent that enables Gemini and Circle to Search, and integrates browser, terminal, and device tools.</string>
   <string name="agent_accessibility_label">Eta Agent</string>
   <string name="agent_accessibility_description">Read screen content and perform taps, swipes, text input, and other actions to help the agent complete tasks.</string>
   <string name="notification_history_service_label">Eta notification history</string>
@@ -324,7 +324,6 @@
   <string name="ui_contextual_usage_d12810">Context usage</string>
   <string name="ui_context_length_tokens_227860">Context window (tokens)</string>
   <string name="ui_bright_screen_evokes_automatic_voice_input_4358fe">Bright screen evokes automatic voice input</string>
-  <string name="ui_only_take_over_with_agent_prefix_d17556">Only take over with /agent prefix</string>
   <string name="ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d">Only pick levels the model or gateway supports.</string>
   <string name="ui_preferences_and_strategies_2abd3c">Preferences and Strategies</string>
   <string name="ui_stop_a17f70">stop</string>
@@ -346,7 +345,6 @@
   <string name="ui_available_capacity_743337">Available capabilities</string>
   <string name="ui_optional_tools_3097d6">Optional tools</string>
   <string name="ui_name_1be7ae">name</string>
-  <string name="ui_enable_vendor_assistant_custom_models_c8e465">Enable vendor assistant custom models</string>
   <string name="ui_enable_this_provider_683a76">Enable this provider</string>
   <string name="ui_enable_terminal_file_tools_18bb43">Enable terminal/file tools</string>
   <string name="ui_enable_web_browsing_tools_8b6b03">Enable web search, reading and browser</string>
@@ -357,7 +355,6 @@
   <string name="ui_install_087db6">Install</string>
   <string name="ui_convert_google_apps_to_system_apps_0f6d89">Convert Google Apps to system apps</string>
   <string name="ui_this_will_close_the_current_page_and_clear_eta_brows_1cd331">This will close the current page and clear Eta Browser\'s cookies and site data. External browsers are not affected.</string>
-  <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">Xiaobu/Xiaoai compatible entrance</string>
   <string name="ui_display_name_ed16be">Display name</string>
   <string name="ui_tool_a72ef1">tool</string>
   <string name="ui_tool_ability_9f0f80">Tools</string>
@@ -707,20 +704,6 @@
   <string name="page_unauthorized_86bddc">Unauthorized</string>
   <string name="page_use_standard_chat_completions_ee4b1a">Uses the Chat Completions API</string>
   <string name="page_using_typed_items_with_semantic_streaming_events_f9c906">Uses the Responses API with typed Items and semantic streaming events</string>
-  <string name="injected_reasoning">Eta is reasoning…</string>
-  <string name="injected_executing">Eta is working…</string>
-  <string name="injected_completed">Eta completed this task</string>
-  <string name="injected_failed">Eta could not complete the task. Try again later</string>
-  <string name="injected_breeno_custom_model_disabled">Enable Breeno custom models in Eta settings first</string>
-  <string name="injected_breeno_context_unavailable">Breeno context is unavailable</string>
-  <string name="injected_runtime_failed">Agent Runtime failed</string>
-  <string name="injected_breeno_failed">Breeno custom model failed: %1$s</string>
-  <string name="injected_using_tool">Using %1$s</string>
-  <string name="injected_tool">tool</string>
-  <string name="injected_system_tool">system tool</string>
-  <string name="injected_app_tool">app tool</string>
-  <string name="injected_screen_tool">screen tool</string>
-  <string name="injected_reasoning_label">Reasoning</string>
   <string name="tool_ui_agent_browser_a66bd5">Agent browser</string>
   <string name="tool_ui_coloros_notes_6c324c">ColorOS Notes</string>
   <string name="tool_ui_coloros_recording_a4e425">ColorOS recording</string>
@@ -870,7 +853,6 @@
   <string name="state_ui_the_target_with_the_same_name_is_not_a_user_skil_00474b">The target with the same name is not a user skill that can be safely replaced and existing files are not overwritten.</string>
   <string name="state_ui_the_installation_failed_and_automatic_recovery_d_0d9e01">The installation failed and automatic recovery did not complete completely. Eta has retained a recovery backup in the application private directory. Please check the skill list first and stop the installation.</string>
   <string name="state_ui_conversation_switched_selected_path_not_added_5bf91e">Conversation switched, selected path not added</string>
-  <string name="state_ui_xiaobu_s_entrance_needs_to_be_set_to_always_allo_cc74cb">Xiaobu\'s entrance needs to be set to "Always Allow"</string>
   <string name="state_ui_the_selected_file_is_not_a_valid_zip_package_bff052">The selected file is not a valid ZIP package.</string>
   <string name="state_ui_the_selected_path_has_been_added_42b432">The selected path has been added</string>
   <string name="state_ui_the_skill_pack_contains_an_unsafe_file_path_and__d8cfc0">The skill pack contains an unsafe file path and was not installed.</string>
@@ -1151,11 +1133,6 @@
   <string name="suggestion_open_wechat_prompt">Open WeChat</string>
   <string name="suggestion_browse_web_prompt">Open Agent Browser, then search for and summarize today’s top technology news</string>
   <string name="suggestion_memory_pressure_prompt">Read /proc/meminfo and /proc/pressure/, focus on PSI (Pressure Stall Information), and summarize current memory pressure and system status</string>
-  <string name="injected_image_data_limit">Image data exceeds the safe limit. Resize the image and try again</string>
-  <string name="injected_image_count_limit">You can attach up to %1$d images at a time. Remove some images and try again</string>
-  <string name="injected_image_input_limit">The image input is too complex. Remove some images or simplify the image data</string>
-  <string name="injected_image_cache_limit">Image reference data is too large to cache safely. Choose the images again or use remote image links</string>
-  <string name="injected_image_unreadable">Some images could not be read. Choose the images again and retry</string>
   <string name="route_mcp_servers">MCP servers</string>
   <string name="route_mcp_server_detail">MCP server</string>
   <string name="mcp_add_server">Add server</string>

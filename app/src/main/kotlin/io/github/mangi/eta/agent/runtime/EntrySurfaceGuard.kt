@@ -123,8 +123,6 @@ internal class EntrySurfaceGuard private constructor(
         ): EntrySurfaceGuard? {
             if (handoff?.dismissEntrySurfaceOnForegroundOperation != true) return null
             val packageName = when (handoff.source) {
-                BREENO_HANDOFF_SOURCE -> BREENO_PACKAGE_NAME
-                XIAOAI_HANDOFF_SOURCE -> XIAOAI_PACKAGE_NAME
                 AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE -> ETA_PACKAGE_NAME
                 else -> null
             }
@@ -134,10 +132,6 @@ internal class EntrySurfaceGuard private constructor(
             return EntrySurfaceGuard(packageName, logger, ownedSurfaceDismissal)
         }
 
-        private const val BREENO_HANDOFF_SOURCE = "breeno"
-        private const val BREENO_PACKAGE_NAME = "com.heytap.speechassist"
-        private const val XIAOAI_HANDOFF_SOURCE = "xiaoai"
-        private const val XIAOAI_PACKAGE_NAME = "com.miui.voiceassist"
         private const val ETA_PACKAGE_NAME = "io.github.mangi.eta"
         private const val NANOS_PER_MILLISECOND = 1_000_000L
     }

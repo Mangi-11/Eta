@@ -110,7 +110,7 @@ internal object PowerHooks {
                     if (activityStarted) {
                         null
                     } else {
-                        // 当前触发不等待后台修复；所有快速路径失败后立即回退小布。
+                        // 当前触发不等待后台修复；所有快速路径失败后立即回退系统默认逻辑。
                         chain.proceed()
                     }
                 }

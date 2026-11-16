@@ -755,7 +755,7 @@ class AgentRuntimeWireTest {
     fun entryHandoffBundleRoundTripPreservesEntrySurfacePolicy() {
         val handoff = AgentRuntimeWire.EntryHandoff(
             id = "handoff-1",
-            source = "breeno",
+            source = AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE,
             payload = """{"userText":"打开微信"}""",
             dismissEntrySurfaceOnForegroundOperation = true,
         )
@@ -781,28 +781,11 @@ class AgentRuntimeWireTest {
     }
 
     @Test
-    fun legacyBreenoHandoffDefaultsToDismissingEntrySurface() {
+    fun missingDismissFlagDefaultsToKeepingEntrySurfaceVisible() {
         val bundle = AgentRuntimeWire.toBundle(
             AgentRuntimeWire.EntryHandoff(
                 id = "handoff-1",
-                source = "breeno",
-                payload = "{}",
-            )
-        ).apply {
-            remove("handoff_dismiss_entry_surface_on_foreground_operation")
-        }
-
-        val handoff = AgentRuntimeWire.entryHandoffFromBundle(bundle)
-
-        assertEquals(true, handoff.dismissEntrySurfaceOnForegroundOperation)
-    }
-
-    @Test
-    fun legacyNonBreenoHandoffDefaultsToKeepingEntrySurfaceVisible() {
-        val bundle = AgentRuntimeWire.toBundle(
-            AgentRuntimeWire.EntryHandoff(
-                id = "handoff-1",
-                source = "app",
+                source = AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE,
                 payload = "{}",
             )
         ).apply {

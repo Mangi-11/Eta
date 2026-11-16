@@ -2,7 +2,6 @@ system
 com.android.systemui
 com.google.android.googlequicksearchbox
 com.coloros.colordirectservice
-com.heytap.speechassist
 com.oplus.aimemory
 com.miui.voiceassist
 com.miui.home

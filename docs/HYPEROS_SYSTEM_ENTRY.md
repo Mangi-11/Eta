@@ -1,6 +1,6 @@
 # HyperOS 系统入口适配
 
-Eta 将 HyperOS 系统快捷动作和桌面导航手势分别放在 `hook/hyperos/`，通过 `ModuleMain` 和 `SystemServerHooks` 分发。小爱对话请求仍由 `hook/xiaoai/` 处理，两者互不替代。本文描述源码适配，不代表已完成 HyperOS 真机验证。
+Eta 将 HyperOS 系统快捷动作和桌面导航手势分别放在 `hook/hyperos/`，通过 `ModuleMain` 和 `SystemServerHooks` 分发。本文描述源码适配，不代表已完成 HyperOS 真机验证。
 
 ## 电源键
 
@@ -39,7 +39,7 @@ Eta 将 HyperOS 系统快捷动作和桌面导航手势分别放在 `hook/hypero
 
 ## HyperOS 4 导航识屏服务入口
 
-Android 17 / HyperOS 4 的横条长按可直接交给超级小爱识屏，绕过上述桌面回调。Eta 在 `com.miui.voiceassist` 包的进程中独立安装 `HyperOsScreenSearchHooks`，拦截 `com.xiaomi.voiceassistant.VoiceService.onStartCommand(Intent, int, int)`；该入口不依赖小爱对话接管的版本门禁。小爱对话业务仍只在原有主进程 / `:core` 范围及版本检查通过后启用，其他子进程仅安装结构明确的识屏服务 Hook。
+Android 17 / HyperOS 4 的横条长按可直接交给超级小爱识屏，绕过上述桌面回调。Eta 在 `com.miui.voiceassist` 包的进程中仅安装结构明确的 `HyperOsScreenSearchHooks`，拦截 `com.xiaomi.voiceassistant.VoiceService.onStartCommand(Intent, int, int)` 将导航识屏请求转交 `contextual_search`，不接管对话业务。
 
 只在现有手势开关开启，且请求满足以下全部条件时替换搜索分发：
 

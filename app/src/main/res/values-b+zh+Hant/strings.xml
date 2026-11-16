@@ -27,7 +27,7 @@
   <string name="settings_language">語言</string>
   <string name="settings_language_system">跟隨系統</string>
   <string name="app_name">Eta</string>
-  <string name="xposed_description">系統級 AI Agent，接管小布與超級小愛，解鎖 Gemini 與圈選搜尋，整合瀏覽器、終端機與裝置工具。</string>
+  <string name="xposed_description">系統級 AI Agent，解鎖 Gemini 與圈選搜尋，整合瀏覽器、終端機與裝置工具。</string>
   <string name="agent_accessibility_label">Eta Agent</string>
   <string name="agent_accessibility_description">讀取畫面內容並執行點按、滑動、文字輸入等操作，協助 Agent 完成任務。</string>
   <string name="notification_history_service_label">Eta 通知記錄</string>
@@ -307,7 +307,6 @@
   <string name="ui_contextual_usage_d12810">內容用量</string>
   <string name="ui_context_length_tokens_227860">內容長度上限（tokens）</string>
   <string name="ui_bright_screen_evokes_automatic_voice_input_4358fe">亮屏喚起自動語音輸入</string>
-  <string name="ui_only_take_over_with_agent_prefix_d17556">僅以 /agent 前綴接管</string>
   <string name="ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d">只選模型或閘道實際支援的檔位</string>
   <string name="ui_preferences_and_strategies_2abd3c">偏好與策略</string>
   <string name="ui_stop_a17f70">停止</string>
@@ -329,7 +328,6 @@
   <string name="ui_available_capacity_743337">可用能力</string>
   <string name="ui_optional_tools_3097d6">選用工具</string>
   <string name="ui_name_1be7ae">名稱</string>
-  <string name="ui_enable_vendor_assistant_custom_models_c8e465">啟用廠商助手自訂模型</string>
   <string name="ui_enable_this_provider_683a76">啟用此 Provider</string>
   <string name="ui_enable_terminal_file_tools_18bb43">啟用終端機/檔案工具</string>
   <string name="ui_enable_web_browsing_tools_8b6b03">啟用網頁搜尋、讀取與瀏覽器</string>
@@ -340,7 +338,6 @@
   <string name="ui_install_087db6">安裝</string>
   <string name="ui_convert_google_apps_to_system_apps_0f6d89">將 Google App 轉為系統應用程式</string>
   <string name="ui_this_will_close_the_current_page_and_clear_eta_brows_1cd331">將關閉目前頁面並清除 Eta 瀏覽器的 Cookie 與網站資料。外部瀏覽器不會受到影響。</string>
-  <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">小布／小愛相容入口</string>
   <string name="ui_display_name_ed16be">展示名稱</string>
   <string name="ui_tool_a72ef1">工具</string>
   <string name="ui_tool_ability_9f0f80">工具能力</string>
@@ -687,20 +684,6 @@
   <string name="voice_send">傳送</string>
   <string name="voice_handoff_pull">繼續上拉進入 Eta</string>
   <string name="voice_handoff_release">放開進入 Eta</string>
-  <string name="injected_reasoning">Eta 正在思考…</string>
-  <string name="injected_executing">Eta 正在執行任務…</string>
-  <string name="injected_completed">Eta 已完成本次任務</string>
-  <string name="injected_failed">Eta 處理失敗，請稍後再試</string>
-  <string name="injected_breeno_custom_model_disabled">請先在 Eta 設定中啟用「小布自訂模型」</string>
-  <string name="injected_breeno_context_unavailable">無法取得小布程序的 Context</string>
-  <string name="injected_runtime_failed">Agent Runtime 執行失敗</string>
-  <string name="injected_breeno_failed">小布自訂模型呼叫失敗：%1$s</string>
-  <string name="injected_using_tool">正在使用%1$s</string>
-  <string name="injected_tool">工具</string>
-  <string name="injected_system_tool">系統工具</string>
-  <string name="injected_app_tool">應用程式工具</string>
-  <string name="injected_screen_tool">畫面工具</string>
-  <string name="injected_reasoning_label">思考</string>
   <string name="tool_ui_agent_browser_a66bd5">Agent 瀏覽器</string>
   <string name="tool_ui_coloros_notes_6c324c">ColorOS 便簽</string>
   <string name="tool_ui_coloros_recording_a4e425">ColorOS 錄音</string>
@@ -850,7 +833,6 @@
   <string name="state_ui_the_target_with_the_same_name_is_not_a_user_skil_00474b">同名目標不是可安全取代的使用者 Skill，現有檔案未被覆蓋。</string>
   <string name="state_ui_the_installation_failed_and_automatic_recovery_d_0d9e01">安裝失敗且自動復原未完整完成。Eta 已在應用程式私人目錄保留復原備份，請先檢查 Skills 清單並停止繼續安裝。</string>
   <string name="state_ui_conversation_switched_selected_path_not_added_5bf91e">對話已切換，未新增所選路徑</string>
-  <string name="state_ui_xiaobu_s_entrance_needs_to_be_set_to_always_allo_cc74cb">小佈入口需要設為“始終允許”</string>
   <string name="state_ui_the_selected_file_is_not_a_valid_zip_package_bff052">所選檔案不是有效的 ZIP Skill 包。</string>
   <string name="state_ui_the_selected_path_has_been_added_42b432">所選路徑已經新增</string>
   <string name="state_ui_the_skill_pack_contains_an_unsafe_file_path_and__d8cfc0">Skill 包內含不安全的檔案路徑，因此未安裝。</string>
@@ -1123,11 +1105,6 @@
   <string name="suggestion_open_wechat_prompt">幫我開啟微信</string>
   <string name="suggestion_browse_web_prompt">開啟 Agent 瀏覽器，搜尋並摘要今天的重要科技新聞</string>
   <string name="suggestion_memory_pressure_prompt">讀取 /proc/meminfo 與 /proc/pressure/，重點分析 PSI（Pressure Stall Information）指標，摘要目前的記憶體壓力與系統狀態</string>
-  <string name="injected_image_data_limit">圖片輸入資料超過安全上限，請縮小圖片後再試</string>
-  <string name="injected_image_count_limit">一次最多支援 %1$d 張圖片，請減少圖片數量後再試</string>
-  <string name="injected_image_input_limit">圖片輸入結構超過安全上限，請減少圖片數量或簡化圖片資料後再試</string>
-  <string name="injected_image_cache_limit">圖片參照資料過大，無法安全暫存，請重新選擇圖片或使用遠端圖片連結</string>
-  <string name="injected_image_unreadable">無法讀取要求中的所有圖片，請重新選擇圖片後再試</string>
   <string name="route_mcp_servers">MCP 伺服器</string>
   <string name="route_mcp_server_detail">MCP 伺服器</string>
   <string name="mcp_add_server">新增伺服器</string>

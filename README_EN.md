@@ -16,7 +16,7 @@ Unlike third-party Android agents that stop at accessibility screen tapping or g
 
 - **Personal context:** connects directly to system providers, system databases, ColorOS DMP personalization indexes, and an in-process Xiaobu Memory hook bridge to retrieve location, notification history, app usage statistics, calendar events, photos (including OCR text and visual content index search), contacts, SMS messages and OTP codes, call logs, recordings and transcript summaries, notes, Health Connect summaries, clipboard history, chat images, and OEM data such as Xiaobu Memory, bills and spending summaries, flight/train/hotel itineraries, delivery orders, to-do leads, and saved places.
 - **System and first-party app actions:** calls Android APIs and native first-party app interfaces to read and write calendar events (single or batch creation, updates, and deletion), manage alarms (create, reschedule, toggle, delete) and timers, create/read/recycle system notes, and control the flashlight, brightness, screen timeout, ringer and Do Not Disturb, volume, media playback, Night Light and dark mode, Wi‑Fi, Bluetooth, mobile data, personal hotspot, NFC, system settings, and app freezing, reading back and verifying every state change.
-- **Native digital assistant and system entry points:** Eta itself is a full Android digital assistant app, so long-pressing the power button wakes Eta directly to start a task with the current screenshot and structured app content automatically attached; Xposed hooks can also route Breeno (Xiaobu) and Super XiaoAI to Eta. Execution progress syncs in real time to the top status capsule and status bar / lock screen Live Updates (Fluid Cloud), alongside unlocking Gemini system assistant and Circle to Search.
+- **Native digital assistant and system entry points:** Eta itself is a full Android digital assistant app, so setting Eta as the default digital assistant lets you long-press the power button to wake Eta directly and start a task with the current screenshot and structured app content automatically attached; early versions also supported routing Breeno (Xiaobu) and Super XiaoAI via Xposed hooks (now removed and no longer maintained; see [System assistant entry points](#system-assistant-entry-points)). Execution progress syncs in real time to the top status capsule and status bar / lock screen Live Updates (Fluid Cloud), alongside unlocking Gemini system assistant and Circle to Search.
 
 Eta implements its own Agent Runtime and Agent Loop to coordinate model requests, tool execution, and feedback, with Skills and MCP available for extensions. You can supply your own model-provider **API key (BYOK)** or sign in with a **Codex (ChatGPT) or Grok subscription**; you choose the model and provider.
 
@@ -26,13 +26,13 @@ Requires **Android 13 or later on ARM64 devices**. The app works across phone br
 
 ## See it in action
 
-| GUI Agent | Breeno with your own model |
+| GUI Agent | Breeno with your own model (Legacy) |
 | :---: | :---: |
 | <img src="docs/Screenshots/demo_gui_agent.gif" width="320" alt="Eta GUI Agent in action"> | <img src="docs/Screenshots/demo_tools.gif" width="320" alt="Starting an Eta task through Breeno"> |
 
 More screenshots: chat, system tools, and settings
 
-| Chat | Commands through Breeno | Direct system API calls |
+| Chat | Commands through Breeno (Legacy) | Direct system API calls |
 | :---: | :---: | :---: |
 | ![Chat](docs/Screenshots/chat_home.jpg) | ![Commands through Breeno](docs/Screenshots/chat_breeno_analysis.jpg) | ![Direct system API calls](docs/Screenshots/chat_device_direct.jpg) |
 
@@ -90,9 +90,9 @@ Eta implements Android's native digital assistant service (`VoiceInteractionServ
 
 - **Eta native digital assistant:** wake Eta's own global overlay directly from the power button, with edge glow, voice or keyboard input, prompt suggestions, and a pull-up gesture to jump straight into the main Eta chat; waking the assistant automatically attaches the current screenshot and app content via the system assist pipeline without extra taps or accessibility screenshot permissions. Speech recognition supports Qwen or Doubao online APIs (or can be disabled to open the text composer and keyboard directly), and speech synthesis supports Qwen, Doubao, Gemini, and MiniMax with assistant auto-read and background/lock-screen chat playback.
 - **Power-button routing:** choose whether a long press on the power button wakes Eta, Gemini, or the default OEM assistant.
-- **Breeno / Super XiaoAI integration:** if you prefer the OEM assistant UI, keep its entry point and route requests to Eta and your configured model.
+- **Breeno / Super XiaoAI integration (removed):** Earlier hooks for OEM voice assistants were mainly a workaround to borrow the long-press power button entry point. Now that Eta natively implements Android's digital assistant service, setting Eta as your default digital assistant in system settings lets you wake it directly from the power button. Because reverse-engineering OEM assistants like Breeno and Super XiaoAI carries high cross-version maintenance costs and breaks easily on updates, those hook-based integrations have been removed and are no longer maintained—we recommend switching your default assistant directly to Eta as development focuses on Eta's own capabilities.
 
-On ROMs that lock down the default assistant or power-button behavior, power-button routing and OEM assistant integration require LSPosed and a supported system.
+On ROMs that lock down the default assistant or power-button behavior, power-button routing requires LSPosed and a supported system.
 
 ## Unlocking Gemini and Circle to Search
 
@@ -118,7 +118,7 @@ System tools, sensitive reads, sensitive actions, terminal and file access, brow
 
 - **Unrooted devices:** Android 13+ on ARM64 supports chat, web search and browsing, memory, Skills, MCP, the ordinary terminal, and a private workspace. Calendar read/write, GUI control, and notification/location/usage access need their respective permissions.
 - **Rooted devices:** gain access to background virtual-display execution, protected system settings and toggles, app management, privileged files, deep system and OEM personal-data searches, native first-party app operations (alarms, notes, etc.), root shells, and chroot.
-- **LSPosed with a compatible ROM:** adds background virtual-display execution, OEM assistant integration, system shortcuts, the in-process Xiaobu Memory query bridge, and Google feature enablement. Some features also require root.
+- **LSPosed with a compatible ROM:** adds background virtual-display execution, system shortcuts, the in-process Xiaobu Memory query bridge, and Google feature enablement. Some features also require root.
 
 Dedicated searches for contacts, SMS messages, call logs, system indexes, and private OEM app data still require root (calendar read/write already supports standard Android calendar permissions). See [Device Support](docs/ROOTLESS_SUPPORT.md) for full requirements and validation coverage.
 
@@ -150,7 +150,7 @@ Put OpenClaw or a desktop coding agent in a phone's Linux environment, and it ca
 
 I am both an independent developer and an Android tinkerer. I have no preinstallation deals or proprietary ecosystem to protect, so I am willing to take a more aggressive approach to system integration and make more of the phone's existing capabilities available to a model the user chooses.
 
-That is where Eta does the integration work: Xposed hooks for Breeno, Super XiaoAI, and the power button; direct calls to system and first-party app interfaces for calendars, alarms, notes, and system toggles; and dedicated access to notifications, photos, health data, Xiaobu Memory, bills, itineraries, orders, and recording summaries. Shell and Linux provide the computing environment, while GUI control covers apps without callable interfaces. A shared agent runtime connects these pieces, giving the model both context about the phone and tools to act on it.
+That is where Eta does the integration work: evolving from early Xposed hooks for Breeno and Super XiaoAI to native digital assistant and power-button integration; direct calls to system and first-party app interfaces for calendars, alarms, notes, and system toggles; and dedicated access to notifications, photos, health data, Xiaobu Memory, bills, itineraries, orders, and recording summaries. Shell and Linux provide the computing environment, while GUI control covers apps without callable interfaces. A shared agent runtime connects these pieces, giving the model both context about the phone and tools to act on it.
 
 I do not want AI to do everything. If a few taps are faster than waiting for a model, paying for calls, and watching for mistakes, I would rather tap it myself. I want an agent for tasks that benefit from local context, involve repetitive work across apps, or are inconvenient to do by hand. A useful phone agent needs thoughtful integration with the system, local data, and mobile interaction. A long feature list does not tell me whether a product is good to use.
 

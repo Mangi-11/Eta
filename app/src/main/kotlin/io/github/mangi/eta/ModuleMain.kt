@@ -11,7 +11,6 @@ import io.github.mangi.eta.core.ModuleConfig
 import io.github.mangi.eta.core.ModuleLogger
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.hook.aimemory.ColorOsMemoryHooks
-import io.github.mangi.eta.hook.breeno.BreenoHooks
 import io.github.mangi.eta.hook.colordirect.ColorDirectHooks
 import io.github.mangi.eta.hook.google.GoogleAppHooks
 import io.github.mangi.eta.hook.google.GoogleEligibilityHooks
@@ -19,7 +18,6 @@ import io.github.mangi.eta.hook.hyperos.HyperOsLauncherHooks
 import io.github.mangi.eta.hook.hyperos.HyperOsScreenSearchHooks
 import io.github.mangi.eta.hook.system.SystemServerHooks
 import io.github.mangi.eta.hook.system.SystemUiHooks
-import io.github.mangi.eta.hook.xiaoai.XiaoAiHooks
 
 class ModuleMain : XposedModule() {
 
@@ -89,14 +87,6 @@ class ModuleMain : XposedModule() {
                 }
             }
 
-            ModuleConfig.BREENO_PACKAGE -> {
-                if (isCurrentPackageProcess(ModuleConfig.BREENO_PACKAGE)) {
-                    recordInstallation(
-                        BreenoHooks.install(this, logger, param.classLoader, param.applicationInfo)
-                    )
-                }
-            }
-
             ModuleConfig.COLOROS_MEMORY_PACKAGE -> {
                 if (currentProcessName == ModuleConfig.COLOROS_MEMORY_PACKAGE) {
                     recordInstallation(
@@ -108,15 +98,6 @@ class ModuleMain : XposedModule() {
             ModuleConfig.XIAOAI_PACKAGE -> {
                 if (isCurrentPackageProcess(ModuleConfig.XIAOAI_PACKAGE)) {
                     recordInstallation(HyperOsScreenSearchHooks.install(this, logger, param.classLoader))
-                }
-                if (isCurrentXiaoAiProcess()) {
-                    recordInstallation(
-                        XiaoAiHooks.install(
-                            module = this,
-                            rootLogger = logger,
-                            classLoader = param.classLoader,
-                        )
-                    )
                 }
             }
         }
@@ -139,15 +120,8 @@ class ModuleMain : XposedModule() {
             processName == ModuleConfig.SYSTEM_UI_PACKAGE ||
             isPackageProcess(processName, ModuleConfig.GOOGLE_PACKAGE) ||
             isPackageProcess(processName, ModuleConfig.COLOR_DIRECT_PACKAGE) ||
-            isPackageProcess(processName, ModuleConfig.BREENO_PACKAGE) ||
             processName == ModuleConfig.COLOROS_MEMORY_PACKAGE ||
             isPackageProcess(processName, ModuleConfig.XIAOAI_PACKAGE)
-    }
-
-    private fun isCurrentXiaoAiProcess(): Boolean {
-        val processName = currentProcessName ?: return false
-        return processName == ModuleConfig.XIAOAI_PACKAGE ||
-            processName == ModuleConfig.XIAOAI_CORE_PROCESS
     }
 
     private fun isPackageProcess(processName: String, packageName: String): Boolean =
