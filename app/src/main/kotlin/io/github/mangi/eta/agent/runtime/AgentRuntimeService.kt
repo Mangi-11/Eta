@@ -873,18 +873,18 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         }
         val run = runId.takeIf(String::isNotBlank)?.let(runs::get)
         val event = if (run != null && text.isNotBlank()) run.supplement(text) else null
-        if (event != null) {
-            AndroidAgentLogger.info(
-                "Agent runtime supplement received: index=${event.index}, chars=${event.text.length}"
-            )
-            run.overlayState = run.overlayState.applyEvent(event)
-            if (displayedRun === run && guiControl.state.value.ownerRunId == run.runId && !guiControl.state.value.userPaused) {
-                state.value = run.overlayState
-            }
-            sendSteerResponse(runId, replyTo, accepted = true, supplementIndex = event.index)
-        } else {
+        if (run == null || event == null) {
             sendSteerResponse(runId, replyTo, accepted = false)
+            return
         }
+        AndroidAgentLogger.info(
+            "Agent runtime supplement received: index=${event.index}, chars=${event.text.length}"
+        )
+        run.overlayState = run.overlayState.applyEvent(event)
+        if (displayedRun === run && guiControl.state.value.ownerRunId == run.runId && !guiControl.state.value.userPaused) {
+            state.value = run.overlayState
+        }
+        sendSteerResponse(runId, replyTo, accepted = true, supplementIndex = event.index)
     }
 
     private fun sendSteerResponse(
