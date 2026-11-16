@@ -77,11 +77,17 @@ class AgentAppStateDefaultReasoningTest {
         assertTrue(state.homeState.thinkingEnabled)
 
         state.selectModel("model-limited")
-        awaitCondition { state.homeState.reasoningEffort == ReasoningEffort.MEDIUM }
+        awaitCondition {
+            state.homeState.reasoningEffort == ReasoningEffort.MEDIUM &&
+                !state.modelPickerState.isChanging
+        }
         assertTrue(state.homeState.thinkingEnabled)
 
         state.selectModel("model-full")
-        awaitCondition { state.homeState.reasoningEffort == ReasoningEffort.HIGH }
+        awaitCondition {
+            state.homeState.reasoningEffort == ReasoningEffort.HIGH &&
+                !state.modelPickerState.isChanging
+        }
 
         prefs.edit().putBoolean(Prefs.Keys.AGENT_THINKING_ENABLED, false).commit()
         awaitCondition { state.homeState.reasoningEffort == ReasoningEffort.OFF }
