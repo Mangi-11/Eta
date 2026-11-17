@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -93,6 +94,8 @@ import com.itos.coui.motion.rememberCouiPressMotion
 import com.itos.coui.motion.rememberCouiTouchMotion
 import com.itos.coui.search.SearchBar
 import com.itos.coui.search.rememberCouiSearchBarState
+import com.itos.coui.segmentbutton.CouiSegmentedControlDefaults
+import com.itos.coui.segmentbutton.SegmentedControl
 import com.itos.coui.shape.CouiCapsuleShape
 import com.itos.coui.shape.CouiShape
 import com.itos.coui.text.CouiTextKind
@@ -529,6 +532,91 @@ internal fun <T : Any> CouiChipTabs(
                         kind = CouiTextKind.ItemValue,
                         color = if (selected) Color.White else colors.title,
                         maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * COUI 分段选择器封装：API 34+ 使用 COUI 原生 SegmentedControl（默认普通填色），
+ * 低版本回退为等分胶囊分段轨道。适合固定 2–3 个子页面或视图的切换。
+ */
+@Composable
+internal fun <T : Any> CouiSegmentedTabs(
+    items: List<Pair<T, String>>,
+    selectedKey: T,
+    onSelectedKeyChange: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    small: Boolean = false,
+) {
+    if (items.isEmpty()) return
+    val dark = CouiTheme.isDark
+    val selectedIndex = items.indexOfFirst { it.first == selectedKey }.let { if (it >= 0) it else 0 }
+    if (Build.VERSION.SDK_INT >= 34) {
+        val labels = remember(items) { items.map { it.second } }
+        SegmentedControl(
+            modifier = modifier.fillMaxWidth(),
+            labels = labels,
+            selectedIndex = selectedIndex,
+            onSelected = { index ->
+                items.getOrNull(index)?.first?.let(onSelectedKeyChange)
+            },
+            dark = dark,
+            enabled = enabled,
+            small = small,
+        )
+    } else {
+        val colors = CouiPageDefaults.themeColors(dark)
+        val trackHeight = if (small) CouiSegmentedControlDefaults.smallHeight else CouiSegmentedControlDefaults.height
+        val trackPadding = if (small) 2.dp else 4.dp
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(trackHeight)
+                .clip(CouiCapsuleShape)
+                .background(CouiSegmentedControlDefaults.containerColor(dark), CouiCapsuleShape)
+                .selectableGroup()
+                .padding(trackPadding),
+        ) {
+            items.forEachIndexed { index, (key, label) ->
+                val selected = index == selectedIndex
+                val source = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(CouiCapsuleShape)
+                        .then(
+                            if (selected) {
+                                Modifier.background(
+                                    CouiSegmentedControlDefaults.indicatorColor(dark),
+                                    CouiCapsuleShape,
+                                )
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .couiButtonFeedback(dark, source, enabled)
+                        .selectable(
+                            selected = selected,
+                            interactionSource = source,
+                            indication = null,
+                            enabled = enabled,
+                            role = Role.Tab,
+                            onClick = { onSelectedKeyChange(key) },
+                        )
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        kind = CouiTextKind.ItemValue,
+                        color = if (enabled) colors.title else colors.title.copy(alpha = 0.4f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

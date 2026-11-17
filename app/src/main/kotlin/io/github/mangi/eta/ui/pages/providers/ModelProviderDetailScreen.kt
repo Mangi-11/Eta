@@ -59,12 +59,12 @@ import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiChipTabs
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffold
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiSegmentedTabs
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
@@ -196,11 +196,14 @@ internal fun ModelProviderDetailScreen(
                         .padding(top = contentPadding.calculateTopPadding()),
                 ) {
                     if (!isNew) {
-                        CouiChipTabs(
+                        CouiSegmentedTabs(
                             items = tabs.mapIndexed { index, label -> index to label },
                             selectedKey = currentTab,
                             onSelectedKeyChange = { currentTab = it },
-                            modifier = Modifier.padding(horizontal = sidePadding),
+                            modifier = Modifier.padding(
+                                horizontal = sidePadding + CouiPageDefaults.horizontalMargin,
+                                vertical = 8.dp,
+                            ),
                         )
                     }
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {

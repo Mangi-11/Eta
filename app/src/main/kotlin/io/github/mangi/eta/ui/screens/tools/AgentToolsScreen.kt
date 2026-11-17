@@ -51,10 +51,10 @@ import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiChipTabs
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
+import io.github.mangi.eta.ui.components.coui.CouiSegmentedTabs
 import io.github.mangi.eta.ui.model.AgentToolsAction
 import io.github.mangi.eta.ui.model.AgentToolsUiState
 import io.github.mangi.eta.ui.model.ToolGroupUi
@@ -157,10 +157,14 @@ fun AgentToolsScreen(
                 listState = if (showAll) allListState else currentListState,
             ) {
                 item(key = "capability-view") {
-                    CouiChipTabs(
+                    CouiSegmentedTabs(
                         items = tabs,
                         selectedKey = showAll,
                         onSelectedKeyChange = { showAll = it },
+                        modifier = Modifier.padding(
+                            horizontal = CouiPageDefaults.horizontalMargin,
+                            vertical = 8.dp,
+                        ),
                     )
                 }
                 item(key = "category-filter") {
