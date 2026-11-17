@@ -58,12 +58,12 @@ internal class AgentStructuredDeviceTools(
     private val displaySound =
         DisplaySoundControls(context) { root.execute(it, maxOutputBytes = 32 * 1024) }
     private val systemStates =
-        SystemStateControls(context) { root.execute(it, maxOutputBytes = 32 * 1024) }
+        SystemStateControls(context, logger) { root.execute(it, maxOutputBytes = 32 * 1024) }
     private val privateDatabaseTools = AgentPrivateDatabaseTools(context, root)
     private val notificationHistory by lazy { NotificationHistoryRepository(context) }
     private val appInspection = AppInspectionTool(context)
     private val stateMutations =
-        DeviceStateMutations(context) { root.execute(it, maxOutputBytes = 32 * 1024) }
+        DeviceStateMutations(context, logger) { root.execute(it, maxOutputBytes = 32 * 1024) }
     private val logcatQuery = LogcatQuery { root.execute(it, maxOutputBytes = 512 * 1024) }
 
     fun execute(name: String, args: JSONObject): AgentModelClient.ToolResult? {

@@ -7,12 +7,14 @@ import android.media.AudioManager
 import android.net.wifi.WifiManager
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
 import io.github.mangi.eta.agent.device.DeviceToolContract
+import io.github.mangi.eta.core.AgentLogger
 import java.util.Locale
 import org.json.JSONObject
 
 /** 系统写操作与读回验证共用同一用户和同一状态口径。 */
 internal class DeviceStateMutations(
     private val context: Context,
+    private val logger: AgentLogger? = null,
     private val executeRoot: (String) -> BoundedRootCommandExecutor.Result,
 ) {
     fun setSetting(args: JSONObject): String {
@@ -28,6 +30,12 @@ internal class DeviceStateMutations(
         val result = executeRoot("settings --user $userId put ${DeviceToolContract.quote(namespace)} " +
             "${DeviceToolContract.quote(key)} ${DeviceToolContract.quote(value)}")
         val after = readSetting(readCommand)
+        if (namespace == "system" && key in ROTATION_LOG_KEYS) {
+            logger?.info(
+                "Agent device mutation action=set_setting namespace=$namespace key=$key " +
+                    "before=${before ?: "null"} after=${after ?: "null"} expected=$value ok=${result.ok}"
+            )
+        }
         return mutation("set_setting", userId, if (namespace == "global") "device" else "app_user", before, after, value, result)
             .put("namespace", namespace).put("key", key).toString()
     }
@@ -37,7 +45,9 @@ internal class DeviceStateMutations(
         DeviceToolContract.userScopeError(args, userId)?.let { return it.toString() }
         val target = args.optString("target").lowercase(Locale.ROOT)
         val enabled = args.opt("enabled") as? Boolean ?: return invalid("enabled 必须是布尔值")
-        if (target !in setOf("wifi", "bluetooth")) return SystemStateControls(context, executeRoot).set(target, enabled).toString()
+        if (target !in setOf("wifi", "bluetooth")) {
+            return SystemStateControls(context, logger, executeRoot).set(target, enabled).toString()
+        }
         val command = when (target) {
             "wifi" -> "cmd wifi set-wifi-enabled ${if (enabled) "enabled" else "disabled"}"
             "bluetooth" -> "cmd bluetooth_manager ${if (enabled) "enable" else "disable"}"
@@ -160,6 +170,8 @@ internal class DeviceStateMutations(
     private fun invalid(message: String): String = DeviceToolContract.failure("INVALID_ARGUMENT", message).toString()
 
     companion object {
+        private val ROTATION_LOG_KEYS = setOf("accelerometer_rotation", "user_rotation")
+
         internal fun bluetoothState(output: String): Boolean? =
             when (Regex("(?m)^\\s*state:\\s*(ON|OFF|10|12)\\s*$").find(output)?.groupValues?.get(1)) {
                 "ON", "12" -> true

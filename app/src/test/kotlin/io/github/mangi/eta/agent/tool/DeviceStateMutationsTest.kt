@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.tool
 import android.content.Context
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
 import io.github.mangi.eta.agent.device.DeviceToolContract
+import io.github.mangi.eta.core.AgentLogger
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -91,6 +92,53 @@ class DeviceStateMutationsTest {
         assertTrue(result.getBoolean("ok"))
         assertTrue(result.getBoolean("verified"))
         assertFalse(result.getBoolean("changed"))
+    }
+
+    @Test
+    fun rotationMutationLogsAuditTrailWithoutLoggingOrdinarySettings() {
+        val infoLogs = mutableListOf<String>()
+        val logger = object : AgentLogger {
+            override fun debug(message: () -> String) = Unit
+            override fun info(message: String) {
+                infoLogs += message
+            }
+            override fun warn(message: String) = Unit
+            override fun error(message: String, throwable: Throwable?) = Unit
+        }
+        val outputs = ArrayDeque(listOf("0\n", "", "1\n", "0\n", "", "1\n", "old\n", "", "secret\n"))
+        val mutations = DeviceStateMutations(context, logger) { output(outputs.removeFirst()) }
+
+        val settingResult = JSONObject(
+            mutations.setSetting(
+                JSONObject()
+                    .put("namespace", "system")
+                    .put("key", "accelerometer_rotation")
+                    .put("value", "1"),
+            ),
+        )
+        assertTrue(settingResult.getBoolean("verified"))
+
+        val stateResult = JSONObject(
+            mutations.setDeviceState(JSONObject().put("target", "auto_rotate").put("enabled", true)),
+        )
+        assertTrue(stateResult.getBoolean("verified"))
+
+        val ordinaryResult = JSONObject(
+            mutations.setSetting(
+                JSONObject()
+                    .put("namespace", "system")
+                    .put("key", "eta_ordinary_setting")
+                    .put("value", "secret"),
+            ),
+        )
+        assertTrue(ordinaryResult.getBoolean("verified"))
+
+        assertEquals(2, infoLogs.size)
+        assertTrue(infoLogs[0].contains("key=accelerometer_rotation"))
+        assertTrue(infoLogs[0].contains("before=0 after=1"))
+        assertTrue(infoLogs[1].contains("target=auto_rotate"))
+        assertTrue(infoLogs[1].contains("before=false after=true"))
+        assertTrue(infoLogs.none { it.contains("eta_ordinary_setting") || it.contains("secret") })
     }
 
     private fun output(text: String) = BoundedRootCommandExecutor.Result(0, text, "", false, false)

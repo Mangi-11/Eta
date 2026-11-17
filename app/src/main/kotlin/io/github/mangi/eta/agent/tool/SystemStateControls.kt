@@ -7,11 +7,13 @@ import android.os.PowerManager
 import android.provider.Settings
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
 import io.github.mangi.eta.agent.device.DeviceToolContract
+import io.github.mangi.eta.core.AgentLogger
 import org.json.JSONObject
 
 /** 有明确系统语义的开关；不把模型提供的设置键或命令作为执行入口。 */
 internal class SystemStateControls(
     private val context: Context,
+    private val logger: AgentLogger? = null,
     private val execute: (String) -> BoundedRootCommandExecutor.Result,
 ) {
     fun read(target: String): Boolean? =
@@ -55,7 +57,13 @@ internal class SystemStateControls(
         if (target == "nfc" && NfcAdapter.getDefaultAdapter(context) == null)
             return DeviceToolContract.failure("DEVICE_UNSUPPORTED", "设备不支持 NFC")
         val before = read(target)
-        if (before == enabled)
+        if (before == enabled) {
+            if (target == "auto_rotate") {
+                logger?.info(
+                    "Agent device mutation action=set_device_state target=$target " +
+                        "before=$before after=$before expected=$enabled unchanged=true"
+                )
+            }
             return DeviceMutationResult.observed(
                     "set_device_state",
                     DeviceToolContract.appUserId(context),
@@ -66,8 +74,15 @@ internal class SystemStateControls(
                     true,
                 )
                 .put("target", target)
+        }
         val result = execute(command)
         val after = read(target)
+        if (target == "auto_rotate") {
+            logger?.info(
+                "Agent device mutation action=set_device_state target=$target " +
+                    "before=$before after=$after expected=$enabled ok=${result.ok}"
+            )
+        }
         return DeviceMutationResult.observed(
                 "set_device_state",
                 DeviceToolContract.appUserId(context),

@@ -372,7 +372,7 @@ internal class RootShellDeviceController(
         AgentAccessibilityService.current()?.let { service ->
             return scrollActionJson("scroll", service.scrollCurrent(parsed, parsedAmount, displayId = displayId))
         }
-        if (!rootAvailable()) return accessibilityUnavailable()
+        if (CanvasRoutingPolicy.isVirtualDisplay(displayId) || !rootAvailable()) return accessibilityUnavailable()
         val beforeNodes = dumpUiNodes(120)
         val targetBounds = beforeNodes
             .asSequence()
@@ -631,12 +631,21 @@ internal class RootShellDeviceController(
         while (System.currentTimeMillis() <= deadline) {
             attempts++
             val service = AgentAccessibilityService.current()
-            if (service == null && !rootAvailable()) return accessibilityUnavailable()
-            val nodes = service
-                ?.queryNodes(120, displayId)
-                ?.map { it.toUiNode() }
-                ?.takeIf { it.isNotEmpty() }
-                ?: if (rootAvailable() && !isVirtual) dumpUiNodes(120) else emptyList()
+            if (service == null && (isVirtual || !rootAvailable())) return accessibilityUnavailable()
+            val nodes = if (service != null) {
+                service.queryNodes(120, displayId).map { it.toUiNode() }
+            } else if (
+                ScreenObservationMetadata.mayUseUiAutomator(
+                    requested = true,
+                    accessibilityConnected = false,
+                    rootAvailable = rootAvailable(),
+                    virtualDisplay = isVirtual,
+                )
+            ) {
+                dumpUiNodes(120)
+            } else {
+                emptyList()
+            }
             val match = nodes.firstOrNull { node ->
                 val haystacks = if (includeDesc) listOf(node.text, node.desc) else listOf(node.text)
                 haystacks.any { value -> matches(value, needle, matchMode) }
@@ -1012,7 +1021,12 @@ internal class RootShellDeviceController(
             return UiNodeDump(emptyList(), outcome)
         }
         return try {
-            UiNodeDump(parseUiNodes(result.output, maxNodes), ShellActionOutcomePolicy.Outcome.SUCCEEDED)
+            val parsed = parseUiNodes(result.output, maxNodes)
+            logger.info(
+                "Agent device action=dump_ui outcome=succeeded source=root " +
+                    "exitCode=${result.exitCode} nodeCount=${parsed.size} outputChars=${result.output.length}"
+            )
+            UiNodeDump(parsed, ShellActionOutcomePolicy.Outcome.SUCCEEDED)
         } catch (_: org.xmlpull.v1.XmlPullParserException) {
             logger.warn("Agent device action=dump_ui outcome=failed source=root code=INVALID_XML")
             UiNodeDump(emptyList(), ShellActionOutcomePolicy.Outcome.FAILED)
