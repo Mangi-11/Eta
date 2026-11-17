@@ -217,7 +217,10 @@ internal fun markdownBlockGap(previous: MarkdownBlock?, current: MarkdownBlock, 
             current.level == 2 -> 20f
             else -> 16f
         }
+        previous is MarkdownHeading && current is MarkdownMath -> 10f
         previous is MarkdownHeading -> 6f
+        previous is MarkdownMath && current is MarkdownMath -> 12f
+        previous is MarkdownMath || current is MarkdownMath -> 14f
         previous is MarkdownParagraph && current is MarkdownList -> 8f
         previous is MarkdownParagraph && current is MarkdownParagraph -> 11f
         else -> 13f
@@ -241,7 +244,13 @@ internal fun markdownCompactGap(
 }
 
 internal fun MarkdownBlock.isStructuredContainer(): Boolean = when (this) {
-    is MarkdownQuote, is MarkdownCode, is MarkdownAlert, is MarkdownTable, is MarkdownRule -> true
+    is MarkdownQuote,
+    is MarkdownCode,
+    is MarkdownMath,
+    is MarkdownAlert,
+    is MarkdownTable,
+    is MarkdownRule,
+    -> true
     else -> false
 }
 

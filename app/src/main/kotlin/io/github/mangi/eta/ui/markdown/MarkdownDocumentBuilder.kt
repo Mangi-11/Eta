@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.markdown
 
 import androidx.compose.ui.text.AnnotatedString
+import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.ASTNode
@@ -12,17 +13,20 @@ import org.intellij.markdown.parser.LinkMap
  * 把 GFM AST 转成 [MarkdownDocument]。
  *
  * 同一会话内连续构建时，源码切片未变的顶层块直接复用上一次的实例：流式输出只改动
- * 尾部块，前面的段落、表格与代码块既不重新生成 AnnotatedString，组合期也因实例相同
+ * 尾部块，前面的段落、公式、表格与代码块既不重新生成 AnnotatedString，组合期也因实例相同
  * 而跳过。行内样式或链接表变化（主题切换、终态补齐引用链接）时缓存整体失效。
  */
-internal class MarkdownDocumentBuilder {
+internal class MarkdownDocumentBuilder(
+    private val mathCache: MarkdownMathLayoutCache = markdownMathLayoutCache,
+) {
     private var cache = emptyMap<Int, CachedBlock>()
     private var cacheStyle: MarkdownInlineStyle? = null
     private var cacheLinks: LinkMap? = null
 
     fun build(
         root: ASTNode,
-        source: String,
+        renderedSource: String,
+        originalSource: String = renderedSource,
         links: LinkMap?,
         style: MarkdownInlineStyle,
     ): MarkdownDocument {
@@ -31,26 +35,43 @@ internal class MarkdownDocumentBuilder {
             cacheStyle = style
             cacheLinks = links
         }
-        val converter = BlockConverter(source, links, style)
+        val converter = BlockConverter(
+            source = renderedSource,
+            originalSource = originalSource,
+            links = links,
+            style = style,
+            mathCache = mathCache,
+        )
         val nextCache = HashMap<Int, CachedBlock>()
         val blocks = root.children.mapNotNull { node ->
-            val slice = source.substring(node.startOffset, node.endOffset)
-            val reused = cache[node.startOffset]?.takeIf { it.source == slice }?.block
+            val renderedSlice = renderedSource.substring(node.startOffset, node.endOffset)
+            val originalEnd = node.endOffset.coerceAtMost(originalSource.length)
+            val originalStart = node.startOffset.coerceAtMost(originalEnd)
+            val originalSlice = originalSource.substring(originalStart, originalEnd)
+            val reused = cache[node.startOffset]
+                ?.takeIf { it.renderedSource == renderedSlice && it.originalSource == originalSlice }
+                ?.block
             val block = reused ?: converter.convert(node) ?: return@mapNotNull null
-            nextCache[node.startOffset] = CachedBlock(slice, block)
+            nextCache[node.startOffset] = CachedBlock(renderedSlice, originalSlice, block)
             block
         }
         cache = nextCache
         return MarkdownDocument(blocks = blocks, revealKeys = blocks.revealKeys(), inlineStyle = style)
     }
 
-    private class CachedBlock(val source: String, val block: MarkdownBlock)
+    private class CachedBlock(
+        val renderedSource: String,
+        val originalSource: String,
+        val block: MarkdownBlock,
+    )
 }
 
 private class BlockConverter(
     private val source: String,
+    private val originalSource: String,
     private val links: LinkMap?,
     private val style: MarkdownInlineStyle,
+    private val mathCache: MarkdownMathLayoutCache,
 ) {
     fun convert(node: ASTNode): MarkdownBlock? = when (node.type) {
         MarkdownTokenTypes.EOL,
@@ -60,6 +81,7 @@ private class BlockConverter(
         -> null
 
         MarkdownElementTypes.PARAGRAPH -> paragraph(node)
+        GFMElementTypes.BLOCK_MATH -> blockMath(node)
         MarkdownElementTypes.ATX_1 -> heading(node, 1, MarkdownTokenTypes.ATX_CONTENT)
         MarkdownElementTypes.ATX_2 -> heading(node, 2, MarkdownTokenTypes.ATX_CONTENT)
         MarkdownElementTypes.ATX_3 -> heading(node, 3, MarkdownTokenTypes.ATX_CONTENT)
@@ -84,22 +106,34 @@ private class BlockConverter(
 
     private fun paragraph(node: ASTNode): MarkdownBlock? {
         val meaningful = node.children.filterNot { it.isWhitespaceLike() }
-        val math = meaningful.singleOrNull()?.takeIf { it.type == GFMElementTypes.BLOCK_MATH }
-        if (math != null) {
-            return MarkdownCode(
-                offset = node.startOffset,
-                language = MATH_LANGUAGE,
-                text = AnnotatedString(mathSource(math)),
-                isMath = true,
-            )
+        val math = meaningful.singleOrNull()?.takeIf {
+            it.type == GFMElementTypes.BLOCK_MATH && !isInlineParenthesisMath(it)
         }
-        val text = inline(node.children)
-        return if (text.isEmpty()) null else MarkdownParagraph(node.startOffset, text)
+        if (math != null) {
+            return blockMath(math, blockOffset = node.startOffset)
+        }
+        val content = inline(node.children)
+        return if (content.text.isEmpty()) {
+            null
+        } else {
+            MarkdownParagraph(node.startOffset, content.text, content.inlineMath)
+        }
     }
 
-    private fun heading(node: ASTNode, level: Int, contentType: org.intellij.markdown.IElementType): MarkdownBlock {
-        val content = node.child(contentType)?.children.orEmpty()
-        return MarkdownHeading(node.startOffset, level, inline(content))
+    private fun blockMath(node: ASTNode, blockOffset: Int = node.startOffset): MarkdownBlock? {
+        val extracted = extractBlockMath(node) ?: return null
+        val displayList = mathCache.layout(latex = extracted.latex, displayMode = true)
+        return MarkdownMath(
+            offset = blockOffset,
+            latex = extracted.latex,
+            rawSource = extracted.rawSource,
+            displayList = displayList,
+        )
+    }
+
+    private fun heading(node: ASTNode, level: Int, contentType: IElementType): MarkdownBlock {
+        val content = inline(node.child(contentType)?.children.orEmpty())
+        return MarkdownHeading(node.startOffset, level, content.text, content.inlineMath)
     }
 
     /**
@@ -196,22 +230,73 @@ private class BlockConverter(
 
     private fun ASTNode.cells(): List<MarkdownTableCell> = children
         .filter { it.type == GFMTokenTypes.CELL }
-        .map { cell -> MarkdownTableCell(cell.startOffset, inline(cell.children)) }
+        .map { cell ->
+            val content = inline(cell.children)
+            MarkdownTableCell(cell.startOffset, content.text, content.inlineMath)
+        }
 
     private fun raw(node: ASTNode): MarkdownBlock? {
         val text = node.text().trim()
         return if (text.isEmpty()) null else MarkdownParagraph(node.startOffset, AnnotatedString(text))
     }
 
-    private fun inline(nodes: List<ASTNode>): AnnotatedString = inlineText(nodes, source, links, style)
+    private fun inline(nodes: List<ASTNode>): MarkdownInlineContent = inlineContent(
+        nodes = nodes,
+        source = source,
+        originalSource = originalSource,
+        links = links,
+        style = style,
+        mathCache = mathCache,
+    )
 
-    private fun mathSource(node: ASTNode): String {
-        val children = node.children
-        if (children.size < 2) return node.text()
-        return source.substring(children.first().endOffset, children.last().startOffset).trim('\n', ' ')
+    private fun isInlineParenthesisMath(node: ASTNode): Boolean {
+        val openDollar = node.children.firstOrNull { it.type == GFMTokenTypes.DOLLAR } ?: return false
+        return openDollar.startOffset + 2 <= originalSource.length &&
+            originalSource.startsWith("\\(", openDollar.startOffset)
+    }
+
+    private data class ExtractedMath(val latex: String, val rawSource: String)
+
+    private fun extractBlockMath(node: ASTNode): ExtractedMath? {
+        val openIdx = node.children.indexOfFirst { it.type == GFMTokenTypes.DOLLAR }
+        val closeIdx = node.children.indexOfLast { it.type == GFMTokenTypes.DOLLAR }
+        if (openIdx < 0 || closeIdx <= openIdx) {
+            val raw = node.originalText().trim()
+            return raw.takeIf(String::isNotEmpty)?.let { ExtractedMath(latex = it, rawSource = it) }
+        }
+        val openNode = node.children[openIdx]
+        val closeNode = node.children[closeIdx]
+        val bodyBuilder = StringBuilder()
+        for (index in (openIdx + 1) until closeIdx) {
+            val child = node.children[index]
+            when (child.type) {
+                // 引用块与列表外层标记不属于公式源码，跳过以免混入 `>` 或列表前缀。
+                MarkdownTokenTypes.BLOCK_QUOTE,
+                MarkdownTokenTypes.LIST_BULLET,
+                MarkdownTokenTypes.LIST_NUMBER,
+                GFMTokenTypes.CHECK_BOX,
+                -> Unit
+                MarkdownTokenTypes.EOL -> bodyBuilder.append('\n')
+                else -> bodyBuilder.append(child.originalText())
+            }
+        }
+        val rawBody = bodyBuilder.toString()
+        val latex = rawBody.trim('\n', '\r', ' ', '\t')
+        if (latex.isEmpty()) return null
+        val openDelim = openNode.originalText()
+        val closeDelim = closeNode.originalText()
+        val rawSource = openDelim + rawBody + closeDelim
+        return ExtractedMath(latex = latex, rawSource = rawSource)
     }
 
     private fun ASTNode.text(): String = source.substring(startOffset, endOffset)
+
+    private fun ASTNode.originalText(): String =
+        if (endOffset <= originalSource.length) {
+            originalSource.substring(startOffset, endOffset)
+        } else {
+            source.substring(startOffset, endOffset)
+        }
 
     /**
      * 两个连续 EOL 即源码中的空行；出现在列表项之间或列表项内部时，该列表为松散列表。
@@ -226,10 +311,6 @@ private class BlockConverter(
 
     private fun ASTNode.isWhitespaceLike(): Boolean =
         type == MarkdownTokenTypes.WHITE_SPACE || type == MarkdownTokenTypes.EOL
-
-    private companion object {
-        const val MATH_LANGUAGE = "LaTeX"
-    }
 }
 
 private fun String.parseAlignments(columns: Int): List<MarkdownColumnAlign> {
@@ -254,6 +335,7 @@ internal fun List<MarkdownBlock>.revealKeys(): Set<RevealBlockKey> = buildSet {
     fun collect(block: MarkdownBlock) {
         when (block) {
             is MarkdownTextBlock -> if (block.text.isNotEmpty()) add(block.revealKey)
+            is MarkdownMath -> if (block.rawSource.isNotEmpty()) add(block.revealKey)
             is MarkdownQuote -> block.blocks.forEach(::collect)
             is MarkdownAlert -> block.blocks.forEach(::collect)
             is MarkdownList -> block.items.forEach { item -> item.blocks.forEach(::collect) }
@@ -264,11 +346,12 @@ internal fun List<MarkdownBlock>.revealKeys(): Set<RevealBlockKey> = buildSet {
     this@revealKeys.forEach(::collect)
 }
 
-/** 列表项 marker 的显示时机：项内按源码顺序第一个有文字的块开始显现时。 */
+/** 列表项 marker 的显示时机：项内按源码顺序第一个有文字或公式的块开始显现时。 */
 private fun List<MarkdownBlock>.firstRevealKey(): RevealBlockKey? = asSequence()
     .mapNotNull { block ->
         when (block) {
             is MarkdownTextBlock -> block.revealKey.takeIf { block.text.isNotEmpty() }
+            is MarkdownMath -> block.revealKey.takeIf { block.rawSource.isNotEmpty() }
             is MarkdownQuote -> block.blocks.firstRevealKey()
             is MarkdownAlert -> block.blocks.firstRevealKey()
             is MarkdownList -> block.items.firstOrNull()?.markerRevealKey

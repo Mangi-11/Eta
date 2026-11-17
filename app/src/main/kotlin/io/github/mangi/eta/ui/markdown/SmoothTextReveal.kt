@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.markdown
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
@@ -102,11 +103,12 @@ internal class SmoothTextRevealCoordinator {
         node: SmoothTextRevealNode,
         text: String?,
         layoutResult: TextLayoutResult?,
+        atomicSpans: List<RevealAtomicSpan> = emptyList(),
     ) {
         val record = records.getOrPut(key) { RevealRecord(key) }
         record.node = node
         if (text != null && layoutResult != null) {
-            updateRecord(record, text, layoutResult)
+            updateRecord(record, text, layoutResult, atomicSpans)
         }
         wakeups.trySend(Unit)
     }
@@ -125,10 +127,11 @@ internal class SmoothTextRevealCoordinator {
         node: SmoothTextRevealNode?,
         text: String,
         layoutResult: TextLayoutResult,
+        atomicSpans: List<RevealAtomicSpan> = emptyList(),
     ) {
         val record = records.getOrPut(key) { RevealRecord(key) }
         if (node != null) record.node = node
-        updateRecord(record, text, layoutResult)
+        updateRecord(record, text, layoutResult, atomicSpans)
         wakeups.trySend(Unit)
     }
 
@@ -188,19 +191,37 @@ internal class SmoothTextRevealCoordinator {
         record: RevealRecord,
         text: String,
         layoutResult: TextLayoutResult,
+        atomicSpans: List<RevealAtomicSpan>,
     ) {
-        if (text != record.text) {
-            // 流式文本只追加不修改，但行内语法闭合（**粗体**、`code`、链接折叠等）会让
-            // 渲染文本丢掉标记字符而变短或错位。此时进度只能保持单调前进：一旦回退，
-            // 已显现的文字会消失并重新打字，表现为输出反复闪烁。
-            record.boundaries = updateGraphemeBoundaries(
-                previousText = record.text,
-                previousBoundaries = record.boundaries,
-                text = text,
-            )
+        val spansChanged = atomicSpans != record.atomicSpans
+        if (text != record.text || spansChanged) {
+            // 流式文本只追加不修改，但行内语法或公式闭合会让渲染文本变短或把多字符区间折叠为
+            // 单个原子步。按已显现字符偏移保序映射，既不回退重打已显示文字，也不跳过公式后的新字。
+            val oldFullIndex = floor(record.progress).toInt().coerceIn(0, record.boundaries.lastIndex)
+            val oldCharOffset = record.boundaries[oldFullIndex]
+            val oldFraction = (record.progress - oldFullIndex).coerceIn(0f, 1f)
+
+            record.boundaries = if (atomicSpans.isEmpty() && record.atomicSpans.isEmpty()) {
+                updateGraphemeBoundaries(
+                    previousText = record.text,
+                    previousBoundaries = record.boundaries,
+                    text = text,
+                )
+            } else {
+                graphemeBoundariesWithAtomicSpans(text, atomicSpans)
+            }
             record.text = text
+            record.atomicSpans = atomicSpans
             record.targetCount = record.boundaries.lastIndex.toFloat()
-            record.progress = record.progress.coerceAtMost(record.targetCount)
+            record.progress = if (spansChanged) {
+                mapProgressAcrossAtomicChange(
+                    newBoundaries = record.boundaries,
+                    oldCharOffset = oldCharOffset,
+                    oldFraction = oldFraction,
+                )
+            } else {
+                record.progress.coerceAtMost(record.targetCount)
+            }
         }
         if (record.layoutResult !== layoutResult) {
             record.layoutResult = layoutResult
@@ -227,6 +248,9 @@ internal class SmoothTextRevealCoordinator {
     }
 }
 
+@Immutable
+internal data class RevealAtomicSpan(val start: Int, val end: Int)
+
 @JvmInline
 internal value class RevealBlockKey(val sourceOffset: Int) : Comparable<RevealBlockKey> {
     override fun compareTo(other: RevealBlockKey): Int = sourceOffset.compareTo(other.sourceOffset)
@@ -240,16 +264,22 @@ internal class SmoothTextRevealState(
     private var node: SmoothTextRevealNode? = null
     private var text: String? = null
     private var layoutResult: TextLayoutResult? = null
+    private var atomicSpans: List<RevealAtomicSpan> = emptyList()
 
-    fun onTextLayout(text: String, layoutResult: TextLayoutResult) {
+    fun onTextLayout(
+        text: String,
+        layoutResult: TextLayoutResult,
+        atomicSpans: List<RevealAtomicSpan> = emptyList(),
+    ) {
         this.text = text
         this.layoutResult = layoutResult
-        coordinator.updateLayout(key, node, text, layoutResult)
+        this.atomicSpans = atomicSpans
+        coordinator.updateLayout(key, node, text, layoutResult, atomicSpans)
     }
 
     internal fun attach(node: SmoothTextRevealNode) {
         this.node = node
-        coordinator.attach(key, node, text, layoutResult)
+        coordinator.attach(key, node, text, layoutResult, atomicSpans)
     }
 
     internal fun detach(node: SmoothTextRevealNode) {
@@ -441,6 +471,7 @@ internal class RevealRecord(
     var node: SmoothTextRevealNode? = null
     var text: String = ""
     var layoutResult: TextLayoutResult? = null
+    var atomicSpans: List<RevealAtomicSpan> = emptyList()
     var boundaries: IntArray = intArrayOf(0)
     var progress: Float = 0f
     var targetCount: Float = 0f
@@ -477,6 +508,52 @@ internal fun graphemeBoundaries(text: String): IntArray {
     }
     if (result.lastOrNull() != text.length) result += text.length
     return result.toIntArray()
+}
+
+internal fun graphemeBoundariesWithAtomicSpans(
+    text: String,
+    atomicSpans: List<RevealAtomicSpan>,
+): IntArray {
+    if (atomicSpans.isEmpty() || text.isEmpty()) return graphemeBoundaries(text)
+    val validSpans = atomicSpans
+        .mapNotNull { span ->
+            val s = span.start.coerceIn(0, text.length)
+            val e = span.end.coerceIn(0, text.length)
+            if (s < e) RevealAtomicSpan(s, e) else null
+        }
+        .sortedBy { it.start }
+    if (validSpans.isEmpty()) return graphemeBoundaries(text)
+
+    val raw = graphemeBoundaries(text)
+    val points = sortedSetOf<Int>()
+    for (boundary in raw) {
+        val insideSpan = validSpans.any { span -> boundary > span.start && boundary < span.end }
+        if (!insideSpan) points += boundary
+    }
+    for (span in validSpans) {
+        points += span.start
+        points += span.end
+    }
+    return points.toIntArray()
+}
+
+internal fun mapProgressAcrossAtomicChange(
+    newBoundaries: IntArray,
+    oldCharOffset: Int,
+    oldFraction: Float,
+): Float {
+    val targetCount = newBoundaries.lastIndex.toFloat()
+    if (targetCount <= 0f || oldCharOffset <= 0) {
+        return oldFraction.coerceIn(0f, targetCount.coerceAtLeast(0f))
+    }
+    val mappedIndex = newBoundaries.indexOfFirst { it >= oldCharOffset }
+    if (mappedIndex < 0) return targetCount
+    return if (newBoundaries[mappedIndex] == oldCharOffset) {
+        (mappedIndex + oldFraction).coerceAtMost(targetCount)
+    } else {
+        // 旧进度正处于刚闭合折叠为原子的公式区间内部：直接对齐到公式结束处，继续逐字显现后续新字。
+        mappedIndex.toFloat().coerceAtMost(targetCount)
+    }
 }
 
 /**

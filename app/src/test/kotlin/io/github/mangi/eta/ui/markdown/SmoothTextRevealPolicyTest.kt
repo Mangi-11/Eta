@@ -217,9 +217,16 @@ class SmoothTextRevealPolicyTest {
         val table = MarkdownTable(20, alignments = emptyList(), header = emptyList(), rows = emptyList())
         val rule = MarkdownRule(24)
         val quote = MarkdownQuote(28, blocks = emptyList())
+        val math = MarkdownMath(32, latex = "E=mc^2", rawSource = "\$\$E=mc^2\$\$", displayList = null)
+        val secondMath = MarkdownMath(48, latex = "a=b", rawSource = "\$\$a=b\$\$", displayList = null)
 
         assertEquals(0.sp, markdownBlockGap(null, first, MarkdownTone.Answer))
+        assertEquals(0.sp, markdownBlockGap(null, math, MarkdownTone.Answer))
         assertEquals(11.sp, markdownBlockGap(first, second, MarkdownTone.Answer))
+        assertEquals(14.sp, markdownBlockGap(first, math, MarkdownTone.Answer))
+        assertEquals(14.sp, markdownBlockGap(math, second, MarkdownTone.Answer))
+        assertEquals(12.sp, markdownBlockGap(math, secondMath, MarkdownTone.Answer))
+        assertEquals(10.sp, markdownBlockGap(heading, math, MarkdownTone.Answer))
         assertEquals(20.sp, markdownBlockGap(first, heading, MarkdownTone.Answer))
         assertEquals(16.sp, markdownBlockGap(first, subHeading, MarkdownTone.Answer))
         assertEquals(6.sp, markdownBlockGap(heading, second, MarkdownTone.Answer))
@@ -230,10 +237,12 @@ class SmoothTextRevealPolicyTest {
         assertEquals(16.sp, markdownBlockGap(rule, heading, MarkdownTone.Answer))
         assertEquals(5.sp, markdownCompactGap(first, list, MarkdownTone.Answer))
         assertEquals(8.sp, markdownCompactGap(first, quote, MarkdownTone.Answer))
+        assertEquals(8.sp, markdownCompactGap(first, math, MarkdownTone.Answer))
 
         // 思考语气的间距整体收敛。
         assertEquals(0.sp, markdownBlockGap(null, first, MarkdownTone.Thinking))
         assertEquals(8.25.sp, markdownBlockGap(first, second, MarkdownTone.Thinking))
+        assertEquals(10.5.sp, markdownBlockGap(first, math, MarkdownTone.Thinking))
         assertEquals(15.sp, markdownBlockGap(first, heading, MarkdownTone.Thinking))
     }
 

@@ -1,5 +1,6 @@
 package io.github.mangi.eta.ui.markdown
 
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
@@ -40,22 +41,41 @@ internal data class MarkdownInlineStyle(
     }
 }
 
+internal data class MarkdownInlineContent(
+    val text: AnnotatedString,
+    val inlineMath: List<InlineMathSpec> = emptyList(),
+)
+
 /**
- * 把一组行内节点转换为 AnnotatedString。
+ * 把一组行内节点转换为 AnnotatedString 与已排版的行内公式列表。
  *
- * 只处理聊天里实际出现的 GFM 行内语法；未识别的叶子按源码原样输出，确保任何内容
- * 都不会因为缺少渲染分支而凭空消失（数学公式就曾因此整段丢失）。
+ * 只处理聊天里实际出现的 GFM 行内语法；行内数学公式经 RaTeX 预排版后写入 [appendInlineContent]，
+ * 以原始定界符源码作为 `alternateText` 供划词复制与无障碍读取；解析失败或未识别的叶子均按源码原样输出，
+ * 确保任何内容都不会凭空消失。
  */
 internal class MarkdownInlineBuilder(
     private val source: String,
+    private val originalSource: String = source,
     private val links: LinkMap?,
     private val style: MarkdownInlineStyle,
+    private val mathCache: MarkdownMathLayoutCache = markdownMathLayoutCache,
 ) {
-    fun build(nodes: List<ASTNode>): AnnotatedString {
+    private val inlineMathSpecs = ArrayList<InlineMathSpec>()
+    private var lastAppendedChar: Char = '\u0000'
+
+    fun build(nodes: List<ASTNode>): MarkdownInlineContent {
+        inlineMathSpecs.clear()
+        lastAppendedChar = '\u0000'
         val builder = AnnotatedString.Builder()
         val state = LineState()
         builder.appendNodes(nodes, parent = null, state)
-        return builder.toAnnotatedString().trimTrailingWhitespace()
+        val trimmed = builder.toAnnotatedString().trimTrailingWhitespace()
+        val retainedMath = if (inlineMathSpecs.isEmpty()) {
+            emptyList()
+        } else {
+            inlineMathSpecs.filter { it.rangeEnd <= trimmed.length }
+        }
+        return MarkdownInlineContent(text = trimmed, inlineMath = retainedMath)
     }
 
     /** 软换行后的缩进与引用前缀（`>`）属于块结构，不属于正文。 */
@@ -73,14 +93,14 @@ internal class MarkdownInlineBuilder(
         if (type == MarkdownTokenTypes.EOL || type == MarkdownTokenTypes.HARD_LINE_BREAK) {
             // 聊天输出里的单个换行几乎总是作者想要的换行；按 CommonMark 折成空格会
             // 在中文之间插入多余空白，也会让模型刻意分行的内容挤成一段。
-            if (!(type == MarkdownTokenTypes.EOL && state.afterHardBreak)) append('\n')
+            if (!(type == MarkdownTokenTypes.EOL && state.afterHardBreak)) appendTracked('\n')
             state.afterHardBreak = type == MarkdownTokenTypes.HARD_LINE_BREAK
             state.atLineStart = true
             return
         }
         state.afterHardBreak = false
         when (type) {
-            MarkdownTokenTypes.WHITE_SPACE -> append(' ')
+            MarkdownTokenTypes.WHITE_SPACE -> appendTracked(' ')
             MarkdownElementTypes.STRONG -> withStyle(
                 SpanStyle(fontWeight = FontWeight.Bold, color = style.strongColor),
             ) {
@@ -93,7 +113,7 @@ internal class MarkdownInlineBuilder(
                 appendChildren(node, state)
             }
             MarkdownElementTypes.CODE_SPAN -> appendCode(codeSpanText(node))
-            GFMElementTypes.INLINE_MATH, GFMElementTypes.BLOCK_MATH -> appendCode(mathText(node))
+            GFMElementTypes.INLINE_MATH, GFMElementTypes.BLOCK_MATH -> appendMath(node)
             MarkdownElementTypes.INLINE_LINK -> appendInlineLink(node, state)
             MarkdownElementTypes.FULL_REFERENCE_LINK -> appendReferenceLink(
                 node = node,
@@ -118,7 +138,7 @@ internal class MarkdownInlineBuilder(
             else -> when {
                 isDelimiterOf(type, parent) -> Unit
                 node.children.isNotEmpty() -> appendChildren(node, state)
-                else -> append(decodeMarkdownText(node.text()))
+                else -> appendTracked(decodeMarkdownText(node.text()))
             }
         }
         state.atLineStart = false
@@ -142,9 +162,9 @@ internal class MarkdownInlineBuilder(
             val pair = pairs[index]
             if (pair != null) {
                 withStyle(pair.style) {
-                    if (pair.padSpaces) append(' ')
+                    if (pair.padSpaces) appendTracked(' ')
                     appendNodes(nodes.subList(pair.contentStart, pair.contentEnd), parent, state)
-                    if (pair.padSpaces) append(' ')
+                    if (pair.padSpaces) appendTracked(' ')
                 }
                 index = pair.nextIndex
             } else {
@@ -271,10 +291,44 @@ internal class MarkdownInlineBuilder(
             ),
         ) {
             // 前后窄空格让底色不紧贴字形边缘，读起来像独立的代码标记。
-            append(' ')
-            append(code)
-            append(' ')
+            appendTracked(' ')
+            appendTracked(code)
+            appendTracked(' ')
         }
+    }
+
+    private fun AnnotatedString.Builder.appendMath(node: ASTNode) {
+        val latex = mathText(node)
+        val rawSource = originalMathSource(node)
+        val displayList = mathCache.layout(latex = latex, displayMode = false)
+        if (displayList == null) {
+            // 解析失败或原生引擎不可用时完整保留带定界符的原文，不隐藏或截断字符。
+            appendTracked(rawSource)
+            return
+        }
+        val leadingEm = if (lastAppendedChar.needsCjkMathKerning()) INLINE_CJK_MATH_GAP_EM else 0f
+        val trailingEm = if (peekNextVisibleCharAfter(node.endOffset).needsCjkMathKerning()) {
+            INLINE_CJK_MATH_GAP_EM
+        } else {
+            0f
+        }
+        // StaticLayout 遇到硬换行会截断单行 PlaceholderSpan；TeX 行内公式中单换行等价于空格。
+        val alternateText = rawSource.replace("\r\n", " ").replace('\n', ' ').ifEmpty { latex }
+        val id = "eta_inline_math_${inlineMathSpecs.size}"
+        val rangeStart = length
+        appendInlineContent(id = id, alternateText = alternateText)
+        val rangeEnd = length
+        lastAppendedChar = alternateText.last()
+        inlineMathSpecs += InlineMathSpec(
+            id = id,
+            latex = latex,
+            rawSource = rawSource,
+            displayList = displayList,
+            rangeStart = rangeStart,
+            rangeEnd = rangeEnd,
+            leadingSpaceEm = leadingEm,
+            trailingSpaceEm = trailingEm,
+        )
     }
 
     private fun AnnotatedString.Builder.appendInlineLink(node: ASTNode, state: LineState) {
@@ -294,7 +348,7 @@ internal class MarkdownInlineBuilder(
         val destination = labelNode?.let { links?.getLinkInfo(it.text()) }?.destination?.toString()
         if (destination == null) {
             // 没有对应定义时它只是带方括号的普通文字，原样保留。
-            append(decodeMarkdownText(node.text()))
+            appendTracked(decodeMarkdownText(node.text()))
             return
         }
         appendLink(url = destination, textNode = textNode, fallback = node, state = state)
@@ -317,7 +371,7 @@ internal class MarkdownInlineBuilder(
                     state = state,
                 )
             } else {
-                append(decodeMarkdownText(fallback.text()))
+                appendTracked(decodeMarkdownText(fallback.text()))
             }
         }
         if (safeUrl == null) {
@@ -330,7 +384,7 @@ internal class MarkdownInlineBuilder(
     private fun AnnotatedString.Builder.appendUrl(raw: String) {
         val url = if (raw.startsWith("www.", ignoreCase = true)) "https://$raw" else raw
         val safeUrl = safeLinkUrl(url)
-        if (safeUrl == null) append(raw) else withLink(linkAnnotation(safeUrl)) { append(raw) }
+        if (safeUrl == null) appendTracked(raw) else withLink(linkAnnotation(safeUrl)) { appendTracked(raw) }
     }
 
     /** 聊天不加载远程图片：以替代文字作为可点开的链接，内容不丢失也不产生网络请求。 */
@@ -340,18 +394,29 @@ internal class MarkdownInlineBuilder(
         val destination = link?.child(MarkdownElementTypes.LINK_DESTINATION)?.text()?.removeSurrounding("<", ">")
         val label = alt.ifBlank { destination.orEmpty() }
         val safeUrl = destination?.let(::safeLinkUrl)
-        if (safeUrl == null) append(label) else withLink(linkAnnotation(safeUrl)) { append(label) }
+        if (safeUrl == null) appendTracked(label) else withLink(linkAnnotation(safeUrl)) { appendTracked(label) }
         state.atLineStart = false
     }
 
     private fun AnnotatedString.Builder.appendHtmlTag(node: ASTNode, state: LineState) {
         val tag = node.text()
         if (BR_TAG.matches(tag)) {
-            append('\n')
+            appendTracked('\n')
             state.atLineStart = true
         } else {
-            append(tag)
+            appendTracked(tag)
         }
+    }
+
+    private fun AnnotatedString.Builder.appendTracked(char: Char) {
+        append(char)
+        lastAppendedChar = char
+    }
+
+    private fun AnnotatedString.Builder.appendTracked(text: String) {
+        if (text.isEmpty()) return
+        append(text)
+        lastAppendedChar = text.last()
     }
 
     private fun linkAnnotation(url: String) = LinkAnnotation.Url(
@@ -385,6 +450,26 @@ internal class MarkdownInlineBuilder(
         return source.substring(children.first().endOffset, children.last().startOffset).trim()
     }
 
+    private fun originalMathSource(node: ASTNode): String =
+        if (node.endOffset <= originalSource.length) {
+            originalSource.substring(node.startOffset, node.endOffset)
+        } else {
+            node.text()
+        }
+
+    private fun peekNextVisibleCharAfter(offset: Int): Char {
+        var cursor = offset
+        while (cursor < source.length) {
+            val ch = source[cursor]
+            if (ch == '*' || ch == '_' || ch == '~') {
+                cursor += 1
+                continue
+            }
+            return ch
+        }
+        return '\u0000'
+    }
+
     private fun isDelimiterOf(type: IElementType, parent: ASTNode?): Boolean = when (parent?.type) {
         MarkdownElementTypes.STRONG, MarkdownElementTypes.EMPH -> type == MarkdownTokenTypes.EMPH
         GFMElementTypes.STRIKETHROUGH -> type == GFMTokenTypes.TILDE
@@ -394,6 +479,7 @@ internal class MarkdownInlineBuilder(
     private fun ASTNode.text(): String = source.substring(startOffset, endOffset)
 
     private companion object {
+        const val INLINE_CJK_MATH_GAP_EM = 0.11f
         val BR_TAG = Regex("""<br\s*/?>""", RegexOption.IGNORE_CASE)
         val KBD_OPEN = Regex("""<kbd\s*>""", RegexOption.IGNORE_CASE)
         val KBD_CLOSE = Regex("""</kbd\s*>""", RegexOption.IGNORE_CASE)
@@ -404,6 +490,18 @@ internal class MarkdownInlineBuilder(
             MarkdownElementTypes.EMPH,
             GFMElementTypes.STRIKETHROUGH,
         )
+    }
+}
+
+private fun Char.needsCjkMathKerning(): Boolean {
+    if (this == '\u0000' || isWhitespace() || code < 0x2E80) return false
+    return when (Character.UnicodeScript.of(code)) {
+        Character.UnicodeScript.HAN,
+        Character.UnicodeScript.HIRAGANA,
+        Character.UnicodeScript.KATAKANA,
+        Character.UnicodeScript.HANGUL,
+        -> true
+        else -> false
     }
 }
 
@@ -483,9 +581,29 @@ private fun AnnotatedString.trimTrailingWhitespace(): AnnotatedString {
 }
 
 /** 构建行内文本时只有这一个入口，保证段落、标题与表格单元格的规则一致。 */
+internal fun inlineContent(
+    nodes: List<ASTNode>,
+    source: String,
+    originalSource: String = source,
+    links: LinkMap?,
+    style: MarkdownInlineStyle,
+    mathCache: MarkdownMathLayoutCache = markdownMathLayoutCache,
+): MarkdownInlineContent = MarkdownInlineBuilder(
+    source = source,
+    originalSource = originalSource,
+    links = links,
+    style = style,
+    mathCache = mathCache,
+).build(nodes)
+
 internal fun inlineText(
     nodes: List<ASTNode>,
     source: String,
     links: LinkMap?,
     style: MarkdownInlineStyle,
-): AnnotatedString = MarkdownInlineBuilder(source, links, style).build(nodes)
+): AnnotatedString = inlineContent(
+    nodes = nodes,
+    source = source,
+    links = links,
+    style = style,
+).text

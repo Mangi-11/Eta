@@ -47,7 +47,7 @@ internal object TexMathDelimiters {
                     index = codeSpanEnd(source, index + run, run) ?: (index + run)
                 }
                 char == '\\' && source.getOrNull(index + 1) == '(' -> {
-                    val close = findClose(source, index + 2, ')')
+                    val close = findClose(source, index + 2, ')', allowBlankLines = false)
                     if (close == null) {
                         index += 2
                     } else {
@@ -56,7 +56,8 @@ internal object TexMathDelimiters {
                     }
                 }
                 char == '\\' && source.getOrNull(index + 1) == '[' && source.isLineStart(lineStart, index) -> {
-                    val close = findClose(source, index + 2, ']')?.takeIf { source.isLineEnd(it + 2) }
+                    val close = findClose(source, index + 2, ']', allowBlankLines = true)
+                        ?.takeIf { source.isLineEnd(it + 2) }
                     if (close == null) {
                         index += 2
                     } else {
@@ -72,12 +73,18 @@ internal object TexMathDelimiters {
         return output.toString()
     }
 
-    /** 在下一个空行之前寻找未转义的 `\` + [closer]，内容不能为空白。 */
-    private fun findClose(source: String, from: Int, closer: Char): Int? {
+    /** 寻找未转义的 `\` + [closer]；行内公式不跨空行，块级公式不跨入代码围栏，内容不能为空白。 */
+    private fun findClose(source: String, from: Int, closer: Char, allowBlankLines: Boolean): Int? {
         var index = from
         while (index < source.length - 1) {
             when {
-                source[index] == '\n' && source.isBlankLineAfter(index) -> return null
+                source[index] == '\n' -> {
+                    if (!allowBlankLines && source.isBlankLineAfter(index)) return null
+                    val nextLineStart = index + 1
+                    val nextLineEnd = source.indexOf('\n', nextLineStart).let { if (it < 0) source.length else it }
+                    if (fenceMarker(source.substring(nextLineStart, nextLineEnd)) != null) return null
+                    index += 1
+                }
                 source[index] == '\\' && source[index + 1] == closer ->
                     return index.takeIf { source.substring(from, index).isNotBlank() }
                 source[index] == '\\' -> index += 2

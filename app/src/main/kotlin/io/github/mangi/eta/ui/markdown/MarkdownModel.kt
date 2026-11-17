@@ -2,6 +2,7 @@ package io.github.mangi.eta.ui.markdown
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.text.AnnotatedString
+import io.ratex.DisplayList
 
 /**
  * 解析后的 Markdown 文档：后台线程从 GFM AST 构建，Compose 只负责绘制。
@@ -12,7 +13,7 @@ import androidx.compose.ui.text.AnnotatedString
 @Immutable
 internal class MarkdownDocument(
     val blocks: List<MarkdownBlock>,
-    /** 文档内所有参与逐字显现的文本块，用于让显现协调器丢弃已消失的旧块。 */
+    /** 文档内所有参与逐字显现的块，用于让显现协调器丢弃已消失的旧块。 */
     val revealKeys: Set<RevealBlockKey>,
     /** 链接与行内代码颜色在构建时写入；主题变化后旧文档不能直接复用。 */
     val inlineStyle: MarkdownInlineStyle,
@@ -26,27 +27,59 @@ internal sealed interface MarkdownBlock {
 /** 承载一段富文本的叶子块；[revealKey] 即其源码偏移。 */
 internal sealed interface MarkdownTextBlock : MarkdownBlock {
     val text: AnnotatedString
+    val inlineMath: List<InlineMathSpec> get() = emptyList()
     val revealKey: RevealBlockKey get() = RevealBlockKey(offset)
 }
+
+@Immutable
+internal data class InlineMathSpec(
+    val id: String,
+    val latex: String,
+    val rawSource: String,
+    val displayList: DisplayList,
+    /** 在 [MarkdownTextBlock.text] 中的字符区间，逐字显现将其视为单个不可分割原子步。 */
+    val rangeStart: Int,
+    val rangeEnd: Int,
+    /** 紧邻左侧汉字且无空格时的补偿微距（单位 em）。 */
+    val leadingSpaceEm: Float = 0f,
+    /** 紧邻右侧汉字且无空格时的补偿微距（单位 em）。 */
+    val trailingSpaceEm: Float = 0f,
+)
 
 internal data class MarkdownParagraph(
     override val offset: Int,
     override val text: AnnotatedString,
+    override val inlineMath: List<InlineMathSpec> = emptyList(),
 ) : MarkdownTextBlock
 
 internal data class MarkdownHeading(
     override val offset: Int,
     val level: Int,
     override val text: AnnotatedString,
+    override val inlineMath: List<InlineMathSpec> = emptyList(),
 ) : MarkdownTextBlock
 
 internal data class MarkdownCode(
     override val offset: Int,
     val language: String?,
     override val text: AnnotatedString,
-    /** 块级公式暂不排版，按原文以代码块样式显示，保证内容可见可复制。 */
-    val isMath: Boolean = false,
 ) : MarkdownTextBlock
+
+/**
+ * 独立块级数学公式（`$$...$$` 或 `\[...\]`）。
+ *
+ * [displayList] 由后台线程经 RaTeX 预排版；解析失败或原生引擎不可用时为 `null`，
+ * 界面退回按原文显示 [rawSource]，确保公式内容不丢失且始终可复制。
+ */
+@Immutable
+internal data class MarkdownMath(
+    override val offset: Int,
+    val latex: String,
+    val rawSource: String,
+    val displayList: DisplayList?,
+) : MarkdownBlock {
+    val revealKey: RevealBlockKey get() = RevealBlockKey(offset)
+}
 
 internal data class MarkdownQuote(
     override val offset: Int,
@@ -90,6 +123,7 @@ internal data class MarkdownTable(
 internal data class MarkdownTableCell(
     override val offset: Int,
     override val text: AnnotatedString,
+    override val inlineMath: List<InlineMathSpec> = emptyList(),
 ) : MarkdownTextBlock
 
 internal enum class MarkdownColumnAlign { Start, Center, End }

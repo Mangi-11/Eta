@@ -204,11 +204,22 @@ private fun MarkdownBlockView(block: MarkdownBlock, scope: MarkdownRenderScope) 
             modifier = Modifier.semantics { heading() },
         )
         is MarkdownCode -> MarkdownCodeBlock(block, scope)
+        is MarkdownMath -> MarkdownDisplayMathBlock(
+            block = block,
+            style = scope.style,
+            inQuote = scope.inQuote,
+            reveal = scope.reveal,
+        )
         is MarkdownQuote -> MarkdownQuoteBlock(block, scope)
         is MarkdownAlert -> MarkdownAlertBlock(block, scope)
         is MarkdownList -> MarkdownListBlock(block, scope)
         is MarkdownTable -> MarkdownTableBlock(block, scope)
-        is MarkdownTableCell -> MarkdownText(block, scope.style.table, scope)
+        is MarkdownTableCell -> MarkdownText(
+            block = block,
+            style = scope.style.table,
+            scope = scope,
+            maxInlineMathWidth = TableMaxColumnWidth - 24.dp,
+        )
         is MarkdownRule -> Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -226,22 +237,48 @@ private fun MarkdownText(
     scope: MarkdownRenderScope,
     modifier: Modifier = Modifier,
     softWrap: Boolean = true,
+    maxInlineMathWidth: Dp? = null,
 ) {
+    val inlineContent = if (block.inlineMath.isEmpty()) {
+        emptyMap()
+    } else {
+        rememberInlineMathContentMap(
+            text = block.text,
+            specs = block.inlineMath,
+            textStyle = style,
+            fallbackColor = scope.style.textColor,
+            maxInlineWidthDp = maxInlineMathWidth,
+        )
+    }
     val reveal = scope.reveal
     // 空单元格没有可显现的文字，也不占用显现协调器的 key。
     if (reveal == null || block.text.isEmpty()) {
-        Text(text = block.text, style = style, softWrap = softWrap, modifier = modifier)
+        Text(
+            text = block.text,
+            style = style,
+            softWrap = softWrap,
+            inlineContent = inlineContent,
+            modifier = modifier,
+        )
         return
     }
     val revealState = rememberSmoothTextRevealState(block.revealKey, reveal)
+    val atomicSpans = if (block.inlineMath.isEmpty()) {
+        emptyList()
+    } else {
+        remember(block.inlineMath) {
+            block.inlineMath.map { RevealAtomicSpan(it.rangeStart, it.rangeEnd) }
+        }
+    }
     // 显现裁剪按字素边界逐帧变化，关闭像素对齐可避免裁剪边缘抖动。
     val animatedStyle = remember(style) { style.copy(textMotion = TextMotion.Animated) }
     Text(
         text = block.text,
         style = animatedStyle,
         softWrap = softWrap,
+        inlineContent = inlineContent,
         modifier = modifier.smoothTextReveal(revealState),
-        onTextLayout = { layout -> revealState.onTextLayout(block.text.text, layout) },
+        onTextLayout = { layout -> revealState.onTextLayout(block.text.text, layout, atomicSpans) },
     )
 }
 
@@ -667,6 +704,7 @@ private fun MarkdownTableBlock(block: MarkdownTable, scope: MarkdownRenderScope)
                                 scope = scope,
                                 // 单元格以固定宽度测量，不需要 fill；fill 会干扰列宽的固有尺寸查询。
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                maxInlineMathWidth = TableMaxColumnWidth - 24.dp,
                             )
                         }
                     }

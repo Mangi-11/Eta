@@ -1,37 +1,81 @@
 package io.github.mangi.eta.ui.markdown
 
-import io.github.mangi.eta.ui.components.EtaMonospace
+import io.ratex.DisplayItem
+import io.ratex.DisplayList
+import io.ratex.RaTeXColor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TexMathDelimitersTest {
+    private val fakeMathCache = MarkdownMathLayoutCache(
+        engine = { latex, _ ->
+            if ("\\invalid" in latex) {
+                null
+            } else {
+                DisplayList(
+                    width = 2.0,
+                    height = 0.8,
+                    depth = 0.2,
+                    items = listOf(
+                        DisplayItem.Line(
+                            x = 0.0,
+                            y = 0.0,
+                            width = 1.0,
+                            thickness = 0.05,
+                            color = RaTeXColor.Black,
+                        )
+                    ),
+                )
+            }
+        }
+    )
+
     @Test
-    fun inlineParenthesesKeepLatexSourceIntact() {
+    fun inlineParenthesesKeepLatexSourceIntactAndProduceInlineMath() {
         val paragraph = blocks("行内 \\(a_i + b_j = \\frac{1}{2}\\) 结束").single() as MarkdownParagraph
 
-        val formula = "a_i + b_j = \\frac{1}{2}"
-        assertTrue(paragraph.text.text.contains(formula))
-        assertTrue(paragraph.text.spanStyles.any { range ->
-            range.item.fontFamily == EtaMonospace &&
-                paragraph.text.text.substring(range.start, range.end).contains(formula)
-        })
+        val rawFormula = "\\(a_i + b_j = \\frac{1}{2}\\)"
+        assertEquals("行内 $rawFormula 结束", paragraph.text.text)
+        val mathSpec = paragraph.inlineMath.single()
+        assertEquals("a_i + b_j = \\frac{1}{2}", mathSpec.latex)
+        assertEquals(rawFormula, mathSpec.rawSource)
+    }
+
+    @Test
+    fun failedInlineMathPreservesExactOriginalText() {
+        val paragraph = blocks("解析失败 \\(\\invalid{x}\\) 保留原文").single() as MarkdownParagraph
+
+        assertEquals("解析失败 \\(\\invalid{x}\\) 保留原文", paragraph.text.text)
+        assertTrue(paragraph.inlineMath.isEmpty())
     }
 
     @Test
     fun displayBracketsBecomeMathBlockWithoutLosingEscapes() {
-        val math = blocks("\\[\n\\sum_{i=1}^{n} a_i = \\{x \\mid x > 0\\}\n\\]").single() as MarkdownCode
+        val math = blocks("\\[\n\\sum_{i=1}^{n} a_i = \\{x \\mid x > 0\\}\n\\]").single() as MarkdownMath
 
-        assertTrue(math.isMath)
-        assertEquals("\\sum_{i=1}^{n} a_i = \\{x \\mid x > 0\\}", math.text.text)
+        assertEquals("\\sum_{i=1}^{n} a_i = \\{x \\mid x > 0\\}", math.latex)
+        assertEquals("\\[\n\\sum_{i=1}^{n} a_i = \\{x \\mid x > 0\\}\n\\]", math.rawSource)
+        assertNotNull(math.displayList)
     }
 
     @Test
     fun singleLineDisplayBracketsAreMath() {
-        val math = blocks("推导如下：\n\n\\[ E = mc^2 \\]").last() as MarkdownCode
-        assertTrue(math.isMath)
-        assertEquals("E = mc^2", math.text.text)
+        val math = blocks("推导如下：\n\n\\[ E = mc^2 \\]").last() as MarkdownMath
+        assertEquals("E = mc^2", math.latex)
+        assertEquals("\\[ E = mc^2 \\]", math.rawSource)
+        assertNotNull(math.displayList)
+    }
+
+    @Test
+    fun failedDisplayMathKeepsRawSourceForFallback() {
+        val math = blocks("\\[ \\invalid{x} \\]").single() as MarkdownMath
+        assertEquals("\\invalid{x}", math.latex)
+        assertEquals("\\[ \\invalid{x} \\]", math.rawSource)
+        assertNull(math.displayList)
     }
 
     @Test
@@ -104,22 +148,23 @@ class TexMathDelimitersTest {
             assertEquals(source, TexMathDelimiters.normalize(source))
         }
         val paragraph = blocks("价格 \$4 和 \$20 每百万").single() as MarkdownParagraph
-        assertFalse(paragraph.text.spanStyles.any { it.item.fontFamily == EtaMonospace })
+        assertTrue(paragraph.inlineMath.isEmpty())
+        assertEquals("价格 \$4 和 \$20 每百万", paragraph.text.text)
     }
 
     @Test
     fun streamingUnclosedDisplayMathConvertsOnceClosed() {
-        val session = StreamingGfmParserSession()
+        val session = StreamingGfmParserSession(fakeMathCache)
         val partial = session.parse("\\[\n\\frac{a}{b}", isComplete = false).document.blocks
-        assertFalse(partial.any { it is MarkdownCode && it.isMath })
+        assertFalse(partial.any { it is MarkdownMath })
         val complete = session.parse("\\[\n\\frac{a}{b}\n\\]", isComplete = true).document.blocks
-        assertEquals("\\frac{a}{b}", (complete.single() as MarkdownCode).text.text)
+        assertEquals("\\frac{a}{b}", (complete.single() as MarkdownMath).latex)
     }
 
     @Test(timeout = 5_000)
     fun streamingFencedBlankLinesKeepCodeAndResumeMathAfterClosing() {
         listOf("```", "~~~").forEach { fence ->
-            val session = StreamingGfmParserSession()
+            val session = StreamingGfmParserSession(fakeMathCache)
             val code = "\\(a_i\\)\n\n\n\\[\nb_j\n\\]"
             val openSource = "前 \\(before\\)\n\n${fence}latex\n$code"
             val source = "$openSource\n$fence\n\n\\[after\\]"
@@ -130,8 +175,8 @@ class TexMathDelimitersTest {
                 assertEquals(prefix, partial.originalSource)
                 if (end == openSource.length) {
                     val partialCode = partial.document.blocks.filterIsInstance<MarkdownCode>().single()
-                    assertFalse(partialCode.isMath)
                     assertEquals(code, partialCode.text.text)
+                    assertTrue(partial.document.blocks.none { it is MarkdownMath })
                 }
             }
 
@@ -141,17 +186,16 @@ class TexMathDelimitersTest {
                 "前 \$\$before\$\$\n\n${fence}latex\n$code\n$fence\n\n\$\$after\$\$",
                 complete.renderedSource,
             )
-            val codeBlocks = complete.document.blocks.filterIsInstance<MarkdownCode>()
-            val fencedCode = codeBlocks.single { !it.isMath }
+            val fencedCode = complete.document.blocks.filterIsInstance<MarkdownCode>().single()
             assertEquals("latex", fencedCode.language)
             assertEquals(code, fencedCode.text.text)
             assertEquals(source.indexOf(fence), fencedCode.offset)
-            val math = codeBlocks.single { it.isMath }
-            assertEquals("after", math.text.text)
+            val math = complete.document.blocks.filterIsInstance<MarkdownMath>().single()
+            assertEquals("after", math.latex)
             assertEquals(source.indexOf("\\[after\\]"), math.offset)
         }
     }
 
     private fun blocks(source: String): List<MarkdownBlock> =
-        StreamingGfmParserSession().parse(source, isComplete = true).document.blocks
+        StreamingGfmParserSession(fakeMathCache).parse(source, isComplete = true).document.blocks
 }
