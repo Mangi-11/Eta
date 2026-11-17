@@ -194,29 +194,55 @@ internal fun buildTopCouiSheetPath(
         path.addRect(Rect(0f, 0f, size.width, size.height))
         return path
     }
+    path.moveTo(0f, size.height)
+    path.lineTo(0f, r)
+    appendTopCouiRim(path, size.width, r, cornerWeight)
+    path.lineTo(size.width, size.height)
+    path.close()
+    return path
+}
+
+internal fun buildTopCouiRimPath(
+    size: Size,
+    radiusPx: Float,
+    cornerWeight: Float = 2.6f,
+): Path {
+    val r = radiusPx.coerceIn(0f, minOf(size.width * 0.5f, size.height))
+    val path = Path()
+    if (r <= 0.5f) {
+        path.moveTo(0f, 0f)
+        path.lineTo(size.width, 0f)
+        return path
+    }
+    path.moveTo(0f, r)
+    appendTopCouiRim(path, size.width, r, cornerWeight)
+    return path
+}
+
+private fun appendTopCouiRim(
+    path: Path,
+    width: Float,
+    r: Float,
+    cornerWeight: Float,
+) {
     val key = SheetCornerKey((r * 10f).toInt(), cornerWeight.toRawBits())
     val points = topSheetCornerSamples[key] ?: sampleQuarterLpCorner(r, cornerWeight).also {
         topSheetCornerSamples.put(key, it)
     }
     val count = points.size / 2
-    path.moveTo(0f, size.height)
-    path.lineTo(0f, r)
     // 左上连续圆角：i 递增时 (r - y, r - x) 从 (0, r) 顺时针过渡到 (r, 0)。
     for (i in 0 until count) {
         val x = points[i * 2]
         val y = points[i * 2 + 1]
         path.lineTo(r - y, r - x)
     }
-    path.lineTo(size.width - r, 0f)
+    path.lineTo(width - r, 0f)
     // 右上连续圆角：i 递增时 (width - r + x, r - y) 从 (width - r, 0) 顺时针过渡到 (width, r)。
     for (i in 0 until count) {
         val x = points[i * 2]
         val y = points[i * 2 + 1]
-        path.lineTo(size.width - r + x, r - y)
+        path.lineTo(width - r + x, r - y)
     }
-    path.lineTo(size.width, size.height)
-    path.close()
-    return path
 }
 
 private fun sampleQuarterLpCorner(radiusPx: Float, cornerWeight: Float): FloatArray {

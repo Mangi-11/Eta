@@ -10,7 +10,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -53,28 +54,36 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.components.AgentConversationMessages
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.sign
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -356,11 +365,12 @@ private fun BoxScope.AssistantPanel(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var settledHeightPx by remember { mutableFloatStateOf(baseContentHeightPx) }
-    var draggedHeightPx by remember { mutableStateOf<Float?>(null) }
+    val heightPx = remember { Animatable(0f) }
+    val rubberYPx = remember { Animatable(0f) }
+    var isDragging by remember { mutableStateOf(false) }
     var autoExpandSuppressed by remember { mutableStateOf(false) }
     var dismissPullPx by remember { mutableFloatStateOf(0f) }
     var handoffPullPx by remember { mutableFloatStateOf(0f) }
-    val releaseRubberPx = remember { Animatable(0f) }
     var thresholdHapticSent by remember { mutableStateOf(false) }
     var keepBottomAnchored by remember { mutableStateOf(true) }
     // 满高时把手与状态栏之间的空间有限，需在扣除触摸 slop 后仍能完成过顶手势。
@@ -368,26 +378,22 @@ private fun BoxScope.AssistantPanel(
     val dismissThresholdPx = with(density) { 92.dp.toPx() }
     val maxHandoffVisualPx = with(density) { 40.dp.toPx() }
     val autoSettleTolerancePx = with(density) { 6.dp.toPx() }
-    val minimumContentHeightPx = with(density) { 140.dp.toPx() }.coerceAtMost(maxContentHeightPx)
     val dragHandleHeightPx = with(density) { 38.dp.toPx() }
     val contentFitSlackPx = with(density) { 12.dp.toPx() }
-    val mediumHeightPx = baseContentHeightPx +
-        (maxContentHeightPx - baseContentHeightPx) * 0.58f
+    val availableMaxHeightPx = (maxContentHeightPx - imeOverlapPx).coerceAtLeast(0f)
+    val minimumContentHeightPx = with(density) { 140.dp.toPx() }.coerceAtMost(availableMaxHeightPx)
+    val clampedBaseHeightPx = baseContentHeightPx.coerceIn(minimumContentHeightPx, availableMaxHeightPx)
+    val mediumHeightPx = clampedBaseHeightPx +
+        (availableMaxHeightPx - clampedBaseHeightPx) * 0.58f
+    val effectiveMinHeightPx = minOf(clampedBaseHeightPx, settledHeightPx)
+        .coerceIn(minimumContentHeightPx, availableMaxHeightPx)
     val hasMessages = state.messages.isNotEmpty()
     val targetHeightPx = if (hasMessages) {
-        if (settledHeightPx <= 0f) baseContentHeightPx
-        else settledHeightPx.coerceIn(minimumContentHeightPx, maxContentHeightPx)
+        if (settledHeightPx <= 0f) clampedBaseHeightPx
+        else settledHeightPx.coerceIn(minimumContentHeightPx, availableMaxHeightPx)
     } else {
         0f
     }
-    val animatedHeightPx by animateFloatAsState(
-        targetValue = targetHeightPx,
-        animationSpec = when {
-            autoExpandSuppressed -> folmeSpring(damping = 1f, response = 0.36f)
-            else -> folmeSpring(damping = 1f, response = 0.44f)
-        },
-        label = "assistant_content_height",
-    )
     val sheetBackgroundAlpha = animateFloatAsState(
         targetValue = if (hasMessages) 1f else 0f,
         animationSpec = tween(durationMillis = 190, easing = LinearOutSlowInEasing),
@@ -402,52 +408,73 @@ private fun BoxScope.AssistantPanel(
         },
         label = "assistant_message_reveal",
     )
-    val currentAnimatedHeight = rememberUpdatedState(animatedHeightPx)
-    val sheetHeightPx = draggedHeightPx ?: animatedHeightPx
-    val visibleSheetHeightPx = (sheetHeightPx - imeOverlapPx * 0.42f)
-        .coerceAtLeast(if (hasMessages) with(density) { 140.dp.toPx() }.coerceAtMost(sheetHeightPx) else 0f)
-        .coerceAtMost(
-            (maxContentHeightPx - imeOverlapPx).coerceAtLeast(0f),
-        )
-    val nearFullscreen = sheetHeightPx >= maxContentHeightPx * 0.88f
+    val visibleSheetHeightPx = if (hasMessages || heightPx.value > 0.5f) {
+        heightPx.value.coerceIn(0f, availableMaxHeightPx)
+    } else {
+        0f
+    }
     // 接管只认把手发起的过顶拉取：列表滚动与惯性 fling 不再触发，避免读回复时误入本体。
-    val handoffReady = canOpenConversation && nearFullscreen && handoffPullPx >= handoffThresholdPx
-    val handoffPullProgress = if (canOpenConversation && nearFullscreen && handoffThresholdPx > 0f) {
+    val handoffReady = canOpenConversation &&
+        heightPx.value >= availableMaxHeightPx - 1f &&
+        handoffPullPx >= handoffThresholdPx
+    val handoffPullProgress = if (canOpenConversation && handoffThresholdPx > 0f && handoffPullPx > 0f) {
         (handoffPullPx / handoffThresholdPx).coerceIn(0f, 1f)
     } else {
         0f
     }
-    val activeRubberPx = dismissPullPx * 0.28f - (handoffPullPx * 0.36f).coerceAtMost(maxHandoffVisualPx)
-    // 拖拽期间 1:1 跟手，松手后由弹簧承接回弹至 0，消除过顶与下滑松手瞬间的跳帧。
-    val sheetTranslationPx = if (draggedHeightPx != null) activeRubberPx else releaseRubberPx.value
 
     LaunchedEffect(hasMessages, minimumContentHeightPx, maxContentHeightPx) {
-        settledHeightPx = if (hasMessages) {
-            if (settledHeightPx <= 0f) baseContentHeightPx
-            else settledHeightPx.coerceIn(minimumContentHeightPx, maxContentHeightPx)
+        if (hasMessages) {
+            settledHeightPx = if (settledHeightPx <= 0f) {
+                baseContentHeightPx.coerceIn(minimumContentHeightPx, maxContentHeightPx)
+            } else {
+                settledHeightPx.coerceIn(minimumContentHeightPx, maxContentHeightPx)
+            }
         } else {
             autoExpandSuppressed = false
-            releaseRubberPx.snapTo(0f)
-            0f
+            isDragging = false
+            dismissPullPx = 0f
+            handoffPullPx = 0f
+            settledHeightPx = 0f
+            rubberYPx.snapTo(0f)
+        }
+    }
+    LaunchedEffect(targetHeightPx, isDragging) {
+        if (isDragging) return@LaunchedEffect
+        heightPx.animateTo(
+            targetValue = targetHeightPx,
+            animationSpec = if (autoExpandSuppressed) {
+                folmeSpring(damping = 1f, response = 0.36f)
+            } else {
+                folmeSpring(damping = 1f, response = 0.44f)
+            },
+        )
+    }
+    LaunchedEffect(isDragging) {
+        if (isDragging) return@LaunchedEffect
+        if (abs(rubberYPx.value) > 0.5f) {
+            rubberYPx.animateTo(0f, folmeSpring(damping = 0.94f, response = 0.30f))
+        } else if (rubberYPx.value != 0f) {
+            rubberYPx.snapTo(0f)
         }
     }
     // 单向连续生长：随实测内容高度平滑推高面板（弹簧保持速度连续），只增不减，
     // 避免分档等待造成的顿挫以及流式结束后的二次弹起与回落。
-    LaunchedEffect(hasMessages, keyboardVisible, baseContentHeightPx, maxContentHeightPx, listState) {
+    LaunchedEffect(hasMessages, keyboardVisible, baseContentHeightPx, availableMaxHeightPx, listState) {
         if (!hasMessages || keyboardVisible) return@LaunchedEffect
         snapshotFlow {
-            if (autoExpandSuppressed || draggedHeightPx != null || handoffRunning || !keepBottomAnchored) {
+            if (autoExpandSuppressed || isDragging || handoffRunning || !keepBottomAnchored) {
                 return@snapshotFlow null
             }
             requiredPanelHeightPx(
                 listState = listState,
-                currentAnimatedHeightPx = currentAnimatedHeight.value,
+                currentAnimatedHeightPx = heightPx.value,
                 settledHeightPx = settledHeightPx,
                 dragHandleHeightPx = dragHandleHeightPx,
                 contentFitSlackPx = contentFitSlackPx,
                 autoSettleTolerancePx = autoSettleTolerancePx,
-                baseContentHeightPx = baseContentHeightPx,
-                maxContentHeightPx = maxContentHeightPx,
+                baseContentHeightPx = clampedBaseHeightPx,
+                maxContentHeightPx = availableMaxHeightPx,
             )
         }
             .distinctUntilChanged()
@@ -469,144 +496,96 @@ private fun BoxScope.AssistantPanel(
 
     fun triggerHandoff() {
         if (handoffRunning || !canOpenConversation) return
-        settledHeightPx = maxContentHeightPx
-        draggedHeightPx = null
+        settledHeightPx = availableMaxHeightPx
         dismissPullPx = 0f
         handoffPullPx = 0f
-        scope.launch { releaseRubberPx.snapTo(0f) }
+        isDragging = false
+        scope.launch { rubberYPx.snapTo(0f) }
         onOpenConversation()
     }
 
     fun stopAutoExpand() {
         if (autoExpandSuppressed) return
         autoExpandSuppressed = true
-        if (settledHeightPx > currentAnimatedHeight.value + autoSettleTolerancePx) {
-            settledHeightPx = currentAnimatedHeight.value.coerceIn(minimumContentHeightPx, maxContentHeightPx)
+        if (settledHeightPx > heightPx.value + autoSettleTolerancePx) {
+            settledHeightPx = heightPx.value.coerceIn(minimumContentHeightPx, availableMaxHeightPx)
         }
     }
 
-    fun dragBy(deltaY: Float, allowHandoff: Boolean = false): Float {
-        if (handoffRunning || state.messages.isEmpty()) return 0f
-        val current = draggedHeightPx ?: currentAnimatedHeight.value
-        val requested = current + handoffPullPx - dismissPullPx - deltaY
-        val minimumDragHeightPx = minOf(baseContentHeightPx, settledHeightPx)
-        return when {
-            requested > maxContentHeightPx -> {
-                draggedHeightPx = maxContentHeightPx
-                dismissPullPx = 0f
-                handoffPullPx = if (allowHandoff) requested - maxContentHeightPx else 0f
-                if (allowHandoff) deltaY else current - maxContentHeightPx
-            }
-            requested < minimumDragHeightPx -> {
-                draggedHeightPx = minimumDragHeightPx
-                dismissPullPx = minimumDragHeightPx - requested
-                handoffPullPx = 0f
-                deltaY
-            }
-            else -> {
-                draggedHeightPx = requested
-                dismissPullPx = 0f
-                handoffPullPx = 0f
-                deltaY
-            }
-        }
-    }
-
-    fun finishDrag(commit: Boolean = true, allowHandoff: Boolean = false) {
-        if (handoffRunning) return
-        val current = draggedHeightPx ?: currentAnimatedHeight.value
-        when {
-            commit && dismissPullPx >= dismissThresholdPx -> onClose()
-            // 松手可能与最后一个位移在同一帧内到达，直接读取状态，不依赖重组后的派生值。
-            commit && allowHandoff && canOpenConversation &&
-                current >= maxContentHeightPx && handoffPullPx >= handoffThresholdPx -> triggerHandoff()
-            else -> {
-                val lingeringRubber = dismissPullPx * 0.28f -
-                    (handoffPullPx * 0.36f).coerceAtMost(maxHandoffVisualPx)
-                val anchors = floatArrayOf(
-                    minOf(baseContentHeightPx, settledHeightPx),
-                    baseContentHeightPx,
-                    mediumHeightPx,
-                    maxContentHeightPx,
-                )
-                settledHeightPx = anchors.minBy { abs(it - current) }
-                draggedHeightPx = null
-                dismissPullPx = 0f
-                handoffPullPx = 0f
-                if (abs(lingeringRubber) > 0.5f) {
-                    scope.launch {
-                        releaseRubberPx.snapTo(lingeringRubber)
-                        releaseRubberPx.animateTo(0f, folmeSpring(damping = 0.94f, response = 0.30f))
-                    }
-                }
-            }
-        }
-    }
-
-    // 局部函数引用的相等判断不包含捕获值，不能直接作为结构相等 State 的回调值。
-    val stopAutoExpandState = rememberUpdatedState { stopAutoExpand() }
-    val startDragState = rememberUpdatedState {
+    suspend fun startDrag() {
         stopAutoExpand()
-        scope.launch { releaseRubberPx.snapTo(0f) }
+        isDragging = true
         dismissPullPx = 0f
         handoffPullPx = 0f
-        draggedHeightPx = currentAnimatedHeight.value
+        heightPx.snapTo(heightPx.value.coerceIn(effectiveMinHeightPx, availableMaxHeightPx))
+        rubberYPx.snapTo(0f)
     }
-    val dragByState = rememberUpdatedState { deltaY: Float, allowHandoff: Boolean ->
+
+    suspend fun dragBy(deltaRootY: Float, allowHandoff: Boolean) {
+        if (handoffRunning || state.messages.isEmpty() || deltaRootY == 0f) return
+        val currentPos = heightPx.value + handoffPullPx - dismissPullPx
+        val requestedPos = currentPos - deltaRootY
+        val clampedHeight = requestedPos.coerceIn(effectiveMinHeightPx, availableMaxHeightPx)
+        val nextHandoff = if (allowHandoff && requestedPos > availableMaxHeightPx) {
+            requestedPos - availableMaxHeightPx
+        } else {
+            0f
+        }
+        val nextDismiss = if (requestedPos < effectiveMinHeightPx) {
+            effectiveMinHeightPx - requestedPos
+        } else {
+            0f
+        }
+        handoffPullPx = nextHandoff
+        dismissPullPx = nextDismiss
+        heightPx.snapTo(clampedHeight)
+        val nextRubber = nextDismiss * 0.28f - (nextHandoff * 0.36f).coerceAtMost(maxHandoffVisualPx)
+        rubberYPx.snapTo(nextRubber)
+    }
+
+    fun finishDrag(commit: Boolean, allowHandoff: Boolean) {
+        if (handoffRunning) {
+            isDragging = false
+            return
+        }
+        val current = heightPx.value
+        when {
+            commit && dismissPullPx >= dismissThresholdPx -> {
+                dismissPullPx = 0f
+                handoffPullPx = 0f
+                isDragging = false
+                onClose()
+            }
+            // 松手可能与最后一个位移在同一帧内到达，直接读取状态，不依赖重组后的派生值。
+            commit && allowHandoff && canOpenConversation &&
+                current >= availableMaxHeightPx - 1f && handoffPullPx >= handoffThresholdPx -> {
+                triggerHandoff()
+            }
+            else -> {
+                val anchors = floatArrayOf(
+                    effectiveMinHeightPx,
+                    clampedBaseHeightPx,
+                    mediumHeightPx,
+                    availableMaxHeightPx,
+                )
+                settledHeightPx = anchors.minBy { abs(it - current) }
+                dismissPullPx = 0f
+                handoffPullPx = 0f
+                isDragging = false
+            }
+        }
+    }
+
+    val startDragState = rememberUpdatedState<suspend () -> Unit> { startDrag() }
+    val dragByState = rememberUpdatedState<suspend (Float, Boolean) -> Unit> { deltaY, allowHandoff ->
         dragBy(deltaY, allowHandoff)
     }
     val finishDragState = rememberUpdatedState { commit: Boolean, allowHandoff: Boolean ->
         finishDrag(commit, allowHandoff)
     }
-    val nestedScrollConnection = remember(
-        baseContentHeightPx,
-        maxContentHeightPx,
-        canOpenConversation,
-        listState,
-    ) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source != NestedScrollSource.UserInput) return Offset.Zero
-                stopAutoExpandState.value()
-                val current = draggedHeightPx ?: currentAnimatedHeight.value
-                val shouldResize = (available.y < 0f && current < maxContentHeightPx) ||
-                    (available.y > 0f && current > minOf(baseContentHeightPx, settledHeightPx) &&
-                        !listState.canScrollBackward)
-                return if (shouldResize) {
-                    Offset(0f, dragByState.value(available.y, false))
-                } else {
-                    Offset.Zero
-                }
-            }
-
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                if (source != NestedScrollSource.UserInput || available.y == 0f) return Offset.Zero
-                stopAutoExpandState.value()
-                val current = draggedHeightPx ?: currentAnimatedHeight.value
-                val atLowerEdge = available.y > 0f && current <= minOf(baseContentHeightPx, settledHeightPx)
-                return if (atLowerEdge) {
-                    Offset(0f, dragByState.value(available.y, false))
-                } else {
-                    Offset.Zero
-                }
-            }
-
-            override suspend fun onPreFling(available: Velocity): Velocity {
-                stopAutoExpandState.value()
-                finishDragState.value(true, false)
-                return Velocity.Zero
-            }
-
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                stopAutoExpandState.value()
-                finishDragState.value(true, false)
-                return Velocity.Zero
-            }
-        }
+    val shouldInterceptListDrag = rememberUpdatedState { totalDy: Float ->
+        (totalDy < 0f && heightPx.value < availableMaxHeightPx - 1f) ||
+            (totalDy > 0f && !listState.canScrollBackward)
     }
 
     val messageRevealOffsetPx = with(density) { 14.dp.toPx() }
@@ -618,23 +597,35 @@ private fun BoxScope.AssistantPanel(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
-            .offset(y = with(density) { sheetTranslationPx.toDp() })
+            .offset { IntOffset(0, rubberYPx.value.roundToInt()) }
             .drawBehind {
                 val sheetAlpha = sheetBackgroundAlpha.value
-                if (sheetAlpha > 0.01f) {
-                    // 面板顶部向上柔和漫射环境投影，裁剪之前绘制，不占用布局尺寸。
+                if (sheetAlpha > 0.01f && size.height > 8f) {
+                    // 沿着 G2 连续顶部圆角外侧绘制渐隐环境投影，切出面板内部后贴合左右切点收束至 0，
+                    // 避免矩形阴影在圆角外侧露馅。
                     val shadowRisePx = 28.dp.toPx()
-                    val topDropAlpha = (if (colors.dark) 0.34f else 0.10f) * sheetAlpha
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = topDropAlpha),
-                            startY = -shadowRisePx,
-                            endY = 8.dp.toPx(),
-                        ),
-                        topLeft = Offset(0f, -shadowRisePx),
-                        size = Size(size.width, shadowRisePx + 8.dp.toPx()),
-                    )
+                    val cornerPx = sheetCornerRadius.toPx().coerceIn(0f, minOf(size.width * 0.5f, size.height))
+                    val maxAlpha = (if (colors.dark) 0.30f else 0.10f) * sheetAlpha
+                    val sheetPath = buildTopCouiSheetPath(size, cornerPx, 2.6f)
+                    val rimPath = buildTopCouiRimPath(size, cornerPx, 2.6f)
+                    clipRect(left = 0f, top = -shadowRisePx, right = size.width, bottom = cornerPx) {
+                        clipPath(sheetPath, clipOp = ClipOp.Difference) {
+                            val layers = 8
+                            for (i in 0 until layers) {
+                                val fraction = (i + 1f) / layers
+                                val spread = shadowRisePx * fraction
+                                val falloff = 1f - i.toFloat() / layers
+                                val layerAlpha = maxAlpha * falloff * falloff * (2.2f / layers)
+                                if (layerAlpha > 0.001f) {
+                                    drawPath(
+                                        path = rimPath,
+                                        color = Color.Black.copy(alpha = layerAlpha),
+                                        style = Stroke(width = spread * 2f, cap = StrokeCap.Butt),
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
             // 未展开回复面板时不启用面板轮廓裁剪，避免把空状态下的悬浮胶囊顶部与阴影裁掉。
@@ -675,29 +666,43 @@ private fun BoxScope.AssistantPanel(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(with(density) { visibleSheetHeightPx.toDp() })
-                    .nestedScroll(nestedScrollConnection),
+                    .height(with(density) { visibleSheetHeightPx.toDp() }),
             ) {
+                var handleCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 DragHandle(
                     colors = colors,
                     handoffReady = handoffReady,
                     handoffProgress = handoffPullProgress,
-                    modifier = Modifier.pointerInput(baseContentHeightPx, maxContentHeightPx) {
-                        // 回复完成会改变接管资格；更新回调而不重启正在进行的手势。
-                        detectVerticalDragGestures(
-                            onDragStart = { startDragState.value() },
-                            onVerticalDrag = { change, dragAmount ->
-                                change.consume()
-                                dragByState.value(dragAmount, true)
-                            },
-                            onDragEnd = { finishDragState.value(true, true) },
-                            onDragCancel = { finishDragState.value(false, false) },
-                        )
-                    },
+                    modifier = Modifier
+                        .onGloballyPositioned { handleCoords = it }
+                        .pointerInput(Unit) {
+                            handleRootVerticalDrag(
+                                getCoords = { handleCoords },
+                                pass = PointerEventPass.Main,
+                                shouldStart = { true },
+                                onDragStart = { startDragState.value() },
+                                onDrag = { deltaRootY -> dragByState.value(deltaRootY, true) },
+                                onDragEnd = { finishDragState.value(true, true) },
+                                onDragCancel = { finishDragState.value(false, false) },
+                            )
+                        },
                 )
+                var listBoxCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 Box(
                     modifier = Modifier
                         .weight(1f)
+                        .onGloballyPositioned { listBoxCoords = it }
+                        .pointerInput(Unit) {
+                            handleRootVerticalDrag(
+                                getCoords = { listBoxCoords },
+                                pass = PointerEventPass.Initial,
+                                shouldStart = { totalRootY -> shouldInterceptListDrag.value(totalRootY) },
+                                onDragStart = { startDragState.value() },
+                                onDrag = { deltaRootY -> dragByState.value(deltaRootY, false) },
+                                onDragEnd = { finishDragState.value(true, false) },
+                                onDragCancel = { finishDragState.value(false, false) },
+                            )
+                        }
                         .graphicsLayer {
                             alpha = messageRevealProgress.value
                             translationY = (1f - messageRevealProgress.value) * messageRevealOffsetPx
@@ -753,6 +758,98 @@ private fun BoxScope.AssistantPanel(
     }
 }
 
+private suspend fun PointerInputScope.handleRootVerticalDrag(
+    getCoords: () -> LayoutCoordinates?,
+    pass: PointerEventPass,
+    shouldStart: (totalRootY: Float) -> Boolean,
+    onDragStart: suspend () -> Unit,
+    onDrag: suspend (deltaRootY: Float) -> Unit,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
+) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = pass)
+        var activeId = down.id
+        val startRoot = getCoords().toRootOffset(down.position)
+        var lastRootY = startRoot.y
+        val touchSlop = viewConfiguration.touchSlop
+        var started = false
+        var finished = false
+        try {
+            while (true) {
+                val event = awaitPointerEvent(pass)
+                val changes = event.changes
+                val activeChange = changes.firstOrNull { it.id == activeId }
+                if (activeChange == null) {
+                    if (started) onDragCancel()
+                    finished = true
+                    break
+                }
+                if (!activeChange.pressed) {
+                    val nextPointer = changes.firstOrNull { it.pressed }
+                    if (nextPointer != null) {
+                        activeId = nextPointer.id
+                        lastRootY = getCoords().toRootOffset(nextPointer.position).y
+                        if (started) nextPointer.consume()
+                        continue
+                    }
+                    if (started) {
+                        val releasedCleanly = activeChange.changedToUpIgnoreConsumed() &&
+                            (pass == PointerEventPass.Initial || !activeChange.isConsumed)
+                        if (releasedCleanly) {
+                            onDragEnd()
+                        } else {
+                            onDragCancel()
+                        }
+                    }
+                    finished = true
+                    break
+                }
+                if (pass == PointerEventPass.Main && activeChange.isConsumed) {
+                    if (started) onDragCancel()
+                    finished = true
+                    break
+                }
+                val currentRoot = getCoords().toRootOffset(activeChange.position)
+                if (!started) {
+                    val totalDx = currentRoot.x - startRoot.x
+                    val totalDy = currentRoot.y - startRoot.y
+                    if (abs(totalDx) > touchSlop && abs(totalDx) > abs(totalDy)) {
+                        finished = true
+                        break
+                    }
+                    if (abs(totalDy) > touchSlop && abs(totalDy) >= abs(totalDx)) {
+                        if (!shouldStart(totalDy)) {
+                            finished = true
+                            break
+                        }
+                        started = true
+                        onDragStart()
+                        val overSlop = totalDy - sign(totalDy) * touchSlop
+                        activeChange.consume()
+                        lastRootY = currentRoot.y
+                        if (overSlop != 0f) onDrag(overSlop)
+                    }
+                } else {
+                    val deltaRootY = currentRoot.y - lastRootY
+                    lastRootY = currentRoot.y
+                    activeChange.consume()
+                    if (deltaRootY != 0f) onDrag(deltaRootY)
+                }
+            }
+        } finally {
+            if (started && !finished) {
+                onDragCancel()
+            }
+        }
+    }
+}
+
+private fun LayoutCoordinates?.toRootOffset(localPosition: Offset): Offset {
+    val coords = this?.takeIf { it.isAttached } ?: return localPosition
+    return coords.localToRoot(localPosition)
+}
+
 @Composable
 private fun DragHandle(
     colors: EtaVoicePanelColors,
@@ -785,7 +882,8 @@ private fun DragHandle(
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = if (hintAlpha > 0.05f) 8.dp else 15.dp)
+                .padding(top = 15.dp)
+                .graphicsLayer { translationY = -7.dp.toPx() * hintAlpha }
                 .size(width = handleWidth, height = 4.dp)
                 .clip(CircleShape)
                 .background(handleColor),

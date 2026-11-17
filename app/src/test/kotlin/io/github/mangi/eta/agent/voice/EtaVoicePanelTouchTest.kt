@@ -279,6 +279,104 @@ class EtaVoicePanelTouchTest {
         panel.assertSheetTopSpanUnclipped()
     }
 
+    @Test
+    fun handleDragTracksPointerWithoutJitterAcrossFrames() = withPanel { panel ->
+        panel.showReply()
+        panel.dragBy(240f)
+        val startBounds = panel.handleBounds()
+        val startX = startBounds.center.x
+        val startY = startBounds.center.y
+        val topsDuringMove = mutableListOf<Float>()
+        val topsDuringHold = mutableListOf<Float>()
+        var topBeforeRelease = startBounds.top
+        var topRightAfterRelease = startBounds.top
+
+        panel.runFrameSteppedTouch(
+            startX = startX,
+        ) { send, advanceOneFrame ->
+            send(MotionEvent.ACTION_DOWN, startY)
+            advanceOneFrame()
+            var currentY = startY
+            repeat(12) {
+                currentY -= panel.dp(12f)
+                send(MotionEvent.ACTION_MOVE, currentY)
+                advanceOneFrame()
+                topsDuringMove += panel.handleBounds().top
+            }
+            repeat(5) {
+                send(MotionEvent.ACTION_MOVE, currentY)
+                advanceOneFrame()
+                topsDuringHold += panel.handleBounds().top
+            }
+            topBeforeRelease = panel.handleBounds().top
+            send(MotionEvent.ACTION_UP, currentY)
+            advanceOneFrame()
+            topRightAfterRelease = panel.handleBounds().top
+        }
+
+        assertTrue("上拉过程顶部把手应显著上移", topsDuringMove.last() < startBounds.top - panel.dp(80f))
+        for (i in 1 until topsDuringMove.size) {
+            assertTrue(
+                "上拉逐帧不应反向回跳：frame=${i - 1}->${i} prev=${topsDuringMove[i - 1]} cur=${topsDuringMove[i]}",
+                topsDuringMove[i] <= topsDuringMove[i - 1] + 0.5f,
+            )
+        }
+        val holdBaseline = topsDuringHold.first()
+        for (holdTop in topsDuringHold) {
+            assertEquals("手指停驻期间顶部把手应保持静止不振荡", holdBaseline, holdTop, 0.5f)
+        }
+        assertTrue(
+            "松手第一帧不应闪回拖动前高度：before=$topBeforeRelease after=$topRightAfterRelease",
+            kotlin.math.abs(topRightAfterRelease - topBeforeRelease) <= panel.dp(14f),
+        )
+    }
+
+    @Test
+    fun listDragExpandsSheetSmoothlyWithoutJitter() = withPanel { panel ->
+        panel.showReply()
+        panel.dragBy(240f)
+        val startBounds = panel.handleBounds()
+        val listCenterX = startBounds.center.x
+        val listStartY = startBounds.bottom + panel.dp(80f)
+        val tops = mutableListOf<Float>()
+
+        panel.runFrameSteppedTouch(
+            startX = listCenterX,
+        ) { send, advanceOneFrame ->
+            send(MotionEvent.ACTION_DOWN, listStartY)
+            advanceOneFrame()
+            var currentY = listStartY
+            repeat(10) {
+                currentY -= panel.dp(12f)
+                send(MotionEvent.ACTION_MOVE, currentY)
+                advanceOneFrame()
+                tops += panel.handleBounds().top
+            }
+            repeat(4) {
+                send(MotionEvent.ACTION_MOVE, currentY)
+                advanceOneFrame()
+                tops += panel.handleBounds().top
+            }
+            send(MotionEvent.ACTION_UP, currentY)
+            advanceOneFrame()
+        }
+
+        assertTrue("从列表区上拉应平滑展开面板", tops.last() < startBounds.top - panel.dp(60f))
+        for (i in 1 until tops.size) {
+            assertTrue(
+                "列表区上拉过程面板顶部不应抖动回跳：prev=${tops[i - 1]} cur=${tops[i]}",
+                tops[i] <= tops[i - 1] + 0.5f,
+            )
+        }
+    }
+
+    @Test
+    fun sheetTopShadowDoesNotLeakOutsideRoundedCorners() =
+        withPanel(appearance = AppearanceSettings(uiStyle = AppearanceUiStyle.COUI, themeMode = AppearanceThemeMode.LIGHT)) { panel ->
+            panel.showReply()
+            panel.assertTopCornerShadowNoRectangularCut()
+        }
+
     private fun withPanel(
         recognitionEnabled: Boolean = true,
         initialFrames: Int = 180,
@@ -511,6 +609,33 @@ class EtaVoicePanelTouchTest {
             }
         }
 
+        fun assertTopCornerShadowNoRectangularCut() {
+            val view = root().view
+            val handle = handleBounds()
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            try {
+                view.draw(Canvas(bitmap))
+                val yAbove = (handle.top + dp(6f)).toInt()
+                val yBelow = (handle.top + dp(10f)).toInt()
+                val leftX = dp(2f).toInt()
+                val rightX = (view.width - dp(2f)).toInt()
+                val leftAboveAlpha = bitmap.getPixel(leftX, yAbove) ushr 24
+                val leftBelowAlpha = bitmap.getPixel(leftX, yBelow) ushr 24
+                val rightAboveAlpha = bitmap.getPixel(rightX, yAbove) ushr 24
+                val rightBelowAlpha = bitmap.getPixel(rightX, yBelow) ushr 24
+                assertTrue(
+                    "左上圆角外侧不应出现矩形截断阴影：above=$leftAboveAlpha below=$leftBelowAlpha",
+                    kotlin.math.abs(leftAboveAlpha - leftBelowAlpha) <= 4,
+                )
+                assertTrue(
+                    "右上圆角外侧不应出现矩形截断阴影：above=$rightAboveAlpha below=$rightBelowAlpha",
+                    kotlin.math.abs(rightAboveAlpha - rightBelowAlpha) <= 4,
+                )
+            } finally {
+                bitmap.recycle()
+            }
+        }
+
         private fun findByText(text: String): SemanticsNode? {
             fun find(node: SemanticsNode): SemanticsNode? {
                 val texts = node.config.getOrNull(SemanticsProperties.Text)
@@ -590,6 +715,24 @@ class EtaVoicePanelTouchTest {
             }
             send(if (cancel) MotionEvent.ACTION_CANCEL else MotionEvent.ACTION_UP, start.y + dp(distanceDp))
             advance()
+        }
+
+        fun runFrameSteppedTouch(
+            startX: Float,
+            block: (send: (Int, Float) -> Unit, advanceOneFrame: () -> Unit) -> Unit,
+        ) {
+            val view = root().view
+            val downTime = SystemClock.uptimeMillis()
+            fun send(action: Int, y: Float) {
+                val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, startX, y, 0)
+                try {
+                    view.dispatchTouchEvent(event)
+                } finally {
+                    event.recycle()
+                }
+                shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofMillis(16))
+            }
+            block(::send) { advance(1) }
         }
 
         private fun root(): ViewRootForTest = findRoot(activity.window.decorView) ?: error("未找到 Compose Root")
