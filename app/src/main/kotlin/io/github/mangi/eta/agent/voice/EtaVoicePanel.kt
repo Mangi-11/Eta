@@ -42,7 +42,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -362,11 +361,13 @@ private fun BoxScope.AssistantPanel(
 ) {
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var settledHeightPx by remember { mutableFloatStateOf(baseContentHeightPx) }
-    val heightPx = remember { Animatable(0f) }
-    val rubberYPx = remember { Animatable(0f) }
+    val heightAnim = remember { Animatable(0f) }
+    var sheetHeightPx by remember { mutableFloatStateOf(0f) }
+    var needsHeightAnimSync by remember { mutableStateOf(false) }
+    val rubberAnim = remember { Animatable(0f) }
+    var rubberYPx by remember { mutableFloatStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
     var autoExpandSuppressed by remember { mutableStateOf(false) }
     var dismissPullPx by remember { mutableFloatStateOf(0f) }
@@ -408,14 +409,14 @@ private fun BoxScope.AssistantPanel(
         },
         label = "assistant_message_reveal",
     )
-    val visibleSheetHeightPx = if (hasMessages || heightPx.value > 0.5f) {
-        heightPx.value.coerceIn(0f, availableMaxHeightPx)
+    val visibleSheetHeightPx = if (hasMessages || sheetHeightPx > 0.5f) {
+        sheetHeightPx.coerceIn(0f, availableMaxHeightPx)
     } else {
         0f
     }
     // 接管只认把手发起的过顶拉取：列表滚动与惯性 fling 不再触发，避免读回复时误入本体。
     val handoffReady = canOpenConversation &&
-        heightPx.value >= availableMaxHeightPx - 1f &&
+        sheetHeightPx >= availableMaxHeightPx - 1f &&
         handoffPullPx >= handoffThresholdPx
     val handoffPullProgress = if (canOpenConversation && handoffThresholdPx > 0f && handoffPullPx > 0f) {
         (handoffPullPx / handoffThresholdPx).coerceIn(0f, 1f)
@@ -433,29 +434,41 @@ private fun BoxScope.AssistantPanel(
         } else {
             autoExpandSuppressed = false
             isDragging = false
+            needsHeightAnimSync = false
             dismissPullPx = 0f
             handoffPullPx = 0f
             settledHeightPx = 0f
-            rubberYPx.snapTo(0f)
+            rubberYPx = 0f
+            rubberAnim.snapTo(0f)
         }
     }
     LaunchedEffect(targetHeightPx, isDragging) {
         if (isDragging) return@LaunchedEffect
-        heightPx.animateTo(
+        if (needsHeightAnimSync) {
+            heightAnim.snapTo(sheetHeightPx)
+            needsHeightAnimSync = false
+        }
+        heightAnim.animateTo(
             targetValue = targetHeightPx,
             animationSpec = if (autoExpandSuppressed) {
                 folmeSpring(damping = 1f, response = 0.36f)
             } else {
                 folmeSpring(damping = 1f, response = 0.44f)
             },
-        )
+        ) {
+            if (!isDragging) sheetHeightPx = value
+        }
     }
     LaunchedEffect(isDragging) {
         if (isDragging) return@LaunchedEffect
-        if (abs(rubberYPx.value) > 0.5f) {
-            rubberYPx.animateTo(0f, folmeSpring(damping = 0.94f, response = 0.30f))
-        } else if (rubberYPx.value != 0f) {
-            rubberYPx.snapTo(0f)
+        if (abs(rubberYPx) > 0.5f) {
+            rubberAnim.snapTo(rubberYPx)
+            rubberAnim.animateTo(0f, folmeSpring(damping = 0.94f, response = 0.30f)) {
+                if (!isDragging) rubberYPx = value
+            }
+        } else {
+            rubberYPx = 0f
+            rubberAnim.snapTo(0f)
         }
     }
     // 单向连续生长：随实测内容高度平滑推高面板（弹簧保持速度连续），只增不减，
@@ -468,7 +481,7 @@ private fun BoxScope.AssistantPanel(
             }
             requiredPanelHeightPx(
                 listState = listState,
-                currentAnimatedHeightPx = heightPx.value,
+                currentAnimatedHeightPx = sheetHeightPx,
                 settledHeightPx = settledHeightPx,
                 dragHandleHeightPx = dragHandleHeightPx,
                 contentFitSlackPx = contentFitSlackPx,
@@ -499,31 +512,32 @@ private fun BoxScope.AssistantPanel(
         settledHeightPx = availableMaxHeightPx
         dismissPullPx = 0f
         handoffPullPx = 0f
+        rubberYPx = 0f
         isDragging = false
-        scope.launch { rubberYPx.snapTo(0f) }
         onOpenConversation()
     }
 
     fun stopAutoExpand() {
         if (autoExpandSuppressed) return
         autoExpandSuppressed = true
-        if (settledHeightPx > heightPx.value + autoSettleTolerancePx) {
-            settledHeightPx = heightPx.value.coerceIn(minimumContentHeightPx, availableMaxHeightPx)
+        if (settledHeightPx > sheetHeightPx + autoSettleTolerancePx) {
+            settledHeightPx = sheetHeightPx.coerceIn(minimumContentHeightPx, availableMaxHeightPx)
         }
     }
 
-    suspend fun startDrag() {
+    fun startDrag() {
         stopAutoExpand()
         isDragging = true
+        needsHeightAnimSync = true
         dismissPullPx = 0f
         handoffPullPx = 0f
-        heightPx.snapTo(heightPx.value.coerceIn(effectiveMinHeightPx, availableMaxHeightPx))
-        rubberYPx.snapTo(0f)
+        sheetHeightPx = sheetHeightPx.coerceIn(effectiveMinHeightPx, availableMaxHeightPx)
+        rubberYPx = 0f
     }
 
-    suspend fun dragBy(deltaRootY: Float, allowHandoff: Boolean) {
+    fun dragBy(deltaRootY: Float, allowHandoff: Boolean) {
         if (handoffRunning || state.messages.isEmpty() || deltaRootY == 0f) return
-        val currentPos = heightPx.value + handoffPullPx - dismissPullPx
+        val currentPos = sheetHeightPx + handoffPullPx - dismissPullPx
         val requestedPos = currentPos - deltaRootY
         val clampedHeight = requestedPos.coerceIn(effectiveMinHeightPx, availableMaxHeightPx)
         val nextHandoff = if (allowHandoff && requestedPos > availableMaxHeightPx) {
@@ -538,9 +552,8 @@ private fun BoxScope.AssistantPanel(
         }
         handoffPullPx = nextHandoff
         dismissPullPx = nextDismiss
-        heightPx.snapTo(clampedHeight)
-        val nextRubber = nextDismiss * 0.28f - (nextHandoff * 0.36f).coerceAtMost(maxHandoffVisualPx)
-        rubberYPx.snapTo(nextRubber)
+        sheetHeightPx = clampedHeight
+        rubberYPx = nextDismiss * 0.28f - (nextHandoff * 0.36f).coerceAtMost(maxHandoffVisualPx)
     }
 
     fun finishDrag(commit: Boolean, allowHandoff: Boolean) {
@@ -548,7 +561,7 @@ private fun BoxScope.AssistantPanel(
             isDragging = false
             return
         }
-        val current = heightPx.value
+        val current = sheetHeightPx
         when {
             commit && dismissPullPx >= dismissThresholdPx -> {
                 dismissPullPx = 0f
@@ -576,15 +589,15 @@ private fun BoxScope.AssistantPanel(
         }
     }
 
-    val startDragState = rememberUpdatedState<suspend () -> Unit> { startDrag() }
-    val dragByState = rememberUpdatedState<suspend (Float, Boolean) -> Unit> { deltaY, allowHandoff ->
+    val startDragState = rememberUpdatedState { startDrag() }
+    val dragByState = rememberUpdatedState { deltaY: Float, allowHandoff: Boolean ->
         dragBy(deltaY, allowHandoff)
     }
     val finishDragState = rememberUpdatedState { commit: Boolean, allowHandoff: Boolean ->
         finishDrag(commit, allowHandoff)
     }
     val shouldInterceptListDrag = rememberUpdatedState { totalDy: Float ->
-        (totalDy < 0f && heightPx.value < availableMaxHeightPx - 1f) ||
+        (totalDy < 0f && sheetHeightPx < availableMaxHeightPx - 1f) ||
             (totalDy > 0f && !listState.canScrollBackward)
     }
 
@@ -597,7 +610,7 @@ private fun BoxScope.AssistantPanel(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
-            .offset { IntOffset(0, rubberYPx.value.roundToInt()) }
+            .offset { IntOffset(0, rubberYPx.roundToInt()) }
             .drawBehind {
                 val sheetAlpha = sheetBackgroundAlpha.value
                 if (sheetAlpha > 0.01f && size.height > 8f) {
@@ -762,8 +775,8 @@ private suspend fun PointerInputScope.handleRootVerticalDrag(
     getCoords: () -> LayoutCoordinates?,
     pass: PointerEventPass,
     shouldStart: (totalRootY: Float) -> Boolean,
-    onDragStart: suspend () -> Unit,
-    onDrag: suspend (deltaRootY: Float) -> Unit,
+    onDragStart: () -> Unit,
+    onDrag: (deltaRootY: Float) -> Unit,
     onDragEnd: () -> Unit,
     onDragCancel: () -> Unit,
 ) {
