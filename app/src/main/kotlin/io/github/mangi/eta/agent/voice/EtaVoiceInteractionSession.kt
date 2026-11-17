@@ -19,6 +19,7 @@ import android.view.View
 internal class EtaVoiceInteractionSession(context: Context) : VoiceInteractionSession(context) {
     private var screenContext: EtaAssistantScreenContext? = null
     private var shown = false
+    private var coalescedShow = false
     private val controlReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_HIDE_FOR_FOREGROUND_OPERATION) {
@@ -41,6 +42,12 @@ internal class EtaVoiceInteractionSession(context: Context) : VoiceInteractionSe
 
     override fun onPrepareShow(args: Bundle?, showFlags: Int) {
         super.onPrepareShow(args, showFlags)
+        // 浮窗仍处于刚唤起的初始空闲态时合并重复唤醒，保留初次截取的底层界面上下文与截图。
+        if (EtaAssistantOverlayService.hasFreshVisibleEntry()) {
+            coalescedShow = true
+            return
+        }
+        coalescedShow = false
         shown = false
         screenContext = EtaAssistantScreenContexts.begin(
             showFlags,
@@ -51,19 +58,26 @@ internal class EtaVoiceInteractionSession(context: Context) : VoiceInteractionSe
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
         shown = true
+        if (coalescedShow) return
         EtaAssistantOverlayService.show(context, screenContext?.id)
     }
 
     override fun onHandleAssist(state: AssistState) {
+        if (coalescedShow) return
         screenContext?.acceptAssist(context.applicationContext, state)
     }
 
     override fun onHandleScreenshot(screenshot: Bitmap?) {
+        if (coalescedShow) {
+            screenshot?.recycle()
+            return
+        }
         val capture = screenContext
         if (capture == null) screenshot?.recycle() else capture.acceptScreenshot(screenshot)
     }
 
     override fun onHide() {
+        coalescedShow = false
         EtaAssistantScreenContexts.release(screenContext?.id)
         screenContext = null
         shown = false
@@ -81,6 +95,7 @@ internal class EtaVoiceInteractionSession(context: Context) : VoiceInteractionSe
     }
 
     override fun onDestroy() {
+        coalescedShow = false
         // 浮窗拥有独立生命周期；系统会话重建不代表用户关闭了助理。
         if (!shown) EtaAssistantScreenContexts.release(screenContext?.id)
         screenContext = null

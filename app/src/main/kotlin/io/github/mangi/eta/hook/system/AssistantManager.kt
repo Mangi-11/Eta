@@ -154,6 +154,7 @@ internal object AssistantManager {
 
             hookUserLifecycleSelfHeal(hooks, serviceClass, "onUserUnlocking", 1)
             hookUserLifecycleSelfHeal(hooks, serviceClass, "onUserSwitching", 2)
+            hookXiaomiAssistantSettingGuard(hooks)
         }
     }
 
@@ -1063,6 +1064,51 @@ internal object AssistantManager {
                 )
             }
             result
+        }
+    }
+
+    private fun hookXiaomiAssistantSettingGuard(hooks: HookRegistrar) {
+        val logger = hooks.logger
+        val methods = Settings.Secure::class.java.declaredMethods.filter { method ->
+            if (method.name != "putStringForUser") return@filter false
+            val params = method.parameterTypes
+            params.size >= 4 &&
+                params[0] == ContentResolver::class.java &&
+                params[1] == String::class.java &&
+                params[2] == String::class.java
+        }
+        if (methods.isEmpty()) {
+            hooks.missing(
+                id = "system.assistant-settings-guard",
+                description = "Settings.Secure.putStringForUser",
+                detail = "未找到 Settings.Secure.putStringForUser，跳过 HyperOS 助理设置保护",
+            )
+            return
+        }
+        methods.forEachIndexed { index, method ->
+            hooks.intercept(
+                id = "system.assistant-settings-guard-$index",
+                executable = method,
+                description = "Settings.Secure.putStringForUser/${method.parameterTypes.size}",
+            ) { chain ->
+                val args = chain.args
+                val key = args.getOrNull(1) as? String
+                val value = args.getOrNull(2) as? String
+                val replacement = rewriteManagedAssistantSettingIfOverwritten(
+                    autoConfigEnabled = Prefs.isEnabled(Prefs.Keys.ASSISTANT_AUTO_CONFIG),
+                    target = Prefs.powerAssistantTarget(),
+                    key = key,
+                    value = value,
+                )
+                if (replacement != null) {
+                    val updatedArgs = args.toTypedArray()
+                    updatedArgs[2] = replacement
+                    logger.debug { "AssistantManager: 已拦截对 $key 的小爱覆写并保持托管目标" }
+                    chain.proceed(updatedArgs)
+                } else {
+                    chain.proceed()
+                }
+            }
         }
     }
 

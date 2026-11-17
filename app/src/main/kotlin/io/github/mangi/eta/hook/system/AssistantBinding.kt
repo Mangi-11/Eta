@@ -42,6 +42,31 @@ internal fun isSameComponentName(left: String?, right: String?): Boolean {
     return normalizedLeft == normalizedRight
 }
 
+internal fun extractPackageFromComponent(component: String?): String? =
+    normalizeComponentName(component)?.substringBefore('/')
+
+/**
+ * 启用自动接管默认助理且目标为非系统默认时，拦截 HyperOS/超级小爱把
+ * `assistant` / `voice_interaction_service` 改回小爱的写入，直接改写为当前托管目标组件。
+ */
+internal fun rewriteManagedAssistantSettingIfOverwritten(
+    autoConfigEnabled: Boolean,
+    target: PowerAssistantTarget,
+    key: String?,
+    value: String?,
+): String? {
+    if (!shouldConfigureAssistant(autoConfigEnabled, target)) return null
+    if (key != ModuleConfig.SECURE_ASSISTANT &&
+        key != ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE
+    ) {
+        return null
+    }
+    val binding = assistantBindingFor(target) ?: return null
+    if (isSameComponentName(binding.componentName, value)) return null
+    if (extractPackageFromComponent(value) != ModuleConfig.XIAOAI_PACKAGE) return null
+    return binding.shortComponentName
+}
+
 internal fun assistantBindingFor(target: PowerAssistantTarget): AssistantBinding? = when (target) {
     PowerAssistantTarget.OEM -> null
     PowerAssistantTarget.GEMINI -> AssistantBinding(

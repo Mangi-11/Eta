@@ -7,8 +7,8 @@ Eta 将 HyperOS 系统快捷动作和桌面导航手势分别放在 `hook/hypero
 - 进程：`system_server`，对应模块作用域 `system`。
 - 类：`com.miui.server.input.util.ShortCutActionsUtils`。
 - 拦截：返回 `boolean` 的 `triggerFunction(String, String, Bundle, boolean)` 与末尾增加 `String` 的五参数重载；安装时检查签名以及 `mContext` 的类型。
-- 触发条件：第一个参数为 `launch_voice_assistant`，第二个参数为 `long_press_power_key` 或 `imperceptible_press_power_key`。后者是部分系统版本的短时长电源键助手路径。
-- 执行：读取现有电源键目标。系统默认助手直接放行；Gemini / Eta 通过 `AssistantManager.showAssistantSession` 请求当前用户的数字助理会话。只有调用返回成功才返回 `true` 消费快捷动作，失败调用原方法。
+- 触发条件：第一个参数为 `launch_voice_assistant`，第二个参数为 `long_press_power_key` 或 `imperceptible_press_power_key`。后者是部分系统版本的短时长或预触发电源键助手路径。
+- 执行：读取现有电源键目标。系统默认助手直接放行；Gemini / Eta 通过 `AssistantManager.showAssistantSession` 请求当前用户的数字助理会话。只有调用返回成功才返回 `true` 消费快捷动作并记录去重时间窗，失败调用原方法；同一次按压在去重窗内再次派发的 `imperceptible_press_power_key` / `long_press_power_key`（或四/五参数重载）直接返回 `true` 消费，避免重复拉起会话或回落到系统默认助手。对于超过系统侧去重窗的长按松手重复唤醒，Eta 浮窗会话在初始空闲展示窗口内也会合并重复展示，避免重播入场光效并保留初次截取的屏幕上下文。
 
 该入口在系统识别完按键动作后接管，不重写按键计时或触摸事件，也不修改系统电源键设置。关机菜单、SOS、双击相机、智能家居和非电源键助手动作不符合匹配条件，保持系统逻辑。当前用户需已启用电源键助手快捷方式，并将目标设为默认数字助理；沿用 Eta 的“自动设置默认助理”开关与已有恢复机制。HyperOS 路径没有普通 Activity 兜底，避免把会话失败误判为助理已唤起。
 

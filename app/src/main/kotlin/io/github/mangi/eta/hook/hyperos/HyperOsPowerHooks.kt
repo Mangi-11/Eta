@@ -2,6 +2,9 @@ package io.github.mangi.eta.hook.hyperos
 
 import android.content.Context
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import io.github.libxposed.api.XposedModule
 import io.github.mangi.eta.config.PowerAssistantTarget
 import io.github.mangi.eta.config.Prefs
@@ -12,6 +15,11 @@ import io.github.mangi.eta.core.ModuleLogger
 import io.github.mangi.eta.hook.system.AssistantManager
 
 internal object HyperOsPowerHooks {
+    private val dispatchGate = HyperOsPowerDispatchGate()
+    private val mainHandler by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        Handler(Looper.getMainLooper())
+    }
+
     fun install(module: XposedModule, logger: ModuleLogger, loader: ClassLoader): HookInstallation {
         val hooks = HookRegistrar(module, logger, "HyperOsPower")
         return hooks.install {
@@ -35,15 +43,35 @@ internal object HyperOsPowerHooks {
                 }
                 intercept(id, method, "ShortCutActionsUtils.triggerFunction/${signature.size}") { chain ->
                     // 同时匹配功能与来源，不能把关机菜单、SOS 或其他快捷动作改成助理。
-                    if (!HyperOsPowerPolicy.isAssistantShortcut(chain.getArg(0) as? String, chain.getArg(1) as? String)) {
+                    val function = chain.getArg(0) as? String
+                    val source = chain.getArg(1) as? String
+                    if (!HyperOsPowerPolicy.isAssistantShortcut(function, source)) {
                         return@intercept chain.proceed()
                     }
                     val target = Prefs.powerAssistantTarget()
                     val context = contextField.get(chain.getThisObject()) as? Context
                     if (target == PowerAssistantTarget.OEM || context == null) return@intercept chain.proceed()
+                    val now = SystemClock.uptimeMillis()
+                    if (dispatchGate.shouldSuppressDuplicate(now)) {
+                        // HyperOS 同一次按压会派发 imperceptible 与 long_press 等多路触发，命中窗口直接消费，
+                        // 避免重复唤起会话并阻止后续路径回落到系统原生助手。
+                        hooks.logger.debug { "HyperOsPower: 命中去重窗口，吞掉重复电源键助理触发 ($source)" }
+                        return@intercept true
+                    }
                     if (AssistantManager.showAssistantSession(context, target, hooks.logger, "HyperOsPower", logFailures = true)) {
+                        dispatchGate.markLaunched(SystemClock.uptimeMillis())
                         true
-                    } else chain.proceed()
+                    } else {
+                        if (Prefs.isEnabled(Prefs.Keys.ASSISTANT_AUTO_CONFIG)) {
+                            AssistantManager.scheduleAssistantRecovery(
+                                context = context,
+                                logger = hooks.logger,
+                                handler = mainHandler,
+                                forceRefresh = true,
+                            )
+                        }
+                        chain.proceed()
+                    }
                 }
             }
         }

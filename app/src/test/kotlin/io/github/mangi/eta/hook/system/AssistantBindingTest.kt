@@ -109,4 +109,49 @@ class AssistantBindingTest {
         assertTrue(coordinator.tryBegin(0))
         assertFalse(coordinator.finish(0))
     }
+
+    @Test
+    fun `assistant setting guard rewrites only xiaoai overwrites while auto config is enabled`() {
+        assertEquals(
+            "io.github.mangi.eta/.agent.voice.EtaVoiceInteractionService",
+            rewriteManagedAssistantSettingIfOverwritten(
+                autoConfigEnabled = true,
+                target = PowerAssistantTarget.ETA,
+                key = ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
+                value = "com.miui.voiceassist/com.xiaomi.voiceassistant.AssistInteractionService",
+            ),
+        )
+        assertNull(
+            rewriteManagedAssistantSettingIfOverwritten(
+                autoConfigEnabled = false,
+                target = PowerAssistantTarget.ETA,
+                key = ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
+                value = "com.miui.voiceassist/com.xiaomi.voiceassistant.AssistInteractionService",
+            ),
+        )
+        assertNull(
+            rewriteManagedAssistantSettingIfOverwritten(
+                autoConfigEnabled = true,
+                target = PowerAssistantTarget.OEM,
+                key = ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
+                value = "com.miui.voiceassist/com.xiaomi.voiceassistant.AssistInteractionService",
+            ),
+        )
+        assertNull(
+            rewriteManagedAssistantSettingIfOverwritten(
+                autoConfigEnabled = true,
+                target = PowerAssistantTarget.ETA,
+                key = ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
+                value = "com.google.android.googlequicksearchbox/com.google.android.voiceinteraction.GsaVoiceInteractionService",
+            ),
+        )
+        assertNull(
+            rewriteManagedAssistantSettingIfOverwritten(
+                autoConfigEnabled = true,
+                target = PowerAssistantTarget.ETA,
+                key = ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
+                value = "io.github.mangi.eta/.agent.voice.EtaVoiceInteractionService",
+            ),
+        )
+    }
 }
