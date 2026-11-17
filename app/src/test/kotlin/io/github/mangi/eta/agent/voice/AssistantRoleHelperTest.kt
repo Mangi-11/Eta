@@ -129,6 +129,7 @@ class AssistantRoleHelperTest {
         val status = AssistantRoleHelper.queryStatus(activity, gateway)
         assertFalse(status.roleAvailable)
         assertTrue(status.isDefaultAssistant)
+        assertEquals(DefaultAssistantOwner.ETA, status.owner)
 
         val dispatch = AssistantRoleHelper.dispatchPrimaryEntry(
             context = activity,
@@ -137,6 +138,46 @@ class AssistantRoleHelperTest {
             launchRoleRequest = { error("should not request unavailable role") },
         )
         assertEquals(AssistantEntryDispatch.FAILED, dispatch)
+        controller.destroy()
+    }
+
+    @Test
+    fun `detects gemini and other active default assistants from secure settings`() {
+        val controller = Robolectric.buildActivity(Activity::class.java).create()
+        val activity = controller.get()
+        val gateway = FakeGateway(
+            available = true,
+            held = false,
+            requestIntent = Intent("android.app.role.action.REQUEST_ROLE"),
+        )
+
+        Settings.Secure.putString(
+            activity.contentResolver,
+            ModuleConfig.SECURE_ASSISTANT,
+            ModuleConfig.GOOGLE_ASSISTANT_COMPONENT,
+        )
+        val geminiStatus = AssistantRoleHelper.queryStatus(activity, gateway)
+        assertFalse(geminiStatus.isDefaultAssistant)
+        assertEquals(DefaultAssistantOwner.GEMINI, geminiStatus.owner)
+        assertEquals("Gemini", geminiStatus.ownerLabel)
+
+        Settings.Secure.putString(
+            activity.contentResolver,
+            ModuleConfig.SECURE_ASSISTANT,
+            "com.example.other/.AssistService",
+        )
+        val otherStatus = AssistantRoleHelper.queryStatus(activity, gateway)
+        assertFalse(otherStatus.isDefaultAssistant)
+        assertEquals(DefaultAssistantOwner.OTHER, otherStatus.owner)
+
+        Settings.Secure.putString(activity.contentResolver, ModuleConfig.SECURE_ASSISTANT, "")
+        Settings.Secure.putString(
+            activity.contentResolver,
+            ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
+            "",
+        )
+        val noneStatus = AssistantRoleHelper.queryStatus(activity, gateway)
+        assertEquals(DefaultAssistantOwner.NONE, noneStatus.owner)
         controller.destroy()
     }
 

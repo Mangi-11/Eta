@@ -27,7 +27,7 @@
     <string name="capability_root_linux">Linux and terminal enhancements</string>
     <string name="capability_root_linux_summary">Root enables chroot, system directories, and daemon tasks independent of the app. Standard mode supports the private workspace and PRoot.</string>
     <string name="capability_hook_google">Gemini and Circle to Search</string>
-    <string name="capability_hook_google_summary">Create or repair system capabilities and entry points on ColorOS. Requires LSPosed and the corresponding system and Google app scopes; systemizing the Google app also requires Root.</string>
+    <string name="capability_hook_google_summary">Enable and repair system assistant routing and Circle to Search entry points on ColorOS. Requires LSPosed and the corresponding system, SystemUI, and Google app scopes.</string>
     <string name="capability_hook_accessibility">Accessibility protection</string>
     <string name="capability_hook_accessibility_summary">Maintain service activation through system_server. Requires the LSPosed system scope. Accessibility can still be enabled manually in standard mode.</string>
     <string name="capability_optional_root">Optional enhancement permissions</string>

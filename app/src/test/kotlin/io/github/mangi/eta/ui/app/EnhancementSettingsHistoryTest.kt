@@ -27,25 +27,17 @@ class EnhancementSettingsHistoryTest {
     fun historyPreservesDisplayedValuesWithoutWritingBackToTheRemoteSource() {
         val source = context.getSharedPreferences("test_remote_snapshot", Context.MODE_PRIVATE)
         source.edit().clear()
-            .putBoolean(Prefs.Keys.HOTWORD_SELF_HEAL, true)
+            .putBoolean(Prefs.Keys.ASSISTANT_AUTO_CONFIG, true)
             .putString(Prefs.Keys.POWER_KEY_ASSISTANT_TARGET, PowerAssistantTarget.GEMINI.persistedValue)
             .commit()
         val history = EnhancementSettingsHistory(context)
         assertFalse(history.hasConnected)
         history.captureConnected(source)
-        history.recordCommittedBoolean(Prefs.Keys.HOTWORD_SELF_HEAL, false)
+        history.recordCommittedBoolean(Prefs.Keys.ASSISTANT_AUTO_CONFIG, false)
         val restored = EnhancementSettingsHistory(context)
         assertTrue(restored.hasConnected)
-        assertFalse(restored.checked(Prefs.Keys.HOTWORD_SELF_HEAL, true))
+        assertFalse(restored.checked(Prefs.Keys.ASSISTANT_AUTO_CONFIG, true))
         assertEquals(PowerAssistantTarget.GEMINI, restored.powerTarget())
-        assertTrue(source.getBoolean(Prefs.Keys.HOTWORD_SELF_HEAL, false))
-    }
-
-    @Test
-    fun existingSystemizerEntrySurvivesLossOfCurrentRootAccess() {
-        val history = EnhancementSettingsHistory(context)
-        assertFalse(history.hasUsedSystemizer)
-        history.recordSystemizerUse()
-        assertTrue(EnhancementSettingsHistory(context).hasUsedSystemizer)
+        assertTrue(source.getBoolean(Prefs.Keys.ASSISTANT_AUTO_CONFIG, false))
     }
 }

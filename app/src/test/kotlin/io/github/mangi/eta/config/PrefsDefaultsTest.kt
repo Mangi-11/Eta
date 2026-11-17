@@ -14,11 +14,8 @@ class PrefsDefaultsTest {
             mapOf(
                 Prefs.Keys.POWER_KEY_TAKEOVER to false,
                 Prefs.Keys.ASSISTANT_AUTO_CONFIG to false,
-                Prefs.Keys.HOTWORD_SELF_HEAL to false,
                 Prefs.Keys.GESTURE_BAR_CIRCLE_TO_SEARCH to true,
                 Prefs.Keys.DOUBLE_FINGER_CIRCLE_TO_SEARCH to false,
-                Prefs.Keys.LOCKSCREEN_VOICE_COMMAND to false,
-                Prefs.Keys.SCREEN_ON_VOICE_COMMAND to false,
                 Prefs.Keys.AGENT_TERMINAL_TOOLS to true,
                 Prefs.Keys.AGENT_BROWSER_TOOLS to true,
                 Prefs.Keys.AGENT_DEVICE_DIRECT_TOOLS to true,

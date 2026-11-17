@@ -318,7 +318,6 @@
   <string name="ui_search_in_one_turn_179584">一圈即搜</string>
   <string name="ui_contextual_usage_d12810">上下文用量</string>
   <string name="ui_context_length_tokens_227860">上下文窗口（tokens）</string>
-  <string name="ui_bright_screen_evokes_automatic_voice_input_4358fe">亮屏唤起自动语音输入</string>
   <string name="ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d">只选模型或网关实际支持的档位</string>
   <string name="ui_preferences_and_strategies_2abd3c">偏好与策略</string>
   <string name="ui_stop_a17f70">停止</string>
@@ -348,7 +347,6 @@
   <string name="ui_back_to_bottom_32282e">回到底部</string>
   <string name="ui_copy_4edd1d">复制</string>
   <string name="ui_install_087db6">安装</string>
-  <string name="ui_convert_google_apps_to_system_apps_0f6d89">将 Google App 转为系统应用</string>
   <string name="ui_this_will_close_the_current_page_and_clear_eta_brows_1cd331">将关闭当前页面并清除 Eta 浏览器的 Cookie 与站点数据。外部浏览器不会受到影响。</string>
   <string name="ui_display_name_ed16be">展示名称</string>
   <string name="ui_tool_a72ef1">工具</string>
@@ -360,7 +358,6 @@
   <string name="ui_current_25e74d">当前</string>
   <string name="ui_current_model_a0af8f">当前模型</string>
   <string name="ui_restore_automatic_8d4e1e">恢复自动</string>
-  <string name="ui_maintain_hey_google_detection_after_screen_rest_9d6877">息屏后维持 Hey Google 检测</string>
   <string name="ui_floating_window_permissions_076b77">悬浮窗权限</string>
   <string name="ui_manually_fill_in_the_display_name_and_model_id_077a7b">手动填写展示名称与 Model ID</string>
   <string name="ui_long_press_on_the_gesture_bar_triggers_a_circle_to_s_b80117">手势条长按触发一圈即搜</string>
@@ -413,7 +410,6 @@
   <string name="ui_remove_file_reference_04bbfc">移除文件引用</string>
   <string name="ui_system_assistant_takes_over_f46043">系统助手接管</string>
   <string name="ui_system_enhancement_dcd4ad">系统增强</string>
-  <string name="ui_system_applications_have_voice_wake_up_permissions_f_0190f2">系统应用享有语音唤醒权限、更少的自启限制，体验接近原生。将通过 Magisk / KernelSU 模块安装，重启后生效。</string>
   <string name="ui_system_prompt_word_193981">系统提示词</string>
   <string name="ui_absolute_path_9ac6fc">绝对路径</string>
   <string name="ui_edit_a7f814">编辑</string>
@@ -429,7 +425,6 @@
   <string name="ui_regenerate_2e1905">重新生成</string>
   <string name="ui_regenerate_reply_84a7d9">重新生成回复</string>
   <string name="ui_reset_built_in_configuration_35b6ec">重置内置配置</string>
-  <string name="ui_lock_screen_evokes_automatic_voice_input_1cde18">锁屏唤起自动语音输入</string>
   <string name="ui_deep_thinking_enabled_by_default_c032d6">默认启用思考</string>
   <string name="settings_default_reasoning_effort">默认思考深度</string>
   <string name="tool_tap_area">点击区域</string>
@@ -891,14 +886,6 @@
   <string name="settings_write_failed">配置写入失败</string>
   <string name="status_processing">处理中…</string>
   <string name="power_assistant_system_default">系统默认助手</string>
-  <string name="systemizer_already_system">Google App 已是系统 priv-app</string>
-  <string name="systemizer_google_missing">未安装 Google App</string>
-  <string name="systemizer_root_manager_missing">未检测到 Magisk 或 KernelSU</string>
-  <string name="systemizer_metamodule_missing">KernelSU 需先启用 metamodule 支持</string>
-  <string name="systemizer_grant_kernelsu">请在 KernelSU 中授予 Eta root 权限</string>
-  <string name="systemizer_grant_magisk">请在 Magisk 中授予 Eta root 权限</string>
-  <string name="systemizer_root_denied">未获得 root 权限</string>
-  <string name="systemizer_installed">安装完成，重启后生效</string>
   <string name="provider_error">失败：%1$s</string>
   <string name="provider_save_failed">保存失败</string>
   <string name="provider_delete_failed">删除失败</string>
@@ -1483,6 +1470,8 @@
   <string name="assistant_role_status_default">已设为默认</string>
   <string name="assistant_role_status_unset">未设为默认</string>
   <string name="assistant_role_summary_default">已是系统默认数字助理，点击打开系统设置</string>
+  <string name="assistant_role_status_other">其他应用</string>
+  <string name="assistant_role_summary_other">当前默认：%1$s，点击切换为 Eta</string>
   <string name="assistant_role_system_settings_title">系统默认助理设置</string>
   <string name="assistant_role_system_settings_summary">如果系统弹窗未生效，可前往系统设置手动选择</string>
 </resources>

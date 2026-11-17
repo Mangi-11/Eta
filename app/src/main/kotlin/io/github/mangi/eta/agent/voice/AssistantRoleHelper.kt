@@ -8,9 +8,19 @@ import android.content.Intent
 import android.provider.Settings
 import io.github.mangi.eta.core.ModuleConfig
 
+internal enum class DefaultAssistantOwner {
+    ETA,
+    GEMINI,
+    OTHER,
+    NONE,
+}
+
 internal data class AssistantRoleStatus(
     val roleAvailable: Boolean,
     val isDefaultAssistant: Boolean,
+    val owner: DefaultAssistantOwner =
+        if (isDefaultAssistant) DefaultAssistantOwner.ETA else DefaultAssistantOwner.NONE,
+    val ownerLabel: String? = null,
 )
 
 internal enum class AssistantEntryDispatch {
@@ -48,15 +58,36 @@ internal object AssistantRoleHelper {
         gateway: AssistantRoleGateway = SystemAssistantRoleGateway,
     ): AssistantRoleStatus {
         val roleAvailable = gateway.isRoleAvailable(context)
-        val isDefault = if (roleAvailable) {
-            gateway.isRoleHeld(context)
-        } else {
-            isConfiguredInSecureSettings(context)
+        val isEtaRoleHeld = if (roleAvailable) gateway.isRoleHeld(context) else false
+        val configuredComponent = readSecureAssistantComponent(context)
+        if (isEtaRoleHeld || (!roleAvailable && isEtaComponent(context, configuredComponent))) {
+            return AssistantRoleStatus(
+                roleAvailable = roleAvailable,
+                isDefaultAssistant = true,
+                owner = DefaultAssistantOwner.ETA,
+            )
         }
-        return AssistantRoleStatus(
-            roleAvailable = roleAvailable,
-            isDefaultAssistant = isDefault,
-        )
+
+        val packageName = configuredComponent?.let(::extractPackageName)
+        return when {
+            packageName == ModuleConfig.GOOGLE_PACKAGE -> AssistantRoleStatus(
+                roleAvailable = roleAvailable,
+                isDefaultAssistant = false,
+                owner = DefaultAssistantOwner.GEMINI,
+                ownerLabel = "Gemini",
+            )
+            !packageName.isNullOrEmpty() && packageName != ModuleConfig.ETA_PACKAGE -> AssistantRoleStatus(
+                roleAvailable = roleAvailable,
+                isDefaultAssistant = false,
+                owner = DefaultAssistantOwner.OTHER,
+                ownerLabel = resolveAppLabel(context, packageName),
+            )
+            else -> AssistantRoleStatus(
+                roleAvailable = roleAvailable,
+                isDefaultAssistant = false,
+                owner = DefaultAssistantOwner.NONE,
+            )
+        }
     }
 
     fun buildSystemSettingsIntents(): List<Intent> = listOf(
@@ -99,13 +130,34 @@ internal object AssistantRoleHelper {
         }
     }
 
-    private fun isConfiguredInSecureSettings(context: Context): Boolean {
-        val configured = runCatching {
+    private fun readSecureAssistantComponent(context: Context): String? {
+        val assistant = runCatching {
             Settings.Secure.getString(context.contentResolver, ModuleConfig.SECURE_ASSISTANT)
-        }.getOrNull()?.trim().orEmpty()
-        if (configured.isEmpty()) return false
+        }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+        if (assistant != null) return assistant
+        return runCatching {
+            Settings.Secure.getString(
+                context.contentResolver,
+                ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
+            )
+        }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun isEtaComponent(context: Context, configured: String?): Boolean {
+        if (configured.isNullOrEmpty()) return false
         val expected = ComponentName(context, EtaVoiceInteractionService::class.java)
         val parsed = ComponentName.unflattenFromString(configured)
         return parsed == expected || configured == expected.flattenToShortString()
     }
+
+    private fun extractPackageName(configured: String): String? =
+        ComponentName.unflattenFromString(configured)?.packageName
+            ?: configured.substringBefore('/').trim().takeIf { it.isNotEmpty() }
+
+    private fun resolveAppLabel(context: Context, packageName: String): String? =
+        runCatching {
+            val packageManager = context.packageManager
+            val appInfo = packageManager.getApplicationInfo(packageName, 0)
+            packageManager.getApplicationLabel(appInfo)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        }.getOrNull()
 }

@@ -27,7 +27,7 @@
     <string name="capability_root_linux">Linux 与终端增强</string>
     <string name="capability_root_linux_summary">Root 可使用 chroot、系统目录与脱离 App 的守护任务；普通模式可使用私有工作区与 PRoot。</string>
     <string name="capability_hook_google">Gemini 与一圈即搜</string>
-    <string name="capability_hook_google_summary">在 ColorOS 创建或修复系统能力与触发入口。需要 LSPosed、对应系统与 Google 应用作用域；Google 应用系统化另需 Root。</string>
+    <string name="capability_hook_google_summary">在 ColorOS 启用或修复系统助理路由与一圈即搜入口。需要 LSPosed 及对应系统、SystemUI 与 Google 应用作用域。</string>
     <string name="capability_hook_accessibility">无障碍保护</string>
     <string name="capability_hook_accessibility_summary">通过 system_server 维护服务启用状态，需要 LSPosed 的系统作用域。普通模式仍可手动开启无障碍。</string>
     <string name="capability_optional_root">可选增强权限</string>

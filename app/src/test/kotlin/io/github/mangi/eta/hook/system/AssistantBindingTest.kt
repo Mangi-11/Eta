@@ -75,4 +75,21 @@ class AssistantBindingTest {
             assistantSelectionAction(false, PowerAssistantTarget.OEM),
         )
     }
+
+    @Test
+    fun `configuration coordinator coalesces overlapping switches into a trailing resync`() {
+        val coordinator = AssistantConfigurationCoordinator()
+
+        assertTrue(coordinator.tryBegin(0))
+        // 并发请求同一用户不会并行执行，但会标记结束后需要追平最新选择
+        assertFalse(coordinator.tryBegin(0))
+        assertFalse(coordinator.tryBegin(0))
+        // 其他用户互不阻塞
+        assertTrue(coordinator.tryBegin(10))
+        assertFalse(coordinator.finish(10))
+
+        assertTrue(coordinator.finish(0))
+        assertTrue(coordinator.tryBegin(0))
+        assertFalse(coordinator.finish(0))
+    }
 }

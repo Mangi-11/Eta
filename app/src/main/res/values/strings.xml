@@ -323,7 +323,6 @@
   <string name="ui_search_in_one_turn_179584">Circle to Search</string>
   <string name="ui_contextual_usage_d12810">Context usage</string>
   <string name="ui_context_length_tokens_227860">Context window (tokens)</string>
-  <string name="ui_bright_screen_evokes_automatic_voice_input_4358fe">Bright screen evokes automatic voice input</string>
   <string name="ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d">Only pick levels the model or gateway supports.</string>
   <string name="ui_preferences_and_strategies_2abd3c">Preferences and Strategies</string>
   <string name="ui_stop_a17f70">stop</string>
@@ -353,7 +352,6 @@
   <string name="ui_back_to_bottom_32282e">back to bottom</string>
   <string name="ui_copy_4edd1d">copy</string>
   <string name="ui_install_087db6">Install</string>
-  <string name="ui_convert_google_apps_to_system_apps_0f6d89">Convert Google Apps to system apps</string>
   <string name="ui_this_will_close_the_current_page_and_clear_eta_brows_1cd331">This will close the current page and clear Eta Browser\'s cookies and site data. External browsers are not affected.</string>
   <string name="ui_display_name_ed16be">Display name</string>
   <string name="ui_tool_a72ef1">tool</string>
@@ -365,7 +363,6 @@
   <string name="ui_current_25e74d">current</string>
   <string name="ui_current_model_a0af8f">current model</string>
   <string name="ui_restore_automatic_8d4e1e">Restore automatic</string>
-  <string name="ui_maintain_hey_google_detection_after_screen_rest_9d6877">Maintain Hey Google detection after screen rest</string>
   <string name="ui_floating_window_permissions_076b77">Floating window permissions</string>
   <string name="ui_manually_fill_in_the_display_name_and_model_id_077a7b">Manually fill in the display name and Model ID</string>
   <string name="ui_long_press_on_the_gesture_bar_triggers_a_circle_to_s_b80117">Touch and hold the gesture bar to start Circle to Search</string>
@@ -418,7 +415,6 @@
   <string name="ui_remove_file_reference_04bbfc">Remove file reference</string>
   <string name="ui_system_assistant_takes_over_f46043">System assistant takes over</string>
   <string name="ui_system_enhancement_dcd4ad">System enhancement</string>
-  <string name="ui_system_applications_have_voice_wake_up_permissions_f_0190f2">System applications have voice wake-up permissions, fewer self-start restrictions, and the experience is close to native. Will be installed via Magisk/KernelSU module and will take effect after reboot.</string>
   <string name="ui_system_prompt_word_193981">System prompt</string>
   <string name="ui_absolute_path_9ac6fc">absolute path</string>
   <string name="ui_edit_a7f814">edit</string>
@@ -434,7 +430,6 @@
   <string name="ui_regenerate_2e1905">Regenerate</string>
   <string name="ui_regenerate_reply_84a7d9">Regenerate reply</string>
   <string name="ui_reset_built_in_configuration_35b6ec">Reset built-in settings</string>
-  <string name="ui_lock_screen_evokes_automatic_voice_input_1cde18">Lock screen evokes automatic voice input</string>
   <string name="ui_deep_thinking_enabled_by_default_c032d6">Reasoning enabled by default</string>
   <string name="settings_default_reasoning_effort">Default reasoning effort</string>
   <string name="tool_tap_area">Tap area</string>
@@ -900,14 +895,6 @@
   <string name="settings_write_failed">Couldn\'t save settings</string>
   <string name="status_processing">Processing…</string>
   <string name="power_assistant_system_default">System default assistant</string>
-  <string name="systemizer_already_system">Google App is already a system priv-app</string>
-  <string name="systemizer_google_missing">Google App is not installed</string>
-  <string name="systemizer_root_manager_missing">Magisk or KernelSU was not detected</string>
-  <string name="systemizer_metamodule_missing">Enable metamodule support in KernelSU first</string>
-  <string name="systemizer_grant_kernelsu">Grant Eta root access in KernelSU</string>
-  <string name="systemizer_grant_magisk">Grant Eta root access in Magisk</string>
-  <string name="systemizer_root_denied">Root access was not granted</string>
-  <string name="systemizer_installed">Installation complete. Restart to apply changes</string>
   <string name="provider_error">Failed: %1$s</string>
   <string name="provider_save_failed">Couldn\'t save provider</string>
   <string name="provider_delete_failed">Couldn\'t delete provider</string>
@@ -1502,6 +1489,8 @@
   <string name="assistant_role_status_default">Set as default</string>
   <string name="assistant_role_status_unset">Not set</string>
   <string name="assistant_role_summary_default">Active default assistant, tap to open system settings</string>
+  <string name="assistant_role_status_other">Other app</string>
+  <string name="assistant_role_summary_other">Current default: %1$s. Tap to switch to Eta</string>
   <string name="assistant_role_system_settings_title">System default assistant settings</string>
   <string name="assistant_role_system_settings_summary">Open system settings to switch or manage manually</string>
 </resources>

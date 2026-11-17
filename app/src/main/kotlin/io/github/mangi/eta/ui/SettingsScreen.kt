@@ -4,7 +4,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.database.ContentObserver
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -25,22 +28,18 @@ import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.GppMaybe
-import androidx.compose.material.icons.rounded.Hearing
 import androidx.compose.material.icons.rounded.Hub
 import androidx.compose.material.icons.rounded.ImportContacts
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Inventory
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Layers
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.SettingsVoice
 import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.SportsBar
 import androidx.compose.material.icons.rounded.SupportAgent
@@ -80,8 +79,11 @@ import io.github.mangi.eta.agent.accessibility.AccessibilityProtectionClient
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.voice.AssistantEntryDispatch
 import io.github.mangi.eta.agent.voice.AssistantRoleHelper
+import io.github.mangi.eta.agent.voice.AssistantRoleStatus
+import io.github.mangi.eta.agent.voice.DefaultAssistantOwner
 import io.github.mangi.eta.config.PowerAssistantTarget
 import io.github.mangi.eta.config.Prefs
+import io.github.mangi.eta.core.ModuleConfig
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.enabledModel
@@ -89,9 +91,6 @@ import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.data.update.AppLatestRelease
 import io.github.mangi.eta.data.update.AppUpdateChecker
-import io.github.mangi.eta.systemizer.GoogleAppSystemizerInstaller
-import io.github.mangi.eta.systemizer.RootManager
-import io.github.mangi.eta.systemizer.SystemizerInstallResult
 import io.github.mangi.eta.ui.app.EnhancementSettingsHistory
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
@@ -111,6 +110,8 @@ import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -195,9 +196,6 @@ private fun SettingsPageContent(
     val capabilities = rememberDeviceCapabilities()
     val enhancementHistory = remember(context.applicationContext) { EnhancementSettingsHistory(context) }
     var hasConnectedFramework by remember { mutableStateOf(enhancementHistory.hasConnected) }
-    var hasUsedSystemizer by remember { mutableStateOf(enhancementHistory.hasUsedSystemizer) }
-    var showSystemizerDialog by remember { mutableStateOf(false) }
-    var installingSystemizer by remember { mutableStateOf(false) }
 
     // 悬浮窗权限状态：授权后从系统设置返回时（ON_RESUME）刷新。
     var overlayGranted by remember {
@@ -210,29 +208,6 @@ private fun SettingsPageContent(
         mutableStateOf(AccessibilityProtectionClient.isEnabled(context))
     }
     var accessibilityProtectionPending by remember { mutableStateOf(false) }
-    var assistantRoleStatus by remember(context) {
-        mutableStateOf(AssistantRoleHelper.queryStatus(context))
-    }
-    val assistantRoleLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) {
-        assistantRoleStatus = AssistantRoleHelper.queryStatus(context)
-    }
-    val openAssistantSettings: () -> Unit = {
-        if (!AssistantRoleHelper.openSystemSettings(context)) {
-            Toast.makeText(context, context.getString(R.string.settings_open_assistant_failed), Toast.LENGTH_SHORT).show()
-        }
-    }
-    val requestOrOpenAssistantSettings: () -> Unit = {
-        val dispatch = AssistantRoleHelper.dispatchPrimaryEntry(
-            context = context,
-            status = assistantRoleStatus,
-            launchRoleRequest = assistantRoleLauncher::launch,
-        )
-        if (dispatch == AssistantEntryDispatch.FAILED) {
-            Toast.makeText(context, context.getString(R.string.settings_open_assistant_failed), Toast.LENGTH_SHORT).show()
-        }
-    }
 
     // 关于组：版本信息与更新检查。结果对话框在列表外渲染，状态需要页面级 owner。
     val appPackageInfo = remember {
@@ -268,20 +243,6 @@ private fun SettingsPageContent(
                 }
             }
         }
-    }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                overlayGranted = android.provider.Settings.canDrawOverlays(context)
-                accessibilityGranted = isAgentAccessibilityEnabled(context)
-                accessibilityProtectionEnabled =
-                    AccessibilityProtectionClient.isEnabled(context)
-                assistantRoleStatus = AssistantRoleHelper.queryStatus(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Provider / Model 选中状态展示
@@ -382,13 +343,129 @@ private fun SettingsPageContent(
     var powerAssistantTarget by remember(prefs) {
         mutableStateOf(prefs?.let(Prefs::powerAssistantTarget) ?: enhancementHistory.powerTarget())
     }
+    var assistantRoleStatus by remember(context) {
+        mutableStateOf(AssistantRoleHelper.queryStatus(context))
+    }
+    var assistantRefreshJob by remember { mutableStateOf<Job?>(null) }
+    val scheduleAssistantRoleRefresh: () -> Unit = {
+        assistantRoleStatus = AssistantRoleHelper.queryStatus(context)
+        assistantRefreshJob?.cancel()
+        assistantRefreshJob = coroutineScope.launch {
+            delay(450L)
+            assistantRoleStatus = AssistantRoleHelper.queryStatus(context)
+        }
+    }
+    DisposableEffect(context) {
+        val resolver = context.contentResolver
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                scheduleAssistantRoleRefresh()
+            }
+        }
+        runCatching {
+            resolver.registerContentObserver(
+                Settings.Secure.getUriFor(ModuleConfig.SECURE_ASSISTANT),
+                false,
+                observer,
+            )
+            resolver.registerContentObserver(
+                Settings.Secure.getUriFor(ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE),
+                false,
+                observer,
+            )
+        }
+        onDispose {
+            assistantRefreshJob?.cancel()
+            runCatching { resolver.unregisterContentObserver(observer) }
+        }
+    }
+    val syncPowerTargetToEtaIfAutoConfigActive: () -> Unit = {
+        val targetPrefs = prefs
+        val autoConfigDefault = Prefs.Keys.BOOLEAN_DEFAULTS.getValue(Prefs.Keys.ASSISTANT_AUTO_CONFIG)
+        if (targetPrefs != null &&
+            targetPrefs.getBoolean(Prefs.Keys.ASSISTANT_AUTO_CONFIG, autoConfigDefault) &&
+            powerAssistantTarget != PowerAssistantTarget.ETA &&
+            putStringSync(
+                prefs = targetPrefs,
+                key = Prefs.Keys.POWER_KEY_ASSISTANT_TARGET,
+                value = PowerAssistantTarget.ETA.persistedValue,
+            )
+        ) {
+            powerAssistantTarget = PowerAssistantTarget.ETA
+            enhancementHistory.recordCommittedTarget(PowerAssistantTarget.ETA)
+        }
+    }
+    var openedAssistantSettingsForEta by remember { mutableStateOf(false) }
+    val assistantRoleLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        val updated = AssistantRoleHelper.queryStatus(context)
+        assistantRoleStatus = updated
+        if (updated.isDefaultAssistant) {
+            syncPowerTargetToEtaIfAutoConfigActive()
+        }
+    }
+    val openAssistantSettings: () -> Unit = {
+        if (AssistantRoleHelper.openSystemSettings(context)) {
+            if (!assistantRoleStatus.isDefaultAssistant) {
+                openedAssistantSettingsForEta = true
+            }
+        } else {
+            Toast.makeText(context, context.getString(R.string.settings_open_assistant_failed), Toast.LENGTH_SHORT).show()
+        }
+    }
+    val requestOrOpenAssistantSettings: () -> Unit = {
+        val wasDefault = assistantRoleStatus.isDefaultAssistant
+        val dispatch = AssistantRoleHelper.dispatchPrimaryEntry(
+            context = context,
+            status = assistantRoleStatus,
+            launchRoleRequest = assistantRoleLauncher::launch,
+        )
+        when (dispatch) {
+            AssistantEntryDispatch.SYSTEM_SETTINGS -> {
+                if (!wasDefault) {
+                    openedAssistantSettingsForEta = true
+                }
+            }
+            AssistantEntryDispatch.FAILED -> {
+                Toast.makeText(context, context.getString(R.string.settings_open_assistant_failed), Toast.LENGTH_SHORT).show()
+            }
+            AssistantEntryDispatch.ROLE_REQUEST -> Unit
+        }
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                overlayGranted = android.provider.Settings.canDrawOverlays(context)
+                accessibilityGranted = isAgentAccessibilityEnabled(context)
+                accessibilityProtectionEnabled =
+                    AccessibilityProtectionClient.isEnabled(context)
+                val updated = AssistantRoleHelper.queryStatus(context)
+                assistantRoleStatus = updated
+                if (openedAssistantSettingsForEta) {
+                    openedAssistantSettingsForEta = false
+                    if (updated.isDefaultAssistant) {
+                        syncPowerTargetToEtaIfAutoConfigActive()
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     DisposableEffect(prefs) {
         val targetPrefs = prefs ?: return@DisposableEffect onDispose {}
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { changedPrefs, key ->
-            if (key == Prefs.Keys.POWER_KEY_ASSISTANT_TARGET ||
-                key == Prefs.Keys.POWER_KEY_TAKEOVER
-            ) {
-                powerAssistantTarget = Prefs.powerAssistantTarget(changedPrefs)
+            when (key) {
+                Prefs.Keys.POWER_KEY_ASSISTANT_TARGET,
+                Prefs.Keys.POWER_KEY_TAKEOVER -> {
+                    powerAssistantTarget = Prefs.powerAssistantTarget(changedPrefs)
+                    scheduleAssistantRoleRefresh()
+                }
+                Prefs.Keys.ASSISTANT_AUTO_CONFIG -> {
+                    scheduleAssistantRoleRefresh()
+                }
             }
         }
         targetPrefs.registerOnSharedPreferenceChangeListener(listener)
@@ -427,6 +504,7 @@ private fun SettingsPageContent(
             ) {
                 powerAssistantTarget = target
                 enhancementHistory.recordCommittedTarget(target)
+                scheduleAssistantRoleRefresh()
             } else {
                 Toast.makeText(
                     context.applicationContext,
@@ -638,20 +716,8 @@ private fun SettingsPageContent(
                 Group(title = stringResource(R.string.ui_system_assistant_takes_over_f46043)) {
                     CouiPreference(
                         title = stringResource(R.string.ui_eta_system_assistant_003e9b),
-                        summary = when {
-                            assistantRoleStatus.isDefaultAssistant ->
-                                stringResource(R.string.assistant_role_summary_default)
-                            assistantRoleStatus.roleAvailable ->
-                                stringResource(R.string.page_choose_eta_as_your_default_digital_assistant_4a73a9)
-                            else -> null
-                        },
-                        value = stringResource(
-                            if (assistantRoleStatus.isDefaultAssistant) {
-                                R.string.assistant_role_status_default
-                            } else {
-                                R.string.assistant_role_status_unset
-                            },
-                        ),
+                        summary = assistantRoleStatus.displaySummary(),
+                        value = assistantRoleStatus.displayValue(),
                         valueColor = if (assistantRoleStatus.isDefaultAssistant) {
                             StatusSuccess
                         } else {
@@ -715,64 +781,6 @@ private fun SettingsPageContent(
                             icon = Icons.Rounded.Settings,
                             iconTint = SettingsIconColors.Green,
                         )
-                    }
-                }
-
-                if (prefs != null || hasConnectedFramework || capabilities.root.isGranted || hasUsedSystemizer) {
-                    Group(title = "Gemini") {
-                        val hasFrameworkRows = prefs != null || hasConnectedFramework
-                        if (hasFrameworkRows) {
-                            SwitchPref(
-                                context = context,
-                                prefs = prefs,
-                                title = stringResource(R.string.ui_maintain_hey_google_detection_after_screen_rest_9d6877),
-                                key = Prefs.Keys.HOTWORD_SELF_HEAL,
-                                icon = Icons.Rounded.Hearing,
-                                iconTint = SettingsIconColors.Green,
-                            )
-                            CouiIconDivider()
-                            SwitchPref(
-                                context = context,
-                                prefs = prefs,
-                                title = stringResource(R.string.ui_lock_screen_evokes_automatic_voice_input_1cde18),
-                                key = Prefs.Keys.LOCKSCREEN_VOICE_COMMAND,
-                                icon = Icons.Rounded.Lock,
-                                iconTint = SettingsIconColors.Blue,
-                            )
-                            CouiIconDivider()
-                            SwitchPref(
-                                context = context,
-                                prefs = prefs,
-                                title = stringResource(R.string.ui_bright_screen_evokes_automatic_voice_input_4358fe),
-                                key = Prefs.Keys.SCREEN_ON_VOICE_COMMAND,
-                                icon = Icons.Rounded.SettingsVoice,
-                                iconTint = SettingsIconColors.Green,
-                            )
-                        }
-                        if (capabilities.root.isGranted || hasUsedSystemizer) {
-                            if (hasFrameworkRows) {
-                                CouiIconDivider()
-                            }
-                            CouiPreference(
-                                title = stringResource(R.string.ui_convert_google_apps_to_system_apps_0f6d89),
-                                summary = if (capabilities.root.isGranted) null else stringResource(R.string.capability_root_required),
-                                icon = {
-                                    CouiSettingsIcon(
-                                        icon = Icons.Rounded.Inventory,
-                                        tint = SettingsIconColors.Orange,
-                                        enabled = !installingSystemizer,
-                                    )
-                                },
-                                enabled = !installingSystemizer,
-                                onClick = {
-                                    if (!capabilities.root.isGranted) {
-                                        onNavigate(AppRoute.SystemEnhance)
-                                    } else if (!installingSystemizer) {
-                                        showSystemizerDialog = true
-                                    }
-                                },
-                            )
-                        }
                     }
                 }
 
@@ -1084,23 +1092,11 @@ private fun SettingsPageContent(
                     SettingsGroupCard {
                         ArrowPreference(
                             title = stringResource(R.string.ui_eta_system_assistant_003e9b),
-                            summary = when {
-                                assistantRoleStatus.isDefaultAssistant ->
-                                    stringResource(R.string.assistant_role_summary_default)
-                                assistantRoleStatus.roleAvailable ->
-                                    stringResource(R.string.page_choose_eta_as_your_default_digital_assistant_4a73a9)
-                                else -> null
-                            },
+                            summary = assistantRoleStatus.displaySummary(),
                             startAction = { SettingsIcon(Icons.Rounded.SupportAgent) },
                             endActions = {
                                 Text(
-                                    text = stringResource(
-                                        if (assistantRoleStatus.isDefaultAssistant) {
-                                            R.string.assistant_role_status_default
-                                        } else {
-                                            R.string.assistant_role_status_unset
-                                        },
-                                    ),
+                                    text = assistantRoleStatus.displayValue(),
                                     fontSize = MiuixTheme.textStyles.body2.fontSize,
                                     color = if (assistantRoleStatus.isDefaultAssistant) {
                                         StatusSuccess
@@ -1145,58 +1141,6 @@ private fun SettingsPageContent(
                                 key = Prefs.Keys.ASSISTANT_AUTO_CONFIG,
                                 icon = Icons.Rounded.Settings,
                             )
-                        }
-                    }
-                }
-
-                if (prefs != null || hasConnectedFramework || capabilities.root.isGranted || hasUsedSystemizer) {
-                    item(key = "section_gemini") {
-                        SmallTitle("Gemini")
-                        SettingsGroupCard {
-                            if (prefs != null || hasConnectedFramework) {
-                                SwitchPref(
-                                    context = context,
-                                    prefs = prefs,
-                                    title = stringResource(R.string.ui_maintain_hey_google_detection_after_screen_rest_9d6877),
-                                    key = Prefs.Keys.HOTWORD_SELF_HEAL,
-                                    icon = Icons.Rounded.Hearing,
-                                )
-                                SwitchPref(
-                                    context = context,
-                                    prefs = prefs,
-                                    title = stringResource(R.string.ui_lock_screen_evokes_automatic_voice_input_1cde18),
-                                    key = Prefs.Keys.LOCKSCREEN_VOICE_COMMAND,
-                                    icon = Icons.Rounded.Lock,
-                                )
-                                SwitchPref(
-                                    context = context,
-                                    prefs = prefs,
-                                    title = stringResource(R.string.ui_bright_screen_evokes_automatic_voice_input_4358fe),
-                                    key = Prefs.Keys.SCREEN_ON_VOICE_COMMAND,
-                                    icon = Icons.Rounded.SettingsVoice,
-                                )
-                            }
-                            if (capabilities.root.isGranted || hasUsedSystemizer) {
-                                ArrowPreference(
-                                    title = stringResource(R.string.ui_convert_google_apps_to_system_apps_0f6d89),
-                                    startAction = {
-                                        SettingsIcon(
-                                            icon = Icons.Rounded.Inventory,
-                                            enabled = !installingSystemizer,
-                                        )
-                                    },
-                                    summary = if (capabilities.root.isGranted) null else stringResource(R.string.capability_root_required),
-                                    enabled = !installingSystemizer,
-                                    holdDownState = showSystemizerDialog,
-                                    onClick = {
-                                        if (!capabilities.root.isGranted) {
-                                            onNavigate(AppRoute.SystemEnhance)
-                                        } else if (!installingSystemizer) {
-                                            showSystemizerDialog = true
-                                        }
-                                    },
-                                )
-                            }
                         }
                     }
                 }
@@ -1369,39 +1313,6 @@ private fun SettingsPageContent(
         }
     }
 
-    SystemizerConfirmDialog(
-        show = showSystemizerDialog,
-        installing = installingSystemizer,
-        onDismissRequest = {
-            if (!installingSystemizer) {
-                showSystemizerDialog = false
-            }
-        },
-        onConfirm = {
-            if (installingSystemizer) return@SystemizerConfirmDialog
-            if (!capabilities.root.isGranted) {
-                showSystemizerDialog = false
-                onNavigate(AppRoute.SystemEnhance)
-                return@SystemizerConfirmDialog
-            }
-            enhancementHistory.recordSystemizerUse()
-            hasUsedSystemizer = true
-            showSystemizerDialog = false
-            installingSystemizer = true
-            coroutineScope.launch {
-                val result = withContext(Dispatchers.IO) {
-                    GoogleAppSystemizerInstaller(context.applicationContext).install()
-                }
-                installingSystemizer = false
-                Toast.makeText(
-                    context.applicationContext,
-                    result.toToastMessage(context),
-                    Toast.LENGTH_LONG,
-                ).show()
-            }
-        },
-    )
-
     availableUpdate?.let { update ->
         when (LocalUiStyle.current) {
             AppearanceUiStyle.COUI -> {
@@ -1439,47 +1350,29 @@ private fun SettingsPageContent(
 }
 
 @Composable
-private fun SystemizerConfirmDialog(
-    show: Boolean,
-    installing: Boolean,
-    onDismissRequest: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    val confirmText = if (installing) {
-        stringResource(R.string.status_processing)
+private fun AssistantRoleStatus.displaySummary(): String? = when (owner) {
+    DefaultAssistantOwner.ETA -> stringResource(R.string.assistant_role_summary_default)
+    DefaultAssistantOwner.GEMINI -> stringResource(R.string.assistant_role_summary_other, "Gemini")
+    DefaultAssistantOwner.OTHER -> ownerLabel?.let {
+        stringResource(R.string.assistant_role_summary_other, it)
+    } ?: if (roleAvailable) {
+        stringResource(R.string.page_choose_eta_as_your_default_digital_assistant_4a73a9)
     } else {
-        stringResource(R.string.action_confirm)
+        null
     }
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiConfirmDialog(
-                visible = show,
-                title = stringResource(R.string.ui_convert_google_apps_to_system_apps_0f6d89),
-                message = stringResource(R.string.ui_system_applications_have_voice_wake_up_permissions_f_0190f2),
-                confirmText = confirmText,
-                confirmEnabled = !installing,
-                cancelEnabled = !installing,
-                onConfirm = onConfirm,
-                onDismissRequest = onDismissRequest,
-            )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            WindowDialog(
-                show = show,
-                title = stringResource(R.string.ui_convert_google_apps_to_system_apps_0f6d89),
-                summary = stringResource(R.string.ui_system_applications_have_voice_wake_up_permissions_f_0190f2),
-                onDismissRequest = onDismissRequest,
-            ) {
-                MiuixDialogActions(
-                    confirmText = confirmText,
-                    cancelEnabled = !installing,
-                    confirmEnabled = !installing,
-                    onCancel = onDismissRequest,
-                    onConfirm = onConfirm,
-                )
-            }
-        }
+    DefaultAssistantOwner.NONE -> if (roleAvailable) {
+        stringResource(R.string.page_choose_eta_as_your_default_digital_assistant_4a73a9)
+    } else {
+        null
     }
+}
+
+@Composable
+private fun AssistantRoleStatus.displayValue(): String = when (owner) {
+    DefaultAssistantOwner.ETA -> stringResource(R.string.assistant_role_status_default)
+    DefaultAssistantOwner.GEMINI -> "Gemini"
+    DefaultAssistantOwner.OTHER -> ownerLabel ?: stringResource(R.string.assistant_role_status_other)
+    DefaultAssistantOwner.NONE -> stringResource(R.string.assistant_role_status_unset)
 }
 
 @Composable
@@ -1585,23 +1478,3 @@ private fun isAgentAccessibilityEnabled(context: Context): Boolean {
     ).orEmpty()
     return enabledServices.split(':').any { it.equals(expected, ignoreCase = true) }
 }
-
-private fun SystemizerInstallResult.toToastMessage(context: Context): String =
-    when (this) {
-        SystemizerInstallResult.AlreadySystemized -> context.getString(R.string.systemizer_already_system)
-        SystemizerInstallResult.GoogleAppMissing -> context.getString(R.string.systemizer_google_missing)
-        SystemizerInstallResult.UnsupportedRootManager -> context.getString(R.string.systemizer_root_manager_missing)
-        SystemizerInstallResult.KernelSuMetamoduleMissing -> context.getString(R.string.systemizer_metamodule_missing)
-        is SystemizerInstallResult.RootPermissionUnavailable -> when (rootManager) {
-            RootManager.KERNEL_SU -> context.getString(R.string.systemizer_grant_kernelsu)
-            RootManager.MAGISK -> context.getString(R.string.systemizer_grant_magisk)
-            RootManager.UNSUPPORTED -> context.getString(R.string.systemizer_root_denied)
-        }
-        is SystemizerInstallResult.InstalledRebootRequired -> context.getString(R.string.systemizer_installed)
-        is SystemizerInstallResult.Failed -> commandOutput
-            .lineSequence()
-            .map { it.trim() }
-            .lastOrNull { it.isNotEmpty() }
-            ?.let { "$message：$it" }
-            ?: message
-    }

@@ -306,7 +306,6 @@
   <string name="ui_search_in_one_turn_179584">圈選搜尋</string>
   <string name="ui_contextual_usage_d12810">內容用量</string>
   <string name="ui_context_length_tokens_227860">內容長度上限（tokens）</string>
-  <string name="ui_bright_screen_evokes_automatic_voice_input_4358fe">亮屏喚起自動語音輸入</string>
   <string name="ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d">只選模型或閘道實際支援的檔位</string>
   <string name="ui_preferences_and_strategies_2abd3c">偏好與策略</string>
   <string name="ui_stop_a17f70">停止</string>
@@ -336,7 +335,6 @@
   <string name="ui_back_to_bottom_32282e">回到底部</string>
   <string name="ui_copy_4edd1d">複製</string>
   <string name="ui_install_087db6">安裝</string>
-  <string name="ui_convert_google_apps_to_system_apps_0f6d89">將 Google App 轉為系統應用程式</string>
   <string name="ui_this_will_close_the_current_page_and_clear_eta_brows_1cd331">將關閉目前頁面並清除 Eta 瀏覽器的 Cookie 與網站資料。外部瀏覽器不會受到影響。</string>
   <string name="ui_display_name_ed16be">展示名稱</string>
   <string name="ui_tool_a72ef1">工具</string>
@@ -348,7 +346,6 @@
   <string name="ui_current_25e74d">目前</string>
   <string name="ui_current_model_a0af8f">目前模型</string>
   <string name="ui_restore_automatic_8d4e1e">恢復自動</string>
-  <string name="ui_maintain_hey_google_detection_after_screen_rest_9d6877">息屏後維持 Hey Google 檢測</string>
   <string name="ui_floating_window_permissions_076b77">懸浮窗權限</string>
   <string name="ui_manually_fill_in_the_display_name_and_model_id_077a7b">手動填寫展示名稱與 Model ID</string>
   <string name="ui_long_press_on_the_gesture_bar_triggers_a_circle_to_s_b80117">長按手勢列啟動圈選搜尋</string>
@@ -401,7 +398,6 @@
   <string name="ui_remove_file_reference_04bbfc">移除檔案參照</string>
   <string name="ui_system_assistant_takes_over_f46043">系統助理接管</string>
   <string name="ui_system_enhancement_dcd4ad">系統增強</string>
-  <string name="ui_system_applications_have_voice_wake_up_permissions_f_0190f2">系統應用程式享有語音喚醒權限、較少的自啟動限制，體驗接近原生。將透過 Magisk / KernelSU 模組安裝，重新啟動後生效。</string>
   <string name="ui_system_prompt_word_193981">System prompt</string>
   <string name="ui_absolute_path_9ac6fc">絕對路徑</string>
   <string name="ui_edit_a7f814">編輯</string>
@@ -417,7 +413,6 @@
   <string name="ui_regenerate_2e1905">重新產生</string>
   <string name="ui_regenerate_reply_84a7d9">重新產生回覆</string>
   <string name="ui_reset_built_in_configuration_35b6ec">重設內建設定</string>
-  <string name="ui_lock_screen_evokes_automatic_voice_input_1cde18">鎖定畫面喚起自動語音輸入</string>
   <string name="ui_deep_thinking_enabled_by_default_c032d6">預設啟用思考</string>
   <string name="settings_default_reasoning_effort">預設思考深度</string>
   <string name="tool_tap_area">點按區域</string>
@@ -879,14 +874,6 @@
   <string name="settings_write_failed">無法儲存設定</string>
   <string name="status_processing">處理中…</string>
   <string name="power_assistant_system_default">系統預設助理</string>
-  <string name="systemizer_already_system">Google App 已是系統 priv-app</string>
-  <string name="systemizer_google_missing">尚未安裝 Google App</string>
-  <string name="systemizer_root_manager_missing">未偵測到 Magisk 或 KernelSU</string>
-  <string name="systemizer_metamodule_missing">請先在 KernelSU 啟用 metamodule 支援</string>
-  <string name="systemizer_grant_kernelsu">請在 KernelSU 授予 Eta root 權限</string>
-  <string name="systemizer_grant_magisk">請在 Magisk 授予 Eta root 權限</string>
-  <string name="systemizer_root_denied">未取得 root 權限</string>
-  <string name="systemizer_installed">安裝完成，重新啟動後生效</string>
   <string name="provider_error">失敗：%1$s</string>
   <string name="provider_save_failed">儲存失敗</string>
   <string name="provider_delete_failed">刪除失敗</string>
@@ -1379,6 +1366,8 @@
   <string name="assistant_role_status_default">已設為預設</string>
   <string name="assistant_role_status_unset">未設為預設</string>
   <string name="assistant_role_summary_default">已是系統預設數位助理，點擊開啟系統設定</string>
+  <string name="assistant_role_status_other">其他應用程式</string>
+  <string name="assistant_role_summary_other">目前預設：%1$s，點擊切換為 Eta</string>
   <string name="assistant_role_system_settings_title">系統預設助理設定</string>
   <string name="assistant_role_system_settings_summary">若系統彈窗未生效，可前往系統設定手動選擇</string>
 </resources>

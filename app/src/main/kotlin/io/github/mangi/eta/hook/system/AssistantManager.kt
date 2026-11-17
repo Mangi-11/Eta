@@ -10,7 +10,6 @@ import io.github.mangi.eta.core.safeLogType
 
 import android.app.KeyguardManager
 import android.app.role.RoleManager
-import android.content.ComponentName
 import android.content.ContentResolver
 import android.content.Context
 import android.content.SharedPreferences
@@ -35,7 +34,7 @@ internal object AssistantManager {
     private const val CONFIG_VERIFY_COOLDOWN_MS = 15_000L
     // Android 37 RoleControllerManager 自身超时为 15 秒；本地 watchdog 只能晚于它做最终状态核验。
     private const val ROLE_OPERATION_WATCHDOG_MS = 17_000L
-    private const val REFRESH_COOLDOWN_MS = 5_000L
+    private const val RECOVERY_COOLDOWN_MS = 5_000L
 
     private val systemHandler by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         Handler(Looper.getMainLooper())
@@ -46,17 +45,16 @@ internal object AssistantManager {
         val target: PowerAssistantTarget,
     )
 
-    private val configurationLock = Any()
-    private val configurationsInFlight = mutableSetOf<ConfigurationKey>()
+    private val coordinator = AssistantConfigurationCoordinator()
 
     @Volatile
-    private var lastForcedRefreshUptime = 0L
+    private var lastRecoveryUptime = 0L
 
     @Volatile
-    private var lastForcedRefreshTarget: PowerAssistantTarget? = null
+    private var lastRecoveryTarget: PowerAssistantTarget? = null
 
     @Volatile
-    private var lastForcedRefreshUserId = UserHandleHidden.USER_NULL
+    private var lastRecoveryUserId = UserHandleHidden.USER_NULL
 
     @Volatile
     private var lastVerifiedUserId = UserHandleHidden.USER_NULL
@@ -80,9 +78,12 @@ internal object AssistantManager {
             return@OnSharedPreferenceChangeListener
         }
         val context = systemContext ?: return@OnSharedPreferenceChangeListener
+        invalidateVerificationCache()
         schedulePreferenceSelection(
             context = context,
             logger = preferenceLogger ?: return@OnSharedPreferenceChangeListener,
+            isRecovery = false,
+            rebuildWhenVerified = false,
         )
     }
 
@@ -142,7 +143,7 @@ internal object AssistantManager {
                                 context = context,
                                 logger = logger,
                                 userId = null,
-                                forceRefresh = false,
+                                isRecovery = false,
                                 rebuildWhenVerified = false,
                             )
                         }
@@ -166,7 +167,7 @@ internal object AssistantManager {
         userId = null,
         logger = logger,
         handler = handler,
-        forceRefresh = forceRefresh,
+        isRecovery = forceRefresh,
         rebuildWhenVerified = true,
     )
 
@@ -311,62 +312,12 @@ internal object AssistantManager {
         }
     }
 
-    fun resumeSoftwareHotwordDetection(
-        logger: ModuleLogger,
-        source: String,
-        logFailures: Boolean = false
-    ): Boolean {
-        val stub = voiceInteractionManagerStub ?: run {
-            logShowSessionFailure(
-                logger,
-                "${source}_hotword_stub_missing",
-                logFailures
-            ) { "$source: mServiceStub 尚未就绪，无法恢复软件热词检测" }
-            return false
-        }
-
-        return runCatching {
-            synchronized(stub) {
-                val impl = HookSupport.getFieldValue(stub, "mImpl") ?: return@synchronized false
-                val component = HookSupport.getFieldValue(impl, "mComponent") as? ComponentName
-                if (component?.packageName != ModuleConfig.GOOGLE_PACKAGE) {
-                    return@synchronized false
-                }
-
-                val session = findSoftwareHotwordSession(impl) ?: return@synchronized false
-                val running = HookSupport.getFieldValue(
-                    session,
-                    "mPerformingSoftwareHotwordDetection"
-                ) as? Boolean ?: false
-                if (running) {
-                    return@synchronized false
-                }
-
-                val callback = HookSupport.getFieldValue(session, "mSoftwareCallback")
-                    ?: return@synchronized false
-                val startListeningMethod = impl.javaClass.declaredMethods.firstOrNull {
-                    it.name == "startListeningFromMicLocked" && it.parameterTypes.size == 2
-                }?.apply { isAccessible = true } ?: return@synchronized false
-
-                startListeningMethod.invoke(impl, null, callback)
-                true
-            }
-        }.getOrElse { throwable ->
-            logShowSessionFailure(
-                logger,
-                "${source}_hotword_resume_failed",
-                logFailures
-            ) { "$source: 恢复软件热词检测失败，type=${throwable.safeLogType()}" }
-            false
-        }
-    }
-
     private fun scheduleAssistantConfiguration(
         context: Context,
         userId: Int?,
         logger: ModuleLogger,
         handler: Handler,
-        forceRefresh: Boolean,
+        isRecovery: Boolean,
         rebuildWhenVerified: Boolean,
     ): Boolean = handler.post {
         try {
@@ -387,7 +338,7 @@ internal object AssistantManager {
                 binding = binding,
                 logger = logger,
                 handler = handler,
-                forceRefresh = forceRefresh,
+                isRecovery = isRecovery,
                 rebuildWhenVerified = rebuildWhenVerified,
             )
         } catch (exception: Exception) {
@@ -402,7 +353,7 @@ internal object AssistantManager {
         context: Context,
         logger: ModuleLogger,
         userId: Int? = null,
-        forceRefresh: Boolean = true,
+        isRecovery: Boolean = false,
         rebuildWhenVerified: Boolean = true,
     ) {
         val target = Prefs.powerAssistantTarget()
@@ -419,7 +370,7 @@ internal object AssistantManager {
                 userId = userId,
                 logger = logger,
                 handler = systemHandler,
-                forceRefresh = forceRefresh,
+                isRecovery = isRecovery,
                 rebuildWhenVerified = rebuildWhenVerified,
             )
             AssistantSelectionAction.NONE -> Unit
@@ -447,13 +398,15 @@ internal object AssistantManager {
         logger: ModuleLogger,
         handler: Handler,
     ) {
-        val configurationKey = ConfigurationKey(userId, PowerAssistantTarget.OEM)
-        if (!beginConfiguration(configurationKey)) return
+        if (!beginConfiguration(userId)) {
+            logger.debug { "AssistantManager: 已有校正任务，已记录系统默认恢复待追平" }
+            return
+        }
+        var asyncDispatched = false
         try {
             val managedSettings = hasManagedAssistantSettings(context, userId)
             val managedRole = hasManagedAssistantRole(context, userId)
             if (!managedSettings && !managedRole) {
-                finishConfiguration(configurationKey)
                 return
             }
 
@@ -463,34 +416,49 @@ internal object AssistantManager {
                     key = ModuleConfig.SECURE_ASSISTANT,
                     targetValue = null,
                     userId = userId,
-                    forceRefresh = false,
                 )
                 updateSecureString(
                     resolver = context.contentResolver,
                     key = ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
                     targetValue = null,
                     userId = userId,
-                    forceRefresh = false,
                 )
             }
 
             if (!managedRole) {
-                completeOemAssistantRestoration(context, userId, logger, roleChanged = false)
+                completeOemAssistantRestoration(
+                    context = context,
+                    userId = userId,
+                    logger = logger,
+                    roleChanged = false,
+                    finishLock = false,
+                )
                 return
             }
+            asyncDispatched = true
             clearAssistantRoleAsync(
                 context = context,
                 userId = userId,
                 logger = logger,
                 handler = handler,
-                configurationKey = configurationKey,
+                configurationKey = ConfigurationKey(userId, PowerAssistantTarget.OEM),
             ) { roleChanged ->
-                completeOemAssistantRestoration(context, userId, logger, roleChanged)
+                completeOemAssistantRestoration(
+                    context = context,
+                    userId = userId,
+                    logger = logger,
+                    roleChanged = roleChanged,
+                    finishLock = true,
+                )
             }
         } catch (exception: Exception) {
-            finishConfiguration(configurationKey)
+            asyncDispatched = false
             logger.warnThrottled("assistant_oem_restoration_failed") {
                 "AssistantManager: 恢复系统默认助理失败，type=${exception.safeLogType()}"
+            }
+        } finally {
+            if (!asyncDispatched) {
+                finishConfiguration(context, userId, logger)
             }
         }
     }
@@ -500,12 +468,12 @@ internal object AssistantManager {
         userId: Int,
         logger: ModuleLogger,
         roleChanged: Boolean,
+        finishLock: Boolean,
     ) {
-        val configurationKey = ConfigurationKey(userId, PowerAssistantTarget.OEM)
         try {
             if (Prefs.powerAssistantTarget() != PowerAssistantTarget.OEM) {
                 invalidateVerificationCache()
-                systemContext?.let { schedulePreferenceSelection(it, logger) }
+                coordinator.markPendingResync(userId)
                 return
             }
             invalidateVerificationCache()
@@ -517,15 +485,19 @@ internal object AssistantManager {
                 }
                 return
             }
-            rebuildVoiceInteractionImplementation(
-                logger = logger,
-                userId = userId,
-                force = roleChanged,
-                logFailures = false,
-            )
+            if (roleChanged) {
+                rebuildVoiceInteractionImplementation(
+                    logger = logger,
+                    userId = userId,
+                    force = false,
+                    logFailures = false,
+                )
+            }
             logger.debug { "AssistantManager: 已恢复 ColorOS 原生助理选择" }
         } finally {
-            finishConfiguration(configurationKey)
+            if (finishLock) {
+                finishConfiguration(context, userId, logger)
+            }
         }
     }
 
@@ -535,18 +507,18 @@ internal object AssistantManager {
         binding: AssistantBinding,
         logger: ModuleLogger,
         handler: Handler,
-        forceRefresh: Boolean,
+        isRecovery: Boolean,
         rebuildWhenVerified: Boolean,
     ) {
-        val configurationKey = ConfigurationKey(userId, binding.target)
-        if (!beginConfiguration(configurationKey)) {
-            logger.debug { "AssistantManager: 已有校正任务，跳过重复请求" }
+        if (!beginConfiguration(userId)) {
+            logger.debug { "AssistantManager: 已有校正任务，已记录 ${binding.displayName} 待追平" }
             return
         }
 
+        var asyncDispatched = false
         try {
             val now = SystemClock.uptimeMillis()
-            if (!forceRefresh &&
+            if (!isRecovery &&
                 userId == lastVerifiedUserId &&
                 binding.target == lastVerifiedTarget &&
                 now - lastVerifiedUptime < CONFIG_VERIFY_COOLDOWN_MS
@@ -559,15 +531,38 @@ internal object AssistantManager {
                         logFailures = false
                     )
                 }
-                finishConfiguration(configurationKey)
                 return
             }
 
+            if (isRecovery &&
+                userId == lastRecoveryUserId &&
+                binding.target == lastRecoveryTarget &&
+                now - lastRecoveryUptime < RECOVERY_COOLDOWN_MS
+            ) {
+                return
+            }
+
+            // 先直接写入 Settings.Secure，让系统的 SettingsObserver 立即完成服务切换，不先写 null 触发两次解绑。
+            val settingsChangedBeforeRole = updateAssistantSettings(
+                context = context,
+                userId = userId,
+                binding = binding,
+                logger = logger,
+            )
             val roleOk = hasAssistantRole(context, userId, binding)
-            val settingsOk = hasAssistantSettings(context, userId, binding)
-            if (!forceRefresh && roleOk && settingsOk) {
-                markVerified(userId, binding.target, now)
-                if (rebuildWhenVerified) {
+
+            if (roleOk) {
+                if (!settingsChangedBeforeRole && isRecovery) {
+                    lastRecoveryUptime = now
+                    lastRecoveryTarget = binding.target
+                    lastRecoveryUserId = userId
+                    rebuildVoiceInteractionImplementation(
+                        logger = logger,
+                        userId = userId,
+                        force = true,
+                        logFailures = false
+                    )
+                } else if (!settingsChangedBeforeRole && rebuildWhenVerified) {
                     rebuildVoiceInteractionImplementation(
                         logger = logger,
                         userId = userId,
@@ -575,71 +570,41 @@ internal object AssistantManager {
                         logFailures = false
                     )
                 }
-                finishConfiguration(configurationKey)
+                markVerified(userId, binding.target, SystemClock.uptimeMillis())
                 return
             }
 
-            if (forceRefresh &&
-                userId == lastForcedRefreshUserId &&
-                binding.target == lastForcedRefreshTarget &&
-                now - lastForcedRefreshUptime < REFRESH_COOLDOWN_MS
-            ) {
-                if (roleOk && settingsOk) {
-                    markVerified(userId, binding.target, now)
-                    if (rebuildWhenVerified) {
-                        rebuildVoiceInteractionImplementation(
-                            logger = logger,
-                            userId = userId,
-                            force = false,
-                            logFailures = false
-                        )
-                    }
-                }
-                finishConfiguration(configurationKey)
-                return
+            if (isRecovery) {
+                lastRecoveryUptime = now
+                lastRecoveryTarget = binding.target
+                lastRecoveryUserId = userId
             }
-            if (forceRefresh) {
-                lastForcedRefreshUptime = now
-                lastForcedRefreshTarget = binding.target
-                lastForcedRefreshUserId = userId
-                // 先做一次无等待重建，角色核验完成后仍会按最终状态再次确认。
-                rebuildVoiceInteractionImplementation(
-                    logger = logger,
-                    userId = userId,
-                    force = true,
-                    logFailures = false
-                )
-            }
-
-            val onRoleMutationFinished: (Boolean) -> Unit = { roleChanged ->
+            asyncDispatched = true
+            addAssistantRoleAsync(
+                context = context,
+                userId = userId,
+                binding = binding,
+                logger = logger,
+                handler = handler,
+            ) { roleChanged ->
                 completeAssistantConfiguration(
                     context = context,
                     userId = userId,
                     binding = binding,
                     logger = logger,
-                    handler = handler,
-                    forceRefresh = forceRefresh,
-                    rebuildWhenVerified = rebuildWhenVerified,
+                    isRecovery = isRecovery,
+                    settingsChangedBeforeRole = settingsChangedBeforeRole,
                     roleChanged = roleChanged,
                 )
             }
-
-            if (!roleOk) {
-                addAssistantRoleAsync(
-                    context = context,
-                    userId = userId,
-                    binding = binding,
-                    logger = logger,
-                    handler = handler,
-                    onFinished = onRoleMutationFinished
-                )
-            } else {
-                onRoleMutationFinished(false)
-            }
         } catch (exception: Exception) {
-            finishConfiguration(configurationKey)
+            asyncDispatched = false
             logger.warnThrottled("assistant_configuration_start_failed") {
                 "AssistantManager: 启动默认助理校正失败，type=${exception.safeLogType()}"
+            }
+        } finally {
+            if (!asyncDispatched) {
+                finishConfiguration(context, userId, logger)
             }
         }
     }
@@ -649,12 +614,10 @@ internal object AssistantManager {
         userId: Int,
         binding: AssistantBinding,
         logger: ModuleLogger,
-        handler: Handler,
-        forceRefresh: Boolean,
-        rebuildWhenVerified: Boolean,
+        isRecovery: Boolean,
+        settingsChangedBeforeRole: Boolean,
         roleChanged: Boolean,
     ) {
-        val configurationKey = ConfigurationKey(userId, binding.target)
         try {
             // RoleManager 请求无法取消；回调到达时必须确认目标和开关仍与入队时一致。
             val autoConfigEnabled = Prefs.isEnabled(Prefs.Keys.ASSISTANT_AUTO_CONFIG)
@@ -666,25 +629,17 @@ internal object AssistantManager {
                 )
             ) {
                 invalidateVerificationCache()
-                if (currentTarget == PowerAssistantTarget.OEM) {
-                    scheduleOemAssistantRestoration(context, userId, logger, handler)
-                } else if (shouldConfigureAssistant(autoConfigEnabled, currentTarget)) {
-                    scheduleAssistantConfiguration(
-                        context = context,
-                        userId = userId,
-                        logger = logger,
-                        handler = handler,
-                        forceRefresh = false,
-                        rebuildWhenVerified = true,
-                    )
+                if (currentTarget == PowerAssistantTarget.OEM ||
+                    shouldConfigureAssistant(autoConfigEnabled, currentTarget)
+                ) {
+                    coordinator.markPendingResync(userId)
                 }
                 return
             }
-            val settingsChanged = updateAssistantSettings(
+            val settingsChangedAfterRole = updateAssistantSettings(
                 context = context,
                 userId = userId,
                 binding = binding,
-                forceRefresh = forceRefresh,
                 logger = logger
             )
             val targetAfterWrite = Prefs.powerAssistantTarget()
@@ -696,17 +651,10 @@ internal object AssistantManager {
                 )
             ) {
                 invalidateVerificationCache()
-                if (targetAfterWrite == PowerAssistantTarget.OEM) {
-                    scheduleOemAssistantRestoration(context, userId, logger, handler)
-                } else if (shouldConfigureAssistant(autoConfigAfterWrite, targetAfterWrite)) {
-                    scheduleAssistantConfiguration(
-                        context = context,
-                        userId = userId,
-                        logger = logger,
-                        handler = handler,
-                        forceRefresh = false,
-                        rebuildWhenVerified = true,
-                    )
+                if (targetAfterWrite == PowerAssistantTarget.OEM ||
+                    shouldConfigureAssistant(autoConfigAfterWrite, targetAfterWrite)
+                ) {
+                    coordinator.markPendingResync(userId)
                 }
                 return
             }
@@ -719,19 +667,19 @@ internal object AssistantManager {
             }
 
             markVerified(userId, binding.target, SystemClock.uptimeMillis())
-            if (roleChanged || settingsChanged || forceRefresh || rebuildWhenVerified) {
+            if (settingsChangedAfterRole ||
+                (isRecovery && !settingsChangedBeforeRole && roleChanged)
+            ) {
                 rebuildVoiceInteractionImplementation(
                     logger = logger,
                     userId = userId,
-                    force = forceRefresh || roleChanged || settingsChanged,
+                    force = false,
                     logFailures = false
                 )
+            }
+            if (settingsChangedBeforeRole || settingsChangedAfterRole || roleChanged) {
                 logger.debug {
-                    if (forceRefresh) {
-                        "AssistantManager: 已刷新 ${binding.displayName} 默认助理绑定"
-                    } else {
-                        "AssistantManager: 已校正 ${binding.displayName} 默认助理绑定"
-                    }
+                    "AssistantManager: 已切换默认助理到 ${binding.displayName}"
                 }
             }
         } catch (exception: Exception) {
@@ -740,7 +688,7 @@ internal object AssistantManager {
                 "AssistantManager: 完成默认助理校正失败，type=${exception.safeLogType()}"
             }
         } finally {
-            finishConfiguration(configurationKey)
+            finishConfiguration(context, userId, logger)
         }
     }
 
@@ -862,7 +810,7 @@ internal object AssistantManager {
                     onFinished(success)
                 } catch (exception: Exception) {
                     invalidateVerificationCache()
-                    finishConfiguration(configurationKey)
+                    finishConfiguration(context, userId, logger)
                     logger.errorThrottled(
                         key = "assistant_role_completion_${methodName}_$userId",
                         throwable = exception
@@ -912,25 +860,22 @@ internal object AssistantManager {
         context: Context,
         userId: Int,
         binding: AssistantBinding,
-        forceRefresh: Boolean,
         logger: ModuleLogger
     ): Boolean {
         val resolver = context.contentResolver
-        var changed = false
-        changed = updateSecureString(
+        val assistantChanged = updateSecureString(
             resolver,
             ModuleConfig.SECURE_ASSISTANT,
             binding.componentName,
             userId,
-            forceRefresh
-        ) || changed
-        changed = updateSecureString(
+        )
+        val serviceChanged = updateSecureString(
             resolver,
             ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
             binding.componentName,
             userId,
-            forceRefresh
-        ) || changed
+        )
+        val changed = assistantChanged || serviceChanged
         if (changed) {
             logger.debug { "AssistantManager: 已写入 ${binding.displayName} 助理 secure 配置" }
         }
@@ -942,14 +887,10 @@ internal object AssistantManager {
         key: String,
         targetValue: String?,
         userId: Int,
-        forceRefresh: Boolean
     ): Boolean {
         val currentValue = getSecureStringForUser(resolver, key, userId)
-        if (!forceRefresh && currentValue == targetValue) {
+        if (currentValue == targetValue) {
             return false
-        }
-        if (forceRefresh) {
-            putSecureStringForUser(resolver, key, null, userId)
         }
         return putSecureStringForUser(resolver, key, targetValue, userId)
     }
@@ -1112,7 +1053,7 @@ internal object AssistantManager {
                     context = context,
                     userId = targetUserId,
                     logger = logger,
-                    forceRefresh = false,
+                    isRecovery = false,
                     rebuildWhenVerified = true,
                 )
             }
@@ -1140,36 +1081,17 @@ internal object AssistantManager {
         systemContext = context
     }
 
-    private fun findSoftwareHotwordSession(impl: Any): Any? {
-        val connection = HookSupport.getFieldValue(impl, "mHotwordDetectionConnection") ?: return null
-        val detectorSessions = HookSupport.getFieldValue(connection, "mDetectorSessions") ?: return null
-        val sizeMethod = HookSupport.findMethod(detectorSessions.javaClass, "size") ?: return null
-        val valueAtMethod = HookSupport.findMethod(
-            detectorSessions.javaClass,
-            "valueAt",
-            Int::class.javaPrimitiveType!!
-        ) ?: return null
-        val size = sizeMethod.invoke(detectorSessions) as? Int ?: return null
-        repeat(size) { index ->
-            val session = valueAtMethod.invoke(detectorSessions, index) ?: return@repeat
-            if (session.javaClass.name == "com.android.server.voiceinteraction.SoftwareTrustedHotwordDetectorSession") {
-                return session
-            }
-        }
-        return null
-    }
+    private fun beginConfiguration(userId: Int): Boolean = coordinator.tryBegin(userId)
 
-    private fun beginConfiguration(key: ConfigurationKey): Boolean = synchronized(configurationLock) {
-        if (configurationsInFlight.any { it.userId == key.userId }) {
-            false
-        } else {
-            configurationsInFlight.add(key)
-        }
-    }
-
-    private fun finishConfiguration(key: ConfigurationKey) {
-        synchronized(configurationLock) {
-            configurationsInFlight.remove(key)
+    private fun finishConfiguration(context: Context, userId: Int, logger: ModuleLogger) {
+        if (coordinator.finish(userId)) {
+            schedulePreferenceSelection(
+                context = systemContext ?: context,
+                logger = logger,
+                userId = userId,
+                isRecovery = false,
+                rebuildWhenVerified = false,
+            )
         }
     }
 

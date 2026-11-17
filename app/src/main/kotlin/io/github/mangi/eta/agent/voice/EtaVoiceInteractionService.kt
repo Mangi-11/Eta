@@ -47,7 +47,9 @@ class EtaVoiceInteractionService : VoiceInteractionService() {
 class EtaVoiceAssistActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        EtaVoiceInteractionService.requestSession()
+        if (!EtaVoiceInteractionService.requestSession()) {
+            EtaAssistantOverlayService.show(this, null)
+        }
         finish()
     }
 }

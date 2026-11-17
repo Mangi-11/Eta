@@ -53,9 +53,8 @@ GUI、Root、数字助理与内置浏览器的模型截图保持原尺寸与像�
 
 - **电源键接管**：Hook `PhoneWindowManagerExtImpl$OplusSpeechHandler.handleMessage()` 处理系统分发给系统默认助理的唤醒消息（`what == 0x3F3`）。目标为系统默认助理时直接执行原方法；目标为 Gemini 或 Eta 时才拦截并分发到对应入口。
 - **兼容配置**：三态目标写入字符串键；键不存在或值非法时读取旧 `POWER_KEY_TAKEOVER` 布尔协议，`true` 继续表示 Gemini，`false` 表示系统默认助理。新安装默认保持系统默认，旧用户不会因新增 Eta 被改写目标。
-- **数字助理配置修复**：独立自动设置开关开启后，开机、解锁、切用户及启动失败恢复时，通过 `AssistantManager` 异步校正当前 Gemini/Eta 目标的 `android.app.role.ASSISTANT` 与 secure settings。系统默认模式和开关关闭时不写系统配置；校验缓存及异步回调同时核对用户与目标，旧目标任务不会继续覆盖新选择。
-- **唤起逻辑优化**：Gemini 恢复原有 `VoiceInteractionManagerService`、`ACTION_ASSIST`、`ACTION_VOICE_COMMAND` 顺序；Eta 优先使用活动 `voiceinteraction` 会话，再在已经配置为默认助理时尝试同包 `ACTION_ASSIST` 桥。所有路径失败后立即执行系统原逻辑，不阻塞系统回调。
-- **息屏后维持 Hey Google 可用**：Hook `PhoneWindowManager.screenTurnedOff()`，在默认显示息屏后短延迟检查 Google 的 `SoftwareTrustedHotwordDetectorSession`。只有已有 `mSoftwareCallback` 且当前未 running 时，才恢复 `startListeningFromMicLocked()`；亮屏或恢复成功后会取消未执行任务。
+- **数字助理配置修复**：独立自动设置开关开启后，开机、解锁、切用户、设置页切换目标及启动失败恢复时，通过 `AssistantManager` 串行校正当前 Gemini/Eta 目标的 `android.app.role.ASSISTANT` 与 secure settings。切换托管目标时会先直接写入目标组件的 secure settings 让系统 `SettingsObserver` 立即完成服务切换（不再先置空或双重强制重建），再异步补齐 `RoleManager`；并发切换通过 `AssistantConfigurationCoordinator` 合并为 latest-wins，避免快速连切丢失最后一次变更。系统默认模式清空托管绑定，开关关闭时不写系统配置；校验缓存及异步回调同时核对用户与目标，旧目标任务不会继续覆盖新选择。
+- **唤起逻辑优化**：Gemini 恢复原有 `VoiceInteractionManagerService`、`ACTION_ASSIST`、`ACTION_VOICE_COMMAND` 顺序；Eta 优先使用活动 `voiceinteraction` 会话，再在已经配置为默认助理时尝试同包 `ACTION_ASSIST` 桥（服务绑定窗口期由 `EtaVoiceAssistActivity` 回退直接拉起浮窗）。所有路径失败后立即执行系统原逻辑，不阻塞系统回调。
 - **一圈即搜支持**：强制启用 `ContextualSearchManagerService`，将包名指向 Google App，并放行 `SystemUI` 与 ColorDirectService 的调用权限。作为一圈即搜的底层依赖始终执行，不可关闭。
 - **无障碍保护**：复用已验证的 `SystemServer.startOtherServices(TimingsTraceAndSlog)` 生命周期点，在系统服务启动完成后接入事件驱动保护。后台工作复用 Android `BackgroundThread`，不开模块线程、不轮询；开关默认关闭，开启请求需同时通过 signature 权限、真实发送 UID、服务声明与 APK signer 钉扎校验。保护只维护 owner 用户中的 Eta 组件和总开关，保留其他服务；断连时通过仅允许 `system` UID 调用的健康 Provider 确认，并对 Eta 做带次数上限和冷却的定向重绑。
 
@@ -105,21 +104,6 @@ ColorOS 17 的小布记忆使用加密数据库时，Eta 优先校验已知 Room
 
 机型字段优先使用反射写入；Android 拒绝写入静态 final 字段时，使用 `jdk.internal.misc.Unsafe` 的静态字段接口，并读回校验，兼容 Android 17 的字段写保护。
 
-锁屏唤起 Gemini 浮窗后，Google 偶发只显示输入框、不启动录音。模块优先直接 Hook `FloatyActivity.onResume()`，找不到目标类时才回退到全局 `Activity.onResume()`；确认仍处于锁屏后，带去重地补发一次 `ACTION_VOICE_COMMAND`，避免用户还要手动点麦克风。亮屏（解锁态）唤起时同样存在该偶发问题，因此在同一 hook 点对称增加亮屏分支：确认仍处于解锁态后同样补发一次 `ACTION_VOICE_COMMAND`。去重粒度限定在同一个 `FloatyActivity` 实例，防止同一浮窗 `onResume` 短时间内重复补发，但关闭后立刻新开浮窗不会被上一次全局冷却挡住；两分支各自在延迟任务执行前复查对应开关与锁屏状态是否仍匹配。
-
-## Google App 系统化
-
-Google App 作为普通用户应用时，缺乏语音唤醒所需的系统权限，且容易 ColorOS 被自启管理杀掉。模块内置了 Magisk/KernelSU 模块，可将 Google App 安装为系统 priv-app。
-
-安装流程由 `GoogleAppSystemizerInstaller` 负责：
-
-- 检测 root 管理器类型（Magisk 或 KernelSU）
-- KernelSU 需先安装 meta-overlayfs 模块，否则不支持模块安装
-- 将内置的 Google App 系统化模块通过 root 执行安装
-- 安装成功后提示用户重启生效
-
-系统化安装是用户主动操作，不自动执行。安装入口位于设置页「高级」分组，点击后弹窗确认说明原因与操作方式，用户确认后才开始安装。
-
 ## 配置与实时生效
 
 模块 UI 使用 Miuix，组件与图标依赖版本统一由 `gradle/libs.versions.toml` 声明。功能图标使用 Material Icons Rounded；管理列表使用统一尺寸的单色图标，品牌图标保留原色，状态和选中操作按主题语义着色。设置、权限、Skills、MCP、备份与提供商列表通过卡片和行间距分组，空列表统一展示轻量提示。提供商类型、模型数量和内置来源使用可换行的辅助文字，当前选择由勾选图标表示。Skills 行按显示行数省略简介，「更多」菜单提供完整说明与删除入口，删除仍需确认。工具卡片明确标注可执行的跳转动作；纯介绍卡片点击查看完整说明，可跳转卡片通过信息按钮查看说明。思考状态统一使用本地 Atom 原子轨道图标，执行工具时显示对应工具图标。聊天记录与工具列表共用图标映射，覆盖本地工具、服务端工具名称与 MCP 工具；网页搜索使用地球搜索图标，网页浏览使用地球图标，未知工具使用通用工具图标。设置页的「工具列表」入口直接打开现有工具能力页面，返回时回到设置页。Root 授权与重新检测操作位于状态行内；工作区文件列表区分目录导航和文件导出，空目录显示轻量提示。
@@ -137,9 +121,9 @@ Linux 环境页按当前环境、环境配置、文件与目录、扩展工具�
 外观配置保存在现有 `eta_settings` DataStore。主题根统一解析跟随系统、浅色、深色、Monet 色彩风格、强调色与纯黑背景，并同步系统栏和 Markdown 的 Material 颜色桥接。顶栏使用 COUI 渐进模糊或 Miuix `LayerBackdrop` 捕获滚动内容，聊天输入胶囊通过底部连续垂直渐隐悬浮于消息流上方。Miuix 聊天顶栏高度固定，聊天内容不接入壳层的折叠顶栏滚动连接，双向滚动由消息列表处理。页面滚动继续使用 Miuix 越界回弹和边界触感反馈，横屏安全区由 display cutout 与导航栏 Insets 共同约束。
 
 - **Eta Runtime 配置**：默认思考、网页浏览、设备直达、敏感信息读取、敏感设备操作和终端/文件工具保存在 App 私有配置中，不依赖 LSPosed。Runtime 在请求开始和每次工具执行前读取当前值；升级时会兼容迁移已有 RemotePreferences 值。
-- **Hook 配置**：`EtaApp` 在 `Application.onCreate` 注册 `XposedServiceHelper`，框架通过 `XposedProvider` 推送 binder 后拿到 `XposedService`。系统助手接管、Gemini 和一圈即搜等 Hook 开关通过 `XposedService.getRemotePreferences()` 写入 LSPosed 数据库；服务未连接时这些开关保持不可修改。
+- **Hook 配置**：`EtaApp` 在 `Application.onCreate` 注册 `XposedServiceHelper`，框架通过 `XposedProvider` 推送 binder 后拿到 `XposedService`。系统助手接管和一圈即搜等 Hook 开关通过 `XposedService.getRemotePreferences()` 写入 LSPosed 数据库；服务未连接时这些开关保持不可修改。
 - **Hook 进程**：`ModuleMain.onModuleLoaded` 调用 `XposedInterface.getRemotePreferences()` 缓存只读 `SharedPreferences` 到 `Prefs`。各 Hook 拦截回调入口直接读 `Prefs.isEnabled(key)`，关闭则走原逻辑；因此正常使用时，配置切换后的下一次相关触发表现为实时生效。这里的实时生效来自 Hook 入口读取当前配置，不是 libxposed API 102 的 hot reload 特性。
-- **延迟任务复查**：已排队的后台配置修复、`HotwordSelfHealHooks` retry 与 `GoogleAppHooks` 锁屏/亮屏语音命令会在执行前再次检查对应开关，避免用户在任务排队期间关闭开关后被旧任务绕过。
+- **延迟任务复查**：已排队的后台默认助理修复任务会在执行前再次检查对应开关与目标，避免用户在任务排队期间关闭开关或切换目标后被旧任务绕过。
 
 不可关闭的底层依赖（ContextualSearch 服务补齐、机型伪装、资格补齐）始终执行，不暴露开关。
 
@@ -250,12 +234,10 @@ Markdown 空行只参与块结构解析，不按源码数量累加可见高度�
 - 不轮询、不保活 Google 进程、不持续写日志
 - 无障碍保护默认关闭；开启后只响应设置、包、用户生命周期与 Runtime 明确上报，设置争抢采用退避，断连重绑有次数和冷却上限
 - 热路径只保留当前机型实际验证有效的 `OplusSpeechHandler` hook
-- 默认助理配置检查带 15 秒冷却，息屏后的 Hey Google 恢复路径不主动查写默认助理配置
+- 默认助理配置检查带 15 秒冷却
 - 高频成功路径使用 `DEBUG`；Debug 构建可诊断，Release 由 R8 确定性裁剪
 - 电源键拦截路径不执行休眠、轮询或阻塞等待；本次触发只做快速启动尝试，失败即回退系统原逻辑
-- 默认助理修复异步执行并按用户串行，完成时重新核验 role、目标与开关状态
-- 息屏后的 Hey Google 恢复只响应系统息屏事件；最多串行尝试 3 次，失败才投递下一次，亮屏/成功/结束都会移除未执行 callback
-- Google App 的锁屏/亮屏语音输入优先 Hook 固定 FloatyActivity，不常驻拦截 Google App 所有页面；语音补偿只按同一 FloatyActivity 实例去重，避免重复补发又不影响快速关闭后再次启动
+- 默认助理修复异步执行并按用户串行，并发切换合并为 latest-wins，完成时重新核验 role、目标与开关状态
 
 ## 模型请求缓存
 

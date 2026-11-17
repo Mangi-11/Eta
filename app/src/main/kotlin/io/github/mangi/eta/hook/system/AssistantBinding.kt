@@ -53,3 +53,34 @@ internal fun isAssistantConfigurationCurrent(
     currentTarget: PowerAssistantTarget,
 ): Boolean = shouldConfigureAssistant(autoConfigEnabled, currentTarget) &&
     expectedTarget == currentTarget
+
+/**
+ * 按用户串行化默认助理切换任务，并在并发触发时合并为最新一次待追平请求（latest-wins），
+ * 避免快速连切 Eta / Gemini / 系统默认时丢失最后一次变更。
+ */
+internal class AssistantConfigurationCoordinator {
+    private val lock = Any()
+    private val inFlightUsers = mutableSetOf<Int>()
+    private val pendingResyncUsers = mutableSetOf<Int>()
+
+    fun tryBegin(userId: Int): Boolean = synchronized(lock) {
+        if (userId in inFlightUsers) {
+            pendingResyncUsers.add(userId)
+            false
+        } else {
+            inFlightUsers.add(userId)
+            true
+        }
+    }
+
+    fun markPendingResync(userId: Int) {
+        synchronized(lock) {
+            pendingResyncUsers.add(userId)
+        }
+    }
+
+    fun finish(userId: Int): Boolean = synchronized(lock) {
+        inFlightUsers.remove(userId)
+        pendingResyncUsers.remove(userId)
+    }
+}
