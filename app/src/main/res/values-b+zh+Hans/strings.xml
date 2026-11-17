@@ -1480,4 +1480,9 @@
   <string name="assistant_overlay_settings_reasoning_follow_default">跟随默认</string>
   <string name="assistant_overlay_settings_note">单独配置电源键或系统助手唤起的全局对话浮窗所使用的模型与思考等级；日常轻量指令可选用响应更快的轻量模型并降低或关闭思考，主对话仍保留主力模型。</string>
   <string name="settings_keep_screen_on">运行期间保持屏幕常亮</string>
+  <string name="assistant_role_status_default">已设为默认</string>
+  <string name="assistant_role_status_unset">未设为默认</string>
+  <string name="assistant_role_summary_default">已是系统默认数字助理，点击打开系统设置</string>
+  <string name="assistant_role_system_settings_title">系统默认助理设置</string>
+  <string name="assistant_role_system_settings_summary">如果系统弹窗未生效，可前往系统设置手动选择</string>
 </resources>

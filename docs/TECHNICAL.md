@@ -37,7 +37,7 @@ Release 裁剪以 `app/proguard-rules.pro` 为唯一可执行事实来源，规�
 
 ## Eta 原生数字助理
 
-Manifest 注册 `VoiceInteractionService`、与浮窗同进程的 `VoiceInteractionSessionService`、全屏 `TYPE_APPLICATION_OVERLAY` 助理浮窗以及 Android 助理角色资格要求的 `RecognitionService`。设置页只负责打开系统数字助理选择界面；浮窗使用已授予的麦克风权限；未授权时提供应用权限设置入口并保留键盘输入。
+Manifest 注册 `VoiceInteractionService`、与浮窗同进程的 `VoiceInteractionSessionService`、全屏 `TYPE_APPLICATION_OVERLAY` 助理浮窗以及 Android 助理角色资格要求的 `RecognitionService`。设置页展示当前 `RoleManager.ROLE_ASSISTANT` 持有状态，未设为默认时优先通过 `RoleManager.createRequestRoleIntent(ROLE_ASSISTANT)` 发起标准系统授权弹窗，已设为默认或弹窗不可用时回退至系统数字助理设置页；浮窗使用已授予的麦克风权限；未授权时提供应用权限设置入口并保留键盘输入。
 
 `VoiceInteractionSession` 承接系统入口及系统提供的 Assist 数据，关闭自身 UI；`EtaAssistantOverlayService` 持有全屏窗口、语音序列动画、语音输入和键盘输入。窗口通过 `setFitInsetsTypes(0)` 绘制到状态栏、导航栏与显示开孔后方，可交互内容再通过状态栏、导航栏与 IME Insets 保持可触达，避免给根容器增加 Insets 后截断 edge-to-edge 背景。用户提交的文本交给 `AgentRuntimeClient`；请求、流式结果、前台工具收起、取消与归档沿用既有 Runtime 协议。前台工具执行前，Eta 自有入口在主线程定向移除窗口并通知系统会话 `hide()`，Runtime 等待该 View 真正 detach 后才继续；外部助手入口仍使用返回动作和目标包窗口确认。唤醒时已获麦克风权限且启用语音识别就启动一次云端语音识别，最终识别结果直接提交；流式预览只显示在输入区。失败时按凭据、网络、服务或麦克风原因提示并提供语音设置入口与键盘输入。切换键盘、关闭、再次唤醒和前台工具收起都会终止录音并隔离迟到结果。
 

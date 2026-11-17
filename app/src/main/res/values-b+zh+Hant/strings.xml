@@ -1376,4 +1376,9 @@
   <string name="assistant_overlay_settings_reasoning_follow_default">跟隨預設</string>
   <string name="assistant_overlay_settings_note">單獨設定電源鍵或系統助手喚起的全域對話浮窗所使用的模型與思考等級；日常輕量指令可選用回應更快的輕量模型並降低或關閉思考，主對話仍保留主力模型。</string>
   <string name="settings_keep_screen_on">執行期間保持螢幕恆亮</string>
+  <string name="assistant_role_status_default">已設為預設</string>
+  <string name="assistant_role_status_unset">未設為預設</string>
+  <string name="assistant_role_summary_default">已是系統預設數位助理，點擊開啟系統設定</string>
+  <string name="assistant_role_system_settings_title">系統預設助理設定</string>
+  <string name="assistant_role_system_settings_summary">若系統彈窗未生效，可前往系統設定手動選擇</string>
 </resources>

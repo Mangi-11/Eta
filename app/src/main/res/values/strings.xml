@@ -1499,4 +1499,9 @@
   <string name="assistant_overlay_settings_reasoning_follow_default">Follow default</string>
   <string name="assistant_overlay_settings_note">Independently configure the model and reasoning level for the floating assistant triggered by the power key or system assistant. For quick everyday tasks, choosing a fast lightweight model with lower or disabled reasoning helps reduce latency and token usage.</string>
   <string name="settings_keep_screen_on">Keep screen on while running</string>
+  <string name="assistant_role_status_default">Set as default</string>
+  <string name="assistant_role_status_unset">Not set</string>
+  <string name="assistant_role_summary_default">Active default assistant, tap to open system settings</string>
+  <string name="assistant_role_system_settings_title">System default assistant settings</string>
+  <string name="assistant_role_system_settings_summary">Open system settings to switch or manage manually</string>
 </resources>
