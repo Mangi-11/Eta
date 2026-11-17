@@ -29,6 +29,23 @@ class AssistantBindingTest {
         assertEquals(ModuleConfig.GOOGLE_ASSISTANT_COMPONENT, gemini.componentName)
         assertEquals(ModuleConfig.ETA_PACKAGE, eta.packageName)
         assertEquals(ModuleConfig.ETA_VOICE_INTERACTION_COMPONENT, eta.componentName)
+        assertEquals(
+            "io.github.mangi.eta/.agent.voice.EtaVoiceInteractionService",
+            eta.shortComponentName,
+        )
+        assertEquals(ModuleConfig.GOOGLE_ASSISTANT_COMPONENT, gemini.shortComponentName)
+        assertTrue(
+            isSameComponentName(
+                eta.componentName,
+                "io.github.mangi.eta/.agent.voice.EtaVoiceInteractionService",
+            ),
+        )
+        assertFalse(
+            isSameComponentName(
+                eta.componentName,
+                gemini.componentName,
+            ),
+        )
     }
 
     @Test

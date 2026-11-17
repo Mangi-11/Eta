@@ -8,7 +8,39 @@ internal data class AssistantBinding(
     val packageName: String,
     val componentName: String,
     val displayName: String,
-)
+) {
+    val shortComponentName: String
+        get() = flattenToShortComponentName(componentName)
+}
+
+internal fun normalizeComponentName(component: String?): String? {
+    val trimmed = component?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val slashIndex = trimmed.indexOf('/')
+    if (slashIndex <= 0 || slashIndex >= trimmed.lastIndex) return null
+    val packageName = trimmed.substring(0, slashIndex)
+    val className = trimmed.substring(slashIndex + 1)
+    if (packageName.isEmpty() || className.isEmpty()) return null
+    val fullClassName = if (className.startsWith('.')) "$packageName$className" else className
+    return "$packageName/$fullClassName"
+}
+
+internal fun flattenToShortComponentName(component: String): String {
+    val normalized = normalizeComponentName(component) ?: return component
+    val slashIndex = normalized.indexOf('/')
+    val packageName = normalized.substring(0, slashIndex)
+    val fullClassName = normalized.substring(slashIndex + 1)
+    return if (fullClassName.startsWith("$packageName.")) {
+        "$packageName/${fullClassName.removePrefix(packageName)}"
+    } else {
+        normalized
+    }
+}
+
+internal fun isSameComponentName(left: String?, right: String?): Boolean {
+    val normalizedLeft = normalizeComponentName(left) ?: return false
+    val normalizedRight = normalizeComponentName(right) ?: return false
+    return normalizedLeft == normalizedRight
+}
 
 internal fun assistantBindingFor(target: PowerAssistantTarget): AssistantBinding? = when (target) {
     PowerAssistantTarget.OEM -> null

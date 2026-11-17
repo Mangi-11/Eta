@@ -863,16 +863,18 @@ internal object AssistantManager {
         logger: ModuleLogger
     ): Boolean {
         val resolver = context.contentResolver
+        // 与系统 RoleObserver 统一写入 flattenToShortString() 形态，避免短类名与全类名互相覆写。
+        val targetComponent = binding.shortComponentName
         val assistantChanged = updateSecureString(
             resolver,
             ModuleConfig.SECURE_ASSISTANT,
-            binding.componentName,
+            targetComponent,
             userId,
         )
         val serviceChanged = updateSecureString(
             resolver,
             ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
-            binding.componentName,
+            targetComponent,
             userId,
         )
         val changed = assistantChanged || serviceChanged
@@ -926,7 +928,10 @@ internal object AssistantManager {
         )
         return PowerAssistantTarget.entries.asSequence()
             .mapNotNull(::assistantBindingFor)
-            .any { it.componentName == assistant || it.componentName == voiceInteraction }
+            .any {
+                isSameComponentName(it.componentName, assistant) ||
+                    isSameComponentName(it.componentName, voiceInteraction)
+            }
     }
 
     private fun roleMutationReachedTarget(
@@ -943,13 +948,13 @@ internal object AssistantManager {
         binding: AssistantBinding,
     ): Boolean {
         val resolver = context.contentResolver
-        return getSecureStringForUser(resolver, ModuleConfig.SECURE_ASSISTANT, userId) ==
-            binding.componentName &&
-            getSecureStringForUser(
-                resolver,
-                ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE,
-                userId
-            ) == binding.componentName
+        return isSameComponentName(
+            getSecureStringForUser(resolver, ModuleConfig.SECURE_ASSISTANT, userId),
+            binding.componentName,
+        ) && isSameComponentName(
+            getSecureStringForUser(resolver, ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE, userId),
+            binding.componentName,
+        )
     }
 
     private fun getSecureStringForUser(

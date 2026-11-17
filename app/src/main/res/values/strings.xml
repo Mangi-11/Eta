@@ -641,7 +641,6 @@
   <string name="page_authorized_284cc0">Authorized</string>
   <string name="page_base_url_must_be_a_valid_http_s_address_0e7d58">Base URL must be a valid HTTP(S) address</string>
   <string name="page_can_t_open_default_assistant_settings_02c66f">Can\'t open default assistant settings</string>
-  <string name="page_choose_eta_as_your_default_digital_assistant_4a73a9">Choose Eta as your default digital assistant</string>
   <string name="page_configuration_d7d7ce">Configuration</string>
   <string name="page_configuration_write_failed_8c2554">Configuration write failed</string>
   <string name="page_create_fcbd09">create</string>
@@ -1486,11 +1485,6 @@
   <string name="assistant_overlay_settings_reasoning_follow_default">Follow default</string>
   <string name="assistant_overlay_settings_note">Independently configure the model and reasoning level for the floating assistant triggered by the power key or system assistant. For quick everyday tasks, choosing a fast lightweight model with lower or disabled reasoning helps reduce latency and token usage.</string>
   <string name="settings_keep_screen_on">Keep screen on while running</string>
-  <string name="assistant_role_status_default">Set as default</string>
   <string name="assistant_role_status_unset">Not set</string>
-  <string name="assistant_role_summary_default">Active default assistant, tap to open system settings</string>
   <string name="assistant_role_status_other">Other app</string>
-  <string name="assistant_role_summary_other">Current default: %1$s. Tap to switch to Eta</string>
-  <string name="assistant_role_system_settings_title">System default assistant settings</string>
-  <string name="assistant_role_system_settings_summary">Open system settings to switch or manage manually</string>
 </resources>

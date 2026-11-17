@@ -16,23 +16,15 @@ internal enum class DefaultAssistantOwner {
 }
 
 internal data class AssistantRoleStatus(
-    val roleAvailable: Boolean,
     val isDefaultAssistant: Boolean,
     val owner: DefaultAssistantOwner =
         if (isDefaultAssistant) DefaultAssistantOwner.ETA else DefaultAssistantOwner.NONE,
     val ownerLabel: String? = null,
 )
 
-internal enum class AssistantEntryDispatch {
-    ROLE_REQUEST,
-    SYSTEM_SETTINGS,
-    FAILED,
-}
-
 internal interface AssistantRoleGateway {
     fun isRoleAvailable(context: Context): Boolean
     fun isRoleHeld(context: Context): Boolean
-    fun createRequestRoleIntent(context: Context): Intent?
 }
 
 internal object SystemAssistantRoleGateway : AssistantRoleGateway {
@@ -44,11 +36,6 @@ internal object SystemAssistantRoleGateway : AssistantRoleGateway {
     override fun isRoleHeld(context: Context): Boolean {
         val roleManager = context.getSystemService(RoleManager::class.java) ?: return false
         return runCatching { roleManager.isRoleHeld(RoleManager.ROLE_ASSISTANT) }.getOrDefault(false)
-    }
-
-    override fun createRequestRoleIntent(context: Context): Intent? {
-        val roleManager = context.getSystemService(RoleManager::class.java) ?: return null
-        return runCatching { roleManager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT) }.getOrNull()
     }
 }
 
@@ -62,7 +49,6 @@ internal object AssistantRoleHelper {
         val configuredComponent = readSecureAssistantComponent(context)
         if (isEtaRoleHeld || (!roleAvailable && isEtaComponent(context, configuredComponent))) {
             return AssistantRoleStatus(
-                roleAvailable = roleAvailable,
                 isDefaultAssistant = true,
                 owner = DefaultAssistantOwner.ETA,
             )
@@ -71,19 +57,16 @@ internal object AssistantRoleHelper {
         val packageName = configuredComponent?.let(::extractPackageName)
         return when {
             packageName == ModuleConfig.GOOGLE_PACKAGE -> AssistantRoleStatus(
-                roleAvailable = roleAvailable,
                 isDefaultAssistant = false,
                 owner = DefaultAssistantOwner.GEMINI,
                 ownerLabel = "Gemini",
             )
             !packageName.isNullOrEmpty() && packageName != ModuleConfig.ETA_PACKAGE -> AssistantRoleStatus(
-                roleAvailable = roleAvailable,
                 isDefaultAssistant = false,
                 owner = DefaultAssistantOwner.OTHER,
                 ownerLabel = resolveAppLabel(context, packageName),
             )
             else -> AssistantRoleStatus(
-                roleAvailable = roleAvailable,
                 isDefaultAssistant = false,
                 owner = DefaultAssistantOwner.NONE,
             )
@@ -109,25 +92,6 @@ internal object AssistantRoleHelper {
             }
         }
         return false
-    }
-
-    fun dispatchPrimaryEntry(
-        context: Context,
-        status: AssistantRoleStatus = queryStatus(context),
-        gateway: AssistantRoleGateway = SystemAssistantRoleGateway,
-        launchRoleRequest: (Intent) -> Unit,
-    ): AssistantEntryDispatch {
-        if (!status.isDefaultAssistant && status.roleAvailable) {
-            val requestIntent = gateway.createRequestRoleIntent(context)
-            if (requestIntent != null && runCatching { launchRoleRequest(requestIntent) }.isSuccess) {
-                return AssistantEntryDispatch.ROLE_REQUEST
-            }
-        }
-        return if (openSystemSettings(context)) {
-            AssistantEntryDispatch.SYSTEM_SETTINGS
-        } else {
-            AssistantEntryDispatch.FAILED
-        }
     }
 
     private fun readSecureAssistantComponent(context: Context): String? {

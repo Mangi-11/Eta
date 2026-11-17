@@ -10,7 +10,6 @@ import android.provider.Settings
 import io.github.mangi.eta.core.ModuleConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,59 +23,33 @@ import org.robolectric.annotation.Config
 class AssistantRoleHelperTest {
 
     @Test
-    fun `unheld assistant role dispatches standard role request intent`() {
+    fun `held assistant role reports Eta as active default owner`() {
         val controller = Robolectric.buildActivity(Activity::class.java).create()
         val activity = controller.get()
-        val roleIntent = Intent("android.app.role.action.REQUEST_ROLE")
-        val gateway = FakeGateway(
-            available = true,
-            held = false,
-            requestIntent = roleIntent,
-        )
+        val gateway = FakeGateway(available = true, held = true)
 
         val status = AssistantRoleHelper.queryStatus(activity, gateway)
-        assertTrue(status.roleAvailable)
-        assertFalse(status.isDefaultAssistant)
-
-        var launchedIntent: Intent? = null
-        val dispatch = AssistantRoleHelper.dispatchPrimaryEntry(
-            context = activity,
-            status = status,
-            gateway = gateway,
-            launchRoleRequest = { launchedIntent = it },
-        )
-
-        assertEquals(AssistantEntryDispatch.ROLE_REQUEST, dispatch)
-        assertEquals(roleIntent, launchedIntent)
-        assertNull(shadowOf(activity).nextStartedActivity)
+        assertTrue(status.isDefaultAssistant)
+        assertEquals(DefaultAssistantOwner.ETA, status.owner)
         controller.destroy()
     }
 
     @Test
-    fun `held assistant role opens voice input settings directly`() {
+    fun `openSystemSettings prefers voice input settings and falls back to default apps settings`() {
         val controller = Robolectric.buildActivity(Activity::class.java).create()
         val activity = controller.get()
+
+        assertFalse(AssistantRoleHelper.openSystemSettings(activity))
+
+        registerResolvableAction(activity, Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
+        assertTrue(AssistantRoleHelper.openSystemSettings(activity))
+        assertEquals(
+            Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS,
+            shadowOf(activity).nextStartedActivity?.action,
+        )
+
         registerResolvableAction(activity, Settings.ACTION_VOICE_INPUT_SETTINGS)
-        val gateway = FakeGateway(
-            available = true,
-            held = true,
-            requestIntent = Intent("android.app.role.action.REQUEST_ROLE"),
-        )
-
-        val status = AssistantRoleHelper.queryStatus(activity, gateway)
-        assertTrue(status.roleAvailable)
-        assertTrue(status.isDefaultAssistant)
-
-        var roleRequested = false
-        val dispatch = AssistantRoleHelper.dispatchPrimaryEntry(
-            context = activity,
-            status = status,
-            gateway = gateway,
-            launchRoleRequest = { roleRequested = true },
-        )
-
-        assertEquals(AssistantEntryDispatch.SYSTEM_SETTINGS, dispatch)
-        assertFalse(roleRequested)
+        assertTrue(AssistantRoleHelper.openSystemSettings(activity))
         assertEquals(
             Settings.ACTION_VOICE_INPUT_SETTINGS,
             shadowOf(activity).nextStartedActivity?.action,
@@ -85,33 +58,7 @@ class AssistantRoleHelperTest {
     }
 
     @Test
-    fun `role request launch failure falls back to default assistant settings`() {
-        val controller = Robolectric.buildActivity(Activity::class.java).create()
-        val activity = controller.get()
-        registerResolvableAction(activity, Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
-        val gateway = FakeGateway(
-            available = true,
-            held = false,
-            requestIntent = Intent("android.app.role.action.REQUEST_ROLE"),
-        )
-
-        val dispatch = AssistantRoleHelper.dispatchPrimaryEntry(
-            context = activity,
-            status = AssistantRoleStatus(roleAvailable = true, isDefaultAssistant = false),
-            gateway = gateway,
-            launchRoleRequest = { error("request role blocked") },
-        )
-
-        assertEquals(AssistantEntryDispatch.SYSTEM_SETTINGS, dispatch)
-        assertEquals(
-            Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS,
-            shadowOf(activity).nextStartedActivity?.action,
-        )
-        controller.destroy()
-    }
-
-    @Test
-    fun `unavailable role falls back to secure assistant setting for status and reports failed when no settings screen exists`() {
+    fun `unavailable role falls back to secure assistant setting for Eta status`() {
         val controller = Robolectric.buildActivity(Activity::class.java).create()
         val activity = controller.get()
         val component = ComponentName(activity, EtaVoiceInteractionService::class.java)
@@ -120,24 +67,11 @@ class AssistantRoleHelperTest {
             ModuleConfig.SECURE_ASSISTANT,
             component.flattenToShortString(),
         )
-        val gateway = FakeGateway(
-            available = false,
-            held = false,
-            requestIntent = null,
-        )
+        val gateway = FakeGateway(available = false, held = false)
 
         val status = AssistantRoleHelper.queryStatus(activity, gateway)
-        assertFalse(status.roleAvailable)
         assertTrue(status.isDefaultAssistant)
         assertEquals(DefaultAssistantOwner.ETA, status.owner)
-
-        val dispatch = AssistantRoleHelper.dispatchPrimaryEntry(
-            context = activity,
-            status = status,
-            gateway = gateway,
-            launchRoleRequest = { error("should not request unavailable role") },
-        )
-        assertEquals(AssistantEntryDispatch.FAILED, dispatch)
         controller.destroy()
     }
 
@@ -145,11 +79,7 @@ class AssistantRoleHelperTest {
     fun `detects gemini and other active default assistants from secure settings`() {
         val controller = Robolectric.buildActivity(Activity::class.java).create()
         val activity = controller.get()
-        val gateway = FakeGateway(
-            available = true,
-            held = false,
-            requestIntent = Intent("android.app.role.action.REQUEST_ROLE"),
-        )
+        val gateway = FakeGateway(available = true, held = false)
 
         Settings.Secure.putString(
             activity.contentResolver,
@@ -194,10 +124,8 @@ class AssistantRoleHelperTest {
     private class FakeGateway(
         private val available: Boolean,
         private val held: Boolean,
-        private val requestIntent: Intent?,
     ) : AssistantRoleGateway {
         override fun isRoleAvailable(context: Context): Boolean = available
         override fun isRoleHeld(context: Context): Boolean = held
-        override fun createRequestRoleIntent(context: Context): Intent? = requestIntent
     }
 }

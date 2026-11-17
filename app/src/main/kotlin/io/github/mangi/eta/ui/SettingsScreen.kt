@@ -10,8 +10,6 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -77,7 +75,6 @@ import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.accessibility.AccessibilityProtectionClient
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
-import io.github.mangi.eta.agent.voice.AssistantEntryDispatch
 import io.github.mangi.eta.agent.voice.AssistantRoleHelper
 import io.github.mangi.eta.agent.voice.AssistantRoleStatus
 import io.github.mangi.eta.agent.voice.DefaultAssistantOwner
@@ -379,58 +376,38 @@ private fun SettingsPageContent(
             runCatching { resolver.unregisterContentObserver(observer) }
         }
     }
-    val syncPowerTargetToEtaIfAutoConfigActive: () -> Unit = {
+    val syncPowerTargetAfterManualAssistantChange: (AssistantRoleStatus) -> Unit = { updated ->
         val targetPrefs = prefs
         val autoConfigDefault = Prefs.Keys.BOOLEAN_DEFAULTS.getValue(Prefs.Keys.ASSISTANT_AUTO_CONFIG)
         if (targetPrefs != null &&
-            targetPrefs.getBoolean(Prefs.Keys.ASSISTANT_AUTO_CONFIG, autoConfigDefault) &&
-            powerAssistantTarget != PowerAssistantTarget.ETA &&
-            putStringSync(
-                prefs = targetPrefs,
-                key = Prefs.Keys.POWER_KEY_ASSISTANT_TARGET,
-                value = PowerAssistantTarget.ETA.persistedValue,
-            )
+            targetPrefs.getBoolean(Prefs.Keys.ASSISTANT_AUTO_CONFIG, autoConfigDefault)
         ) {
-            powerAssistantTarget = PowerAssistantTarget.ETA
-            enhancementHistory.recordCommittedTarget(PowerAssistantTarget.ETA)
-        }
-    }
-    var openedAssistantSettingsForEta by remember { mutableStateOf(false) }
-    val assistantRoleLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) {
-        val updated = AssistantRoleHelper.queryStatus(context)
-        assistantRoleStatus = updated
-        if (updated.isDefaultAssistant) {
-            syncPowerTargetToEtaIfAutoConfigActive()
-        }
-    }
-    val openAssistantSettings: () -> Unit = {
-        if (AssistantRoleHelper.openSystemSettings(context)) {
-            if (!assistantRoleStatus.isDefaultAssistant) {
-                openedAssistantSettingsForEta = true
+            val mappedTarget = when (updated.owner) {
+                DefaultAssistantOwner.ETA -> PowerAssistantTarget.ETA
+                DefaultAssistantOwner.GEMINI -> PowerAssistantTarget.GEMINI
+                DefaultAssistantOwner.OTHER,
+                DefaultAssistantOwner.NONE -> PowerAssistantTarget.OEM
             }
+            if (powerAssistantTarget != mappedTarget &&
+                putStringSync(
+                    prefs = targetPrefs,
+                    key = Prefs.Keys.POWER_KEY_ASSISTANT_TARGET,
+                    value = mappedTarget.persistedValue,
+                )
+            ) {
+                powerAssistantTarget = mappedTarget
+                enhancementHistory.recordCommittedTarget(mappedTarget)
+            }
+        }
+    }
+    var ownerBeforeAssistantSettings by remember { mutableStateOf<DefaultAssistantOwner?>(null) }
+    val openAssistantSettings: () -> Unit = {
+        val currentStatus = AssistantRoleHelper.queryStatus(context)
+        assistantRoleStatus = currentStatus
+        if (AssistantRoleHelper.openSystemSettings(context)) {
+            ownerBeforeAssistantSettings = currentStatus.owner
         } else {
             Toast.makeText(context, context.getString(R.string.settings_open_assistant_failed), Toast.LENGTH_SHORT).show()
-        }
-    }
-    val requestOrOpenAssistantSettings: () -> Unit = {
-        val wasDefault = assistantRoleStatus.isDefaultAssistant
-        val dispatch = AssistantRoleHelper.dispatchPrimaryEntry(
-            context = context,
-            status = assistantRoleStatus,
-            launchRoleRequest = assistantRoleLauncher::launch,
-        )
-        when (dispatch) {
-            AssistantEntryDispatch.SYSTEM_SETTINGS -> {
-                if (!wasDefault) {
-                    openedAssistantSettingsForEta = true
-                }
-            }
-            AssistantEntryDispatch.FAILED -> {
-                Toast.makeText(context, context.getString(R.string.settings_open_assistant_failed), Toast.LENGTH_SHORT).show()
-            }
-            AssistantEntryDispatch.ROLE_REQUEST -> Unit
         }
     }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -443,10 +420,11 @@ private fun SettingsPageContent(
                     AccessibilityProtectionClient.isEnabled(context)
                 val updated = AssistantRoleHelper.queryStatus(context)
                 assistantRoleStatus = updated
-                if (openedAssistantSettingsForEta) {
-                    openedAssistantSettingsForEta = false
-                    if (updated.isDefaultAssistant) {
-                        syncPowerTargetToEtaIfAutoConfigActive()
+                val previousOwner = ownerBeforeAssistantSettings
+                if (previousOwner != null) {
+                    ownerBeforeAssistantSettings = null
+                    if (updated.owner != previousOwner) {
+                        syncPowerTargetAfterManualAssistantChange(updated)
                     }
                 }
             }
@@ -716,12 +694,11 @@ private fun SettingsPageContent(
                 Group(title = stringResource(R.string.ui_system_assistant_takes_over_f46043)) {
                     CouiPreference(
                         title = stringResource(R.string.ui_eta_system_assistant_003e9b),
-                        summary = assistantRoleStatus.displaySummary(),
                         value = assistantRoleStatus.displayValue(),
                         valueColor = if (assistantRoleStatus.isDefaultAssistant) {
                             StatusSuccess
                         } else {
-                            Color.Unspecified
+                            pageColors.summary
                         },
                         icon = {
                             CouiSettingsIcon(
@@ -729,22 +706,8 @@ private fun SettingsPageContent(
                                 SettingsIconColors.Green,
                             )
                         },
-                        onClick = requestOrOpenAssistantSettings,
+                        onClick = openAssistantSettings,
                     )
-                    if (!assistantRoleStatus.isDefaultAssistant && assistantRoleStatus.roleAvailable) {
-                        CouiIconDivider()
-                        CouiPreference(
-                            title = stringResource(R.string.assistant_role_system_settings_title),
-                            summary = stringResource(R.string.assistant_role_system_settings_summary),
-                            icon = {
-                                CouiSettingsIcon(
-                                    Icons.Rounded.Tune,
-                                    SettingsIconColors.Blue,
-                                )
-                            },
-                            onClick = openAssistantSettings,
-                        )
-                    }
                     CouiIconDivider()
                     CouiPreference(
                         title = stringResource(R.string.assistant_overlay_settings_title),
@@ -1092,7 +1055,6 @@ private fun SettingsPageContent(
                     SettingsGroupCard {
                         ArrowPreference(
                             title = stringResource(R.string.ui_eta_system_assistant_003e9b),
-                            summary = assistantRoleStatus.displaySummary(),
                             startAction = { SettingsIcon(Icons.Rounded.SupportAgent) },
                             endActions = {
                                 Text(
@@ -1105,16 +1067,8 @@ private fun SettingsPageContent(
                                     },
                                 )
                             },
-                            onClick = requestOrOpenAssistantSettings,
+                            onClick = openAssistantSettings,
                         )
-                        if (!assistantRoleStatus.isDefaultAssistant && assistantRoleStatus.roleAvailable) {
-                            ArrowPreference(
-                                title = stringResource(R.string.assistant_role_system_settings_title),
-                                summary = stringResource(R.string.assistant_role_system_settings_summary),
-                                startAction = { SettingsIcon(Icons.Rounded.Tune) },
-                                onClick = openAssistantSettings,
-                            )
-                        }
                         ArrowPreference(
                             title = stringResource(R.string.assistant_overlay_settings_title),
                             startAction = { SettingsIcon(Icons.Rounded.ChatBubble) },
@@ -1350,26 +1304,8 @@ private fun SettingsPageContent(
 }
 
 @Composable
-private fun AssistantRoleStatus.displaySummary(): String? = when (owner) {
-    DefaultAssistantOwner.ETA -> stringResource(R.string.assistant_role_summary_default)
-    DefaultAssistantOwner.GEMINI -> stringResource(R.string.assistant_role_summary_other, "Gemini")
-    DefaultAssistantOwner.OTHER -> ownerLabel?.let {
-        stringResource(R.string.assistant_role_summary_other, it)
-    } ?: if (roleAvailable) {
-        stringResource(R.string.page_choose_eta_as_your_default_digital_assistant_4a73a9)
-    } else {
-        null
-    }
-    DefaultAssistantOwner.NONE -> if (roleAvailable) {
-        stringResource(R.string.page_choose_eta_as_your_default_digital_assistant_4a73a9)
-    } else {
-        null
-    }
-}
-
-@Composable
 private fun AssistantRoleStatus.displayValue(): String = when (owner) {
-    DefaultAssistantOwner.ETA -> stringResource(R.string.assistant_role_status_default)
+    DefaultAssistantOwner.ETA -> "Eta"
     DefaultAssistantOwner.GEMINI -> "Gemini"
     DefaultAssistantOwner.OTHER -> ownerLabel ?: stringResource(R.string.assistant_role_status_other)
     DefaultAssistantOwner.NONE -> stringResource(R.string.assistant_role_status_unset)

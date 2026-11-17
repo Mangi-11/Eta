@@ -629,7 +629,6 @@
   <string name="page_authorized_284cc0">已授权</string>
   <string name="page_base_url_must_be_a_valid_http_s_address_0e7d58">Base URL 必须是有效的 HTTP(S) 地址</string>
   <string name="page_can_t_open_default_assistant_settings_02c66f">无法打开默认助理设置</string>
-  <string name="page_choose_eta_as_your_default_digital_assistant_4a73a9">选择 Eta 作为默认数字助理</string>
   <string name="page_configuration_d7d7ce">配置</string>
   <string name="page_configuration_write_failed_8c2554">配置写入失败</string>
   <string name="page_create_fcbd09">创建</string>
@@ -1467,11 +1466,6 @@
   <string name="assistant_overlay_settings_reasoning_follow_default">跟随默认</string>
   <string name="assistant_overlay_settings_note">单独配置电源键或系统助手唤起的全局对话浮窗所使用的模型与思考等级；日常轻量指令可选用响应更快的轻量模型并降低或关闭思考，主对话仍保留主力模型。</string>
   <string name="settings_keep_screen_on">运行期间保持屏幕常亮</string>
-  <string name="assistant_role_status_default">已设为默认</string>
-  <string name="assistant_role_status_unset">未设为默认</string>
-  <string name="assistant_role_summary_default">已是系统默认数字助理，点击打开系统设置</string>
+  <string name="assistant_role_status_unset">未设置</string>
   <string name="assistant_role_status_other">其他应用</string>
-  <string name="assistant_role_summary_other">当前默认：%1$s，点击切换为 Eta</string>
-  <string name="assistant_role_system_settings_title">系统默认助理设置</string>
-  <string name="assistant_role_system_settings_summary">如果系统弹窗未生效，可前往系统设置手动选择</string>
 </resources>
