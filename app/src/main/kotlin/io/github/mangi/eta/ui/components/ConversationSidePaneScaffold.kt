@@ -4,7 +4,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.gestures.AnchoredDraggableDefaults
@@ -33,11 +32,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -132,17 +129,8 @@ fun ConversationSidePaneScaffold(
         val currentVisible by rememberUpdatedState(visible)
         val currentOnOpen by rememberUpdatedState(onOpen)
         val currentOnDismiss by rememberUpdatedState(onDismiss)
-        val hapticFeedback = LocalHapticFeedback.current
-        val currentHapticFeedback by rememberUpdatedState(hapticFeedback)
         val dragInteractions = remember { MutableInteractionSource() }
         val isDragging by dragInteractions.collectIsDraggedAsState()
-        LaunchedEffect(dragInteractions) {
-            dragInteractions.interactions.collect { interaction ->
-                if (interaction is DragInteraction.Stop) {
-                    currentHapticFeedback.performHapticFeedback(HapticFeedbackType.GestureEnd)
-                }
-            }
-        }
         val isRevealed by remember(paneDragState) {
             derivedStateOf {
                 val offset = paneDragState.offset
@@ -154,7 +142,6 @@ fun ConversationSidePaneScaffold(
         val focusManager = LocalFocusManager.current
         val keyboard = LocalSoftwareKeyboardController.current
         val closePane: () -> Unit = {
-            currentHapticFeedback.performHapticFeedback(HapticFeedbackType.GestureEnd)
             focusManager.clearFocus()
             keyboard?.hide()
             if (currentVisible) {
