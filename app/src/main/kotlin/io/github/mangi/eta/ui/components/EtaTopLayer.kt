@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -12,8 +13,10 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import io.github.mangi.eta.ui.app.LocalEtaTopLayer
 
 /**
@@ -51,10 +54,23 @@ internal fun EtaTopLayer(content: @Composable BoxScope.() -> Unit) {
 internal fun EtaTopLayerHost(
     state: EtaTopLayerState,
     modifier: Modifier = Modifier,
+    onActiveOverlayChanged: (Boolean) -> Unit = {},
 ) {
+    val currentOnActiveOverlayChanged by rememberUpdatedState(onActiveOverlayChanged)
+    LaunchedEffect(state.entries.size) {
+        if (state.entries.isEmpty()) {
+            currentOnActiveOverlayChanged(false)
+        }
+    }
     Box(modifier = modifier.fillMaxSize()) {
-        state.entries.forEach { entry ->
-            key(entry) { entry.content(this) }
+        Box(
+            modifier = Modifier.onSizeChanged { size ->
+                currentOnActiveOverlayChanged(size.width > 0 && size.height > 0)
+            },
+        ) {
+            state.entries.forEach { entry ->
+                key(entry) { entry.content(this) }
+            }
         }
     }
 }

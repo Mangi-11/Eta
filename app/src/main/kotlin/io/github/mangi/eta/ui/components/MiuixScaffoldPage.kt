@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -30,6 +31,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.blur.Backdrop
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
@@ -50,8 +52,11 @@ fun MiuixScaffoldPage(
     compactTitle: Boolean = false,
     content: LazyListScope.() -> Unit,
 ) {
-    val pageBackdrop = rememberGlassBackdrop()
-    val demandPageBackdrop = remember(pageBackdrop) { pageBackdrop?.let(::DemandSceneBackdrop) }
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val pageBackdrop = rememberGlassBackdrop(surfaceColor)
+    val demandPageBackdrop = remember(pageBackdrop, surfaceColor) {
+        pageBackdrop?.let { DemandSceneBackdrop(it, fallbackColor = surfaceColor) }
+    }
     if (demandPageBackdrop != null) {
         LaunchedEffect(demandPageBackdrop.isActive) {
             if (!demandPageBackdrop.isActive) return@LaunchedEffect
@@ -71,6 +76,12 @@ fun MiuixScaffoldPage(
             listState.canScrollBackward ||
                 scrollState.contentOffset < -0.5f ||
                 scrollState.overscrollOffset != 0f
+        }
+    }
+    val captureActive = isTopBarGlassActive || demandPageBackdrop?.isActive == true
+    if (demandPageBackdrop != null) {
+        SideEffect {
+            demandPageBackdrop.setDelegateAttached(captureActive)
         }
     }
     val onOverscrollChanged: (Float) -> Unit = remember(scrollState) {
@@ -100,7 +111,7 @@ fun MiuixScaffoldPage(
                     modifier = Modifier
                         .fillMaxSize()
                         .captureGlassBackdrop(
-                            if (isTopBarGlassActive || demandPageBackdrop?.isActive == true) pageBackdrop else null,
+                            if (captureActive) pageBackdrop else null,
                         )
                         .horizontalCutoutPadding()
                         .scrollEndHaptic()
@@ -143,8 +154,11 @@ fun MiuixScaffold(
         sidePadding: Dp,
     ) -> Unit,
 ) {
-    val pageBackdrop = rememberGlassBackdrop()
-    val demandPageBackdrop = remember(pageBackdrop) { pageBackdrop?.let(::DemandSceneBackdrop) }
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val pageBackdrop = rememberGlassBackdrop(surfaceColor)
+    val demandPageBackdrop = remember(pageBackdrop, surfaceColor) {
+        pageBackdrop?.let { DemandSceneBackdrop(it, fallbackColor = surfaceColor) }
+    }
     if (demandPageBackdrop != null) {
         LaunchedEffect(demandPageBackdrop.isActive) {
             if (!demandPageBackdrop.isActive) return@LaunchedEffect
@@ -160,6 +174,12 @@ fun MiuixScaffold(
             isContentScrolled == true ||
                 scrollState.contentOffset < -0.5f ||
                 scrollState.overscrollOffset != 0f
+        }
+    }
+    val captureActive = isTopBarGlassActive || demandPageBackdrop?.isActive == true
+    if (demandPageBackdrop != null) {
+        SideEffect {
+            demandPageBackdrop.setDelegateAttached(captureActive)
         }
     }
 
@@ -182,7 +202,7 @@ fun MiuixScaffold(
                 modifier = Modifier
                     .fillMaxSize()
                     .captureGlassBackdrop(
-                        if (isTopBarGlassActive || demandPageBackdrop?.isActive == true) pageBackdrop else null,
+                        if (captureActive) pageBackdrop else null,
                     ),
             ) {
                 WidePageContent { sidePadding ->

@@ -54,11 +54,15 @@ internal fun Modifier.captureGlassBackdrop(backdrop: LayerBackdrop?): Modifier =
 @Stable
 internal class DemandSceneBackdrop(
     private val delegate: LayerBackdrop,
+    private val fallbackColor: Color = Color.Transparent,
 ) : Backdrop {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile
     private var lastSampledNanos: Long = 0L
+
+    @Volatile
+    private var delegateAttached: Boolean = false
 
     var isActive by mutableStateOf(false)
         private set
@@ -71,6 +75,10 @@ internal class DemandSceneBackdrop(
 
     override val offsetResidualY: Float
         get() = delegate.offsetResidualY
+
+    fun setDelegateAttached(attached: Boolean) {
+        delegateAttached = attached
+    }
 
     fun refreshIdleState(nowNanos: Long = System.nanoTime()) {
         if (isActive && nowNanos - lastSampledNanos > IDLE_TIMEOUT_NANOS) {
@@ -89,6 +97,12 @@ internal class DemandSceneBackdrop(
             mainHandler.post {
                 if (!isActive) isActive = true
             }
+        }
+        if (!delegateAttached) {
+            if (fallbackColor.alpha > 0f) {
+                drawRect(fallbackColor)
+            }
+            return
         }
         with(delegate) {
             drawBackdrop(density, coordinates, layerBlock, downscaleFactor)

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.MapsUgc
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -250,6 +251,7 @@ internal fun AgentAppShell(
                         if (currentRoute !is AppRoute.Settings) {
                             AgentTopBar(
                                 route = currentRoute,
+                                isCurrentRoute = isCurrentRoute,
                                 scrollBehavior = scrollBehavior,
                                 backdrop = pageBackdrop,
                                 onBack = onBack,
@@ -398,6 +400,7 @@ private fun CouiTopBarOverflowMenu(
 @Composable
 private fun AgentTopBar(
     route: AppRoute?,
+    isCurrentRoute: Boolean,
     scrollBehavior: ScrollBehavior?,
     backdrop: Backdrop?,
     onBack: () -> Unit,
@@ -416,6 +419,7 @@ private fun AgentTopBar(
     if (isHome && homeModelPickerState != null) {
         HomeMiuixTopBar(
             backdrop = backdrop,
+            isCurrentRoute = isCurrentRoute,
             onOpenConversationPane = onOpenConversationPane,
             onNewConversation = onNewConversation,
             onOpenTerminal = onOpenTerminal,
@@ -446,6 +450,7 @@ private fun AgentTopBar(
 @Composable
 private fun HomeMiuixTopBar(
     backdrop: Backdrop?,
+    isCurrentRoute: Boolean,
     onOpenConversationPane: () -> Unit,
     onNewConversation: () -> Unit,
     onOpenTerminal: () -> Unit,
@@ -528,6 +533,7 @@ private fun HomeMiuixTopBar(
                 }
                 TopBarOverflowMenu(
                     backdrop = buttonBackdrop,
+                    isCurrentRoute = isCurrentRoute,
                     onNewConversation = onNewConversation,
                     onOpenTerminal = onOpenTerminal,
                     onOpenBrowser = onOpenBrowser,
@@ -554,11 +560,15 @@ private fun HomeMiuixTopBar(
 @Composable
 private fun TopBarOverflowMenu(
     backdrop: Backdrop?,
+    isCurrentRoute: Boolean,
     onNewConversation: () -> Unit,
     onOpenTerminal: () -> Unit,
     onOpenBrowser: () -> Unit,
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    LaunchedEffect(isCurrentRoute) {
+        if (!isCurrentRoute) showMenu = false
+    }
     val moreAnchor = rememberGlassPopupAnchor()
     val scope = rememberCoroutineScope()
     val speechSettings by remember { SpeechSettingsRepository.settingsFlow() }.collectAsState(initial = null)
@@ -591,58 +601,60 @@ private fun TopBarOverflowMenu(
         )
     }
 
-    EtaTopLayer {
-        GlassTransformPopup(
-            show = showMenu,
-            onDismissRequest = { showMenu = false },
-            anchor = moreAnchor,
-            backdrop = overlayBackdrop,
-            anchorContent = {
-                Icon(
-                    imageVector = MiuixIcons.Glass.More,
-                    contentDescription = null,
-                    modifier = Modifier.size(28.dp),
-                    tint = MiuixTheme.colorScheme.onSurface,
-                )
-            },
-        ) {
-            GlassPopupItem(
-                text = newConversationText,
-                icon = MiuixIcons.Glass.NewMessage,
-                onClick = {
-                    showMenu = false
-                    onNewConversation()
+    if (isCurrentRoute) {
+        EtaTopLayer {
+            GlassTransformPopup(
+                show = showMenu,
+                onDismissRequest = { showMenu = false },
+                anchor = moreAnchor,
+                backdrop = overlayBackdrop,
+                anchorContent = {
+                    Icon(
+                        imageVector = MiuixIcons.Glass.More,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = MiuixTheme.colorScheme.onSurface,
+                    )
                 },
-            )
-            GlassPopupItem(
-                text = openTerminalText,
-                icon = MiuixIcons.Glass.Computer,
-                onClick = {
-                    showMenu = false
-                    onOpenTerminal()
-                },
-            )
-            GlassPopupItem(
-                text = openBrowserText,
-                icon = MiuixIcons.Glass.GlobalVpn,
-                onClick = {
-                    showMenu = false
-                    onOpenBrowser()
-                },
-            )
-            if (hasSpeechPlayback) {
+            ) {
                 GlassPopupItem(
-                    text = autoReadText,
-                    icon = if (autoReadEnabled) MiuixIcons.Glass.VolumeUp else MiuixIcons.Glass.VolumeOff,
+                    text = newConversationText,
+                    icon = MiuixIcons.Glass.NewMessage,
                     onClick = {
                         showMenu = false
-                        speechSettings?.let { current ->
-                            scope.launch {
-                                SpeechSettingsRepository.save(current.copy(chatAutoSpeak = !current.chatAutoSpeak))
-                            }
-                        }
+                        onNewConversation()
                     },
                 )
+                GlassPopupItem(
+                    text = openTerminalText,
+                    icon = MiuixIcons.Glass.Computer,
+                    onClick = {
+                        showMenu = false
+                        onOpenTerminal()
+                    },
+                )
+                GlassPopupItem(
+                    text = openBrowserText,
+                    icon = MiuixIcons.Glass.GlobalVpn,
+                    onClick = {
+                        showMenu = false
+                        onOpenBrowser()
+                    },
+                )
+                if (hasSpeechPlayback) {
+                    GlassPopupItem(
+                        text = autoReadText,
+                        icon = if (autoReadEnabled) MiuixIcons.Glass.VolumeUp else MiuixIcons.Glass.VolumeOff,
+                        onClick = {
+                            showMenu = false
+                            speechSettings?.let { current ->
+                                scope.launch {
+                                    SpeechSettingsRepository.save(current.copy(chatAutoSpeak = !current.chatAutoSpeak))
+                                }
+                            }
+                        },
+                    )
+                }
             }
         }
     }

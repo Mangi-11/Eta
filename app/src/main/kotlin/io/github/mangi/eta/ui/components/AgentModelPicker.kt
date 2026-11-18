@@ -137,7 +137,8 @@ internal fun AgentTopBarChatHeader(
     var sheetSession by remember { mutableIntStateOf(0) }
     var headerAnchorBounds by remember { mutableStateOf(Rect.Zero) }
     val selected = state.selectedModel
-    val enabled = !isStreaming && !state.isChanging && state.providerGroups.isNotEmpty()
+    val enabled = !isStreaming && state.providerGroups.isNotEmpty()
+    val canTriggerPicker = enabled && !state.isChanging
     LaunchedEffect(enabled) {
         if (!enabled) {
             showPopup = false
@@ -158,11 +159,13 @@ internal fun AgentTopBarChatHeader(
     val pageBackdrop = LocalGlassPageBackdrop.current
 
     val triggerModelPicker: () -> Unit = {
-        if (state.modelCount <= ModelPopupLimit) {
-            anchor.open { showPopup = true }
-        } else {
-            sheetSession += 1
-            showSheet = true
+        if (canTriggerPicker) {
+            if (state.modelCount <= ModelPopupLimit) {
+                anchor.open { showPopup = true }
+            } else {
+                sheetSession += 1
+                showSheet = true
+            }
         }
     }
 
@@ -875,7 +878,13 @@ private fun ModelPickerOptionRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = horizontalPadding, vertical = 2.dp)
-            .squircleSurface(color = containerColor, cornerRadius = 14.dp)
+            .then(
+                if (selected) {
+                    Modifier.squircleSurface(color = containerColor, cornerRadius = 14.dp)
+                } else {
+                    Modifier.clip(RoundedCornerShape(14.dp))
+                },
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

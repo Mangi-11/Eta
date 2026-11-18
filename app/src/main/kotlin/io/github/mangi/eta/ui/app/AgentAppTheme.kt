@@ -9,12 +9,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -46,6 +50,7 @@ import top.yukonga.miuix.kmp.theme.ThemeColorSpec
 import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
 import top.yukonga.miuix.kmp.theme.platformDynamicColors
+import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.MiuixPopupHost
 
 @Composable
 fun AgentAppTheme(
@@ -212,15 +217,23 @@ fun AgentAppTheme(
                         }
                     }
                 } else if (provideGlassHost) {
-                    val delegateBackdrop = rememberGlassBackdrop()
-                    val sceneBackdrop = remember(delegateBackdrop) {
-                        delegateBackdrop?.let(::DemandSceneBackdrop)
+                    val surfaceColor = themedMiuixColors.surface
+                    val delegateBackdrop = rememberGlassBackdrop(surfaceColor)
+                    val sceneBackdrop = remember(delegateBackdrop, surfaceColor) {
+                        delegateBackdrop?.let { DemandSceneBackdrop(it, fallbackColor = surfaceColor) }
                     }
                     val topLayer = remember { EtaTopLayerState() }
+                    var hasActiveMiuixPopup by remember { mutableStateOf(false) }
+                    var hasActiveTopLayerOverlay by remember { mutableStateOf(false) }
+                    val hasActiveOverlay = hasActiveMiuixPopup || hasActiveTopLayerOverlay
+                    val captureActive = hasActiveOverlay || sceneBackdrop?.isActive == true
                     if (sceneBackdrop != null) {
-                        LaunchedEffect(sceneBackdrop.isActive) {
-                            if (!sceneBackdrop.isActive) return@LaunchedEffect
-                            while (sceneBackdrop.isActive) {
+                        SideEffect {
+                            sceneBackdrop.setDelegateAttached(captureActive)
+                        }
+                        LaunchedEffect(sceneBackdrop.isActive, hasActiveOverlay) {
+                            if (!sceneBackdrop.isActive || hasActiveOverlay) return@LaunchedEffect
+                            while (sceneBackdrop.isActive && !hasActiveOverlay) {
                                 delay(250L)
                                 sceneBackdrop.refreshIdleState()
                             }
@@ -230,6 +243,15 @@ fun AgentAppTheme(
                         modifier = Modifier.fillMaxSize(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0),
+                        popupHost = {
+                            Box(
+                                modifier = Modifier.onSizeChanged { size ->
+                                    hasActiveMiuixPopup = size.width > 0 && size.height > 0
+                                },
+                            ) {
+                                MiuixPopupHost()
+                            }
+                        },
                     ) {
                         CompositionLocalProvider(
                             LocalGlassSceneBackdrop provides sceneBackdrop,
@@ -240,12 +262,15 @@ fun AgentAppTheme(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .captureGlassBackdrop(
-                                            if (sceneBackdrop?.isActive == true) delegateBackdrop else null,
+                                            if (captureActive) delegateBackdrop else null,
                                         ),
                                 ) {
                                     scopedContent()
                                 }
-                                EtaTopLayerHost(topLayer)
+                                EtaTopLayerHost(
+                                    state = topLayer,
+                                    onActiveOverlayChanged = { hasActiveTopLayerOverlay = it },
+                                )
                             }
                         }
                     }
