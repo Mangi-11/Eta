@@ -22,6 +22,6 @@ runs:
         packages: ""
         log-accepted-android-sdk-licenses: false
 
-    - name: 安装 Android SDK 37
+    - name: 安装 Android SDK 37.2
       shell: bash
-      run: sdkmanager --channel=3 "platforms;android-37.0"
+      run: sdkmanager --channel=3 "platforms;android-37.2"

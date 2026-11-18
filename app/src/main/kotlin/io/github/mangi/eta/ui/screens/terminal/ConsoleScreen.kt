@@ -189,34 +189,32 @@ internal fun ConsoleScreen(
         )
     }
 
-    if (showTasks) {
-        DaemonTasksDialog(
-            tasks = terminalState.daemonTasks,
-            onDismiss = { showTasks = false },
-            onStop = terminalStore::stopDaemonTask,
-            onLoadLogs = terminalStore::daemonLogs,
-        )
-    }
+    DaemonTasksDialog(
+        show = showTasks,
+        tasks = terminalState.daemonTasks,
+        onDismiss = { showTasks = false },
+        onStop = terminalStore::stopDaemonTask,
+        onLoadLogs = terminalStore::daemonLogs,
+    )
 
-    if (showSessions) {
-        SessionListDialog(
-            rows = state.sessions.map { session ->
-                SessionDialogRow(
-                    id = session.id,
-                    environment = session.environment,
-                    subtitle = "",
-                    active = session.id == state.activeSessionId,
-                    running = !session.exited,
-                    alive = !session.exited,
-                )
-            },
-            onDismiss = { showSessions = false },
-            onSelect = store::switchSession,
-            onRestart = store::restartSession,
-            onClose = store::closeSession,
-            onNew = store::newSession,
-        )
-    }
+    SessionListDialog(
+        show = showSessions,
+        rows = state.sessions.map { session ->
+            SessionDialogRow(
+                id = session.id,
+                environment = session.environment,
+                subtitle = "",
+                active = session.id == state.activeSessionId,
+                running = !session.exited,
+                alive = !session.exited,
+            )
+        },
+        onDismiss = { showSessions = false },
+        onSelect = store::switchSession,
+        onRestart = store::restartSession,
+        onClose = store::closeSession,
+        onNew = store::newSession,
+    )
 }
 
 private val GRID_HORIZONTAL_PADDING = 8.dp

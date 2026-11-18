@@ -9,7 +9,8 @@ import io.github.mangi.eta.data.model.MimoAsrLanguage
 import io.github.mangi.eta.data.model.SpeechCredentialField
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 
 @Composable
 internal fun MimoAsrConnectionSection(store: SpeechSettingsStore) {
@@ -47,10 +48,11 @@ internal fun MimoAsrConnectionSection(store: SpeechSettingsStore) {
                 Divider()
             }
             AppearanceUiStyle.MIUIX -> {
-                OverlayDropdownPreference(
+                GlassDropdownPreference(
                     title = stringResource(R.string.speech_recognition_language),
                     items = items,
                     selectedIndex = config.language.ordinal,
+                    backdrop = currentGlassOverlayBackdrop(),
                     onSelectedIndexChange = onLanguageChange,
                 )
             }

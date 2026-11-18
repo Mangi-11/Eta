@@ -61,7 +61,8 @@ enum class AppearancePaletteStyle(val persistedValue: String) {
     FRUIT_SALAD("fruit_salad"),
     MONOCHROME("monochrome"),
     FIDELITY("fidelity"),
-    CONTENT("content");
+    CONTENT("content"),
+    CMF("cmf");
 
     companion object {
         fun fromPersistedValue(value: String?): AppearancePaletteStyle =

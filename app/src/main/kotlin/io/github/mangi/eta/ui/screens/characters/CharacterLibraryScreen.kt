@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.SportsBar
@@ -30,6 +29,7 @@ import io.github.mangi.eta.ui.app.CharacterLibraryStore
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
@@ -39,14 +39,15 @@ import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
 import io.github.mangi.eta.ui.navigation.AppRoute
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Add
+import top.yukonga.miuix.kmp.icon.glass.Import
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -189,12 +190,18 @@ internal fun CharacterLibraryScreen(
                 title = "角色",
                 onBack = onBack,
                 actions = {
-                    IconButton(onClick = importCard, enabled = !store.busy) {
-                        Icon(Icons.Rounded.FileUpload, contentDescription = "导入角色卡")
-                    }
-                    IconButton(onClick = createCharacter, enabled = !store.busy) {
-                        Icon(Icons.Rounded.Add, contentDescription = "创建角色")
-                    }
+                    MiuixTopBarActionButton(
+                        icon = MiuixIcons.Glass.Import,
+                        contentDescription = "导入角色卡",
+                        enabled = !store.busy,
+                        onClick = importCard,
+                    )
+                    MiuixTopBarActionButton(
+                        icon = MiuixIcons.Glass.Add,
+                        contentDescription = "创建角色",
+                        enabled = !store.busy,
+                        onClick = createCharacter,
+                    )
                 },
             ) {
                 item(key = "search") {

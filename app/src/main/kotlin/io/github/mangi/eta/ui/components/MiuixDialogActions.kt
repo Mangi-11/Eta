@@ -2,20 +2,20 @@ package io.github.mangi.eta.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.GlassDialogButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 弹窗底部按钮行：取消在左、确认在右，平分整行，中间保持 Miuix 标准 20.dp 间距。
+ * 弹窗底部 OS4 操作按钮行：取消在左、确认在右，平分整行。
  *
  * @param confirmText 确认按钮文案。
  * @param onCancel 取消回调。
@@ -39,28 +39,33 @@ fun MiuixDialogActions(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        TextButton(
-            text = cancelText ?: stringResource(R.string.action_cancel),
+        GlassDialogButton(
             onClick = onCancel,
             enabled = cancelEnabled,
+            role = GlassDialogButtonRole.Normal,
             modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(20.dp))
-        TextButton(
-            text = confirmText,
+        ) {
+            Text(
+                text = cancelText ?: stringResource(R.string.action_cancel),
+                style = MiuixTheme.textStyles.button,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        GlassDialogButton(
             onClick = onConfirm,
             enabled = confirmEnabled,
+            role = if (destructive) GlassDialogButtonRole.Destructive else GlassDialogButtonRole.Primary,
             modifier = Modifier.weight(1f),
-            colors = if (destructive) {
-                ButtonDefaults.textButtonColorsPrimary(
-                    color = MiuixTheme.colorScheme.error,
-                    textColor = MiuixTheme.colorScheme.onError,
-                )
-            } else {
-                ButtonDefaults.textButtonColorsPrimary()
-            },
-        )
+        ) {
+            Text(
+                text = confirmText,
+                style = MiuixTheme.textStyles.button,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }

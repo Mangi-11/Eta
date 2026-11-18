@@ -42,12 +42,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -64,20 +66,24 @@ import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiInputDialog
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
-import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.blur.Backdrop
+import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassPopup
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Add
+import top.yukonga.miuix.kmp.icon.glass.Edit
+import top.yukonga.miuix.kmp.icon.glass.File
+import top.yukonga.miuix.kmp.icon.glass.FolderOutline
+import top.yukonga.miuix.kmp.icon.glass.ImageOutline
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleSurface
-import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.layout.DialogDefaults
-import top.yukonga.miuix.kmp.window.WindowDialog
-import top.yukonga.miuix.kmp.window.WindowListPopup
 
 internal val ChatInputPopupMargin = 8.dp
 internal val ChatInputActionSize = 40.dp
@@ -85,8 +91,7 @@ internal val ChatInputActionIconSize = 24.dp
 
 @Composable
 internal fun AgentAttachmentPickerButton(
-    popupAnchorTopPx: Int,
-    popupMaxHeight: Dp,
+    glassBackdrop: Backdrop?,
     onAttachImage: (String) -> Unit,
     onAttachFiles: (List<String>) -> Unit,
     onAttachFolder: (String) -> Unit,
@@ -97,6 +102,7 @@ internal fun AgentAttachmentPickerButton(
     var showPopup by remember { mutableStateOf(false) }
     var showPathDialog by remember { mutableStateOf(false) }
     var pathInput by remember { mutableStateOf("") }
+    var buttonBounds by remember { mutableStateOf(Rect.Zero) }
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(),
     ) { uris ->
@@ -142,21 +148,25 @@ internal fun AgentAttachmentPickerButton(
         }
     }
 
+    val uiStyle = LocalUiStyle.current
+    val isCoui = uiStyle == AppearanceUiStyle.COUI
     Box(modifier = modifier) {
         IconButton(
             onClick = { anchor.open { showPopup = true } },
             minWidth = 34.dp,
             minHeight = 34.dp,
-            modifier = Modifier.couiMenuAnchor(anchor),
+            modifier = Modifier
+                .onGloballyPositioned { buttonBounds = it.boundsInWindow() }
+                .couiMenuAnchor(anchor),
         ) {
             Icon(
-                imageVector = Icons.Rounded.Add,
+                imageVector = if (isCoui) Icons.Rounded.Add else MiuixIcons.Glass.Add,
                 contentDescription = stringResource(R.string.ui_add_attachment_dba9e8),
-                modifier = Modifier.size(21.dp),
+                modifier = Modifier.size(if (isCoui) 21.dp else 23.dp),
                 tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.72f),
             )
         }
-        when (LocalUiStyle.current) {
+        when (uiStyle) {
             AppearanceUiStyle.COUI -> {
                 val menuItems = remember(options) {
                     options.mapIndexed { index, label -> CouiMenuItem(value = index, text = label) }
@@ -173,25 +183,28 @@ internal fun AgentAttachmentPickerButton(
                 )
             }
             AppearanceUiStyle.MIUIX -> {
-                WindowListPopup(
-                    show = showPopup && popupAnchorTopPx > 0,
-                    popupPositionProvider = remember(popupAnchorTopPx) {
-                        InputPopupPositionProvider(popupAnchorTopPx)
-                    },
-                    alignment = PopupPositionProvider.Align.TopStart,
-                    onDismissRequest = { showPopup = false },
-                    maxHeight = popupMaxHeight,
-                ) {
-                    val dismiss = LocalDismissState.current
-                    ListPopupColumn {
+                val overlayBackdrop = currentGlassOverlayBackdrop() ?: glassBackdrop
+                val optionIcons = remember {
+                    listOf(
+                        MiuixIcons.Glass.ImageOutline,
+                        MiuixIcons.Glass.File,
+                        MiuixIcons.Glass.FolderOutline,
+                        MiuixIcons.Glass.Edit,
+                    )
+                }
+                EtaTopLayer {
+                    GlassPopup(
+                        show = showPopup,
+                        onDismissRequest = { showPopup = false },
+                        anchorBounds = buttonBounds,
+                        backdrop = overlayBackdrop,
+                    ) {
                         options.forEachIndexed { index, option ->
-                            DropdownImpl(
+                            GlassPopupItem(
                                 text = option,
-                                optionSize = options.size,
-                                isSelected = false,
-                                index = index,
-                                onSelectedIndexChange = {
-                                    dismiss?.invoke()
+                                icon = optionIcons[index],
+                                onClick = {
+                                    showPopup = false
                                     onSelectOption(index)
                                 },
                             )
@@ -202,7 +215,7 @@ internal fun AgentAttachmentPickerButton(
         }
     }
 
-    when (LocalUiStyle.current) {
+    when (uiStyle) {
         AppearanceUiStyle.COUI -> {
             CouiInputDialog(
                 visible = showPathDialog,
@@ -222,9 +235,9 @@ internal fun AgentAttachmentPickerButton(
             )
         }
         AppearanceUiStyle.MIUIX -> {
-            WindowDialog(
+            GlassDialog(
                 show = showPathDialog,
-                cornerRadius = DialogDefaults.CornerRadius,
+                backdrop = currentGlassOverlayBackdrop() ?: glassBackdrop,
                 title = stringResource(R.string.ui_input_file_path_36d474),
                 summary = stringResource(R.string.ui_supports_files_and_folders_under_internal_storage_or_520786),
                 onDismissRequest = { showPathDialog = false },

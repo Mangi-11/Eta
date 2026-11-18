@@ -26,9 +26,10 @@ import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -90,10 +91,11 @@ internal fun SpeechSynthesisScreen(onBack: () -> Unit) {
                 }
                 item(key = "service") {
                     SpeechGroupCard(title = stringResource(R.string.speech_group_service)) {
-                        OverlayDropdownPreference(
+                        GlassDropdownPreference(
                             title = stringResource(R.string.speech_tts_service),
                             items = ttsLabels,
                             selectedIndex = settings.tts.ordinal,
+                            backdrop = currentGlassOverlayBackdrop(),
                             onSelectedIndexChange = { index ->
                                 TtsProvider.entries.getOrNull(index)?.let { store.edit(settings.copy(tts = it)) }
                             },

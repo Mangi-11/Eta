@@ -36,6 +36,7 @@ import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.EtaGlassSpinnerPreference
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiIcon
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
@@ -45,7 +46,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 
 @Composable
 internal fun ProviderConnectionFields(
@@ -214,7 +214,7 @@ internal fun ProviderConnectionFields(
                 )
             }
             if (accountMode != null) {
-                WindowSpinnerPreference(
+                EtaGlassSpinnerPreference(
                     title = "认证方式",
                     items = listOf(DropdownItem(text = "API Key"), DropdownItem(text = "账号登录")),
                     selectedIndex = if (oauth) 1 else 0,
@@ -277,7 +277,7 @@ internal fun ProviderConnectionFields(
                     }
                 }
                 if (provider !is AnthropicProviderSetting && provider !is GeminiProviderSetting) {
-                    WindowSpinnerPreference(
+                    EtaGlassSpinnerPreference(
                         title = stringResource(R.string.ui_endpoint_mode_3c8546),
                         items = listOf(DropdownItem(text = "Chat Completions API"), DropdownItem(text = "Responses API")),
                         selectedIndex = if (draft.endpointMode == OpenAiEndpointMode.RESPONSES) 1 else 0,

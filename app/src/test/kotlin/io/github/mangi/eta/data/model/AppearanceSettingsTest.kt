@@ -27,6 +27,7 @@ class AppearanceSettingsTest {
         assertEquals(AppearanceUiStyle.MIUIX, AppearanceUiStyle.fromPersistedValue("miuix"))
         assertEquals(AppearanceThemeMode.SYSTEM, AppearanceThemeMode.fromPersistedValue("unknown"))
         assertEquals(AppearancePaletteStyle.TONAL_SPOT, AppearancePaletteStyle.fromPersistedValue(null))
+        assertEquals(AppearancePaletteStyle.CMF, AppearancePaletteStyle.fromPersistedValue("cmf"))
         assertEquals(AppearanceAccentColor.SYSTEM, AppearanceAccentColor.fromPersistedValue(""))
         assertEquals(
             AppearanceTopBarBlurStyle.GAUSSIAN,

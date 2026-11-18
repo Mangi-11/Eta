@@ -12,7 +12,8 @@ import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
@@ -44,10 +45,11 @@ internal fun GeminiConnectionSection(store: SpeechSettingsStore) {
                 Divider()
             }
             AppearanceUiStyle.MIUIX -> {
-                OverlayDropdownPreference(
+                GlassDropdownPreference(
                     title = stringResource(R.string.speech_tts_model),
                     items = items,
                     selectedIndex = config.model.ordinal,
+                    backdrop = currentGlassOverlayBackdrop(),
                     onSelectedIndexChange = { index ->
                         GeminiTtsModel.entries.getOrNull(index)?.let {
                             store.edit(store.settings.copy(geminiTts = config.copy(model = it)))
@@ -88,10 +90,11 @@ internal fun MiniMaxConnectionSection(store: SpeechSettingsStore) {
                 Divider()
             }
             AppearanceUiStyle.MIUIX -> {
-                OverlayDropdownPreference(
+                GlassDropdownPreference(
                     title = stringResource(R.string.speech_tts_model),
                     items = items,
                     selectedIndex = config.model.ordinal,
+                    backdrop = currentGlassOverlayBackdrop(),
                     onSelectedIndexChange = { index ->
                         MiniMaxTtsModel.entries.getOrNull(index)?.let {
                             store.edit(store.settings.copy(minimaxTts = config.copy(model = it)))
@@ -173,10 +176,11 @@ internal fun SpeechDeliveryFields(store: SpeechSettingsStore) {
                     )
                 }
                 AppearanceUiStyle.MIUIX -> {
-                    OverlayDropdownPreference(
+                    GlassDropdownPreference(
                         title = stringResource(R.string.speech_speed),
                         items = items,
                         selectedIndex = speeds.indexOf(config.speed),
+                        backdrop = currentGlassOverlayBackdrop(),
                         onSelectedIndexChange = { index ->
                             speeds.getOrNull(index)?.let {
                                 store.edit(store.settings.copy(minimaxTts = config.copy(speed = it)))

@@ -34,16 +34,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.CloudDownload
-import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -100,6 +98,7 @@ import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
+import io.github.mangi.eta.ui.components.captureGlassBackdrop
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
@@ -107,6 +106,8 @@ import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.rememberGlassBackdrop
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
 import kotlinx.coroutines.CancellationException
@@ -125,7 +126,12 @@ import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.blur.Backdrop
+import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassFloatingToolbar
+import top.yukonga.miuix.kmp.glass.GlassFloatingToolbarDefaults
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Tune
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -201,6 +207,8 @@ internal fun ProviderModelsTab(
     scrollBehavior: ScrollBehavior? = null,
     nestedScrollConnection: NestedScrollConnection? = scrollBehavior?.nestedScrollConnection,
     contentSidePadding: Dp,
+    contentTopPadding: Dp = 0.dp,
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val context = LocalContext.current
     val fetchScope = rememberCoroutineScope()
@@ -209,9 +217,13 @@ internal fun ProviderModelsTab(
     var isMutatingModel by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var editingModel by remember { mutableStateOf<Model?>(null) }
+    var retainedEditingModel by remember { mutableStateOf<Model?>(null) }
+    if (editingModel != null) retainedEditingModel = editingModel
     var isCreatingModel by remember { mutableStateOf(false) }
     var editorError by remember { mutableStateOf<String?>(null) }
     var modelPendingDelete by remember { mutableStateOf<Model?>(null) }
+    var retainedModelPendingDelete by remember { mutableStateOf<Model?>(null) }
+    if (modelPendingDelete != null) retainedModelPendingDelete = modelPendingDelete
     var selectionMode by remember(provider.id) { mutableStateOf(false) }
     // 退出多选时不清空已选集合：编辑栏和删除按钮还在退场动画里，清空会让数量闪成 0。
     // 下次进入多选会整体替换为当次长按的模型，旧集合不会带进新一轮选择。
@@ -288,15 +300,24 @@ internal fun ProviderModelsTab(
         )
     }
 
+    val tabBackdrop = if (uiStyle == AppearanceUiStyle.COUI) null else rememberGlassBackdrop()
+    val scrollState = scrollBehavior?.state
+    val onOverscrollChanged: (Float) -> Unit = remember(scrollState) {
+        { scrollState?.overscrollOffset = it }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                .captureGlassBackdrop(tabBackdrop)
                 .scrollEndHaptic()
-                .overScrollVertical()
+                .overScrollVertical(onOffsetChanged = onOverscrollChanged)
                 .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier),
             contentPadding = PaddingValues(
                 start = contentSidePadding,
+                top = contentTopPadding,
                 end = contentSidePadding,
             ),
             overscrollEffect = null,
@@ -540,21 +561,27 @@ internal fun ProviderModelsTab(
             ModelDeleteBar(
                 selectedCount = selectedModelIds.size,
                 enabled = !isFetching && !isMutatingModel,
+                backdrop = tabBackdrop,
                 onCancel = { selectionMode = false },
                 onDelete = { showBatchDeleteDialog = true },
             )
         }
     }
 
-    editingModel?.let { model ->
+    val activeEditingModel = editingModel ?: retainedEditingModel
+    if (activeEditingModel != null) {
         ModelEditDialog(
+            show = editingModel != null,
             nativeGemini = provider is GeminiProviderSetting,
-            model = model,
+            model = activeEditingModel,
             isNew = isCreatingModel,
             isSaving = isMutatingModel,
             error = editorError,
             onDismiss = {
                 if (!isMutatingModel) editingModel = null
+            },
+            onDismissFinished = {
+                if (editingModel == null) retainedEditingModel = null
             },
             onSubmit = { updated ->
                 if (isMutatingModel) return@ModelEditDialog
@@ -577,106 +604,87 @@ internal fun ProviderModelsTab(
             },
             onDelete = if (isCreatingModel) null else {
                 {
-                    modelPendingDelete = model
+                    modelPendingDelete = activeEditingModel
                     editingModel = null
                 }
             },
         )
     }
 
-    modelPendingDelete?.let { model ->
-        val deleteConfirmText = if (isMutatingModel) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5)
-        val onConfirmDeleteModel: () -> Unit = {
-            scope.launch {
-                isMutatingModel = true
-                try {
-                    ModelRepository.deleteModel(provider.id, model.id)
-                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                    message = context.getString(R.string.provider_model_deleted, model.displayName)
-                    modelPendingDelete = null
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (throwable: Throwable) {
-                    message = context.getString(
-                        R.string.provider_error,
-                        throwable.message ?: context.getString(R.string.provider_delete_failed),
-                    )
-                    modelPendingDelete = null
-                } finally {
-                    isMutatingModel = false
-                }
-            }
-        }
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_delete_model_cf24da),
-                    message = stringResource(R.string.provider_model_delete_summary, model.displayName),
-                    confirmText = deleteConfirmText,
-                    confirmEnabled = !isMutatingModel,
-                    cancelEnabled = !isMutatingModel,
-                    destructive = true,
-                    onConfirm = onConfirmDeleteModel,
-                    onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
+    val activeDeleteModel = modelPendingDelete ?: retainedModelPendingDelete
+    val deleteConfirmText = if (isMutatingModel) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5)
+    val onConfirmDeleteModel: (Model) -> Unit = { model ->
+        scope.launch {
+            isMutatingModel = true
+            try {
+                ModelRepository.deleteModel(provider.id, model.id)
+                RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                message = context.getString(R.string.provider_model_deleted, model.displayName)
+                modelPendingDelete = null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                message = context.getString(
+                    R.string.provider_error,
+                    throwable.message ?: context.getString(R.string.provider_delete_failed),
                 )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                OverlayDialog(
-                    show = true,
-                    title = stringResource(R.string.ui_delete_model_cf24da),
-                    summary = stringResource(R.string.provider_model_delete_summary, model.displayName),
-                    onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = deleteConfirmText,
-                        cancelEnabled = !isMutatingModel,
-                        confirmEnabled = !isMutatingModel,
-                        destructive = true,
-                        onCancel = { modelPendingDelete = null },
-                        onConfirm = onConfirmDeleteModel,
-                    )
-                }
+                modelPendingDelete = null
+            } finally {
+                isMutatingModel = false
             }
         }
     }
 
-    if (showBatchDeleteDialog) {
-        val batchConfirmText = if (isMutatingModel) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5)
-        val batchSummary = pluralStringResource(
-            R.plurals.provider_selected_delete_summary,
-            selectedModelIds.size,
-            selectedModelIds.size,
-        )
-        val onConfirmBatchDelete: () -> Unit = {
-            scope.launch {
-                val deletedCount = selectedModelIds.size
-                isMutatingModel = true
-                try {
-                    ModelRepository.deleteModels(provider.id, selectedModelIds)
-                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                    message = context.resources.getQuantityString(
-                        R.plurals.provider_models_deleted,
-                        deletedCount,
-                        deletedCount,
-                    )
-                    showBatchDeleteDialog = false
-                    selectionMode = false
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (throwable: Throwable) {
-                    message = context.getString(
-                        R.string.provider_error,
-                        throwable.message ?: context.getString(R.string.provider_delete_failed),
-                    )
-                    showBatchDeleteDialog = false
-                } finally {
-                    isMutatingModel = false
-                }
+    val batchConfirmText = if (isMutatingModel) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5)
+    val batchSummary = pluralStringResource(
+        R.plurals.provider_selected_delete_summary,
+        selectedModelIds.size,
+        selectedModelIds.size,
+    )
+    val onConfirmBatchDelete: () -> Unit = {
+        scope.launch {
+            val deletedCount = selectedModelIds.size
+            isMutatingModel = true
+            try {
+                ModelRepository.deleteModels(provider.id, selectedModelIds)
+                RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                message = context.resources.getQuantityString(
+                    R.plurals.provider_models_deleted,
+                    deletedCount,
+                    deletedCount,
+                )
+                showBatchDeleteDialog = false
+                selectionMode = false
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                message = context.getString(
+                    R.string.provider_error,
+                    throwable.message ?: context.getString(R.string.provider_delete_failed),
+                )
+                showBatchDeleteDialog = false
+            } finally {
+                isMutatingModel = false
             }
         }
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
+    }
+
+    when (uiStyle) {
+        AppearanceUiStyle.COUI -> {
+            if (modelPendingDelete != null && activeDeleteModel != null) {
+                CouiConfirmDialog(
+                    visible = true,
+                    title = stringResource(R.string.ui_delete_model_cf24da),
+                    message = stringResource(R.string.provider_model_delete_summary, activeDeleteModel.displayName),
+                    confirmText = deleteConfirmText,
+                    confirmEnabled = !isMutatingModel,
+                    cancelEnabled = !isMutatingModel,
+                    destructive = true,
+                    onConfirm = { onConfirmDeleteModel(activeDeleteModel) },
+                    onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
+                )
+            }
+            if (showBatchDeleteDialog) {
                 CouiConfirmDialog(
                     visible = true,
                     title = stringResource(R.string.ui_delete_model_cf24da),
@@ -689,22 +697,41 @@ internal fun ProviderModelsTab(
                     onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
                 )
             }
-            AppearanceUiStyle.MIUIX -> {
-                OverlayDialog(
-                    show = true,
-                    title = stringResource(R.string.ui_delete_model_cf24da),
-                    summary = batchSummary,
-                    onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = batchConfirmText,
-                        cancelEnabled = !isMutatingModel,
-                        confirmEnabled = !isMutatingModel,
-                        destructive = true,
-                        onCancel = { showBatchDeleteDialog = false },
-                        onConfirm = onConfirmBatchDelete,
-                    )
-                }
+        }
+        AppearanceUiStyle.MIUIX -> {
+            val overlayBackdrop = currentGlassOverlayBackdrop() ?: tabBackdrop
+            GlassDialog(
+                show = modelPendingDelete != null,
+                backdrop = overlayBackdrop,
+                title = stringResource(R.string.ui_delete_model_cf24da),
+                summary = stringResource(R.string.provider_model_delete_summary, activeDeleteModel?.displayName.orEmpty()),
+                onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
+                onDismissFinished = { if (modelPendingDelete == null) retainedModelPendingDelete = null },
+            ) {
+                MiuixDialogActions(
+                    confirmText = deleteConfirmText,
+                    cancelEnabled = !isMutatingModel,
+                    confirmEnabled = !isMutatingModel && activeDeleteModel != null,
+                    destructive = true,
+                    onCancel = { modelPendingDelete = null },
+                    onConfirm = { activeDeleteModel?.let(onConfirmDeleteModel) },
+                )
+            }
+            GlassDialog(
+                show = showBatchDeleteDialog,
+                backdrop = overlayBackdrop,
+                title = stringResource(R.string.ui_delete_model_cf24da),
+                summary = batchSummary,
+                onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
+            ) {
+                MiuixDialogActions(
+                    confirmText = batchConfirmText,
+                    cancelEnabled = !isMutatingModel,
+                    confirmEnabled = !isMutatingModel,
+                    destructive = true,
+                    onCancel = { showBatchDeleteDialog = false },
+                    onConfirm = onConfirmBatchDelete,
+                )
             }
         }
     }
@@ -773,26 +800,25 @@ private fun SelectionHeaderAction(
     )
 }
 
-/** 多选模式底部使用 Miuix 原生 FloatingToolbar 居中悬浮，避开手机屏幕底部大圆角裁切区。 */
+/** 多选模式底部操作栏：MIUIX 使用 OS4 GlassFloatingToolbar，COUI 保留原样式，避开屏幕底部圆角裁切区。 */
 @Composable
 private fun ModelDeleteBar(
     selectedCount: Int,
     enabled: Boolean,
+    backdrop: Backdrop?,
     onCancel: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val active = enabled && selectedCount > 0
     val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomPadding = if (navBarBottom > 0.dp) 20.dp + navBarBottom else 28.dp
-    FloatingToolbar(
-        outSidePadding = PaddingValues(
-            start = 24.dp,
-            top = 8.dp,
-            end = 24.dp,
-            bottom = bottomPadding,
-        ),
-        showDivider = true,
-    ) {
+    val outSidePadding = PaddingValues(
+        start = 24.dp,
+        top = 8.dp,
+        end = 24.dp,
+        bottom = bottomPadding,
+    )
+    val barContent: @Composable (androidx.compose.ui.unit.Dp) -> Unit = { cornerRadius ->
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -801,7 +827,7 @@ private fun ModelDeleteBar(
             TextButton(
                 text = stringResource(R.string.action_cancel),
                 onClick = onCancel,
-                cornerRadius = FloatingToolbarDefaults.CornerRadius,
+                cornerRadius = cornerRadius,
                 minHeight = 38.dp,
                 insideMargin = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             )
@@ -813,7 +839,7 @@ private fun ModelDeleteBar(
                 },
                 enabled = active,
                 onClick = onDelete,
-                cornerRadius = FloatingToolbarDefaults.CornerRadius,
+                cornerRadius = cornerRadius,
                 minHeight = 38.dp,
                 insideMargin = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 colors = ButtonDefaults.textButtonColorsPrimary(
@@ -821,6 +847,21 @@ private fun ModelDeleteBar(
                     textColor = MiuixTheme.colorScheme.onError,
                 ),
             )
+        }
+    }
+    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+        FloatingToolbar(
+            outSidePadding = outSidePadding,
+            showDivider = true,
+        ) {
+            barContent(FloatingToolbarDefaults.CornerRadius)
+        }
+    } else {
+        GlassFloatingToolbar(
+            backdrop = backdrop,
+            outSidePadding = outSidePadding,
+        ) {
+            barContent(GlassFloatingToolbarDefaults.CornerRadius)
         }
     }
 }
@@ -909,10 +950,12 @@ private fun ModelListItem(
                 }
             }
         } else {
+            val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
             IconButton(onClick = onEdit, enabled = enabled) {
                 Icon(
-                    imageVector = Icons.Rounded.Tune,
+                    imageVector = if (isCoui) Icons.Rounded.Tune else MiuixIcons.Glass.Tune,
                     contentDescription = stringResource(R.string.ui_edit_model_parameters_ba4864),
+                    modifier = if (isCoui) Modifier else Modifier.size(22.dp),
                     tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
                 )
             }
@@ -922,12 +965,14 @@ private fun ModelListItem(
 
 @Composable
 private fun ModelEditDialog(
+    show: Boolean,
     nativeGemini: Boolean,
     model: Model,
     isNew: Boolean,
     isSaving: Boolean,
     error: String?,
     onDismiss: () -> Unit,
+    onDismissFinished: () -> Unit,
     onSubmit: (Model) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
@@ -1028,7 +1073,7 @@ private fun ModelEditDialog(
                 else -> null
             }
             CouiConfirmDialog(
-                visible = true,
+                visible = show,
                 title = dialogTitle,
                 message = null,
                 confirmText = confirmText,
@@ -1206,10 +1251,12 @@ private fun ModelEditDialog(
         }
 
         AppearanceUiStyle.MIUIX -> {
-            OverlayDialog(
-                show = true,
+            GlassDialog(
+                show = show,
+                backdrop = currentGlassOverlayBackdrop(),
                 title = dialogTitle,
                 onDismissRequest = { if (!isSaving) onDismiss() },
+                onDismissFinished = onDismissFinished,
             ) {
                 Column {
                     Column(

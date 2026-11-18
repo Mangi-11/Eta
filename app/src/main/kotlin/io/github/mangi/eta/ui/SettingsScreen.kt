@@ -25,7 +25,6 @@ import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.GppMaybe
 import androidx.compose.material.icons.rounded.Hub
 import androidx.compose.material.icons.rounded.ImportContacts
 import androidx.compose.material.icons.rounded.Info
@@ -38,17 +37,14 @@ import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.SportsBar
 import androidx.compose.material.icons.rounded.SupportAgent
 import androidx.compose.material.icons.rounded.SwipeUp
 import androidx.compose.material.icons.rounded.SystemUpdate
-import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VerifiedUser
-import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -104,6 +100,7 @@ import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSettingsIcon
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.Dispatchers
@@ -116,11 +113,11 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 private object SettingsIconColors {
     val Blue = Color(0xFF4285F4)
@@ -217,6 +214,8 @@ private fun SettingsPageContent(
     }
     var checkingUpdate by remember { mutableStateOf(false) }
     var availableUpdate by remember { mutableStateOf<AppLatestRelease?>(null) }
+    var retainedUpdate by remember { mutableStateOf<AppLatestRelease?>(null) }
+    if (availableUpdate != null) retainedUpdate = availableUpdate
     val checkForUpdate: () -> Unit = {
         if (!checkingUpdate) {
             checkingUpdate = true
@@ -922,6 +921,30 @@ private fun SettingsPageContent(
             MiuixScaffoldPage(
                 title = stringResource(R.string.ui_set_up_7debf9),
                 onBack = onBack,
+                overlay = {
+                    val activeUpdate = availableUpdate ?: retainedUpdate
+                    GlassDialog(
+                        show = availableUpdate != null,
+                        backdrop = currentGlassOverlayBackdrop(),
+                        title = stringResource(R.string.ui_update_available_title),
+                        summary = activeUpdate?.let { update ->
+                            stringResource(R.string.ui_update_available_message, update.version, appVersionName)
+                        },
+                        onDismissRequest = { availableUpdate = null },
+                        onDismissFinished = { if (availableUpdate == null) retainedUpdate = null },
+                    ) {
+                        MiuixDialogActions(
+                            confirmText = stringResource(R.string.ui_update_go_download),
+                            confirmEnabled = activeUpdate != null,
+                            onCancel = { availableUpdate = null },
+                            onConfirm = {
+                                val target = activeUpdate
+                                availableUpdate = null
+                                if (target != null) openUrl(target.url)
+                            },
+                        )
+                    }
+                },
             ) {
                 item(key = "section_agent") {
                     SmallTitle(stringResource(R.string.settings_llm_providers))
@@ -940,10 +963,11 @@ private fun SettingsPageContent(
                             icon = Icons.Rounded.Psychology,
                         )
                         if (effortOptions.size > 1) {
-                            OverlayDropdownPreference(
+                            GlassDropdownPreference(
                                 title = defaultEffortTitle,
                                 items = effortLabels,
                                 selectedIndex = selectedEffortIndex,
+                                backdrop = currentGlassOverlayBackdrop(),
                                 enabled = defaultEffortEnabled,
                                 onSelectedIndexChange = onDefaultEffortSelect,
                                 startAction = {
@@ -1075,10 +1099,11 @@ private fun SettingsPageContent(
                             onClick = { onNavigate(AppRoute.AssistantOverlaySettings) },
                         )
                         if (prefs != null || hasConnectedFramework) {
-                            OverlayDropdownPreference(
+                            GlassDropdownPreference(
                                 title = stringResource(R.string.ui_long_press_the_power_button_1958d0),
                                 items = powerAssistantItems,
                                 selectedIndex = powerAssistantTargets.indexOf(powerAssistantTarget),
+                                backdrop = currentGlassOverlayBackdrop(),
                                 onSelectedIndexChange = onPowerTargetSelect,
                                 startAction = {
                                     SettingsIcon(
@@ -1267,38 +1292,19 @@ private fun SettingsPageContent(
         }
     }
 
-    availableUpdate?.let { update ->
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_update_available_title),
-                    message = stringResource(R.string.ui_update_available_message, update.version, appVersionName),
-                    confirmText = stringResource(R.string.ui_update_go_download),
-                    onConfirm = {
-                        availableUpdate = null
-                        openUrl(update.url)
-                    },
-                    onDismissRequest = { availableUpdate = null },
-                )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                WindowDialog(
-                    show = true,
-                    title = stringResource(R.string.ui_update_available_title),
-                    summary = stringResource(R.string.ui_update_available_message, update.version, appVersionName),
-                    onDismissRequest = { availableUpdate = null },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.ui_update_go_download),
-                        onCancel = { availableUpdate = null },
-                        onConfirm = {
-                            availableUpdate = null
-                            openUrl(update.url)
-                        },
-                    )
-                }
-            }
+    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+        availableUpdate?.let { update ->
+            CouiConfirmDialog(
+                visible = true,
+                title = stringResource(R.string.ui_update_available_title),
+                message = stringResource(R.string.ui_update_available_message, update.version, appVersionName),
+                confirmText = stringResource(R.string.ui_update_go_download),
+                onConfirm = {
+                    availableUpdate = null
+                    openUrl(update.url)
+                },
+                onDismissRequest = { availableUpdate = null },
+            )
         }
     }
 }

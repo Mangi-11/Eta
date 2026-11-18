@@ -56,6 +56,7 @@ import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -66,7 +67,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -153,20 +154,23 @@ internal fun WebToolsSettingsScreen(onBack: () -> Unit) {
                                 .padding(horizontal = 12.dp)
                                 .padding(bottom = 12.dp),
                         ) {
-                            OverlayDropdownPreference(
+                            val backdrop = currentGlassOverlayBackdrop()
+                            GlassDropdownPreference(
                                 title = stringResource(R.string.web_tools_search_service),
                                 items = searchBackendLabels,
                                 selectedIndex = settings.searchBackend.ordinal,
+                                backdrop = backdrop,
                                 onSelectedIndexChange = { index ->
                                     WebToolBackend.entries.getOrNull(index)?.let {
                                         store.edit(settings.copy(searchBackend = it))
                                     }
                                 },
                             )
-                            OverlayDropdownPreference(
+                            GlassDropdownPreference(
                                 title = stringResource(R.string.web_tools_fetch_service),
                                 items = fetchBackendLabels,
                                 selectedIndex = settings.fetchBackend.ordinal,
+                                backdrop = backdrop,
                                 onSelectedIndexChange = { index ->
                                     WebToolBackend.entries.getOrNull(index)?.let {
                                         store.edit(settings.copy(fetchBackend = it))
@@ -280,10 +284,11 @@ private fun CustomSearchSection(store: WebToolsSettingsStore) {
                 )
                 Divider()
             } else {
-                OverlayDropdownPreference(
+                GlassDropdownPreference(
                     title = stringResource(R.string.web_tools_http_method),
                     items = WebHttpMethod.entries.map { it.name },
                     selectedIndex = config.method.ordinal,
+                    backdrop = currentGlassOverlayBackdrop(),
                     onSelectedIndexChange = { index ->
                         WebHttpMethod.entries.getOrNull(index)?.let {
                             store.edit(settings.copy(customSearch = config.copy(method = it)))
@@ -390,10 +395,11 @@ private fun CustomFetchSection(store: WebToolsSettingsStore) {
                 )
                 Divider()
             } else {
-                OverlayDropdownPreference(
+                GlassDropdownPreference(
                     title = stringResource(R.string.web_tools_http_method),
                     items = WebHttpMethod.entries.map { it.name },
                     selectedIndex = config.method.ordinal,
+                    backdrop = currentGlassOverlayBackdrop(),
                     onSelectedIndexChange = { index ->
                         WebHttpMethod.entries.getOrNull(index)?.let {
                             store.edit(settings.copy(customFetch = config.copy(method = it)))

@@ -28,12 +28,13 @@ import io.github.mangi.eta.ui.app.displayName
 import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassDialogButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Immutable
 internal data class SessionDialogRow(
@@ -47,6 +48,7 @@ internal data class SessionDialogRow(
 
 @Composable
 internal fun SessionListDialog(
+    show: Boolean,
     rows: List<SessionDialogRow>,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
@@ -81,33 +83,40 @@ internal fun SessionListDialog(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            CouiConfirmDialog(
-                visible = true,
-                title = stringResource(R.string.terminal_sessions),
-                message = null,
-                confirmText = stringResource(R.string.terminal_new_session),
-                cancelText = stringResource(R.string.action_close),
-                onConfirm = { onNew(); onDismiss() },
-                onDismissRequest = onDismiss,
-            ) {
-                listBody()
+            if (show) {
+                CouiConfirmDialog(
+                    visible = true,
+                    title = stringResource(R.string.terminal_sessions),
+                    message = null,
+                    confirmText = stringResource(R.string.terminal_new_session),
+                    cancelText = stringResource(R.string.action_close),
+                    onConfirm = { onNew(); onDismiss() },
+                    onDismissRequest = onDismiss,
+                ) {
+                    listBody()
+                }
             }
         }
         AppearanceUiStyle.MIUIX -> {
-            WindowDialog(
-                show = true,
+            GlassDialog(
+                show = show,
+                backdrop = currentGlassOverlayBackdrop(),
                 title = stringResource(R.string.terminal_sessions),
                 onDismissRequest = onDismiss,
             ) {
                 listBody()
-                TextButton(
-                    text = stringResource(R.string.terminal_new_session),
+                GlassDialogButton(
                     onClick = { onNew(); onDismiss() },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    role = GlassDialogButtonRole.Primary,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp),
-                )
+                ) {
+                    Text(
+                        text = stringResource(R.string.terminal_new_session),
+                        style = MiuixTheme.textStyles.button,
+                    )
+                }
             }
         }
     }

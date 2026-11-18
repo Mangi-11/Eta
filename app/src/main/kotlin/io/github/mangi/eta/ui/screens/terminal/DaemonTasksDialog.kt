@@ -33,15 +33,17 @@ import io.github.mangi.eta.ui.app.displayName
 import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.coui.CouiNoticeDialog
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun DaemonTasksDialog(
+    show: Boolean,
     tasks: List<DaemonTaskUi>,
     onDismiss: () -> Unit,
     onStop: (String) -> Unit,
@@ -69,18 +71,21 @@ internal fun DaemonTasksDialog(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            CouiNoticeDialog(
-                visible = true,
-                title = stringResource(R.string.terminal_daemon_tasks),
-                message = null,
-                onDismissRequest = onDismiss,
-            ) {
-                body()
+            if (show) {
+                CouiNoticeDialog(
+                    visible = true,
+                    title = stringResource(R.string.terminal_daemon_tasks),
+                    message = null,
+                    onDismissRequest = onDismiss,
+                ) {
+                    body()
+                }
             }
         }
         AppearanceUiStyle.MIUIX -> {
-            WindowDialog(
-                show = true,
+            GlassDialog(
+                show = show,
+                backdrop = currentGlassOverlayBackdrop(),
                 title = stringResource(R.string.terminal_daemon_tasks),
                 onDismissRequest = onDismiss,
             ) {

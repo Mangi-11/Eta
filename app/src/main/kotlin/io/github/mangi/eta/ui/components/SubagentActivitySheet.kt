@@ -56,7 +56,7 @@ import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
+import top.yukonga.miuix.kmp.glass.GlassBottomSheet
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -172,8 +172,9 @@ internal fun SubagentActivityRow(
             }
         }
         AppearanceUiStyle.MIUIX -> {
-            OverlayBottomSheet(
+            GlassBottomSheet(
                 show = showInspector,
+                backdrop = currentGlassOverlayBackdrop(),
                 title = taskTitle,
                 onDismissRequest = { showInspector = false },
             ) {

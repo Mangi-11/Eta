@@ -32,15 +32,16 @@ import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.navigation.AppRoute
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 internal fun greetingTitle(index: Int) = if (index == 0) "默认开场白" else "开场白 ${index + 1}"
 
@@ -57,6 +58,8 @@ internal fun CharacterDetailScreen(
     var showCompatibility by rememberSaveable(id) { mutableStateOf(false) }
     var showDeleteConfirm by rememberSaveable(id) { mutableStateOf(false) }
     var preview by remember(id) { mutableStateOf<CharacterTextPreview?>(null) }
+    var retainedPreview by remember(id) { mutableStateOf<CharacterTextPreview?>(null) }
+    if (preview != null) retainedPreview = preview
     val pngExporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) {
         if (it != null) store.export(id, CharacterCardFormat.PNG, it)
     }
@@ -184,7 +187,41 @@ internal fun CharacterDetailScreen(
         }
 
         AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(title = "", onBack = onBack, compactTitle = true) {
+            MiuixScaffoldPage(
+                title = "",
+                onBack = onBack,
+                compactTitle = true,
+                overlay = {
+                    val deleteMessage = profile?.let {
+                        "「${it.card.name}」将从角色库移除，角色图片与剧情记忆一并删除；已有对话保留。此操作无法撤销。"
+                    }.orEmpty()
+                    GlassDialog(
+                        show = showDeleteConfirm && profile != null,
+                        backdrop = currentGlassOverlayBackdrop(),
+                        title = "删除角色",
+                        summary = deleteMessage,
+                        onDismissRequest = { showDeleteConfirm = false },
+                    ) {
+                        MiuixDialogActions(
+                            confirmText = "删除",
+                            destructive = true,
+                            confirmEnabled = !store.busy && profile != null,
+                            onCancel = { showDeleteConfirm = false },
+                            onConfirm = {
+                                showDeleteConfirm = false
+                                store.delete(id) { onBack() }
+                            },
+                        )
+                    }
+                    val activePreview = preview ?: retainedPreview
+                    ItemDescriptionDialog(
+                        show = preview != null,
+                        title = activePreview?.title.orEmpty(),
+                        description = activePreview?.text.orEmpty(),
+                        onDismiss = { preview = null },
+                    )
+                },
+            ) {
                 if (profile == null) {
                     item { CharacterPageMessage(if (store.busy) "正在读取角色…" else "无法读取角色，请返回后重试") }
                     return@MiuixScaffoldPage
@@ -305,48 +342,29 @@ internal fun CharacterDetailScreen(
         }
     }
 
-    if (showDeleteConfirm && profile != null) {
-        val message = "「${profile.card.name}」将从角色库移除，角色图片与剧情记忆一并删除；已有对话保留。此操作无法撤销。"
-        val onConfirmDelete: () -> Unit = {
-            showDeleteConfirm = false
-            store.delete(id) { onBack() }
+    val uiStyle = LocalUiStyle.current
+    if (uiStyle == AppearanceUiStyle.COUI) {
+        if (showDeleteConfirm && profile != null) {
+            val message = "「${profile.card.name}」将从角色库移除，角色图片与剧情记忆一并删除；已有对话保留。此操作无法撤销。"
+            CouiConfirmDialog(
+                visible = true,
+                title = "删除角色",
+                message = message,
+                confirmText = "删除",
+                confirmEnabled = !store.busy,
+                destructive = true,
+                onConfirm = {
+                    showDeleteConfirm = false
+                    store.delete(id) { onBack() }
+                },
+                onDismissRequest = { showDeleteConfirm = false },
+            )
         }
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = "删除角色",
-                    message = message,
-                    confirmText = "删除",
-                    confirmEnabled = !store.busy,
-                    destructive = true,
-                    onConfirm = onConfirmDelete,
-                    onDismissRequest = { showDeleteConfirm = false },
-                )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                WindowDialog(
-                    show = true,
-                    title = "删除角色",
-                    summary = message,
-                    onDismissRequest = { showDeleteConfirm = false },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = "删除",
-                        destructive = true,
-                        confirmEnabled = !store.busy,
-                        onCancel = { showDeleteConfirm = false },
-                        onConfirm = onConfirmDelete,
-                    )
-                }
-            }
-        }
-    }
-
-    preview?.let { current ->
+        val activePreview = preview ?: retainedPreview
         ItemDescriptionDialog(
-            title = current.title,
-            description = current.text,
+            show = preview != null,
+            title = activePreview?.title.orEmpty(),
+            description = activePreview?.text.orEmpty(),
             onDismiss = { preview = null },
         )
     }

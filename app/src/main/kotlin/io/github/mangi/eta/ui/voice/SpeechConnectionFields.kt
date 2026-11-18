@@ -30,9 +30,10 @@ import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiIcon
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -120,10 +121,11 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                     )
                     Divider()
                 } else {
-                    OverlayDropdownPreference(
+                    GlassDropdownPreference(
                         title = stringResource(R.string.speech_region),
                         items = regionItems,
                         selectedIndex = config.region.ordinal,
+                        backdrop = currentGlassOverlayBackdrop(),
                         onSelectedIndexChange = { index ->
                             SpeechRegion.entries.getOrNull(index)?.let { change(config.copy(region = it)) }
                         },

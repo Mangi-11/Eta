@@ -170,6 +170,7 @@
   <string name="appearance_palette_monochrome">Monochrome</string>
   <string name="appearance_palette_fidelity">Fidelity</string>
   <string name="appearance_palette_content">Content</string>
+  <string name="appearance_palette_cmf">CMF</string>
   <string name="appearance_accent_color">Accent color</string>
   <string name="appearance_accent_system">System colors</string>
   <string name="appearance_accent_blue">Blue</string>
@@ -185,9 +186,9 @@
   <string name="appearance_blur">Blur effects</string>
   <string name="appearance_blur_summary">Enable blur on top bars, the chat input surface, and similar areas</string>
   <string name="appearance_blur_style">Top bar blur style</string>
-  <string name="appearance_blur_style_gaussian">Gaussian</string>
-  <string name="appearance_blur_style_progressive">Progressive</string>
-  <string name="appearance_blur_style_gaussian_summary">Apply uniform blur across the top bar</string>
+  <string name="appearance_blur_style_gaussian">Gradient band</string>
+  <string name="appearance_blur_style_progressive">Progressive blur</string>
+  <string name="appearance_blur_style_gaussian_summary">Fade top bar gently while keeping glass buttons</string>
   <string name="appearance_blur_style_progressive_summary">Increase blur progressively toward the top</string>
   <string name="appearance_swipe_dismiss">Swipe back gesture</string>
   <string name="appearance_swipe_dismiss_summary">Swipe horizontally anywhere on a page to return</string>

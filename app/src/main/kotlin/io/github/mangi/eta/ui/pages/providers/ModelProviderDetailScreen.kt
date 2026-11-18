@@ -13,10 +13,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +62,7 @@ import io.github.mangi.eta.ui.components.MiuixScaffold
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
@@ -74,17 +80,22 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
+import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import top.yukonga.miuix.kmp.utils.springAnimateToPage
 
 @Composable
 internal fun ModelProviderDetailScreen(
@@ -233,43 +244,93 @@ internal fun ModelProviderDetailScreen(
             }
         }
         AppearanceUiStyle.MIUIX -> {
-            MiuixScaffold(title = title, onBack = onBack) { paddingValues, scrollBehavior, sidePadding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .horizontalCutoutPadding()
-                        .padding(top = paddingValues.calculateTopPadding()),
-                ) {
+            val pagerState = rememberPagerState(initialPage = currentTab, pageCount = { if (isNew) 1 else tabs.size })
+            val currentPage by remember { derivedStateOf { pagerState.currentPage } }
+            val configListState = rememberLazyListState()
+            val modelsListState = rememberLazyListState()
+            val configTopBarState = rememberTopAppBarState()
+            val modelsTopBarState = rememberTopAppBarState()
+            val activeListState = if (currentPage == 0) configListState else modelsListState
+            val isContentScrolled by remember(activeListState) {
+                derivedStateOf { activeListState.canScrollBackward }
+            }
+            val scrollBehavior = MiuixScrollBehavior(
+                state = if (currentPage == 0) configTopBarState else modelsTopBarState,
+            )
+            MiuixScaffold(
+                title = title,
+                onBack = onBack,
+                scrollBehavior = scrollBehavior,
+                isContentScrolled = isContentScrolled,
+                topBarBottomContent = { backdrop ->
+                    val fallbackBackdrop = rememberLayerBackdrop()
                     if (!isNew) {
-                        TabRow(
+                        GlassSegmentedTabRow(
                             tabs = tabs,
-                            selectedTabIndex = currentTab,
-                            onTabSelected = { currentTab = it },
-                            modifier = Modifier.padding(
-                                horizontal = sidePadding + 12.dp,
-                                vertical = 8.dp,
-                            ),
+                            selectedIndex = pagerState.targetPage,
+                            onSelect = { index ->
+                                currentTab = index
+                                scope.launch { pagerState.springAnimateToPage(index) }
+                            },
+                            backdrop = backdrop ?: fallbackBackdrop,
+                            surfaceAlpha = if (backdrop != null) 1f else 0f,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = GlassTopAppBarDefaults.HorizontalPadding)
+                                .padding(top = 6.dp, bottom = 12.dp),
                         )
                     }
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        when (currentTab) {
-                            0 -> ProviderConfigTab(
-                                provider = initial,
-                                draft = configDraft,
-                                onDraftChange = { configDraft = it },
-                                scope = scope,
-                                isNew = isNew,
-                                scrollBehavior = scrollBehavior,
-                                contentSidePadding = sidePadding,
-                                onCreated = { id -> createdId = id },
-                                onDeleted = onBack,
-                            )
-                            1 -> if (!isNew) {
-                                ProviderModelsTab(
+                },
+            ) { paddingValues, activeScrollBehavior, sidePadding ->
+                val topPadding = paddingValues.calculateTopPadding()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .horizontalCutoutPadding(),
+                ) {
+                    if (isNew) {
+                        ProviderConfigTab(
+                            provider = initial,
+                            draft = configDraft,
+                            onDraftChange = { configDraft = it },
+                            scope = scope,
+                            isNew = true,
+                            scrollBehavior = activeScrollBehavior,
+                            contentSidePadding = sidePadding,
+                            contentTopPadding = topPadding,
+                            listState = configListState,
+                            onCreated = { id -> createdId = id },
+                            onDeleted = onBack,
+                        )
+                    } else {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize(),
+                            userScrollEnabled = false,
+                            beyondViewportPageCount = 1,
+                            key = { it },
+                        ) { page ->
+                            when (page) {
+                                0 -> ProviderConfigTab(
+                                    provider = initial,
+                                    draft = configDraft,
+                                    onDraftChange = { configDraft = it },
+                                    scope = scope,
+                                    isNew = false,
+                                    scrollBehavior = activeScrollBehavior,
+                                    contentSidePadding = sidePadding,
+                                    contentTopPadding = topPadding,
+                                    listState = configListState,
+                                    onCreated = { id -> createdId = id },
+                                    onDeleted = onBack,
+                                )
+                                1 -> ProviderModelsTab(
                                     provider = initial,
                                     scope = scope,
-                                    scrollBehavior = scrollBehavior,
+                                    scrollBehavior = activeScrollBehavior,
                                     contentSidePadding = sidePadding,
+                                    contentTopPadding = topPadding,
+                                    listState = modelsListState,
                                 )
                             }
                         }
@@ -290,6 +351,8 @@ private fun ProviderConfigTab(
     scrollBehavior: ScrollBehavior? = null,
     nestedScrollConnection: NestedScrollConnection? = scrollBehavior?.nestedScrollConnection,
     contentSidePadding: Dp,
+    contentTopPadding: Dp = 0.dp,
+    listState: LazyListState = rememberLazyListState(),
     onCreated: (String) -> Unit,
     onDeleted: () -> Unit,
 ) {
@@ -392,15 +455,21 @@ private fun ProviderConfigTab(
         }
     }
 
+    val scrollState = scrollBehavior?.state
+    val onOverscrollChanged: (Float) -> Unit = remember(scrollState) {
+        { scrollState?.overscrollOffset = it }
+    }
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
             .imePadding()
             .scrollEndHaptic()
-            .overScrollVertical()
+            .overScrollVertical(onOffsetChanged = onOverscrollChanged)
             .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier),
         contentPadding = PaddingValues(
             start = contentSidePadding,
+            top = contentTopPadding,
             end = contentSidePadding,
         ),
         overscrollEffect = null,
@@ -585,31 +654,54 @@ private fun ProviderConfigTab(
         }
     }
 
-    if (showDeleteDialog) {
-        val deleteConfirmText = if (isWorking) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5)
-        val onConfirmDelete: () -> Unit = {
-            scope.launch {
-                isWorking = true
-                try {
-                    ProviderRepository.deleteProvider(provider.id)
-                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                    showDeleteDialog = false
-                    onDeleted()
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (throwable: Throwable) {
-                    status = context.getString(
-                        R.string.provider_error,
-                        throwable.message ?: context.getString(R.string.provider_delete_failed),
-                    )
-                    showDeleteDialog = false
-                } finally {
-                    isWorking = false
-                }
+    val deleteConfirmText = if (isWorking) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5)
+    val onConfirmDelete: () -> Unit = {
+        scope.launch {
+            isWorking = true
+            try {
+                ProviderRepository.deleteProvider(provider.id)
+                RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                showDeleteDialog = false
+                onDeleted()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                status = context.getString(
+                    R.string.provider_error,
+                    throwable.message ?: context.getString(R.string.provider_delete_failed),
+                )
+                showDeleteDialog = false
+            } finally {
+                isWorking = false
             }
         }
-        when (uiStyle) {
-            AppearanceUiStyle.COUI -> {
+    }
+    val resetConfirmText = if (isWorking) context.getString(R.string.page_resetting_616090) else context.getString(R.string.page_reset_3d8134)
+    val onConfirmReset: () -> Unit = {
+        scope.launch {
+            isWorking = true
+            try {
+                ProviderRepository.resetBuiltIn(provider.id)
+                RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                status = context.getString(R.string.page_reset_a0cc65)
+                showResetDialog = false
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                status = context.getString(
+                    R.string.provider_error,
+                    throwable.message ?: context.getString(R.string.provider_reset_failed),
+                )
+                showResetDialog = false
+            } finally {
+                isWorking = false
+            }
+        }
+    }
+
+    when (uiStyle) {
+        AppearanceUiStyle.COUI -> {
+            if (showDeleteDialog) {
                 CouiConfirmDialog(
                     visible = true,
                     title = stringResource(R.string.ui_remove_provider_9f848f),
@@ -622,51 +714,7 @@ private fun ProviderConfigTab(
                     onDismissRequest = { if (!isWorking) showDeleteDialog = false },
                 )
             }
-            AppearanceUiStyle.MIUIX -> {
-                OverlayDialog(
-                    show = true,
-                    title = stringResource(R.string.ui_remove_provider_9f848f),
-                    summary = stringResource(R.string.provider_delete_summary, provider.name),
-                    onDismissRequest = { if (!isWorking) showDeleteDialog = false },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = deleteConfirmText,
-                        cancelEnabled = !isWorking,
-                        confirmEnabled = !isWorking,
-                        destructive = true,
-                        onCancel = { showDeleteDialog = false },
-                        onConfirm = onConfirmDelete,
-                    )
-                }
-            }
-        }
-    }
-
-    if (showResetDialog) {
-        val resetConfirmText = if (isWorking) context.getString(R.string.page_resetting_616090) else context.getString(R.string.page_reset_3d8134)
-        val onConfirmReset: () -> Unit = {
-            scope.launch {
-                isWorking = true
-                try {
-                    ProviderRepository.resetBuiltIn(provider.id)
-                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                    status = context.getString(R.string.page_reset_a0cc65)
-                    showResetDialog = false
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (throwable: Throwable) {
-                    status = context.getString(
-                        R.string.provider_error,
-                        throwable.message ?: context.getString(R.string.provider_reset_failed),
-                    )
-                    showResetDialog = false
-                } finally {
-                    isWorking = false
-                }
-            }
-        }
-        when (uiStyle) {
-            AppearanceUiStyle.COUI -> {
+            if (showResetDialog) {
                 CouiConfirmDialog(
                     visible = true,
                     title = stringResource(R.string.ui_reset_built_in_configuration_35b6ec),
@@ -679,22 +727,40 @@ private fun ProviderConfigTab(
                     onDismissRequest = { if (!isWorking) showResetDialog = false },
                 )
             }
-            AppearanceUiStyle.MIUIX -> {
-                OverlayDialog(
-                    show = true,
-                    title = stringResource(R.string.ui_reset_built_in_configuration_35b6ec),
-                    summary = stringResource(R.string.provider_reset_summary, provider.name),
-                    onDismissRequest = { if (!isWorking) showResetDialog = false },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = resetConfirmText,
-                        cancelEnabled = !isWorking,
-                        confirmEnabled = !isWorking,
-                        destructive = true,
-                        onCancel = { showResetDialog = false },
-                        onConfirm = onConfirmReset,
-                    )
-                }
+        }
+        AppearanceUiStyle.MIUIX -> {
+            val overlayBackdrop = currentGlassOverlayBackdrop()
+            GlassDialog(
+                show = showDeleteDialog,
+                backdrop = overlayBackdrop,
+                title = stringResource(R.string.ui_remove_provider_9f848f),
+                summary = stringResource(R.string.provider_delete_summary, provider.name),
+                onDismissRequest = { if (!isWorking) showDeleteDialog = false },
+            ) {
+                MiuixDialogActions(
+                    confirmText = deleteConfirmText,
+                    cancelEnabled = !isWorking,
+                    confirmEnabled = !isWorking,
+                    destructive = true,
+                    onCancel = { showDeleteDialog = false },
+                    onConfirm = onConfirmDelete,
+                )
+            }
+            GlassDialog(
+                show = showResetDialog,
+                backdrop = overlayBackdrop,
+                title = stringResource(R.string.ui_reset_built_in_configuration_35b6ec),
+                summary = stringResource(R.string.provider_reset_summary, provider.name),
+                onDismissRequest = { if (!isWorking) showResetDialog = false },
+            ) {
+                MiuixDialogActions(
+                    confirmText = resetConfirmText,
+                    cancelEnabled = !isWorking,
+                    confirmEnabled = !isWorking,
+                    destructive = true,
+                    onCancel = { showResetDialog = false },
+                    onConfirm = onConfirmReset,
+                )
             }
         }
     }

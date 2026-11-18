@@ -33,18 +33,22 @@ import io.github.mangi.eta.ui.components.coui.CouiNoticeDialog
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.AgentSkillsAction
 import io.github.mangi.eta.ui.model.AgentSkillsUiState
 import io.github.mangi.eta.ui.model.SkillItemUi
 import io.github.mangi.eta.ui.model.canDeleteUserSkill
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassDialogButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.window.WindowDialog
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun AgentSkillsScreen(
@@ -53,6 +57,12 @@ fun AgentSkillsScreen(
     modifier: Modifier = Modifier,
 ) {
     var deleteTarget by remember { mutableStateOf<SkillItemUi?>(null) }
+    var retainedDeleteTarget by remember { mutableStateOf<SkillItemUi?>(null) }
+    if (deleteTarget != null) retainedDeleteTarget = deleteTarget
+    var retainedReplacement by remember { mutableStateOf(state.replacement) }
+    if (state.replacement != null) retainedReplacement = state.replacement
+    var retainedNotice by remember { mutableStateOf(state.notice) }
+    if (state.notice != null) retainedNotice = state.notice
     val operationPending = state.isImporting || state.busySkillId != null
     val zipPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -185,6 +195,76 @@ fun AgentSkillsScreen(
                 title = stringResource(R.string.route_skills),
                 onBack = { onAction(AgentSkillsAction.NavigateBack) },
                 modifier = modifier,
+                overlay = {
+                    val overlayBackdrop = currentGlassOverlayBackdrop()
+                    val activeReplacement = state.replacement ?: retainedReplacement
+                    GlassDialog(
+                        show = state.replacement != null,
+                        backdrop = overlayBackdrop,
+                        title = stringResource(R.string.ui_replace_user_skills_250e98),
+                        summary = activeReplacement?.let { replacement ->
+                            stringResource(R.string.skills_replace_summary, replacement.name, replacement.id)
+                        },
+                        onDismissRequest = { onAction(AgentSkillsAction.CancelZipReplacement) },
+                        onDismissFinished = { if (state.replacement == null) retainedReplacement = null },
+                    ) {
+                        MiuixDialogActions(
+                            confirmText = stringResource(R.string.skills_replace),
+                            confirmEnabled = !operationPending && activeReplacement != null,
+                            onCancel = { onAction(AgentSkillsAction.CancelZipReplacement) },
+                            onConfirm = { onAction(AgentSkillsAction.ConfirmZipReplacement) },
+                        )
+                    }
+
+                    val activeDeleteSkill = deleteTarget ?: retainedDeleteTarget
+                    GlassDialog(
+                        show = deleteTarget != null,
+                        backdrop = overlayBackdrop,
+                        title = stringResource(R.string.ui_delete_user_skills_f319a9),
+                        summary = activeDeleteSkill?.let { skill ->
+                            stringResource(R.string.skills_delete_summary, skill.name)
+                        },
+                        onDismissRequest = { deleteTarget = null },
+                        onDismissFinished = { if (deleteTarget == null) retainedDeleteTarget = null },
+                    ) {
+                        MiuixDialogActions(
+                            confirmText = stringResource(R.string.ui_delete_3755f5),
+                            destructive = true,
+                            confirmEnabled = !operationPending && activeDeleteSkill != null,
+                            onCancel = { deleteTarget = null },
+                            onConfirm = {
+                                val target = activeDeleteSkill
+                                deleteTarget = null
+                                if (target != null) onAction(AgentSkillsAction.DeleteSkill(target.id))
+                            },
+                        )
+                    }
+
+                    val activeNotice = state.notice ?: retainedNotice
+                    GlassDialog(
+                        show = state.notice != null,
+                        backdrop = overlayBackdrop,
+                        title = activeNotice?.title,
+                        summary = activeNotice?.message,
+                        onDismissRequest = { onAction(AgentSkillsAction.DismissNotice) },
+                        onDismissFinished = { if (state.notice == null) retainedNotice = null },
+                    ) {
+                        GlassDialogButton(
+                            onClick = { onAction(AgentSkillsAction.DismissNotice) },
+                            role = if (activeNotice?.isError == true) {
+                                GlassDialogButtonRole.Normal
+                            } else {
+                                GlassDialogButtonRole.Primary
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.ui_knew_cb63c6),
+                                style = MiuixTheme.textStyles.button,
+                            )
+                        }
+                    }
+                },
             ) {
                 item(key = "zip-import") {
                     SmallTitle(stringResource(R.string.ui_install_087db6))
@@ -306,104 +386,44 @@ fun AgentSkillsScreen(
         }
     }
 
-    state.replacement?.let { replacement ->
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_replace_user_skills_250e98),
-                    message = stringResource(R.string.skills_replace_summary, replacement.name, replacement.id),
-                    confirmText = stringResource(R.string.skills_replace),
-                    confirmEnabled = !operationPending,
-                    onConfirm = { onAction(AgentSkillsAction.ConfirmZipReplacement) },
-                    onDismissRequest = { onAction(AgentSkillsAction.CancelZipReplacement) },
-                )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                WindowDialog(
-                    show = true,
-                    title = stringResource(R.string.ui_replace_user_skills_250e98),
-                    summary = stringResource(R.string.skills_replace_summary, replacement.name, replacement.id),
-                    onDismissRequest = { onAction(AgentSkillsAction.CancelZipReplacement) },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.skills_replace),
-                        confirmEnabled = !operationPending,
-                        onCancel = { onAction(AgentSkillsAction.CancelZipReplacement) },
-                        onConfirm = { onAction(AgentSkillsAction.ConfirmZipReplacement) },
-                    )
-                }
-            }
+    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+        state.replacement?.let { replacement ->
+            CouiConfirmDialog(
+                visible = true,
+                title = stringResource(R.string.ui_replace_user_skills_250e98),
+                message = stringResource(R.string.skills_replace_summary, replacement.name, replacement.id),
+                confirmText = stringResource(R.string.skills_replace),
+                confirmEnabled = !operationPending,
+                onConfirm = { onAction(AgentSkillsAction.ConfirmZipReplacement) },
+                onDismissRequest = { onAction(AgentSkillsAction.CancelZipReplacement) },
+            )
         }
-    }
 
-    deleteTarget?.let { skill ->
-        val onConfirmDelete: () -> Unit = {
-            deleteTarget = null
-            onAction(AgentSkillsAction.DeleteSkill(skill.id))
-        }
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_delete_user_skills_f319a9),
-                    message = stringResource(R.string.skills_delete_summary, skill.name),
-                    confirmText = stringResource(R.string.ui_delete_3755f5),
-                    confirmEnabled = !operationPending,
-                    destructive = true,
-                    onConfirm = onConfirmDelete,
-                    onDismissRequest = { deleteTarget = null },
-                )
+        deleteTarget?.let { skill ->
+            val onConfirmDelete: () -> Unit = {
+                deleteTarget = null
+                onAction(AgentSkillsAction.DeleteSkill(skill.id))
             }
-            AppearanceUiStyle.MIUIX -> {
-                WindowDialog(
-                    show = true,
-                    title = stringResource(R.string.ui_delete_user_skills_f319a9),
-                    summary = stringResource(R.string.skills_delete_summary, skill.name),
-                    onDismissRequest = { deleteTarget = null },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.ui_delete_3755f5),
-                        destructive = true,
-                        confirmEnabled = !operationPending,
-                        onCancel = { deleteTarget = null },
-                        onConfirm = onConfirmDelete,
-                    )
-                }
-            }
+            CouiConfirmDialog(
+                visible = true,
+                title = stringResource(R.string.ui_delete_user_skills_f319a9),
+                message = stringResource(R.string.skills_delete_summary, skill.name),
+                confirmText = stringResource(R.string.ui_delete_3755f5),
+                confirmEnabled = !operationPending,
+                destructive = true,
+                onConfirm = onConfirmDelete,
+                onDismissRequest = { deleteTarget = null },
+            )
         }
-    }
 
-    state.notice?.let { notice ->
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiNoticeDialog(
-                    visible = true,
-                    title = notice.title,
-                    message = notice.message,
-                    confirmText = stringResource(R.string.ui_knew_cb63c6),
-                    onDismissRequest = { onAction(AgentSkillsAction.DismissNotice) },
-                )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                WindowDialog(
-                    show = true,
-                    title = notice.title,
-                    summary = notice.message,
-                    onDismissRequest = { onAction(AgentSkillsAction.DismissNotice) },
-                ) {
-                    TextButton(
-                        text = stringResource(R.string.ui_knew_cb63c6),
-                        onClick = { onAction(AgentSkillsAction.DismissNotice) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = if (notice.isError) {
-                            ButtonDefaults.textButtonColors()
-                        } else {
-                            ButtonDefaults.textButtonColorsPrimary()
-                        },
-                    )
-                }
-            }
+        state.notice?.let { notice ->
+            CouiNoticeDialog(
+                visible = true,
+                title = notice.title,
+                message = notice.message,
+                confirmText = stringResource(R.string.ui_knew_cb63c6),
+                onDismissRequest = { onAction(AgentSkillsAction.DismissNotice) },
+            )
         }
     }
 }

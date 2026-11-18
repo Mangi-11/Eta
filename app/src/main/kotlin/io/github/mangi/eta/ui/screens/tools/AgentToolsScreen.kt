@@ -9,11 +9,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -21,15 +25,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -50,21 +57,34 @@ import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.MiuixPageBottomSpacer
+import io.github.mangi.eta.ui.components.MiuixScaffold
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiSegmentedTabs
+import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
 import io.github.mangi.eta.ui.model.AgentToolsAction
 import io.github.mangi.eta.ui.model.AgentToolsUiState
 import io.github.mangi.eta.ui.model.ToolGroupUi
 import io.github.mangi.eta.ui.model.projectToolGroups
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
+import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.squircle.squircleBorder
+import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import top.yukonga.miuix.kmp.utils.springAnimateToPage
 
 private const val ALL_GROUP_FILTER = "__all__"
 
@@ -226,84 +246,158 @@ fun AgentToolsScreen(
         }
 
         AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
+            val coroutineScope = rememberCoroutineScope()
+            val pagerState = rememberPagerState(initialPage = if (showAll) 1 else 0, pageCount = { 2 })
+            val currentPage by remember { derivedStateOf { pagerState.currentPage } }
+            val currentTopBarState = rememberTopAppBarState()
+            val allTopBarState = rememberTopAppBarState()
+            val activeListState = if (currentPage == 1) allListState else currentListState
+            val isContentScrolled by remember(activeListState) {
+                derivedStateOf { activeListState.canScrollBackward }
+            }
+            val scrollBehavior = MiuixScrollBehavior(
+                state = if (currentPage == 1) allTopBarState else currentTopBarState,
+            )
+            MiuixScaffold(
                 title = stringResource(R.string.ui_tool_ability_9f0f80),
                 onBack = { onAction(AgentToolsAction.NavigateBack) },
                 modifier = modifier,
-                listState = if (showAll) allListState else currentListState,
-            ) {
-                item(key = "capability-view") {
-                    TabRow(
+                scrollBehavior = scrollBehavior,
+                isContentScrolled = isContentScrolled,
+                topBarBottomContent = { backdrop ->
+                    val fallbackBackdrop = rememberLayerBackdrop()
+                    GlassSegmentedTabRow(
                         tabs = listOf(
                             stringResource(R.string.capability_current_device),
                             stringResource(R.string.capability_all),
                         ),
-                        selectedTabIndex = if (showAll) 1 else 0,
-                        onTabSelected = { showAll = it == 1 },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        selectedIndex = pagerState.targetPage,
+                        onSelect = { index ->
+                            showAll = index == 1
+                            coroutineScope.launch { pagerState.springAnimateToPage(index) }
+                        },
+                        backdrop = backdrop ?: fallbackBackdrop,
+                        surfaceAlpha = if (backdrop != null) 1f else 0f,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = GlassTopAppBarDefaults.HorizontalPadding)
+                            .padding(top = 6.dp, bottom = 12.dp),
                     )
-                }
-                item(key = "category-filter") {
-                    ToolCategoryFilterStrip(
-                        groups = visibleGroups,
-                        disabledTools = disabledTools,
-                        selectedGroupId = activeFilterId,
-                        onSelectGroup = { selectedGroupId = it },
+                },
+            ) { innerPadding, activeScrollBehavior, sidePadding ->
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    userScrollEnabled = false,
+                    beyondViewportPageCount = 1,
+                    key = { it },
+                ) { page ->
+                    val pageShowAll = page == 1
+                    val pageListState = if (pageShowAll) allListState else currentListState
+                    val pageVisibleGroups = projectToolGroups(
+                        state.groups,
+                        pageShowAll,
+                        capabilities.root.isGranted,
+                        capabilities.tools.colorOs,
                     )
-                }
-                if (activeFilterId == ALL_GROUP_FILTER) {
-                    item(key = "capability-discovery") {
-                        Card(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp)
-                                .padding(top = 4.dp, bottom = 8.dp),
-                        ) {
-                            ArrowPreference(
-                                title = stringResource(R.string.capability_enhancements),
-                                summary = stringResource(R.string.capability_enhancements_summary),
-                                onClick = { onAction(AgentToolsAction.OpenEnhancements) },
-                            )
-                        }
+                    val pageFilterId = if (selectedGroupId == ALL_GROUP_FILTER || pageVisibleGroups.any { it.id == selectedGroupId }) {
+                        selectedGroupId
+                    } else {
+                        ALL_GROUP_FILTER
                     }
-                }
-                displayedGroups.forEach { group ->
-                    val enabledCount = group.tools.count { Prefs.isToolEnabledInSet(it.id, disabledTools) }
-                    val allEnabled = enabledCount == group.tools.size
-                    item(key = "${group.id}-title") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(end = 20.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                SmallTitle("${group.title} · $enabledCount/${group.tools.size}")
+                    val pageDisplayedGroups = if (pageFilterId == ALL_GROUP_FILTER) {
+                        pageVisibleGroups
+                    } else {
+                        pageVisibleGroups.filter { it.id == pageFilterId }
+                    }
+                    val scrollState = activeScrollBehavior.state
+                    val onOverscrollChanged: (Float) -> Unit = remember(scrollState, page, currentPage) {
+                        { offset ->
+                            if (page == currentPage) {
+                                scrollState.overscrollOffset = offset
                             }
-                            GroupBatchTogglePill(
-                                allEnabled = allEnabled,
-                                onToggleAll = {
-                                    setGroupEnabled(group.tools.map { it.id }, !allEnabled)
-                                },
-                            )
                         }
                     }
-                    itemsIndexed(
-                        items = group.tools,
-                        key = { _, tool -> "${group.id}-${tool.id}" },
-                    ) { index, tool ->
-                        EtaPreferenceGroupItem(
-                            isFirst = index == 0,
-                            isLast = index == group.tools.lastIndex,
-                            hasLeadingIcon = true,
-                        ) {
-                            ToolSwitchRow(
-                                tool = tool,
-                                checked = Prefs.isToolEnabledInSet(tool.id, disabledTools),
-                                onCheckedChange = { enabled -> setToolEnabled(tool.id, enabled) },
-                                rootGranted = capabilities.root.isGranted,
-                                capabilities = capabilities.tools,
-                                onAction = onAction,
+                    LazyColumn(
+                        state = pageListState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .horizontalCutoutPadding()
+                            .scrollEndHaptic()
+                            .overScrollVertical(onOffsetChanged = onOverscrollChanged)
+                            .nestedScroll(activeScrollBehavior.nestedScrollConnection),
+                        contentPadding = PaddingValues(
+                            start = sidePadding,
+                            top = innerPadding.calculateTopPadding(),
+                            end = sidePadding,
+                        ),
+                    ) {
+                        item(key = "category-filter") {
+                            ToolCategoryFilterStrip(
+                                groups = pageVisibleGroups,
+                                disabledTools = disabledTools,
+                                selectedGroupId = pageFilterId,
+                                onSelectGroup = { selectedGroupId = it },
                             )
+                        }
+                        if (pageFilterId == ALL_GROUP_FILTER) {
+                            item(key = "capability-discovery") {
+                                Card(
+                                    modifier = Modifier
+                                        .padding(horizontal = 12.dp)
+                                        .padding(top = 4.dp, bottom = 8.dp),
+                                ) {
+                                    ArrowPreference(
+                                        title = stringResource(R.string.capability_enhancements),
+                                        summary = stringResource(R.string.capability_enhancements_summary),
+                                        onClick = { onAction(AgentToolsAction.OpenEnhancements) },
+                                    )
+                                }
+                            }
+                        }
+                        pageDisplayedGroups.forEach { group ->
+                            val enabledCount = group.tools.count { Prefs.isToolEnabledInSet(it.id, disabledTools) }
+                            val allEnabled = enabledCount == group.tools.size
+                            item(key = "${group.id}-title") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(end = 20.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        SmallTitle("${group.title} · $enabledCount/${group.tools.size}")
+                                    }
+                                    GroupBatchTogglePill(
+                                        allEnabled = allEnabled,
+                                        onToggleAll = {
+                                            setGroupEnabled(group.tools.map { it.id }, !allEnabled)
+                                        },
+                                    )
+                                }
+                            }
+                            itemsIndexed(
+                                items = group.tools,
+                                key = { _, tool -> "${group.id}-${tool.id}" },
+                            ) { index, tool ->
+                                EtaPreferenceGroupItem(
+                                    isFirst = index == 0,
+                                    isLast = index == group.tools.lastIndex,
+                                    hasLeadingIcon = true,
+                                ) {
+                                    ToolSwitchRow(
+                                        tool = tool,
+                                        checked = Prefs.isToolEnabledInSet(tool.id, disabledTools),
+                                        onCheckedChange = { enabled -> setToolEnabled(tool.id, enabled) },
+                                        rootGranted = capabilities.root.isGranted,
+                                        capabilities = capabilities.tools,
+                                        onAction = onAction,
+                                    )
+                                }
+                            }
+                        }
+                        item(key = "bottom_spacer") {
+                            MiuixPageBottomSpacer()
                         }
                     }
                 }
@@ -390,8 +484,19 @@ private fun ToolCategoryFilterStrip(
                 Box(
                     modifier = Modifier
                         .heightIn(min = 32.dp)
-                        .clip(CircleShape)
-                        .background(bg, CircleShape)
+                        .glassPress(source)
+                        .squircleSurface(color = bg, cornerRadius = 18.dp)
+                        .then(
+                            if (selected) {
+                                Modifier
+                            } else {
+                                Modifier.squircleBorder(
+                                    width = 0.5.dp,
+                                    color = MiuixTheme.colorScheme.outline.copy(alpha = 0.28f),
+                                    cornerRadius = 18.dp,
+                                )
+                            },
+                        )
                         .selectable(
                             selected = selected,
                             interactionSource = source,

@@ -6,8 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +14,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -36,16 +39,23 @@ import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.EtaTopLayer
 import io.github.mangi.eta.ui.components.ItemDescriptionDialog
 import io.github.mangi.eta.ui.components.coui.CouiIcon
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.SkillItemUi
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.menu.OverlayIconDropdownMenu
+import top.yukonga.miuix.kmp.glass.GlassPopup
+import top.yukonga.miuix.kmp.glass.GlassPopupDefaults
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Delete
+import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -146,30 +156,24 @@ internal fun SkillSwitchRow(
             )
         }
         AppearanceUiStyle.MIUIX -> {
+            var showMenu by remember { mutableStateOf(false) }
+            var moreBounds by remember { mutableStateOf(Rect.Zero) }
+            val overlayBackdrop = currentGlassOverlayBackdrop()
             BasicComponent(
                 enabled = enabled,
                 onClick = { onToggle(!skill.enabled) },
                 endActions = {
-                    OverlayIconDropdownMenu(
-                        modifier = Modifier.align(Alignment.CenterVertically),
-                        entry = DropdownEntry(
-                            items = listOfNotNull(
-                                DropdownItem(
-                                    text = stringResource(R.string.ui_view_description),
-                                    onClick = { showDescription = true },
-                                ),
-                                onDelete?.let { delete ->
-                                    DropdownItem(
-                                        text = stringResource(R.string.ui_delete_3755f5),
-                                        enabled = enabled,
-                                        onClick = { if (enabled) delete() },
-                                    )
-                                },
-                            ),
-                        ),
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterVertically)
+                            .onGloballyPositioned { moreBounds = it.boundsInWindow() }
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .clickable(role = Role.Button) { showMenu = true },
+                        contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.MoreHoriz,
+                            imageVector = MiuixIcons.Glass.More,
                             contentDescription = stringResource(R.string.skills_more_named, skill.name),
                             modifier = Modifier.size(20.dp),
                             tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
@@ -199,13 +203,48 @@ internal fun SkillSwitchRow(
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
+            EtaTopLayer {
+                GlassPopup(
+                    show = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    anchorBounds = moreBounds,
+                    backdrop = overlayBackdrop,
+                ) {
+                    GlassPopupItem(
+                        text = stringResource(R.string.ui_view_description),
+                        icon = MiuixIcons.Glass.Info,
+                        onClick = {
+                            showMenu = false
+                            showDescription = true
+                        },
+                    )
+                    if (onDelete != null) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(
+                                horizontal = GlassPopupDefaults.DividerPaddingHorizontal,
+                                vertical = GlassPopupDefaults.DividerPaddingVertical,
+                            ),
+                            thickness = GlassPopupDefaults.DividerThickness,
+                        )
+                        GlassPopupItem(
+                            text = stringResource(R.string.ui_delete_3755f5),
+                            icon = MiuixIcons.Glass.Delete,
+                            enabled = enabled,
+                            contentColor = MiuixTheme.colorScheme.error,
+                            onClick = {
+                                showMenu = false
+                                if (enabled) onDelete()
+                            },
+                        )
+                    }
+                }
+            }
         }
     }
-    if (showDescription) {
-        ItemDescriptionDialog(
-            title = skill.name,
-            description = description,
-            onDismiss = { showDescription = false },
-        )
-    }
+    ItemDescriptionDialog(
+        show = showDescription,
+        title = skill.name,
+        description = description,
+        onDismiss = { showDescription = false },
+    )
 }

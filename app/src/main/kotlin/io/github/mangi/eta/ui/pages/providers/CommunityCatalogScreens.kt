@@ -40,6 +40,7 @@ import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.coui.CouiCheckboxPreference
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiPreference
@@ -55,13 +56,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
@@ -183,12 +184,12 @@ internal fun CommunityCatalogScreen(
                 title = "从 models.dev 添加",
                 onBack = onBack,
                 actions = {
-                    IconButton(
-                        onClick = store::refresh,
+                    MiuixTopBarActionButton(
+                        icon = MiuixIcons.Glass.Refresh,
+                        contentDescription = "刷新模型目录",
                         enabled = !store.loading && !store.refreshing,
-                    ) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = "刷新模型目录")
-                    }
+                        onClick = store::refresh,
+                    )
                 },
             ) {
                 item(key = "search") {

@@ -22,7 +22,7 @@ import io.github.mangi.eta.data.repository.LanguageSettingsRepository
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiSettingsIcon
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -77,10 +77,11 @@ internal fun LanguagePreference(
             )
         }
         AppearanceUiStyle.MIUIX -> {
-            OverlayDropdownPreference(
+            GlassDropdownPreference(
                 title = stringResource(R.string.settings_language),
                 items = labels,
                 selectedIndex = selectedIndex,
+                backdrop = currentGlassOverlayBackdrop(),
                 startAction = startAction,
                 onSelectedIndexChange = onSelect,
             )

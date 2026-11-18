@@ -37,15 +37,16 @@ import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
+import top.yukonga.miuix.kmp.glass.GlassBottomSheet
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -208,8 +209,9 @@ internal fun AssistantOverlaySettingsScreen(
                 title = pageTitle,
                 onBack = onBack,
                 overlay = {
-                    OverlayBottomSheet(
+                    GlassBottomSheet(
                         show = showModelSheet,
+                        backdrop = currentGlassOverlayBackdrop(),
                         title = modelTitle,
                         onDismissRequest = { showModelSheet = false },
                         insideMargin = DpSize(0.dp, 0.dp),
@@ -237,10 +239,11 @@ internal fun AssistantOverlaySettingsScreen(
                             onClick = { showModelSheet = true },
                         )
                         if (effortOptions.size > 1) {
-                            OverlayDropdownPreference(
+                            GlassDropdownPreference(
                                 title = effortTitle,
                                 items = effortLabels,
                                 selectedIndex = selectedEffortIndex,
+                                backdrop = currentGlassOverlayBackdrop(),
                                 onSelectedIndexChange = onEffortChange,
                             )
                         } else {

@@ -170,6 +170,7 @@
   <string name="appearance_palette_monochrome">單色（Monochrome）</string>
   <string name="appearance_palette_fidelity">保真（Fidelity）</string>
   <string name="appearance_palette_content">內容（Content）</string>
+  <string name="appearance_palette_cmf">質感工藝（CMF）</string>
   <string name="appearance_accent_color">強調色</string>
   <string name="appearance_accent_system">系統取色</string>
   <string name="appearance_accent_blue">藍色</string>
@@ -185,10 +186,10 @@
   <string name="appearance_blur">模糊效果</string>
   <string name="appearance_blur_summary">啟用頂部列、聊天輸入區等表面的模糊效果</string>
   <string name="appearance_blur_style">頂部列模糊樣式</string>
-  <string name="appearance_blur_style_gaussian">高斯</string>
-  <string name="appearance_blur_style_progressive">漸進</string>
-  <string name="appearance_blur_style_gaussian_summary">頂部列整體均勻模糊</string>
-  <string name="appearance_blur_style_progressive_summary">頂部漸強模糊</string>
+  <string name="appearance_blur_style_gaussian">漸層遮罩</string>
+  <string name="appearance_blur_style_progressive">漸進模糊</string>
+  <string name="appearance_blur_style_gaussian_summary">頂部列使用漸隱過渡，保留按鈕玻璃模糊</string>
+  <string name="appearance_blur_style_progressive_summary">頂部漸強模糊，自然過渡至正文</string>
   <string name="appearance_swipe_dismiss">橫移返回手勢</string>
   <string name="appearance_swipe_dismiss_summary">在頁面任意位置橫移即可返回上一頁</string>
   <string name="appearance_predictive_back">預測性返回手勢</string>

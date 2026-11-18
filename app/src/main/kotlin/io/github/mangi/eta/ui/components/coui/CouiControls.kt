@@ -103,7 +103,6 @@ import com.itos.coui.text.Text
 import com.itos.coui.text.rememberCouiTextStyle
 import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.app.LocalBlurEnabled
 
 enum class CouiButtonRole {
     Primary,

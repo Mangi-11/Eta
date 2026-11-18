@@ -24,6 +24,7 @@ import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
@@ -39,6 +40,8 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -214,12 +217,12 @@ internal fun CharacterEditorScreen(
                 onBack = onBack,
                 modifier = Modifier.imePadding(),
                 actions = {
-                    IconButton(
-                        onClick = { store.saveEditor(onSaved) },
+                    MiuixTopBarActionButton(
+                        icon = MiuixIcons.Glass.Ok,
+                        contentDescription = "保存角色",
                         enabled = canSave,
-                    ) {
-                        Icon(Icons.Rounded.Check, contentDescription = "保存角色")
-                    }
+                        onClick = { store.saveEditor(onSaved) },
+                    )
                 },
                 content = listContent,
             )

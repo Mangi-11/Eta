@@ -32,6 +32,7 @@ import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import java.io.InputStream
 import java.io.OutputStream
 import java.text.SimpleDateFormat
@@ -43,8 +44,8 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun DataBackupScreen(
@@ -104,6 +105,46 @@ internal fun DataBackupScreen(
         }
     }
 
+    val confirmImportText = if (busy) {
+        stringResource(R.string.data_backup_working)
+    } else {
+        stringResource(R.string.action_import)
+    }
+    val onDismissImport: () -> Unit = {
+        if (!busy) {
+            showImportDialog = false
+            pendingImportUri = null
+        }
+    }
+    val onConfirmImport: () -> Unit = {
+        val uri = pendingImportUri
+        if (uri != null) {
+            showImportDialog = false
+            scope.launch {
+                busy = true
+                try {
+                    val input = context.contentResolver.openInputStream(uri)
+                        ?: error(context.getString(R.string.data_backup_file_open_failed))
+                    val summary = input.use { onImport(it) }
+                    Toast.makeText(
+                        context,
+                        context.getString(
+                            R.string.data_backup_imported,
+                            summary.conversationCount,
+                            summary.providerCount,
+                        ),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                } catch (throwable: Throwable) {
+                    showFailure(throwable)
+                } finally {
+                    pendingImportUri = null
+                    busy = false
+                }
+            }
+        }
+    }
+
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
             CouiScaffoldPage(
@@ -145,12 +186,44 @@ internal fun DataBackupScreen(
                 }
                 CouiPageBottomSpacer()
             }
+
+            if (showImportDialog) {
+                CouiConfirmDialog(
+                    visible = true,
+                    title = stringResource(R.string.data_backup_import_confirm_title),
+                    message = stringResource(R.string.data_backup_import_confirm_summary),
+                    confirmText = confirmImportText,
+                    confirmEnabled = !busy,
+                    cancelEnabled = !busy,
+                    destructive = true,
+                    onConfirm = onConfirmImport,
+                    onDismissRequest = onDismissImport,
+                )
+            }
         }
 
         AppearanceUiStyle.MIUIX -> {
             MiuixScaffoldPage(
                 title = stringResource(R.string.data_backup_title),
                 onBack = onBack,
+                overlay = {
+                    GlassDialog(
+                        show = showImportDialog,
+                        backdrop = currentGlassOverlayBackdrop(),
+                        title = stringResource(R.string.data_backup_import_confirm_title),
+                        summary = stringResource(R.string.data_backup_import_confirm_summary),
+                        onDismissRequest = onDismissImport,
+                    ) {
+                        MiuixDialogActions(
+                            confirmText = confirmImportText,
+                            destructive = true,
+                            cancelEnabled = !busy,
+                            confirmEnabled = !busy,
+                            onCancel = onDismissImport,
+                            onConfirm = onConfirmImport,
+                        )
+                    }
+                },
             ) {
                 item(key = "warning") {
                     Card(
@@ -197,80 +270,6 @@ internal fun DataBackupScreen(
                             },
                         )
                     }
-                }
-            }
-        }
-    }
-
-    if (showImportDialog) {
-        val confirmText = if (busy) {
-            stringResource(R.string.data_backup_working)
-        } else {
-            stringResource(R.string.action_import)
-        }
-        val onDismissImport: () -> Unit = {
-            if (!busy) {
-                showImportDialog = false
-                pendingImportUri = null
-            }
-        }
-        val onConfirmImport: () -> Unit = {
-            val uri = pendingImportUri
-            if (uri != null) {
-                showImportDialog = false
-                scope.launch {
-                    busy = true
-                    try {
-                        val input = context.contentResolver.openInputStream(uri)
-                            ?: error(context.getString(R.string.data_backup_file_open_failed))
-                        val summary = input.use { onImport(it) }
-                        Toast.makeText(
-                            context,
-                            context.getString(
-                                R.string.data_backup_imported,
-                                summary.conversationCount,
-                                summary.providerCount,
-                            ),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    } catch (throwable: Throwable) {
-                        showFailure(throwable)
-                    } finally {
-                        pendingImportUri = null
-                        busy = false
-                    }
-                }
-            }
-        }
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.data_backup_import_confirm_title),
-                    message = stringResource(R.string.data_backup_import_confirm_summary),
-                    confirmText = confirmText,
-                    confirmEnabled = !busy,
-                    cancelEnabled = !busy,
-                    destructive = true,
-                    onConfirm = onConfirmImport,
-                    onDismissRequest = onDismissImport,
-                )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                WindowDialog(
-                    show = true,
-                    title = stringResource(R.string.data_backup_import_confirm_title),
-                    summary = stringResource(R.string.data_backup_import_confirm_summary),
-                    onDismissRequest = onDismissImport,
-                ) {
-                    MiuixDialogActions(
-                        confirmText = confirmText,
-                        destructive = true,
-                        cancelEnabled = !busy,
-                        confirmEnabled = !busy,
-                        onCancel = onDismissImport,
-                        onConfirm = onConfirmImport,
-                    )
                 }
             }
         }

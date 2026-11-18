@@ -5,8 +5,9 @@ Eta 支持全局界面样式切换，提供 **COUI** 与 **Miuix** 两种选择�
 ## 根主题与缩放不变式
 
 - `AgentAppTheme` 同时提供 `CouiTheme`（COUI 模式）与 `MiuixTheme`，并通过 `LocalUiStyle` 暴露当前 `AppearanceUiStyle`（`COUI` / `MIUIX`）。
-- COUI 模式在开启模糊且设备支持 `RuntimeShader` 时，在根部挂载 `ProvideCouiMenuBackdrop(isolateContent = false)`，供全局 COUI `Menu`、`Dialog` 与 `InputDialog` 采样窗口背景。
-- 界面缩放以 `configuration.densityDpi.toFloat() / DisplayMetrics.DENSITY_DEFAULT` 作为 100% 尺寸基准，并在 `applyInterfaceScale = true` 时同步写入宿主 `context.resources.displayMetrics.density`，保证主页面、独立 Activity（`AgentBrowserActivity`）以及 `Dialog` / `Popup` 独立窗口拥有一致的缩放比例。
+- COUI 模式在设备支持 `RuntimeShader` 时，在根部挂载 `ProvideCouiMenuBackdrop(isolateContent = false)`，供全局 COUI `Menu`、`Dialog` 与 `InputDialog` 采样窗口背景。
+- Miuix 模式采用 HyperOS 4（OS4）玻璃架构：`MainActivity` 与 `AgentBrowserActivity` 通过 `AgentAppTheme(provideGlassHost = true)` 在根部挂载 `Scaffold`、`LocalGlassSceneBackdrop` 与全窗口 `EtaTopLayerHost`（COUI 与非 Activity 浮窗不挂载该宿主），供 `GlassDialog`、`GlassBottomSheet`、`GlassPopup` 与 `GlassTransformPopup` 采样场景而不产生自采样；二级页通过 `MiuixScaffoldPage` / `MiuixScaffold` 提供 `LocalGlassPageBackdrop` 与 `GlassTopAppBar`。
+- 界面缩放以 `configuration.densityDpi.toFloat() / DisplayMetrics.DENSITY_DEFAULT` 作为 100% 尺寸基准，并在 `applyInterfaceScale = true` 时同步写入宿主 `context.resources.displayMetrics.density`，保证主页面、独立 Activity（`AgentBrowserActivity`）以及独立窗口拥有一致的缩放比例。
 
 ## 组件选择与双界面组织
 
@@ -14,25 +15,25 @@ Eta 支持全局界面样式切换，提供 **COUI** 与 **Miuix** 两种选择�
 
 | 场景 | COUI 组合（`ui/components/coui/` 及 `com.itos.coui.*`） | Miuix 组合（`ui/components/` 及 `top.yukonga.miuix.kmp.*`） |
 | --- | --- | --- |
-| 二级页（Column + 回弹滚动） | `CouiScaffoldPage`（`Scaffold` + `LargeTopAppBar` / `TopAppBar` + `couiVerticalScroll`） | `MiuixScaffoldPage` |
-| 二级页（长动态列表） | `CouiLazyScaffoldPage` | `MiuixScaffoldPage` |
-| 自定义容器二级页（分页、整页编辑器） | `CouiScaffold` | `MiuixScaffold` |
-| 顶栏返回与操作按钮 | `CouiBackButton`、`CouiTopAppBarIconButton`、`CouiTopAppBarTextButton`、`TopAppBarButtonGroup` | `MiuixBackButton`、`IconButton`、`TextButton` |
+| 二级页（Column + 回弹滚动） | `CouiScaffoldPage`（`Scaffold` + `LargeTopAppBar` / `TopAppBar` + `couiVerticalScroll`） | `MiuixScaffoldPage`（`GlassTopAppBar`） |
+| 二级页（长动态列表） | `CouiLazyScaffoldPage` | `MiuixScaffoldPage`（`GlassTopAppBar`） |
+| 自定义容器二级页（分页、整页编辑器） | `CouiScaffold` | `MiuixScaffold`（`GlassTopAppBar`） |
+| 顶栏返回与操作按钮 | `CouiBackButton`、`CouiTopAppBarIconButton`、`CouiTopAppBarTextButton`、`TopAppBarButtonGroup` | `MiuixBackButton`、`MiuixTopBarActionButton`、`TextButton`（`GlassIconButton` + `MiuixIcons.Glass.*`） |
 | 分组卡片与标题 | `com.itos.coui.layout.Group(title = ...)` | `SmallTitle` + `Card` |
 | 懒加载连续分组条目 | `EtaPreferenceGroupItem` → `CouiGroupItem` | `EtaPreferenceGroupItem` |
 | 跳转行 / 信息行 | `CouiPreference`（右侧箭头使用 `CouiIcons.Next`，`12.dp × 24.dp`） | `ArrowPreference` / `BasicComponent` |
 | 开关行 | `CouiSwitchPreference`（整行 `Role.Switch` + `CouiHapticFeedback.Switch`） | `SwitchPreference` |
-| 下拉 / 弹窗选择行 | `CouiDropdownPreference` / `CouiPopupPreference`（`rememberCouiMenuAnchor` + `Modifier.couiMenuAnchor` + `CouiIcons.Popup` `14.dp × 24.dp` + `Menu`） | `OverlayDropdownPreference` / `WindowSpinnerPreference` / `OverlaySpinnerPreference` |
+| 下拉 / 弹窗选择行 | `CouiDropdownPreference` / `CouiPopupPreference`（`rememberCouiMenuAnchor` + `Modifier.couiMenuAnchor` + `CouiIcons.Popup` `14.dp × 24.dp` + `Menu`） | `GlassDropdownPreference` / `EtaGlassSpinnerPreference`（基于 `GlassDropdownPopup` + `EtaTopLayer`） |
 | 复选 / 单选行 | `CouiCheckboxPreference` / `CouiSelectPreference` | `CheckboxPreference` / `Checkbox` |
 | 滑块行 | `CouiSliderPreference` | `SliderPreference` |
 | 分组内分割线 | `Divider()`（无前导图标）/ `CouiIconDivider()`（有前导图标） | Miuix 列表间距 |
 | 搜索栏 | `CouiSearchBarBox`（COUI `SearchBar` + 局部 `CouiBackdrop`） | `SearchBar` + `InputField` |
-| 分页 / 筛选标签 | `CouiChipTabs`（COUI `ChipTabRow`） | `TabRow` / `EtaChoiceChip` |
+| 分页 / 筛选标签 | `CouiChipTabs`（COUI `ChipTabRow`） | `GlassSegmentedTabRow` / `EtaChoiceChip` |
 | 行内输入框 | `CouiTextField` | `TextField` |
-| 页面胶囊按钮 | `CouiButton`（`CouiButtonRole`） | `TextButton` |
-| 确认 / 提示 / 底部弹框 | `CouiConfirmDialog`、`CouiNoticeDialog`、`com.itos.coui.dialog.Dialog`（`CouiDialogPlacement.Bottom`） | `WindowDialog`、`OverlayDialog`、`OverlayBottomSheet` |
-| 单行输入弹窗 | `CouiInputDialog`（`com.itos.coui.dialog.InputDialog`） | `WindowDialog` + `TextField` |
-| 上下文 / 溢出菜单 | `com.itos.coui.menu.Menu` + `rememberCouiMenuAnchor` | `WindowListPopup` / `OverlayListPopup` / `OverlayIconDropdownMenu` |
+| 页面胶囊按钮 / 悬浮工具栏 | `CouiButton`（`CouiButtonRole`）、`FloatingToolbar` | `TextButton`、`GlassFloatingToolbar` |
+| 确认 / 提示 / 底部弹框 | `CouiConfirmDialog`、`CouiNoticeDialog`、`com.itos.coui.dialog.Dialog`（`CouiDialogPlacement.Bottom`） | 持续组合的 `GlassDialog`（配 `MiuixDialogActions` / `GlassDialogButton`）与 `GlassBottomSheet` |
+| 单行输入弹窗 | `CouiInputDialog`（`com.itos.coui.dialog.InputDialog`） | `GlassDialog` + `TextField` |
+| 上下文 / 溢出菜单 | `com.itos.coui.menu.Menu` + `rememberCouiMenuAnchor` | `EtaTopLayer` + `GlassPopup` / `GlassTransformPopup` + `GlassPopupItem` |
 
 ## 分组、分割线与状态边界
 

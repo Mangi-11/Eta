@@ -52,6 +52,7 @@ import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
 import io.github.mangi.eta.ui.components.coui.CouiSettingsIcon
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.navigation.AppRoute
 import io.github.mangi.eta.ui.navigation.NewProviderType
 import kotlinx.coroutines.launch
@@ -60,7 +61,7 @@ import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -74,6 +75,8 @@ internal fun ModelProviderListScreen(
     val selectedProviderId by RuntimeConfigRepository.selectedProviderIdFlow().collectAsState(initial = null)
     var searchQuery by remember { mutableStateOf("") }
     var providerToDelete by remember { mutableStateOf<ProviderSetting?>(null) }
+    var retainedProviderToDelete by remember { mutableStateOf<ProviderSetting?>(null) }
+    if (providerToDelete != null) retainedProviderToDelete = providerToDelete
 
     LaunchedEffect(Unit) {
         RuntimeConfigRepository.ensureDefaults(EtaApp.serviceInstance)
@@ -294,43 +297,45 @@ internal fun ModelProviderListScreen(
         }
     }
 
-    if (providerToDelete != null) {
-        val target = providerToDelete
-        val onConfirmDelete: () -> Unit = {
-            scope.launch {
-                target?.let { provider ->
-                    ProviderRepository.deleteProvider(provider.id)
-                    RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                }
-                providerToDelete = null
+    val activeDeleteTarget = providerToDelete ?: retainedProviderToDelete
+    val onConfirmDelete: () -> Unit = {
+        scope.launch {
+            activeDeleteTarget?.let { provider ->
+                ProviderRepository.deleteProvider(provider.id)
+                RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
             }
+            providerToDelete = null
         }
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
+    }
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            if (providerToDelete != null) {
                 CouiConfirmDialog(
                     visible = true,
                     title = stringResource(R.string.ui_remove_provider_9f848f),
-                    message = stringResource(R.string.provider_delete_summary, target?.name.orEmpty()),
+                    message = stringResource(R.string.provider_delete_summary, activeDeleteTarget?.name.orEmpty()),
                     confirmText = stringResource(R.string.ui_delete_3755f5),
                     destructive = true,
                     onConfirm = onConfirmDelete,
                     onDismissRequest = { providerToDelete = null },
                 )
             }
-            AppearanceUiStyle.MIUIX -> {
-                OverlayDialog(
-                    show = true,
-                    title = stringResource(R.string.ui_remove_provider_9f848f),
-                    summary = stringResource(R.string.provider_delete_summary, target?.name.orEmpty()),
-                    onDismissRequest = { providerToDelete = null },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.ui_delete_3755f5),
-                        destructive = true,
-                        onCancel = { providerToDelete = null },
-                        onConfirm = onConfirmDelete,
-                    )
-                }
+        }
+        AppearanceUiStyle.MIUIX -> {
+            GlassDialog(
+                show = providerToDelete != null,
+                backdrop = currentGlassOverlayBackdrop(),
+                title = stringResource(R.string.ui_remove_provider_9f848f),
+                summary = stringResource(R.string.provider_delete_summary, activeDeleteTarget?.name.orEmpty()),
+                onDismissRequest = { providerToDelete = null },
+                onDismissFinished = { if (providerToDelete == null) retainedProviderToDelete = null },
+            ) {
+                MiuixDialogActions(
+                    confirmText = stringResource(R.string.ui_delete_3755f5),
+                    destructive = true,
+                    onCancel = { providerToDelete = null },
+                    onConfirm = onConfirmDelete,
+                )
             }
         }
     }

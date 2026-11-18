@@ -33,6 +33,7 @@ class AgentBrowserActivity : ComponentActivity() {
                 AgentAppTheme(
                     appearance = appearance,
                     applyInterfaceScale = true,
+                    provideGlassHost = true,
                     onResolvedDarkModeChange = { isDark ->
                         val style = if (isDark) {
                             SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)

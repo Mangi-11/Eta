@@ -30,6 +30,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -68,6 +70,7 @@ import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -79,8 +82,8 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun SharedFoldersScreen(
@@ -105,11 +108,18 @@ internal fun SharedFoldersScreen(
     var mounts by remember { mutableStateOf(SharedFolderMounts.current()) }
     var sourceExists by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var showPicker by remember { mutableStateOf(false) }
+    var pickerSession by remember { mutableIntStateOf(0) }
     var removeTarget by remember { mutableStateOf<SharedFolderMount?>(null) }
+    var retainedRemoveTarget by remember { mutableStateOf<SharedFolderMount?>(null) }
+    if (removeTarget != null) retainedRemoveTarget = removeTarget
     var notice by remember { mutableStateOf<String?>(null) }
     val publicAccessLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (Environment.isExternalStorageManager()) showPicker = true
-        else notice = context.getString(R.string.capability_workspace_public_denied)
+        if (Environment.isExternalStorageManager()) {
+            pickerSession += 1
+            showPicker = true
+        } else {
+            notice = context.getString(R.string.capability_workspace_public_denied)
+        }
     }
 
     fun refreshSources(list: List<SharedFolderMount>) {
@@ -126,6 +136,7 @@ internal fun SharedFoldersScreen(
 
     val onAddMountClick: () -> Unit = {
         if (TerminalRuntime.rootAvailable || Environment.isExternalStorageManager()) {
+            pickerSession += 1
             showPicker = true
         } else {
             try {
@@ -138,6 +149,38 @@ internal fun SharedFoldersScreen(
             } catch (_: android.content.ActivityNotFoundException) {
                 notice = context.getString(R.string.capability_workspace_public_denied)
             }
+        }
+    }
+    val onConfirmPicker: (String, String) -> Unit = { source, name ->
+        val updated = mounts + SharedFolderMount(name = name, sourcePath = source)
+        if (SharedFolderMounts.save(updated)) {
+            mounts = updated
+            refreshSources(updated)
+            showPicker = false
+        } else {
+            notice = context.getString(R.string.shared_folders_error_save)
+        }
+    }
+    val activeRemoveTarget = removeTarget ?: retainedRemoveTarget
+    val onConfirmRemove: (SharedFolderMount) -> Unit = { target ->
+        val updated = mounts.filterNot { it.name == target.name }
+        if (SharedFolderMounts.save(updated)) {
+            mounts = updated
+            removeTarget = null
+            refreshSources(updated)
+            coroutineScope.launch(Dispatchers.IO) {
+                runOneShotShell(
+                    processSupervisor = shellSupervisor,
+                    identity = TerminalRuntime.defaultIdentity(TerminalEnvironment.ANDROID),
+                    command = "rmdir " +
+                        shellQuote("${SharedFolderMounts.ANDROID_MOUNTS_ROOT}/${target.name}") +
+                        " 2>/dev/null",
+                    timeoutSeconds = 10,
+                )
+            }
+        } else {
+            notice = context.getString(R.string.shared_folders_error_save)
+            removeTarget = null
         }
     }
 
@@ -228,6 +271,36 @@ internal fun SharedFoldersScreen(
             MiuixScaffoldPage(
                 title = stringResource(R.string.shared_folders_title),
                 onBack = onBack,
+                overlay = {
+                    SharedFolderPickerDialog(
+                        show = showPicker,
+                        session = pickerSession,
+                        context = context,
+                        supervisor = shellSupervisor,
+                        existing = mounts,
+                        extraForbiddenRoots = rootfsPaths,
+                        onDismiss = { showPicker = false },
+                        onConfirm = onConfirmPicker,
+                    )
+                    GlassDialog(
+                        show = removeTarget != null,
+                        backdrop = currentGlassOverlayBackdrop(),
+                        title = stringResource(R.string.shared_folders_remove_title),
+                        summary = activeRemoveTarget?.let { target ->
+                            stringResource(R.string.shared_folders_remove_message, target.name, target.sourcePath)
+                        },
+                        onDismissRequest = { removeTarget = null },
+                        onDismissFinished = { if (removeTarget == null) retainedRemoveTarget = null },
+                    ) {
+                        MiuixDialogActions(
+                            confirmText = stringResource(R.string.action_delete),
+                            destructive = true,
+                            confirmEnabled = activeRemoveTarget != null,
+                            onCancel = { removeTarget = null },
+                            onConfirm = { activeRemoveTarget?.let(onConfirmRemove) },
+                        )
+                    }
+                },
             ) {
                 item(key = "mounts-card") {
                     Card(
@@ -326,102 +399,78 @@ internal fun SharedFoldersScreen(
         }
     }
 
-    if (showPicker) {
-        SharedFolderPickerDialog(
-            context = context,
-            supervisor = shellSupervisor,
-            existing = mounts,
-            extraForbiddenRoots = rootfsPaths,
-            onDismiss = { showPicker = false },
-            onConfirm = { source, name ->
-                val updated = mounts + SharedFolderMount(name = name, sourcePath = source)
-                if (SharedFolderMounts.save(updated)) {
-                    mounts = updated
-                    refreshSources(updated)
-                    showPicker = false
-                } else {
-                    notice = context.getString(R.string.shared_folders_error_save)
-                }
-            },
-        )
-    }
-
-    removeTarget?.let { target ->
-        val message = stringResource(R.string.shared_folders_remove_message, target.name, target.sourcePath)
-        val onConfirmRemove: () -> Unit = {
-            val updated = mounts.filterNot { it.name == target.name }
-            if (SharedFolderMounts.save(updated)) {
-                mounts = updated
-                removeTarget = null
-                refreshSources(updated)
-                coroutineScope.launch(Dispatchers.IO) {
-                    runOneShotShell(
-                        processSupervisor = shellSupervisor,
-                        identity = TerminalRuntime.defaultIdentity(TerminalEnvironment.ANDROID),
-                        command = "rmdir " +
-                            shellQuote("${SharedFolderMounts.ANDROID_MOUNTS_ROOT}/${target.name}") +
-                            " 2>/dev/null",
-                        timeoutSeconds = 10,
-                    )
-                }
-            } else {
-                notice = context.getString(R.string.shared_folders_error_save)
-                removeTarget = null
-            }
+    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+        if (showPicker) {
+            SharedFolderPickerDialog(
+                show = true,
+                session = pickerSession,
+                context = context,
+                supervisor = shellSupervisor,
+                existing = mounts,
+                extraForbiddenRoots = rootfsPaths,
+                onDismiss = { showPicker = false },
+                onConfirm = onConfirmPicker,
+            )
         }
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.shared_folders_remove_title),
-                    message = message,
-                    confirmText = stringResource(R.string.action_delete),
-                    destructive = true,
-                    onConfirm = onConfirmRemove,
-                    onDismissRequest = { removeTarget = null },
-                )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                WindowDialog(
-                    show = true,
-                    title = stringResource(R.string.shared_folders_remove_title),
-                    summary = message,
-                    onDismissRequest = { removeTarget = null },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.action_delete),
-                        destructive = true,
-                        onCancel = { removeTarget = null },
-                        onConfirm = onConfirmRemove,
-                    )
-                }
-            }
+
+        removeTarget?.let { target ->
+            CouiConfirmDialog(
+                visible = true,
+                title = stringResource(R.string.shared_folders_remove_title),
+                message = stringResource(R.string.shared_folders_remove_message, target.name, target.sourcePath),
+                confirmText = stringResource(R.string.action_delete),
+                destructive = true,
+                onConfirm = { onConfirmRemove(target) },
+                onDismissRequest = { removeTarget = null },
+            )
         }
     }
-}
-
-private fun probeSources(
-    supervisor: ShellProcessSupervisor,
-    mounts: List<SharedFolderMount>,
-): Map<String, Boolean> {
-    val script = mounts.joinToString("\n") { mount ->
-        "if [ -d ${shellQuote(mount.sourcePath)} ]; then echo '${mount.name} 1'; else echo '${mount.name} 0'; fi"
-    }
-    val result = runOneShotShell(
-        processSupervisor = supervisor,
-        identity = TerminalRuntime.defaultIdentity(TerminalEnvironment.ANDROID),
-        command = script,
-        timeoutSeconds = 15,
-    )
-    if (result.exitCode != 0) return emptyMap()
-    return result.output.decodeToString().lineSequence().mapNotNull { line ->
-        val parts = line.trim().split(" ")
-        if (parts.size == 2) parts[0] to (parts[1] == "1") else null
-    }.toMap()
 }
 
 @Composable
 private fun SharedFolderPickerDialog(
+    show: Boolean,
+    session: Int,
+    context: Context,
+    supervisor: ShellProcessSupervisor,
+    existing: List<SharedFolderMount>,
+    extraForbiddenRoots: List<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (sourcePath: String, name: String) -> Unit,
+) {
+    val uiStyle = LocalUiStyle.current
+    if (uiStyle == AppearanceUiStyle.COUI && !show) return
+    val dialogBody: @Composable () -> Unit = {
+        key(session) {
+            SharedFolderPickerBody(
+                context = context,
+                supervisor = supervisor,
+                existing = existing,
+                extraForbiddenRoots = extraForbiddenRoots,
+                onDismiss = onDismiss,
+                onConfirm = onConfirm,
+            )
+        }
+    }
+    when (uiStyle) {
+        AppearanceUiStyle.COUI -> {
+            dialogBody()
+        }
+        AppearanceUiStyle.MIUIX -> {
+            GlassDialog(
+                show = show,
+                backdrop = currentGlassOverlayBackdrop(),
+                title = stringResource(R.string.shared_folders_picker_title),
+                onDismissRequest = onDismiss,
+            ) {
+                dialogBody()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SharedFolderPickerBody(
     context: Context,
     supervisor: ShellProcessSupervisor,
     existing: List<SharedFolderMount>,
@@ -613,37 +662,48 @@ private fun SharedFolderPickerDialog(
         }
     }
 
-    when (uiStyle) {
-        AppearanceUiStyle.COUI -> {
-            CouiConfirmDialog(
-                visible = true,
-                title = stringResource(R.string.shared_folders_picker_title),
-                message = null,
-                confirmText = stringResource(R.string.shared_folders_add),
-                onConfirm = onValidateAndConfirm,
-                onDismissRequest = onDismiss,
-            ) {
-                bodyContent()
-            }
+    if (uiStyle == AppearanceUiStyle.COUI) {
+        CouiConfirmDialog(
+            visible = true,
+            title = stringResource(R.string.shared_folders_picker_title),
+            message = null,
+            confirmText = stringResource(R.string.shared_folders_add),
+            onConfirm = onValidateAndConfirm,
+            onDismissRequest = onDismiss,
+        ) {
+            bodyContent()
         }
-        AppearanceUiStyle.MIUIX -> {
-            WindowDialog(
-                show = true,
-                title = stringResource(R.string.shared_folders_picker_title),
-                onDismissRequest = onDismiss,
-            ) {
-                Column {
-                    bodyContent()
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.shared_folders_add),
-                        onCancel = onDismiss,
-                        onConfirm = onValidateAndConfirm,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                }
-            }
+    } else {
+        Column {
+            bodyContent()
+            MiuixDialogActions(
+                confirmText = stringResource(R.string.shared_folders_add),
+                onCancel = onDismiss,
+                onConfirm = onValidateAndConfirm,
+                modifier = Modifier.padding(top = 12.dp),
+            )
         }
     }
+}
+
+private fun probeSources(
+    supervisor: ShellProcessSupervisor,
+    mounts: List<SharedFolderMount>,
+): Map<String, Boolean> {
+    val script = mounts.joinToString("\n") { mount ->
+        "if [ -d ${shellQuote(mount.sourcePath)} ]; then echo '${mount.name} 1'; else echo '${mount.name} 0'; fi"
+    }
+    val result = runOneShotShell(
+        processSupervisor = supervisor,
+        identity = TerminalRuntime.defaultIdentity(TerminalEnvironment.ANDROID),
+        command = script,
+        timeoutSeconds = 15,
+    )
+    if (result.exitCode != 0) return emptyMap()
+    return result.output.decodeToString().lineSequence().mapNotNull { line ->
+        val parts = line.trim().split(" ")
+        if (parts.size == 2) parts[0] to (parts[1] == "1") else null
+    }.toMap()
 }
 
 @Composable

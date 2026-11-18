@@ -28,11 +28,12 @@ import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -145,10 +146,11 @@ internal fun SpeechRecognitionScreen(onBack: () -> Unit, onOpenOss: () -> Unit) 
                     item(key = "service") {
                         Column {
                             SpeechGroupCard(title = stringResource(R.string.speech_group_service)) {
-                                OverlayDropdownPreference(
+                                GlassDropdownPreference(
                                     title = stringResource(R.string.speech_service_and_model),
                                     items = asrLabels,
                                     selectedIndex = settings.asr.ordinal,
+                                    backdrop = currentGlassOverlayBackdrop(),
                                     onSelectedIndexChange = { index ->
                                         AsrProvider.entries.getOrNull(index)?.let { store.edit(settings.copy(asr = it)) }
                                     },
@@ -236,10 +238,11 @@ private fun SpeechResultSection(store: SpeechSettingsStore) {
                     )
                     Divider()
                 } else {
-                    OverlayDropdownPreference(
+                    GlassDropdownPreference(
                         title = stringResource(R.string.speech_auto_send_title),
                         items = optionLabels,
                         selectedIndex = selectedOptionIndex,
+                        backdrop = currentGlassOverlayBackdrop(),
                         onSelectedIndexChange = { index ->
                             options.getOrNull(index)?.let { store.edit(settings.copy(autoSendSilenceMs = it)) }
                         },

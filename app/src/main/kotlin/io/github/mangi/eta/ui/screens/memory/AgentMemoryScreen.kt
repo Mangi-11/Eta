@@ -60,6 +60,7 @@ import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffold
+import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
@@ -68,6 +69,7 @@ import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffold
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
 import io.github.mangi.eta.ui.markdown.LazyStaticMarkdown
 import io.github.mangi.eta.ui.markdown.MarkdownTone
@@ -78,14 +80,17 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassDialogButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 private enum class MemoryViewMode { Preview, Edit }
 
@@ -96,6 +101,8 @@ internal fun AgentMemoryScreen(
     onAction: (AgentMemoryAction) -> Unit,
 ) {
     var showClearDialog by remember { mutableStateOf(false) }
+    var retainedNotice by remember { mutableStateOf(state.notice) }
+    if (state.notice != null) retainedNotice = state.notice
     var mode by rememberSaveable {
         mutableStateOf(
             if (!state.isLoading && state.savedContent.isBlank()) MemoryViewMode.Edit else MemoryViewMode.Preview,
@@ -168,19 +175,53 @@ internal fun AgentMemoryScreen(
                 title = stringResource(R.string.ui_memory_b55ff5),
                 onBack = { onAction(AgentMemoryAction.NavigateBack) },
                 actions = {
-                    IconButton(
-                        onClick = { showClearDialog = true },
+                    MiuixTopBarActionButton(
+                        icon = MiuixIcons.Glass.Delete,
+                        contentDescription = stringResource(R.string.ui_clear_all_memory_a43bd3),
                         enabled = canClear,
+                        onClick = { showClearDialog = true },
+                    )
+                },
+                overlay = {
+                    val overlayBackdrop = currentGlassOverlayBackdrop()
+                    GlassDialog(
+                        show = showClearDialog,
+                        backdrop = overlayBackdrop,
+                        title = stringResource(R.string.ui_clear_all_memory_a43bd3),
+                        summary = stringResource(R.string.ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac),
+                        onDismissRequest = { showClearDialog = false },
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.DeleteOutline,
-                            contentDescription = stringResource(R.string.ui_clear_all_memory_a43bd3),
-                            tint = if (!state.isLoading && state.draft.isNotEmpty()) {
-                                MiuixTheme.colorScheme.onSurface
-                            } else {
-                                MiuixTheme.colorScheme.disabledOnSurface
+                        MiuixDialogActions(
+                            confirmText = stringResource(R.string.memory_clear),
+                            destructive = true,
+                            confirmEnabled = !state.isSaving,
+                            onCancel = { showClearDialog = false },
+                            onConfirm = {
+                                showClearDialog = false
+                                onAction(AgentMemoryAction.Clear)
                             },
                         )
+                    }
+
+                    val activeNotice = state.notice ?: retainedNotice
+                    GlassDialog(
+                        show = state.notice != null,
+                        backdrop = overlayBackdrop,
+                        title = stringResource(R.string.ui_memory_b55ff5),
+                        summary = activeNotice,
+                        onDismissRequest = { onAction(AgentMemoryAction.DismissNotice) },
+                        onDismissFinished = { if (state.notice == null) retainedNotice = null },
+                    ) {
+                        GlassDialogButton(
+                            onClick = { onAction(AgentMemoryAction.DismissNotice) },
+                            role = GlassDialogButtonRole.Normal,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.ui_knew_cb63c6),
+                                style = MiuixTheme.textStyles.button,
+                            )
+                        }
                     }
                 },
             ) { paddingValues, scrollBehavior, sidePadding ->
@@ -221,68 +262,31 @@ internal fun AgentMemoryScreen(
         }
     }
 
-    if (showClearDialog) {
-        val onConfirmClear: () -> Unit = {
-            showClearDialog = false
-            onAction(AgentMemoryAction.Clear)
+    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
+        if (showClearDialog) {
+            CouiConfirmDialog(
+                visible = true,
+                title = stringResource(R.string.ui_clear_all_memory_a43bd3),
+                message = stringResource(R.string.ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac),
+                confirmText = stringResource(R.string.memory_clear),
+                confirmEnabled = !state.isSaving,
+                destructive = true,
+                onConfirm = {
+                    showClearDialog = false
+                    onAction(AgentMemoryAction.Clear)
+                },
+                onDismissRequest = { showClearDialog = false },
+            )
         }
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_clear_all_memory_a43bd3),
-                    message = stringResource(R.string.ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac),
-                    confirmText = stringResource(R.string.memory_clear),
-                    confirmEnabled = !state.isSaving,
-                    destructive = true,
-                    onConfirm = onConfirmClear,
-                    onDismissRequest = { showClearDialog = false },
-                )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                WindowDialog(
-                    show = true,
-                    title = stringResource(R.string.ui_clear_all_memory_a43bd3),
-                    summary = stringResource(R.string.ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac),
-                    onDismissRequest = { showClearDialog = false },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.memory_clear),
-                        destructive = true,
-                        confirmEnabled = !state.isSaving,
-                        onCancel = { showClearDialog = false },
-                        onConfirm = onConfirmClear,
-                    )
-                }
-            }
-        }
-    }
 
-    state.notice?.let { notice ->
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiNoticeDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_memory_b55ff5),
-                    message = notice,
-                    confirmText = stringResource(R.string.ui_knew_cb63c6),
-                    onDismissRequest = { onAction(AgentMemoryAction.DismissNotice) },
-                )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                WindowDialog(
-                    show = true,
-                    title = stringResource(R.string.ui_memory_b55ff5),
-                    summary = notice,
-                    onDismissRequest = { onAction(AgentMemoryAction.DismissNotice) },
-                ) {
-                    TextButton(
-                        text = stringResource(R.string.ui_knew_cb63c6),
-                        onClick = { onAction(AgentMemoryAction.DismissNotice) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
+        state.notice?.let { notice ->
+            CouiNoticeDialog(
+                visible = true,
+                title = stringResource(R.string.ui_memory_b55ff5),
+                message = notice,
+                confirmText = stringResource(R.string.ui_knew_cb63c6),
+                onDismissRequest = { onAction(AgentMemoryAction.DismissNotice) },
+            )
         }
     }
 }

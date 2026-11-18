@@ -19,6 +19,7 @@ import io.github.mangi.eta.agent.terminal.LinuxDistribution
 import io.github.mangi.eta.agent.terminal.LinuxExecutionBackend
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.EtaGlassSpinnerPreference
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
@@ -30,7 +31,6 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -172,7 +172,7 @@ internal fun LinuxEnvironmentConfiguration(
                     .padding(horizontal = 12.dp)
                     .padding(bottom = 12.dp),
             ) {
-                WindowSpinnerPreference(
+                EtaGlassSpinnerPreference(
                     title = stringResource(R.string.linux_distribution_title),
                     items = distributions.map {
                         DropdownItem(
@@ -190,7 +190,7 @@ internal fun LinuxEnvironmentConfiguration(
                     onSelectedIndexChange = { onDistributionSelected(distributions[it]) },
                 )
                 if (rootGranted || backend == LinuxExecutionBackend.CHROOT) {
-                    WindowSpinnerPreference(
+                    EtaGlassSpinnerPreference(
                         title = stringResource(R.string.capability_linux_backend),
                         items = backends.map {
                             DropdownItem(

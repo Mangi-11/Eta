@@ -30,7 +30,6 @@ import io.github.mangi.eta.data.model.AppearanceAccentColor
 import io.github.mangi.eta.data.model.AppearancePaletteStyle
 import io.github.mangi.eta.data.model.AppearanceSettings
 import io.github.mangi.eta.data.model.AppearanceThemeMode
-import io.github.mangi.eta.data.model.AppearanceTopBarBlurStyle
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.MAX_INTERFACE_SCALE
 import io.github.mangi.eta.data.model.MIN_INTERFACE_SCALE
@@ -46,17 +45,17 @@ import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSliderPreference
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
@@ -67,7 +66,6 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
     }
     var showScaleDialog by remember { mutableStateOf(false) }
     var scaleInput by remember { mutableStateOf("") }
-    val blurSupported = isRuntimeShaderSupported()
 
     fun update(transform: (AppearanceSettings) -> AppearanceSettings) {
         coroutineScope.launch {
@@ -109,6 +107,7 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
         stringResource(R.string.appearance_palette_monochrome),
         stringResource(R.string.appearance_palette_fidelity),
         stringResource(R.string.appearance_palette_content),
+        stringResource(R.string.appearance_palette_cmf),
     )
     val accentColors = AppearanceAccentColor.entries
     val accentLabels = listOf(
@@ -121,15 +120,6 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
         stringResource(R.string.appearance_accent_yellow),
         stringResource(R.string.appearance_accent_green),
         stringResource(R.string.appearance_accent_teal),
-    )
-    val blurStyles = AppearanceTopBarBlurStyle.entries
-    val blurStyleLabels = listOf(
-        stringResource(R.string.appearance_blur_style_gaussian),
-        stringResource(R.string.appearance_blur_style_progressive),
-    )
-    val blurStyleSummaries = listOf(
-        stringResource(R.string.appearance_blur_style_gaussian_summary),
-        stringResource(R.string.appearance_blur_style_progressive_summary),
     )
     val parsedScale = scaleInput.toIntOrNull()
 
@@ -224,26 +214,60 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
             MiuixScaffoldPage(
                 title = stringResource(R.string.appearance_title),
                 onBack = onBack,
+                overlay = {
+                    GlassDialog(
+                        show = showScaleDialog,
+                        backdrop = currentGlassOverlayBackdrop(),
+                        title = stringResource(R.string.appearance_interface_scale_dialog_title),
+                        summary = stringResource(R.string.appearance_interface_scale_dialog_summary),
+                        onDismissRequest = { showScaleDialog = false },
+                    ) {
+                        Column {
+                            TextField(
+                                value = scaleInput,
+                                onValueChange = { value -> scaleInput = value.filter(Char::isDigit).take(3) },
+                                label = stringResource(R.string.appearance_interface_scale_input_label),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp),
+                            )
+                            MiuixDialogActions(
+                                confirmText = stringResource(R.string.action_confirm),
+                                confirmEnabled = parsedScale != null && parsedScale in 80..110,
+                                onCancel = { showScaleDialog = false },
+                                onConfirm = {
+                                    parsedScale?.let { commitScale(it.toFloat()) }
+                                    showScaleDialog = false
+                                },
+                            )
+                        }
+                    }
+                },
             ) {
                 item(key = "appearance_color") {
+                    val backdrop = currentGlassOverlayBackdrop()
                     SmallTitle(text = stringResource(R.string.appearance_group_color))
                     Card(
                         modifier = Modifier
                             .padding(horizontal = 12.dp)
                             .padding(bottom = 12.dp),
                     ) {
-                        OverlayDropdownPreference(
+                        GlassDropdownPreference(
                             title = stringResource(R.string.appearance_ui_style),
                             items = uiStyleLabels,
                             selectedIndex = appearance.uiStyle.ordinal,
+                            backdrop = backdrop,
                             onSelectedIndexChange = { index ->
                                 uiStyles.getOrNull(index)?.let(::selectUiStyle)
                             },
                         )
-                        OverlayDropdownPreference(
+                        GlassDropdownPreference(
                             title = stringResource(R.string.appearance_theme_mode),
                             items = themeModeLabels,
                             selectedIndex = appearance.themeMode.ordinal,
+                            backdrop = backdrop,
                             onSelectedIndexChange = { index ->
                                 themeModes.getOrNull(index)?.let { mode ->
                                     update { current -> current.copy(themeMode = mode) }
@@ -264,20 +288,22 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                             exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
                         ) {
                             Column {
-                                OverlayDropdownPreference(
+                                GlassDropdownPreference(
                                     title = stringResource(R.string.appearance_palette_style),
                                     items = paletteLabels,
                                     selectedIndex = appearance.paletteStyle.ordinal,
+                                    backdrop = backdrop,
                                     onSelectedIndexChange = { index ->
                                         paletteStyles.getOrNull(index)?.let { style ->
                                             update { current -> current.copy(paletteStyle = style) }
                                         }
                                     },
                                 )
-                                OverlayDropdownPreference(
+                                GlassDropdownPreference(
                                     title = stringResource(R.string.appearance_accent_color),
                                     items = accentLabels,
                                     selectedIndex = appearance.accentColor.ordinal,
+                                    backdrop = backdrop,
                                     onSelectedIndexChange = { index ->
                                         accentColors.getOrNull(index)?.let { accent ->
                                             update { current -> current.copy(accentColor = accent) }
@@ -304,32 +330,6 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                             .padding(horizontal = 12.dp)
                             .padding(bottom = 12.dp),
                     ) {
-                        SwitchPreference(
-                            title = stringResource(R.string.appearance_blur),
-                            summary = stringResource(R.string.appearance_blur_summary),
-                            checked = appearance.blurEnabled && blurSupported,
-                            onCheckedChange = { enabled ->
-                                update { current -> current.copy(blurEnabled = enabled) }
-                            },
-                            enabled = blurSupported,
-                        )
-                        AnimatedVisibility(
-                            visible = appearance.blurEnabled && blurSupported,
-                            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
-                        ) {
-                            OverlayDropdownPreference(
-                                title = stringResource(R.string.appearance_blur_style),
-                                summary = blurStyleSummaries[appearance.topBarBlurStyle.ordinal],
-                                items = blurStyleLabels,
-                                selectedIndex = appearance.topBarBlurStyle.ordinal,
-                                onSelectedIndexChange = { index ->
-                                    blurStyles.getOrNull(index)?.let { style ->
-                                        update { current -> current.copy(topBarBlurStyle = style) }
-                                    }
-                                },
-                            )
-                        }
                         SwitchPreference(
                             title = stringResource(R.string.appearance_swipe_dismiss),
                             summary = stringResource(R.string.appearance_swipe_dismiss_summary),
@@ -368,35 +368,6 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                             holdDownState = showScaleDialog,
                         )
                     }
-                }
-            }
-
-            WindowDialog(
-                show = showScaleDialog,
-                title = stringResource(R.string.appearance_interface_scale_dialog_title),
-                summary = stringResource(R.string.appearance_interface_scale_dialog_summary),
-                onDismissRequest = { showScaleDialog = false },
-            ) {
-                Column {
-                    TextField(
-                        value = scaleInput,
-                        onValueChange = { value -> scaleInput = value.filter(Char::isDigit).take(3) },
-                        label = stringResource(R.string.appearance_interface_scale_input_label),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp),
-                    )
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.action_confirm),
-                        confirmEnabled = parsedScale != null && parsedScale in 80..110,
-                        onCancel = { showScaleDialog = false },
-                        onConfirm = {
-                            parsedScale?.let { commitScale(it.toFloat()) }
-                            showScaleDialog = false
-                        },
-                    )
                 }
             }
         }

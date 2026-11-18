@@ -37,8 +37,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.Clipboard
 import androidx.compose.ui.platform.LocalClipboard
@@ -67,24 +70,27 @@ import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.TerminalBlockUi
 import io.github.mangi.eta.ui.app.UserTerminalStore
 import io.github.mangi.eta.ui.components.EtaMonospace
+import io.github.mangi.eta.ui.components.EtaTopLayer
 import io.github.mangi.eta.ui.components.ansiPlainText
 import io.github.mangi.eta.ui.components.ansiToAnnotatedString
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
+import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.glass.GlassPopup
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Copy
+import top.yukonga.miuix.kmp.icon.glass.Reply
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowListPopup
 
 /**
  * 用户手动终端：块式输出（命令、输出、退出码），给人用；与 AI 工具调用的任务模型分开。
@@ -175,34 +181,32 @@ internal fun UserTerminalScreen(
         }
     }
 
-    if (showTasks) {
-        DaemonTasksDialog(
-            tasks = state.daemonTasks,
-            onDismiss = { showTasks = false },
-            onStop = store::stopDaemonTask,
-            onLoadLogs = store::daemonLogs,
-        )
-    }
+    DaemonTasksDialog(
+        show = showTasks,
+        tasks = state.daemonTasks,
+        onDismiss = { showTasks = false },
+        onStop = store::stopDaemonTask,
+        onLoadLogs = store::daemonLogs,
+    )
 
-    if (showSessions) {
-        SessionListDialog(
-            rows = state.sessions.map { session ->
-                SessionDialogRow(
-                    id = session.id,
-                    environment = session.environment,
-                    subtitle = session.cwd,
-                    active = session.id == state.activeSessionId,
-                    running = session.running,
-                    alive = session.alive,
-                )
-            },
-            onDismiss = { showSessions = false },
-            onSelect = store::switchSession,
-            onRestart = store::restartSession,
-            onClose = store::closeSession,
-            onNew = store::newSession,
-        )
-    }
+    SessionListDialog(
+        show = showSessions,
+        rows = state.sessions.map { session ->
+            SessionDialogRow(
+                id = session.id,
+                environment = session.environment,
+                subtitle = session.cwd,
+                active = session.id == state.activeSessionId,
+                running = session.running,
+                alive = session.alive,
+            )
+        },
+        onDismiss = { showSessions = false },
+        onSelect = store::switchSession,
+        onRestart = store::restartSession,
+        onClose = store::closeSession,
+        onNew = store::newSession,
+    )
 }
 
 @Composable
@@ -247,6 +251,7 @@ private fun CommandBlock(
     onReinput: (String) -> Unit,
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    var blockBounds by remember { mutableStateOf(Rect.Zero) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val colors = MiuixTheme.colorScheme
@@ -257,6 +262,7 @@ private fun CommandBlock(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .onGloballyPositioned { blockBounds = it.boundsInWindow() }
                 .couiMenuAnchor(anchor)
                 .combinedClickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -295,6 +301,7 @@ private fun CommandBlock(
             show = showMenu,
             hasOutput = block.output.isNotEmpty(),
             anchor = anchor,
+            anchorBounds = blockBounds,
             onDismiss = { showMenu = false },
             onCopyCommand = { scope.launch { clipboard.setPlainText(block.command) } },
             onCopyOutput = { scope.launch { clipboard.setPlainText(ansiPlainText(block.output)) } },
@@ -348,6 +355,7 @@ private fun BlockMenu(
     show: Boolean,
     hasOutput: Boolean,
     anchor: CouiMenuAnchor,
+    anchorBounds: Rect,
     onDismiss: () -> Unit,
     onCopyCommand: () -> Unit,
     onCopyOutput: () -> Unit,
@@ -381,39 +389,35 @@ private fun BlockMenu(
             )
         }
         AppearanceUiStyle.MIUIX -> {
-            WindowListPopup(
-                show = show,
-                alignment = PopupPositionProvider.Align.Start,
-                onDismissRequest = onDismiss,
-            ) {
-                ListPopupColumn {
-                    DropdownImpl(
+            val overlayBackdrop = currentGlassOverlayBackdrop()
+            EtaTopLayer {
+                GlassPopup(
+                    show = show,
+                    onDismissRequest = onDismiss,
+                    anchorBounds = anchorBounds,
+                    backdrop = overlayBackdrop,
+                ) {
+                    GlassPopupItem(
                         text = copyCommandText,
-                        optionSize = 3,
-                        isSelected = false,
-                        index = 0,
-                        onSelectedIndexChange = {
+                        icon = MiuixIcons.Glass.Copy,
+                        onClick = {
                             onDismiss()
                             onCopyCommand()
                         },
                     )
-                    DropdownImpl(
+                    GlassPopupItem(
                         text = copyOutputText,
-                        optionSize = 3,
-                        isSelected = false,
-                        index = 1,
+                        icon = MiuixIcons.Glass.Copy,
                         enabled = hasOutput,
-                        onSelectedIndexChange = {
+                        onClick = {
                             onDismiss()
                             onCopyOutput()
                         },
                     )
-                    DropdownImpl(
+                    GlassPopupItem(
                         text = reinputText,
-                        optionSize = 3,
-                        isSelected = false,
-                        index = 2,
-                        onSelectedIndexChange = {
+                        icon = MiuixIcons.Glass.Reply,
+                        onClick = {
                             onDismiss()
                             onReinput()
                         },
