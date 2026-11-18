@@ -41,16 +41,22 @@ internal object ProviderRepository {
     @Volatile
     private lateinit var applicationContext: Context
 
+    @Volatile
+    private var cachedProviders: List<ProviderSetting> = emptyList()
+
     fun init(context: Context) {
         applicationContext = context.applicationContext
         ProviderCredentialRepository.init(context)
     }
+
+    fun cachedProviders(): List<ProviderSetting> = cachedProviders
 
     fun providersFlow(): Flow<List<ProviderSetting>> =
         dao().providersFlow().map { providers ->
             providers
                 .map { it.toDomain() }
                 .sortedBy(ProviderSetting::sortOrder)
+                .also { cachedProviders = it }
         }
 
     fun settingsFlow(): Flow<Settings> =
@@ -63,6 +69,7 @@ internal object ProviderRepository {
         dao().providers()
             .map { it.toDomain() }
             .sortedBy(ProviderSetting::sortOrder)
+            .also { cachedProviders = it }
 
     suspend fun providerById(id: String): ProviderSetting? =
         dao().providerById(id)?.toDomain()

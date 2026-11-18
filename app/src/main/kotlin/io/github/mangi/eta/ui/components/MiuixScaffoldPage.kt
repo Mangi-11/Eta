@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -24,6 +25,7 @@ import io.github.mangi.eta.ui.app.LocalGlassPageBackdrop
 import io.github.mangi.eta.ui.layout.WidePageContent
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
 import io.github.mangi.eta.ui.layout.rememberIsWideScreen
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
@@ -49,11 +51,28 @@ fun MiuixScaffoldPage(
     content: LazyListScope.() -> Unit,
 ) {
     val pageBackdrop = rememberGlassBackdrop()
+    val demandPageBackdrop = remember(pageBackdrop) { pageBackdrop?.let(::DemandSceneBackdrop) }
+    if (demandPageBackdrop != null) {
+        LaunchedEffect(demandPageBackdrop.isActive) {
+            if (!demandPageBackdrop.isActive) return@LaunchedEffect
+            while (demandPageBackdrop.isActive) {
+                delay(250L)
+                demandPageBackdrop.refreshIdleState()
+            }
+        }
+    }
     val isContentScrolled by remember(listState) {
         derivedStateOf { listState.canScrollBackward }
     }
     val expandable = !compactTitle && !rememberIsWideScreen()
     val scrollState = scrollBehavior.state
+    val isTopBarGlassActive by remember(listState, scrollState) {
+        derivedStateOf {
+            listState.canScrollBackward ||
+                scrollState.contentOffset < -0.5f ||
+                scrollState.overscrollOffset != 0f
+        }
+    }
     val onOverscrollChanged: (Float) -> Unit = remember(scrollState) {
         { scrollState.overscrollOffset = it }
     }
@@ -63,24 +82,26 @@ fun MiuixScaffoldPage(
         topBar = {
             AdaptiveTopAppBar(
                 title = title,
-                backdrop = pageBackdrop,
+                backdrop = if (isTopBarGlassActive) pageBackdrop else null,
                 expandable = expandable,
                 scrollBehavior = scrollBehavior,
                 isContentScrolled = isContentScrolled,
                 navigationIcon = { MiuixBackButton(onClick = onBack) },
                 actions = actions,
-                bottomContent = { topBarBottomContent(pageBackdrop) },
+                bottomContent = { topBarBottomContent(demandPageBackdrop) },
             )
         },
     ) { innerPadding ->
-        CompositionLocalProvider(LocalGlassPageBackdrop provides pageBackdrop) {
+        CompositionLocalProvider(LocalGlassPageBackdrop provides demandPageBackdrop) {
             WidePageContent { sidePadding ->
                 // 保留 MiuixTheme 注入的默认越界工厂，并同步回弹偏移给顶栏。
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .captureGlassBackdrop(pageBackdrop)
+                        .captureGlassBackdrop(
+                            if (isTopBarGlassActive || demandPageBackdrop?.isActive == true) pageBackdrop else null,
+                        )
                         .horizontalCutoutPadding()
                         .scrollEndHaptic()
                         .overScrollVertical(onOffsetChanged = onOverscrollChanged)
@@ -123,23 +144,47 @@ fun MiuixScaffold(
     ) -> Unit,
 ) {
     val pageBackdrop = rememberGlassBackdrop()
+    val demandPageBackdrop = remember(pageBackdrop) { pageBackdrop?.let(::DemandSceneBackdrop) }
+    if (demandPageBackdrop != null) {
+        LaunchedEffect(demandPageBackdrop.isActive) {
+            if (!demandPageBackdrop.isActive) return@LaunchedEffect
+            while (demandPageBackdrop.isActive) {
+                delay(250L)
+                demandPageBackdrop.refreshIdleState()
+            }
+        }
+    }
+    val scrollState = scrollBehavior.state
+    val isTopBarGlassActive by remember(scrollState, isContentScrolled) {
+        derivedStateOf {
+            isContentScrolled == true ||
+                scrollState.contentOffset < -0.5f ||
+                scrollState.overscrollOffset != 0f
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             AdaptiveTopAppBar(
                 title = title,
-                backdrop = pageBackdrop,
+                backdrop = if (isTopBarGlassActive) pageBackdrop else null,
                 scrollBehavior = scrollBehavior,
                 isContentScrolled = isContentScrolled,
                 navigationIcon = { MiuixBackButton(onClick = onBack) },
                 actions = actions,
-                bottomContent = { topBarBottomContent(pageBackdrop) },
+                bottomContent = { topBarBottomContent(demandPageBackdrop) },
             )
         },
     ) { paddingValues ->
-        CompositionLocalProvider(LocalGlassPageBackdrop provides pageBackdrop) {
-            Box(modifier = Modifier.fillMaxSize().captureGlassBackdrop(pageBackdrop)) {
+        CompositionLocalProvider(LocalGlassPageBackdrop provides demandPageBackdrop) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .captureGlassBackdrop(
+                        if (isTopBarGlassActive || demandPageBackdrop?.isActive == true) pageBackdrop else null,
+                    ),
+            ) {
                 WidePageContent { sidePadding ->
                     content(paddingValues, scrollBehavior, sidePadding)
                 }

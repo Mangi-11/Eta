@@ -31,10 +31,12 @@ import io.github.mangi.eta.data.model.AppearanceThemeMode
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.DEFAULT_INTERFACE_SCALE
 import io.github.mangi.eta.data.model.normalizeInterfaceScale
+import io.github.mangi.eta.ui.components.DemandSceneBackdrop
 import io.github.mangi.eta.ui.components.EtaTopLayerHost
 import io.github.mangi.eta.ui.components.EtaTopLayerState
 import io.github.mangi.eta.ui.components.captureGlassBackdrop
 import io.github.mangi.eta.ui.components.rememberGlassBackdrop
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -210,8 +212,20 @@ fun AgentAppTheme(
                         }
                     }
                 } else if (provideGlassHost) {
-                    val sceneBackdrop = rememberGlassBackdrop()
+                    val delegateBackdrop = rememberGlassBackdrop()
+                    val sceneBackdrop = remember(delegateBackdrop) {
+                        delegateBackdrop?.let(::DemandSceneBackdrop)
+                    }
                     val topLayer = remember { EtaTopLayerState() }
+                    if (sceneBackdrop != null) {
+                        LaunchedEffect(sceneBackdrop.isActive) {
+                            if (!sceneBackdrop.isActive) return@LaunchedEffect
+                            while (sceneBackdrop.isActive) {
+                                delay(250L)
+                                sceneBackdrop.refreshIdleState()
+                            }
+                        }
+                    }
                     Scaffold(
                         modifier = Modifier.fillMaxSize(),
                         containerColor = Color.Transparent,
@@ -225,7 +239,9 @@ fun AgentAppTheme(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .captureGlassBackdrop(sceneBackdrop),
+                                        .captureGlassBackdrop(
+                                            if (sceneBackdrop?.isActive == true) delegateBackdrop else null,
+                                        ),
                                 ) {
                                     scopedContent()
                                 }

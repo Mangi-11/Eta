@@ -155,14 +155,40 @@ internal object Prefs {
         return PowerAssistantTarget.resolve(persistedValue, legacyTakeover)
     }
 
+    @Volatile
+    private var cachedRemoteService: XposedService? = null
+
+    @Volatile
+    private var cachedRemotePrefs: SharedPreferences? = null
+
+    /**
+     * 仅从进程内缓存读取已绑定服务的 RemotePreferences，避免 UI 首帧在主线程触发同步 Binder。
+     */
+    fun cachedRemotePreferencesForUi(service: XposedService?): SharedPreferences? {
+        if (service == null) return null
+        return cachedRemotePrefs?.takeIf { cachedRemoteService === service }
+    }
+
     /**
      * UI 进程获取可写的 RemotePreferences。
      *
      * [XposedService.getRemotePreferences] 的 commit 会同步等待 binder 提交到 LSPosed
      * 数据库，失败返回 false；service 未就绪时返回 null，让 UI 保持不可写。
      */
-    fun remotePreferencesForUi(service: XposedService?): SharedPreferences? =
-        runCatching { service?.getRemotePreferences(GROUP) }.getOrNull()
+    fun remotePreferencesForUi(service: XposedService?): SharedPreferences? {
+        if (service == null) {
+            cachedRemoteService = null
+            cachedRemotePrefs = null
+            return null
+        }
+        cachedRemotePrefs?.takeIf { cachedRemoteService === service }?.let { return it }
+        return runCatching { service.getRemotePreferences(GROUP) }
+            .getOrNull()
+            ?.also { resolved ->
+                cachedRemoteService = service
+                cachedRemotePrefs = resolved
+            }
+    }
 
     /** Eta 设置页与 Runtime 使用的本地 Agent 配置，不依赖 LSPosed。 */
     fun localAgentPreferences(): SharedPreferences? = localAgent

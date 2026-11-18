@@ -1,14 +1,24 @@
 package io.github.mangi.eta.ui.components
 
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.GraphicsLayerScope
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.ui.app.LocalGlassPageBackdrop
 import io.github.mangi.eta.ui.app.LocalGlassSceneBackdrop
@@ -36,6 +46,59 @@ internal fun rememberGlassBackdrop(
 
 internal fun Modifier.captureGlassBackdrop(backdrop: LayerBackdrop?): Modifier =
     if (backdrop == null) this else layerBackdrop(backdrop)
+
+/**
+ * 按需录制根场景的 Backdrop 代理：仅当弹窗、底部抽屉或气泡菜单实际采样时才将根容器
+ * 挂载到 `layerBackdrop`，避免常态列表滚动与页面转场每帧额外重绘整屏离屏纹理。
+ */
+@Stable
+internal class DemandSceneBackdrop(
+    private val delegate: LayerBackdrop,
+) : Backdrop {
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @Volatile
+    private var lastSampledNanos: Long = 0L
+
+    var isActive by mutableStateOf(false)
+        private set
+
+    override val isCoordinatesDependent: Boolean
+        get() = delegate.isCoordinatesDependent
+
+    override val offsetResidualX: Float
+        get() = delegate.offsetResidualX
+
+    override val offsetResidualY: Float
+        get() = delegate.offsetResidualY
+
+    fun refreshIdleState(nowNanos: Long = System.nanoTime()) {
+        if (isActive && nowNanos - lastSampledNanos > IDLE_TIMEOUT_NANOS) {
+            isActive = false
+        }
+    }
+
+    override fun DrawScope.drawBackdrop(
+        density: Density,
+        coordinates: LayoutCoordinates?,
+        layerBlock: (GraphicsLayerScope.() -> Unit)?,
+        downscaleFactor: Float,
+    ) {
+        lastSampledNanos = System.nanoTime()
+        if (!isActive) {
+            mainHandler.post {
+                if (!isActive) isActive = true
+            }
+        }
+        with(delegate) {
+            drawBackdrop(density, coordinates, layerBlock, downscaleFactor)
+        }
+    }
+
+    private companion object {
+        const val IDLE_TIMEOUT_NANOS = 350_000_000L
+    }
+}
 
 @Composable
 internal fun currentGlassOverlayBackdrop(): Backdrop? =
