@@ -58,6 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -111,10 +112,14 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.Backdrop
-import top.yukonga.miuix.kmp.glass.GlassPopup
 import top.yukonga.miuix.kmp.glass.GlassPopupItem
+import top.yukonga.miuix.kmp.glass.GlassPopupSizing
+import top.yukonga.miuix.kmp.glass.GlassTransformPopup
 import top.yukonga.miuix.kmp.glass.glassPanel
+import top.yukonga.miuix.kmp.glass.glassPopupAnchor
+import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
 import top.yukonga.miuix.kmp.glass.glassPress
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Close
 import top.yukonga.miuix.kmp.material.GlassDefaults
@@ -355,8 +360,13 @@ internal fun AgentChatInputBar(
             label = "input_container_border_width",
         )
         val miuixInputShape = remember { GlassShape(24.dp) }
+        var inputContainerTopPx by remember { mutableFloatStateOf(0f) }
         Box(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { coordinates ->
+                    inputContainerTopPx = coordinates.boundsInWindow().top
+                },
         ) {
             Column(
                 modifier = Modifier
@@ -492,6 +502,7 @@ internal fun AgentChatInputBar(
                         } else {
                             AgentAttachmentPickerButton(
                                 glassBackdrop = glassBackdrop,
+                                inputContainerTopPx = inputContainerTopPx,
                                 onAttachImage = onAttachImage,
                                 onAttachFiles = onAttachFiles,
                                 onAttachFolder = onAttachFolder,
@@ -506,6 +517,7 @@ internal fun AgentChatInputBar(
                                     options = availableReasoningEfforts,
                                     enabled = !isStreaming,
                                     glassBackdrop = glassBackdrop,
+                                    inputContainerTopPx = inputContainerTopPx,
                                     onEffortChange = onReasoningEffortChange,
                                 )
                             }
@@ -664,11 +676,12 @@ private fun ThinkingEffortChip(
     options: List<ReasoningEffort>,
     enabled: Boolean,
     glassBackdrop: Backdrop?,
+    inputContainerTopPx: Float,
     onEffortChange: (ReasoningEffort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showPopup by remember { mutableStateOf(false) }
-    var chipBounds by remember { mutableStateOf(Rect.Zero) }
+    var chipBottomPx by remember { mutableFloatStateOf(0f) }
     val active = effort != ReasoningEffort.OFF
     val interactive = enabled && options.size > 1
     val binaryToggleTarget = remember(options, effort) {
@@ -679,6 +692,7 @@ private fun ThinkingEffortChip(
         }
     }
     val anchor = rememberCouiMenuAnchor()
+    val popupAnchor = rememberGlassPopupAnchor()
     val haptic = LocalHapticFeedback.current
     LaunchedEffect(interactive) {
         if (!interactive) showPopup = false
@@ -723,13 +737,49 @@ private fun ThinkingEffortChip(
     }
     val accessibilityLabel = stringResource(R.string.chat_reasoning_effort, effort.displayName)
     val interactionSource = remember { MutableInteractionSource() }
+    val useTransformPopup = !isCoui && binaryToggleTarget == null
+    val popupLayout = rememberInputBarPopupLayout(
+        inputContainerTopPx = inputContainerTopPx,
+        anchorBottomPx = chipBottomPx,
+    )
+    val chipContent: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = ImageVector.vectorResource(R.drawable.ic_atom),
+                contentDescription = null,
+                modifier = Modifier.size(14.5.dp),
+                tint = contentColor,
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = chipLabel,
+                style = MiuixTheme.textStyles.footnote1.copy(
+                    fontSize = 12.5.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+                color = contentColor,
+                maxLines = 1,
+            )
+        }
+    }
 
     Box(modifier = modifier) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .onGloballyPositioned { chipBounds = it.boundsInWindow() }
-                .couiMenuAnchor(anchor)
+                .then(
+                    if (useTransformPopup) {
+                        Modifier
+                            .glassPopupAnchor(
+                                anchor = popupAnchor,
+                                cornerRadius = 15.dp,
+                            )
+                            .onGloballyPositioned { chipBottomPx = it.boundsInWindow().bottom }
+                    } else {
+                        Modifier.couiMenuAnchor(anchor)
+                    },
+                )
                 .heightIn(min = 30.dp)
                 .clip(CircleShape)
                 .background(bgColor, CircleShape)
@@ -750,8 +800,10 @@ private fun ThinkingEffortChip(
                         if (binaryToggleTarget != null) {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onEffortChange(binaryToggleTarget)
-                        } else {
+                        } else if (isCoui) {
                             anchor.open { showPopup = true }
+                        } else {
+                            showPopup = true
                         }
                     },
                 )
@@ -760,23 +812,15 @@ private fun ThinkingEffortChip(
                 }
                 .padding(horizontal = 10.dp, vertical = 5.dp),
         ) {
-            Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_atom),
-                contentDescription = null,
-                modifier = Modifier.size(14.5.dp),
-                tint = contentColor,
-            )
-            Spacer(modifier = Modifier.width(5.dp))
-            Text(
-                text = chipLabel,
-                style = MiuixTheme.textStyles.footnote1.copy(
-                    fontSize = 12.5.sp,
-                    lineHeight = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                ),
-                color = contentColor,
-                maxLines = 1,
-            )
+            Box(
+                modifier = if (useTransformPopup) {
+                    Modifier.glassPopupAnchorContent(popupAnchor)
+                } else {
+                    Modifier
+                },
+            ) {
+                chipContent()
+            }
         }
         if (binaryToggleTarget == null) {
             when (LocalUiStyle.current) {
@@ -804,11 +848,14 @@ private fun ThinkingEffortChip(
                 AppearanceUiStyle.MIUIX -> {
                     val overlayBackdrop = currentGlassOverlayBackdrop() ?: glassBackdrop
                     EtaTopLayer {
-                        GlassPopup(
+                        GlassTransformPopup(
                             show = showPopup && interactive,
                             onDismissRequest = { showPopup = false },
-                            anchorBounds = chipBounds,
+                            anchor = popupAnchor,
                             backdrop = overlayBackdrop,
+                            gap = popupLayout.gap,
+                            sizing = GlassPopupSizing(maxHeight = popupLayout.maxHeight),
+                            anchorContent = chipContent,
                         ) {
                             options.forEach { option ->
                                 GlassPopupItem(
@@ -828,9 +875,6 @@ private fun ThinkingEffortChip(
     }
 }
 
-/**
- * 横向跟随 Chip，竖向则避开整个输入面板；默认下拉定位只会避开 Chip 自身。
- */
 @Composable
 private fun PendingImageStrip(
     images: List<PendingImageUi>,
