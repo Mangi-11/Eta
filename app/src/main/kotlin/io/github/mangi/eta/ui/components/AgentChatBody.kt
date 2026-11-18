@@ -29,10 +29,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -93,6 +94,7 @@ import io.github.mangi.eta.data.repository.ConversationBranchBoundary
 import io.github.mangi.eta.ui.model.branchMessageOutline
 import io.github.mangi.eta.ui.app.AgentConversationRevisionReducer
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.layout.rememberFloatingBottomBarInsets
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownStateCache
 import io.github.mangi.eta.ui.model.ConversationHistoryLoadState
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
@@ -1094,6 +1096,10 @@ private fun AgentChatBottomBar(
     onCancelMessageEdit: () -> Unit,
 ) {
     val surface = MiuixTheme.colorScheme.surface
+    val bottomBarInsets = rememberFloatingBottomBarInsets(
+        baseInsets = WindowInsets.navigationBars,
+        fixedBottomPadding = 10.dp,
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1115,7 +1121,7 @@ private fun AgentChatBottomBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
+                .windowInsetsPadding(bottomBarInsets)
                 .padding(top = 14.dp, start = 14.dp, end = 14.dp, bottom = 10.dp),
         ) {
             AgentChatInputBar(

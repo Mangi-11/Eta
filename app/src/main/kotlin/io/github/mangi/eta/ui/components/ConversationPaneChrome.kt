@@ -118,6 +118,7 @@ import com.itos.coui.effect.CouiFloatingRenderer
 import com.itos.coui.effect.CouiFloatingSurface
 import com.itos.coui.effect.LocalCouiContourGlowEnabled
 import com.itos.coui.effect.SpotlightPreset
+import io.github.mangi.eta.ui.layout.rememberFloatingBottomBarInsets
 import com.itos.coui.effect.couiButtonFeedback
 import com.itos.coui.effect.couiFloatingSurface
 import com.itos.coui.effect.couiToolbarFeedback
@@ -467,9 +468,11 @@ internal fun ConversationPaneBottomDock(
 ) {
     // 仅在侧边栏实际展开且当前窗口持有焦点时避让 IME，防止弹窗或主聊天页键盘触发侧栏重排。
     val applyIme = isRevealed && LocalWindowInfo.current.isWindowFocused
-    val dockInsets = WindowInsets.safeDrawing
-        .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
-        .let { base -> if (applyIme) base.union(WindowInsets.ime) else base }
+    val safeDockInsets = rememberFloatingBottomBarInsets(
+        baseInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
+        fixedBottomPadding = ConversationPanelMetrics.BottomDockVerticalPadding,
+    )
+    val dockInsets = if (applyIme) safeDockInsets.union(WindowInsets.ime) else safeDockInsets
 
     val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val view = LocalView.current
