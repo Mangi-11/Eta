@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.layout.rememberIsWideScreen
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.blur.Backdrop
@@ -21,7 +22,7 @@ fun AdaptiveTopAppBar(
     title: String,
     modifier: Modifier = Modifier,
     backdrop: Backdrop? = null,
-    progressiveBlur: Boolean = isRuntimeShaderSupported(),
+    progressiveBlur: Boolean = isRuntimeShaderSupported() && LocalAppearanceSettings.current.progressiveBlurEnabled,
     expandable: Boolean = !rememberIsWideScreen(),
     subtitle: String = "",
     scrollBehavior: ScrollBehavior? = null,

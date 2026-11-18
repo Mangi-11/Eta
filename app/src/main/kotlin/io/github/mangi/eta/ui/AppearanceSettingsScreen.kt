@@ -55,6 +55,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
@@ -348,6 +349,16 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                                 update { current -> current.copy(predictiveBackEnabled = enabled) }
                             },
                         )
+                        if (isRuntimeShaderSupported()) {
+                            SwitchPreference(
+                                title = stringResource(R.string.appearance_progressive_blur),
+                                summary = stringResource(R.string.appearance_progressive_blur_summary),
+                                checked = appearance.progressiveBlurEnabled,
+                                onCheckedChange = { enabled ->
+                                    update { current -> current.copy(progressiveBlurEnabled = enabled) }
+                                },
+                            )
+                        }
                         SliderPreference(
                             title = stringResource(R.string.appearance_interface_scale),
                             summary = stringResource(R.string.appearance_interface_scale_summary),

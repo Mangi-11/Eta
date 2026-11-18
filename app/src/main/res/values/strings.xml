@@ -194,6 +194,8 @@
   <string name="appearance_swipe_dismiss_summary">Swipe horizontally anywhere on a page to return</string>
   <string name="appearance_predictive_back">Predictive back gesture</string>
   <string name="appearance_predictive_back_summary">Enable predictive back animations</string>
+  <string name="appearance_progressive_blur">Progressive blur</string>
+  <string name="appearance_progressive_blur_summary">Apply progressive blur to top bars and sidebar overlays; disable for smoother performance</string>
   <string name="appearance_interface_scale">Interface scale</string>
   <string name="appearance_interface_scale_summary" formatted="false">Adjust the global display scale (80%–110%)</string>
   <string name="appearance_interface_scale_dialog_title">Interface scale</string>

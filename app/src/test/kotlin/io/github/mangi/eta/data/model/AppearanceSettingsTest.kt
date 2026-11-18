@@ -14,6 +14,7 @@ class AppearanceSettingsTest {
         assertEquals(AppearanceThemeMode.SYSTEM, settings.themeMode)
         assertFalse(settings.monetEnabled)
         assertTrue(settings.blurEnabled)
+        assertTrue(settings.progressiveBlurEnabled)
         assertTrue(settings.swipeDismissEnabled)
         assertTrue(settings.predictiveBackEnabled)
         assertEquals(DEFAULT_INTERFACE_SCALE, settings.interfaceScale)

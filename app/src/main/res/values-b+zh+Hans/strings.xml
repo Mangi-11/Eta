@@ -195,6 +195,8 @@
   <string name="appearance_swipe_dismiss_summary">在页面任意位置横移即可返回上一页</string>
   <string name="appearance_predictive_back">预测性返回手势</string>
   <string name="appearance_predictive_back_summary">启用预测性返回动画效果</string>
+  <string name="appearance_progressive_blur">渐进模糊</string>
+  <string name="appearance_progressive_blur_summary">为顶栏与侧栏浮层启用渐进模糊，关闭可提升流畅度</string>
   <string name="appearance_interface_scale">界面缩放</string>
   <string name="appearance_interface_scale_summary" formatted="false">调整全局显示比例（80%–110%）</string>
   <string name="appearance_interface_scale_dialog_title">界面缩放</string>

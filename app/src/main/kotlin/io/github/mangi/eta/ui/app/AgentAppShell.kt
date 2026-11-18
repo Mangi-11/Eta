@@ -453,8 +453,14 @@ private fun HomeMiuixTopBar(
     centerContent: @Composable () -> Unit,
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
-    val progressiveSource = backdrop?.takeIf { isRuntimeShaderSupported() }
+    val progressiveBlurEnabled = LocalAppearanceSettings.current.progressiveBlurEnabled
+    val progressiveSource = if (progressiveBlurEnabled) {
+        backdrop?.takeIf { isRuntimeShaderSupported() }
+    } else {
+        null
+    }
     val progressive = progressiveSource != null
+    val bandBrush = remember(surfaceColor) { GlassTopAppBarDefaults.bandBrush(surfaceColor) }
     var backgroundCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val progressiveBackdrop = if (progressiveSource != null) {
         rememberLayerBackdrop {
@@ -485,7 +491,7 @@ private fun HomeMiuixTopBar(
                             colors = blurColors,
                         )
                 } else {
-                    Modifier.background(surfaceColor)
+                    Modifier.background(bandBrush)
                 },
             )
             Row(

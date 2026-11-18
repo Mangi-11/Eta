@@ -81,10 +81,12 @@ class AppearanceSettingsRepositoryTest {
         try {
             AppearanceSettingsRepository.update { it.copy(monetEnabled = true) }
             AppearanceSettingsRepository.update { it.copy(blurEnabled = false) }
+            AppearanceSettingsRepository.update { it.copy(progressiveBlurEnabled = false) }
 
             val actual = AppearanceSettingsRepository.settings()
             assertEquals(true, actual.monetEnabled)
             assertEquals(false, actual.blurEnabled)
+            assertEquals(false, actual.progressiveBlurEnabled)
         } finally {
             AppearanceSettingsRepository.update(before)
         }
