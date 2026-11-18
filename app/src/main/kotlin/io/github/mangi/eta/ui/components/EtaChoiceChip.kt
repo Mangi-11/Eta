@@ -14,9 +14,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.itos.coui.effect.couiButtonFeedback
 import com.itos.coui.layout.CouiPageDefaults
@@ -27,14 +29,13 @@ import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 可选中的胶囊标签：用于筛选与少量互斥/多选项。
- * COUI 模式使用柔和无描边胶囊（未选中浅灰微底，选中主题色浅底 + 强调色文字）；
- * Miuix 模式保留细描边与选中容器底色。
+ * COUI 与 MIUIX 均使用无硬描边的柔和半透胶囊（未选中轻灰底、选中主题色浅底 + 强调色文字），
+ * 避免在玻璃弹层上出现空心线框或高饱和不透明色块的割裂感。
  */
 @Composable
 internal fun EtaChoiceChip(
@@ -92,11 +93,12 @@ internal fun EtaChoiceChip(
             }
         }
         AppearanceUiStyle.MIUIX -> {
+            val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
             val container by animateColorAsState(
                 targetValue = if (selected) {
-                    MiuixTheme.colorScheme.tertiaryContainer
+                    MiuixTheme.colorScheme.primary.copy(alpha = if (isDark) 0.22f else 0.12f)
                 } else {
-                    Color.Transparent
+                    MiuixTheme.colorScheme.onSurface.copy(alpha = if (isDark) 0.09f else 0.059f)
                 },
                 animationSpec = tween(durationMillis = 160),
                 label = "choice_chip_container",
@@ -104,25 +106,20 @@ internal fun EtaChoiceChip(
             val content by animateColorAsState(
                 targetValue = when {
                     !enabled -> MiuixTheme.colorScheme.disabledOnSecondaryVariant
-                    selected -> MiuixTheme.colorScheme.onTertiaryContainer
-                    else -> MiuixTheme.colorScheme.onSurface
+                    selected -> MiuixTheme.colorScheme.primary
+                    else -> MiuixTheme.colorScheme.onSurfaceSecondary
                 },
                 animationSpec = tween(durationMillis = 160),
                 label = "choice_chip_content",
             )
-            val border by animateColorAsState(
-                targetValue = if (selected) Color.Transparent else MiuixTheme.colorScheme.dividerLine,
-                animationSpec = tween(durationMillis = 160),
-                label = "choice_chip_border",
-            )
             Text(
                 text = text,
                 style = MiuixTheme.textStyles.footnote1,
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
                 color = content,
                 maxLines = 1,
                 modifier = modifier
                     .semantics { this.selected = selected }
-                    .squircleBorder(width = 1.dp, color = border, cornerRadius = 16.dp)
                     .squircleSurface(color = container, cornerRadius = 16.dp)
                     .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
                     .padding(horizontal = 14.dp, vertical = 7.dp),

@@ -46,6 +46,7 @@ import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSliderPreference
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
@@ -227,6 +228,7 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                                 value = scaleInput,
                                 onValueChange = { value -> scaleInput = value.filter(Char::isDigit).take(3) },
                                 label = stringResource(R.string.appearance_interface_scale_input_label),
+                                colors = glassOverlayTextFieldColors(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
                                 modifier = Modifier

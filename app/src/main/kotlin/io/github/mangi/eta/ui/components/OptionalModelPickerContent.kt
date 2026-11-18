@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
@@ -95,6 +96,7 @@ internal fun OptionalModelPickerContent(
                     expanded = false,
                     onExpandedChange = {},
                     label = "搜索模型或服务商",
+                    color = glassOverlayFieldBackgroundColor(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -195,16 +197,24 @@ private fun OptionalModelRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val containerColor = when {
+        !selected -> Color.Transparent
+        isCoui -> MiuixTheme.colorScheme.tertiaryContainer
+        else -> MiuixTheme.colorScheme.primary.copy(alpha = if (isDark) 0.16f else 0.08f)
+    }
+    val contentColor = when {
+        !selected -> MiuixTheme.colorScheme.onSurface
+        isCoui -> MiuixTheme.colorScheme.onTertiaryContainer
+        else -> MiuixTheme.colorScheme.primary
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 2.dp)
             .squircleSurface(
-                color = if (selected) {
-                    MiuixTheme.colorScheme.tertiaryContainer
-                } else {
-                    MiuixTheme.colorScheme.surface.copy(alpha = 0f)
-                },
+                color = containerColor,
                 cornerRadius = 14.dp,
             )
             .clickable(onClick = onClick)
@@ -222,7 +232,7 @@ private fun OptionalModelRow(
                 text = title,
                 style = MiuixTheme.textStyles.body1,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (selected) MiuixTheme.colorScheme.onTertiaryContainer else MiuixTheme.colorScheme.onSurface,
+                color = contentColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -240,7 +250,7 @@ private fun OptionalModelRow(
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = null,
-                tint = MiuixTheme.colorScheme.onTertiaryContainer,
+                tint = contentColor,
                 modifier = Modifier.size(18.dp),
             )
         }

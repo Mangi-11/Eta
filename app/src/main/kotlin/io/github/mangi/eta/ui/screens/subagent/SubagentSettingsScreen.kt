@@ -86,6 +86,7 @@ import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
 import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import io.github.mangi.eta.ui.model.filterGroups
@@ -579,6 +580,7 @@ internal fun SubagentSettingsScreen(
                                         value = activeDraft.name,
                                         onValueChange = { editorDraft = activeDraft.copy(name = it) },
                                         label = "名称 (kebab-case，如 bill-analyzer)",
+                                        colors = glassOverlayTextFieldColors(),
                                         singleLine = true,
                                         modifier = Modifier.fillMaxWidth(),
                                     )
@@ -586,6 +588,7 @@ internal fun SubagentSettingsScreen(
                                         value = activeDraft.description,
                                         onValueChange = { editorDraft = activeDraft.copy(description = it) },
                                         label = "简介 (Description)",
+                                        colors = glassOverlayTextFieldColors(),
                                         singleLine = true,
                                         modifier = Modifier.fillMaxWidth(),
                                     )
@@ -593,6 +596,7 @@ internal fun SubagentSettingsScreen(
                                         value = activeDraft.toolsText,
                                         onValueChange = { editorDraft = activeDraft.copy(toolsText = it) },
                                         label = "可用工具 (逗号分隔，留空默认允许全部非 GUI 工具)",
+                                        colors = glassOverlayTextFieldColors(),
                                         singleLine = true,
                                         modifier = Modifier.fillMaxWidth(),
                                     )
@@ -600,6 +604,7 @@ internal fun SubagentSettingsScreen(
                                         value = activeDraft.prompt,
                                         onValueChange = { editorDraft = activeDraft.copy(prompt = it) },
                                         label = "角色指令 (System Prompt)",
+                                        colors = glassOverlayTextFieldColors(),
                                         minLines = 4,
                                         maxLines = 8,
                                         modifier = Modifier.fillMaxWidth(),

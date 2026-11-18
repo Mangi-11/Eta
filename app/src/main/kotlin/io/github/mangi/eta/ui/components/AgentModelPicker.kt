@@ -590,6 +590,7 @@ private fun ModelSheetContent(
                     expanded = false,
                     onExpandedChange = {},
                     label = stringResource(R.string.ui_search_model_df5586),
+                    color = glassOverlayFieldBackgroundColor(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
@@ -704,13 +705,19 @@ private fun ModelPickerRow(
     onClick: () -> Unit,
     horizontalPadding: Dp = 8.dp,
 ) {
-    val containerColor = if (selected) MiuixTheme.colorScheme.tertiaryContainer else Color.Transparent
-    val contentColor = if (selected) MiuixTheme.colorScheme.onTertiaryContainer else MiuixTheme.colorScheme.onSurface
-    val checkIcon = if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-        Icons.Rounded.Check
-    } else {
-        MiuixIcons.Glass.Ok
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val containerColor = when {
+        !selected -> Color.Transparent
+        isCoui -> MiuixTheme.colorScheme.tertiaryContainer
+        else -> MiuixTheme.colorScheme.primary.copy(alpha = if (isDark) 0.16f else 0.08f)
     }
+    val contentColor = when {
+        !selected -> MiuixTheme.colorScheme.onSurface
+        isCoui -> MiuixTheme.colorScheme.onTertiaryContainer
+        else -> MiuixTheme.colorScheme.primary
+    }
+    val checkIcon = if (isCoui) Icons.Rounded.Check else MiuixIcons.Glass.Ok
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -723,6 +730,7 @@ private fun ModelPickerRow(
         Text(
             text = model.displayName,
             style = MiuixTheme.textStyles.body2,
+            fontWeight = if (selected && !isCoui) FontWeight.Medium else FontWeight.Normal,
             color = contentColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

@@ -71,6 +71,7 @@ import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -564,6 +565,7 @@ private fun SharedFolderPickerBody(
                 value = pathInput,
                 onValueChange = { pathInput = it },
                 label = stringResource(R.string.shared_folders_path_label),
+                colors = glassOverlayTextFieldColors(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = { navigateTo(pathInput) }),
@@ -646,6 +648,7 @@ private fun SharedFolderPickerBody(
                     formError = null
                 },
                 label = stringResource(R.string.shared_folders_name_label),
+                colors = glassOverlayTextFieldColors(),
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()

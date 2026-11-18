@@ -48,6 +48,7 @@ import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
 import io.github.mangi.eta.ui.components.coui.couiPrimaryDialogAction
 import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.glassOverlayFieldBackgroundColor
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
@@ -219,6 +220,7 @@ private fun RemoteModelImportContent(
                 expanded = false,
                 onExpandedChange = {},
                 label = stringResource(R.string.ui_search_model_df5586),
+                color = glassOverlayFieldBackgroundColor(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)

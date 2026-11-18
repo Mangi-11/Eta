@@ -107,6 +107,7 @@ import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.components.rememberGlassBackdrop
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
@@ -154,7 +155,7 @@ private val editableReasoningEfforts = listOf(
  * 常见上下文窗口档位。取十进制整数：标称 262,144、1,048,576 的模型按 256K、1M 填写只会略早压缩，
  * 不会越过真实上限。
  */
-internal val contextWindowPresets = listOf(128_000, 200_000, 256_000, 1_000_000)
+internal val contextWindowPresets = listOf(128_000, 200_000, 256_000, 512_000, 1_000_000)
 
 private val modelDialogBodyMaxHeight = 520.dp
 private val modelDialogChromeHeight = 112.dp
@@ -1270,6 +1271,7 @@ private fun ModelEditDialog(
                             value = displayName,
                             onValueChange = { displayName = it },
                             label = stringResource(R.string.ui_display_name_ed16be),
+                            colors = glassOverlayTextFieldColors(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth(),
@@ -1279,6 +1281,7 @@ private fun ModelEditDialog(
                             value = modelId,
                             onValueChange = { modelId = it },
                             label = "Model ID",
+                            colors = glassOverlayTextFieldColors(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Ascii,
@@ -1291,6 +1294,7 @@ private fun ModelEditDialog(
                             value = contextWindowOverrideText,
                             onValueChange = { value -> contextWindowOverrideText = value.filter(Char::isDigit) },
                             label = stringResource(R.string.ui_context_length_tokens_227860),
+                            colors = glassOverlayTextFieldColors(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Number,

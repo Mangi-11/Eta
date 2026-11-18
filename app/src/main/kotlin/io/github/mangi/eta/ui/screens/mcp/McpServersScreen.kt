@@ -92,6 +92,7 @@ import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.ui.navigation.AppRoute
@@ -347,6 +348,7 @@ internal fun McpServersScreen(
                                     value = name,
                                     onValueChange = { name = it },
                                     label = stringResource(R.string.mcp_server_name),
+                                    colors = glassOverlayTextFieldColors(),
                                     singleLine = true,
                                     enabled = !working,
                                     modifier = Modifier.fillMaxWidth(),
@@ -355,6 +357,7 @@ internal fun McpServersScreen(
                                     value = url,
                                     onValueChange = { url = it },
                                     label = stringResource(R.string.mcp_server_url),
+                                    colors = glassOverlayTextFieldColors(),
                                     singleLine = true,
                                     enabled = !working,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -364,6 +367,7 @@ internal fun McpServersScreen(
                                     value = token,
                                     onValueChange = { token = it },
                                     label = stringResource(R.string.mcp_bearer_optional),
+                                    colors = glassOverlayTextFieldColors(),
                                     singleLine = true,
                                     enabled = !working,
                                     visualTransformation = PasswordVisualTransformation(),
@@ -753,6 +757,7 @@ internal fun McpServerDetailScreen(
                                 value = token,
                                 onValueChange = { token = it },
                                 label = stringResource(R.string.mcp_bearer_token),
+                                colors = glassOverlayTextFieldColors(),
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
