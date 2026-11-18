@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.captionBar
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -50,6 +52,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -105,28 +108,76 @@ internal data class InputBarPopupLayout(
 
 /**
  * 底部输入区弹窗需悬浮在整块输入容器上方，避免回退向上展开时压住按钮与输入栏本身。
+ *
+ * `GlassTransformPopup` 内部按无 `ime` 的窗口底边判断是否向下展开；当软键盘抬高输入栏时，
+ * 下方看似空余极大而触发向下对齐，导致菜单压回输入框并被键盘裁切。这里按相同的窗口底边
+ * 提前判定实际对齐方向，并在向下对齐分支反推 `gap`，让菜单底边始终停在输入栏上方 [ChatInputPopupMargin]。
  */
+internal fun calculateInputBarPopupLayout(
+    inputContainerTopPx: Float,
+    anchorTopPx: Float,
+    anchorBottomPx: Float,
+    measuredHeightPx: Float,
+    statusBarTopPx: Float,
+    windowBottomPx: Float,
+    safeMarginPx: Float,
+    marginPx: Float,
+    density: Float,
+    defaultMaxHeightDp: Dp = GlassPopupDefaults.MaxHeight,
+): InputBarPopupLayout {
+    val maxHeightDp = if (inputContainerTopPx > statusBarTopPx) {
+        ((inputContainerTopPx - statusBarTopPx - marginPx - safeMarginPx) / density).dp
+    } else {
+        defaultMaxHeightDp
+    }.coerceIn(96.dp, defaultMaxHeightDp)
+
+    if (inputContainerTopPx <= 0f || anchorBottomPx <= 0f) {
+        return InputBarPopupLayout(gap = 0.dp, maxHeight = maxHeightDp)
+    }
+
+    val targetBottomPx = inputContainerTopPx - marginPx
+    val baseGapPx = (targetBottomPx - anchorBottomPx).coerceAtMost(0f)
+    val gapPx = if (measuredHeightPx > 0f && anchorTopPx > 0f) {
+        val minTopPx = statusBarTopPx + safeMarginPx
+        val shiftedTop = anchorTopPx + baseGapPx
+        val below = windowBottomPx - safeMarginPx - shiftedTop
+        val above = targetBottomPx - minTopPx
+        val willAlignTop = measuredHeightPx <= below || below >= above
+        if (willAlignTop) {
+            ((targetBottomPx - measuredHeightPx) - anchorTopPx).coerceAtMost(0f)
+        } else {
+            baseGapPx
+        }
+    } else {
+        baseGapPx
+    }
+    return InputBarPopupLayout(gap = (gapPx / density).dp, maxHeight = maxHeightDp)
+}
+
 @Composable
 internal fun rememberInputBarPopupLayout(
     inputContainerTopPx: Float,
+    anchorTopPx: Float,
     anchorBottomPx: Float,
+    measuredHeightPx: Float,
 ): InputBarPopupLayout {
     val density = LocalDensity.current
     val statusBarTopPx = WindowInsets.statusBars.getTop(density).toFloat()
+    val navBarBottomPx = WindowInsets.navigationBars.getBottom(density).toFloat()
+    val captionBarBottomPx = WindowInsets.captionBar.getBottom(density).toFloat()
+    val windowBottomPx = LocalWindowInfo.current.containerSize.height - navBarBottomPx - captionBarBottomPx
     return with(density) {
-        val gap = if (inputContainerTopPx > 0f && anchorBottomPx > 0f) {
-            (inputContainerTopPx - ChatInputPopupMargin.toPx() - anchorBottomPx)
-                .coerceAtMost(0f)
-                .toDp()
-        } else {
-            0.dp
-        }
-        val maxHeight = if (inputContainerTopPx > statusBarTopPx) {
-            (inputContainerTopPx - statusBarTopPx).toDp() - ChatInputPopupMargin * 2
-        } else {
-            GlassPopupDefaults.MaxHeight
-        }.coerceIn(96.dp, GlassPopupDefaults.MaxHeight)
-        InputBarPopupLayout(gap = gap, maxHeight = maxHeight)
+        calculateInputBarPopupLayout(
+            inputContainerTopPx = inputContainerTopPx,
+            anchorTopPx = anchorTopPx,
+            anchorBottomPx = anchorBottomPx,
+            measuredHeightPx = measuredHeightPx,
+            statusBarTopPx = statusBarTopPx,
+            windowBottomPx = windowBottomPx,
+            safeMarginPx = GlassPopupDefaults.SafeMargin.toPx(),
+            marginPx = ChatInputPopupMargin.toPx(),
+            density = this.density,
+        )
     }
 }
 
@@ -144,7 +195,9 @@ internal fun AgentAttachmentPickerButton(
     var showPopup by remember { mutableStateOf(false) }
     var showPathDialog by remember { mutableStateOf(false) }
     var pathInput by remember { mutableStateOf("") }
+    var buttonTopPx by remember { mutableFloatStateOf(0f) }
     var buttonBottomPx by remember { mutableFloatStateOf(0f) }
+    var measuredPopupHeightPx by remember { mutableFloatStateOf(0f) }
     val popupAnchor = rememberGlassPopupAnchor()
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(),
@@ -195,7 +248,9 @@ internal fun AgentAttachmentPickerButton(
     val isCoui = uiStyle == AppearanceUiStyle.COUI
     val popupLayout = rememberInputBarPopupLayout(
         inputContainerTopPx = inputContainerTopPx,
+        anchorTopPx = buttonTopPx,
         anchorBottomPx = buttonBottomPx,
+        measuredHeightPx = measuredPopupHeightPx,
     )
     Box(modifier = modifier) {
         IconButton(
@@ -210,7 +265,11 @@ internal fun AgentAttachmentPickerButton(
                         anchor = popupAnchor,
                         cornerRadius = 17.dp,
                     )
-                    .onGloballyPositioned { buttonBottomPx = it.boundsInWindow().bottom }
+                    .onGloballyPositioned {
+                        val bounds = it.boundsInWindow()
+                        buttonTopPx = bounds.top
+                        buttonBottomPx = bounds.bottom
+                    }
             },
         ) {
             Icon(
@@ -256,6 +315,7 @@ internal fun AgentAttachmentPickerButton(
                         backdrop = overlayBackdrop,
                         gap = popupLayout.gap,
                         sizing = GlassPopupSizing(maxHeight = popupLayout.maxHeight),
+                        onMeasured = { measuredPopupHeightPx = it.height },
                         anchorContent = {
                             Icon(
                                 imageVector = MiuixIcons.Glass.Add,
