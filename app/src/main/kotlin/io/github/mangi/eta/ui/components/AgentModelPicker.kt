@@ -1,10 +1,14 @@
 package io.github.mangi.eta.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,6 +48,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -94,12 +101,12 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
 import top.yukonga.miuix.kmp.glass.GlassPopup
 import top.yukonga.miuix.kmp.glass.GlassPopupDefaults
-import top.yukonga.miuix.kmp.glass.GlassPopupItem
 import top.yukonga.miuix.kmp.glass.GlassPopupSizing
 import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
 import top.yukonga.miuix.kmp.glass.glassPanel
 import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.material.GlassEdgeStrokes
@@ -409,9 +416,9 @@ internal fun AgentTopBarChatHeader(
                 val overlayBackdrop = currentGlassOverlayBackdrop() ?: pageBackdrop
                 val select = rememberConfirmedSelection { modelId ->
                     showPopup = false
-                    onModelSelected(modelId)
+                    if (modelId != null) onModelSelected(modelId)
                 }
-                val selectedId = select.pendingId ?: state.selectedModel?.id
+                val selectedId = select.pending?.let { it.modelId } ?: state.selectedModel?.id
                 val showGroupLabels = state.providerGroups.size > 1
 
                 EtaTopLayer {
@@ -437,8 +444,8 @@ internal fun AgentTopBarChatHeader(
                                 )
                             }
                             group.models.forEach { model ->
-                                GlassPopupItem(
-                                    text = model.displayName,
+                                GlassModelPopupItem(
+                                    model = model,
                                     summary = if (showGroupLabels) group.providerName else null,
                                     selected = model.id == selectedId,
                                     onClick = { select(model.id) },
@@ -467,6 +474,84 @@ internal fun AgentTopBarChatHeader(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun GlassModelPopupItem(
+    model: AgentModelOptionUi,
+    summary: String?,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressedColor = GlassPopupDefaults.itemPressedColor()
+    val pressFill by animateColorAsState(
+        targetValue = if (pressed) pressedColor else Color.Transparent,
+        animationSpec = if (pressed) snap() else tween(durationMillis = 150),
+        label = "glassModelPopupItemPress",
+    )
+    val selectedColor = MiuixTheme.colorScheme.primary
+    val textColor = if (selected) selectedColor else MiuixTheme.colorScheme.onSurfaceContainer
+    val summaryColor = MiuixTheme.colorScheme.onSurfaceContainerVariant
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = GlassPopupDefaults.ItemMinHeight)
+            .padding(horizontal = GlassPopupDefaults.ItemPressInset)
+            .drawBehind {
+                drawRoundRect(
+                    color = pressFill,
+                    cornerRadius = CornerRadius(GlassPopupDefaults.ItemPressRadius.toPx()),
+                )
+            }
+            .selectable(
+                selected = selected,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(
+                horizontal = GlassPopupDefaults.ItemPaddingHorizontal - GlassPopupDefaults.ItemPressInset,
+                vertical = GlassPopupDefaults.ItemPaddingVertical,
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ModelBrandMark(
+            modelId = model.modelId,
+            sourceType = model.providerSourceType,
+            size = 20.dp,
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = model.displayName,
+                fontSize = MiuixTheme.textStyles.body1.fontSize,
+                fontWeight = FontWeight.Medium,
+                color = textColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (summary != null) {
+                Text(
+                    text = summary,
+                    style = MiuixTheme.textStyles.body2,
+                    color = summaryColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Icon(
+            imageVector = MiuixIcons.Basic.Check,
+            contentDescription = null,
+            modifier = Modifier
+                .padding(start = GlassPopupDefaults.ItemIconGap)
+                .size(GlassPopupDefaults.ItemTickSize),
+            tint = if (selected) selectedColor else Color.Transparent,
+        )
     }
 }
 
@@ -510,8 +595,19 @@ private fun ModelSubtitleRow(
     }
 }
 
+internal data class ModelPickerFollowOption(
+    val title: String,
+    val subtitle: String?,
+    val modelId: String?,
+    val sourceType: String?,
+)
+
 private sealed interface ModelSheetEntry {
     val key: String
+
+    data class Follow(val option: ModelPickerFollowOption) : ModelSheetEntry {
+        override val key: String get() = "follow_primary"
+    }
 
     data class Header(val providerId: String, val name: String) : ModelSheetEntry {
         override val key: String get() = "header:$providerId"
@@ -527,10 +623,32 @@ private fun ModelSheetContent(
     state: AgentModelPickerUiState,
     onModelSelected: (String) -> Unit,
 ) {
+    ModelPickerSheetContent(
+        pickerState = state,
+        selectedModelId = state.selectedModel?.id,
+        followOption = null,
+        onSelectModel = { modelId ->
+            if (modelId != null) onModelSelected(modelId)
+        },
+    )
+}
+
+@Composable
+internal fun ModelPickerSheetContent(
+    pickerState: AgentModelPickerUiState,
+    selectedModelId: String?,
+    followOption: ModelPickerFollowOption?,
+    onSelectModel: (String?) -> Unit,
+) {
     var query by remember { mutableStateOf("") }
     var providerFilter by remember { mutableStateOf<String?>(null) }
-    val entries = remember(state.providerGroups, query, providerFilter) {
-        state.filterGroups(query)
+    val entries = remember(pickerState.providerGroups, query, providerFilter, followOption) {
+        val followEntries = if (followOption != null && query.isBlank() && providerFilter == null) {
+            listOf(ModelSheetEntry.Follow(followOption))
+        } else {
+            emptyList()
+        }
+        val groupEntries = pickerState.filterGroups(query)
             .filter { providerFilter == null || it.providerId == providerFilter }
             .flatMap { group ->
                 // 只看一个服务商时，筛选标签已经说明了归属，分组标题只会重复。
@@ -541,16 +659,26 @@ private fun ModelSheetContent(
                 }
                 header + group.models.map(ModelSheetEntry::Option)
             }
+        followEntries + groupEntries
     }
-    val selectedIndex = entries.indexOfFirst {
-        it is ModelSheetEntry.Option && it.model.id == state.selectedModel?.id
+    val selectedIndex = entries.indexOfFirst { entry ->
+        when (entry) {
+            is ModelSheetEntry.Follow -> selectedModelId == null
+            is ModelSheetEntry.Option -> entry.model.id == selectedModelId
+            is ModelSheetEntry.Header -> false
+        }
     }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (selectedIndex - 2).coerceAtLeast(0))
     LaunchedEffect(listState) {
         snapshotFlow { query to providerFilter }.drop(1).collect { listState.scrollToItem(0) }
     }
-    val select = rememberConfirmedSelection(onModelSelected)
-    val selectedId = select.pendingId ?: state.selectedModel?.id
+    val select = rememberConfirmedSelection(onSelectModel)
+    val effectiveSelectedId = select.pending?.let { it.modelId } ?: selectedModelId
+    val isFollowSelected = if (select.pending != null) {
+        select.pending?.modelId == null
+    } else {
+        selectedModelId == null
+    }
     val density = LocalDensity.current
     val sheetHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() } * 0.68f
     val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
@@ -569,10 +697,10 @@ private fun ModelSheetContent(
                     placeholder = stringResource(R.string.ui_search_model_df5586),
                     backgroundColor = Color.Transparent,
                 )
-                if (state.providerGroups.size > 1) {
+                if (pickerState.providerGroups.size > 1) {
                     val allLabel = stringResource(R.string.model_picker_filter_all)
-                    val tabItems = remember(state.providerGroups, allLabel) {
-                        listOf("" to allLabel) + state.providerGroups.map { it.providerId to it.providerName }
+                    val tabItems = remember(pickerState.providerGroups, allLabel) {
+                        listOf("" to allLabel) + pickerState.providerGroups.map { it.providerId to it.providerName }
                     }
                     CouiChipTabs(
                         items = tabItems,
@@ -596,11 +724,11 @@ private fun ModelSheetContent(
                         .padding(horizontal = 16.dp)
                         .padding(top = 4.dp, bottom = 8.dp),
                 )
-                if (state.providerGroups.size > 1) {
+                if (pickerState.providerGroups.size > 1) {
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(bottom = 6.dp),
+                        modifier = Modifier.padding(bottom = 8.dp),
                     ) {
                         item(key = "all") {
                             EtaChoiceChip(
@@ -609,11 +737,13 @@ private fun ModelSheetContent(
                                 onClick = { providerFilter = null },
                             )
                         }
-                        items(state.providerGroups, key = { it.providerId }) { group ->
+                        items(pickerState.providerGroups, key = { it.providerId }) { group ->
                             EtaChoiceChip(
                                 text = group.providerName,
                                 selected = providerFilter == group.providerId,
-                                onClick = { providerFilter = group.providerId },
+                                onClick = {
+                                    providerFilter = if (providerFilter == group.providerId) null else group.providerId
+                                },
                             )
                         }
                     }
@@ -622,7 +752,7 @@ private fun ModelSheetContent(
         }
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(top = 2.dp, bottom = 12.dp),
+            contentPadding = PaddingValues(top = 2.dp, bottom = 16.dp),
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
@@ -642,12 +772,24 @@ private fun ModelSheetContent(
             }
             items(entries, key = ModelSheetEntry::key, contentType = { it::class }) { entry ->
                 when (entry) {
-                    is ModelSheetEntry.Header -> ModelProviderLabel(entry.name, horizontalPadding = 24.dp)
-                    is ModelSheetEntry.Option -> ModelPickerRow(
-                        model = entry.model,
-                        selected = entry.model.id == selectedId,
+                    is ModelSheetEntry.Follow -> ModelPickerOptionRow(
+                        title = entry.option.title,
+                        subtitle = entry.option.subtitle,
+                        modelId = entry.option.modelId,
+                        sourceType = entry.option.sourceType,
+                        selected = isFollowSelected,
+                        onClick = { select(null) },
+                    )
+                    is ModelSheetEntry.Header -> ModelProviderLabel(entry.name)
+                    is ModelSheetEntry.Option -> ModelPickerOptionRow(
+                        title = entry.model.displayName,
+                        subtitle = entry.model.modelId.takeIf {
+                            !it.equals(entry.model.displayName, ignoreCase = true)
+                        },
+                        modelId = entry.model.modelId,
+                        sourceType = entry.model.providerSourceType,
+                        selected = entry.model.id == effectiveSelectedId,
                         onClick = { select(entry.model.id) },
-                        horizontalPadding = 12.dp,
                     )
                 }
             }
@@ -655,36 +797,44 @@ private fun ModelSheetContent(
     }
 }
 
+private class PendingModelSelection(val modelId: String?)
+
 /**
  * 点选后先把对勾移到新模型上，停留片刻再收起弹层，让人看清选中了谁。
  * 弹层收起会让作用域随组合一起离开，未完成的确认随之取消，不会回写已关闭的界面。
  */
 private class ConfirmedSelection(
-    private val onConfirm: (String) -> Unit,
+    private val onConfirm: (String?) -> Unit,
     private val launch: (suspend () -> Unit) -> Unit,
 ) {
-    var pendingId by mutableStateOf<String?>(null)
+    var pending by mutableStateOf<PendingModelSelection?>(null)
         private set
 
-    operator fun invoke(modelId: String) {
-        if (pendingId != null) return
-        pendingId = modelId
+    operator fun invoke(modelId: String?) {
+        if (pending != null) return
+        pending = PendingModelSelection(modelId)
         launch {
-            delay(SelectionConfirmMs)
-            onConfirm(modelId)
+            try {
+                delay(SelectionConfirmMs)
+                onConfirm(modelId)
+                // 等待关闭动画完成后再清状态，避免淡出期间对勾回跳，也防止未销毁宿主再次打开时锁定点击。
+                delay(400L)
+            } finally {
+                pending = null
+            }
         }
     }
 }
 
 @Composable
-private fun rememberConfirmedSelection(onConfirm: (String) -> Unit): ConfirmedSelection {
+private fun rememberConfirmedSelection(onConfirm: (String?) -> Unit): ConfirmedSelection {
     val scope = rememberCoroutineScope()
     val currentOnConfirm by rememberUpdatedState(onConfirm)
     return remember { ConfirmedSelection({ currentOnConfirm(it) }) { block -> scope.launch { block() } } }
 }
 
 @Composable
-private fun ModelProviderLabel(name: String, horizontalPadding: Dp = 20.dp) {
+private fun ModelProviderLabel(name: String, horizontalPadding: Dp = 24.dp) {
     Text(
         text = name,
         style = MiuixTheme.textStyles.footnote1,
@@ -694,16 +844,19 @@ private fun ModelProviderLabel(name: String, horizontalPadding: Dp = 20.dp) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = horizontalPadding)
-            .padding(top = 14.dp, bottom = 4.dp),
+            .padding(top = 12.dp, bottom = 4.dp),
     )
 }
 
 @Composable
-private fun ModelPickerRow(
-    model: AgentModelOptionUi,
+private fun ModelPickerOptionRow(
+    title: String,
+    subtitle: String?,
+    modelId: String?,
+    sourceType: String?,
     selected: Boolean,
     onClick: () -> Unit,
-    horizontalPadding: Dp = 8.dp,
+    horizontalPadding: Dp = 12.dp,
 ) {
     val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
@@ -722,20 +875,37 @@ private fun ModelPickerRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = horizontalPadding, vertical = 2.dp)
-            .squircleSurface(color = containerColor, cornerRadius = 12.dp)
+            .squircleSurface(color = containerColor, cornerRadius = 14.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 11.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = model.displayName,
-            style = MiuixTheme.textStyles.body2,
-            fontWeight = if (selected && !isCoui) FontWeight.Medium else FontWeight.Normal,
-            color = contentColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
+        ModelBrandMark(
+            modelId = modelId,
+            sourceType = sourceType,
+            size = 20.dp,
         )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MiuixTheme.textStyles.body1,
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(1.dp))
+                Text(
+                    text = subtitle,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         if (selected) {
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
