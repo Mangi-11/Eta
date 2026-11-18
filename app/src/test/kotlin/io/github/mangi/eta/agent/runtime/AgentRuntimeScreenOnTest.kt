@@ -133,12 +133,14 @@ class AgentRuntimeScreenOnTest {
             val guiControl = guiCoordinator.openRun(guiRun.runId, guiRun.session.controller)
             guiControl.withAction { }
             service.assertExecutionStatus(AgentOverlayStatus.GeneratingAnswer, 2)
+            assertTrue(executionSuppressed())
             assertEquals(guiRun.runId, guiCoordinator.state.value.ownerRunId)
             assertTrue(AgentRuntimeService.keepScreenOn.value)
             assertTrue(wakeLock.isHeld)
 
             guiControl.release()
             service.assertExecutionStatus(background.overlayState.status, 2)
+            assertFalse(executionSuppressed())
             assertNull(guiCoordinator.state.value.ownerRunId)
             assertTrue(AgentRuntimeService.keepScreenOn.value)
             assertTrue(wakeLock.isHeld)
@@ -248,6 +250,10 @@ class AgentRuntimeScreenOnTest {
             isAccessible = true
         }.getInt(null))
     }
+
+    private fun executionSuppressed(): Boolean = AgentExecutionService::class.java.getDeclaredField("suppressLiveUpdate").apply {
+        isAccessible = true
+    }.getBoolean(null)
 
     private fun AgentRuntimeService.registerRun(runId: String, ownsGui: Boolean = true): RuntimeRunRegistry.Run {
         val registry = field<RuntimeRunRegistry>("runs")

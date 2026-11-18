@@ -1,14 +1,14 @@
 package io.github.mangi.eta.agent.overlay
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -369,7 +369,7 @@ internal fun AgentResultCard(
     }
     val settledOffset by animateFloatAsState(
         targetValue = dragOffset,
-        animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium),
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
         label = "result_drag",
     )
     val dismissThreshold = with(density) { 96.dp.toPx() }
@@ -382,7 +382,7 @@ internal fun AgentResultCard(
     ) {
         AnimatedVisibility(
             visible = visible,
-            enter = slideInVertically(spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow)) { it } +
+            enter = slideInVertically(tween(durationMillis = 260, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f))) { it } +
                 fadeIn(tween(200)),
             exit = slideOutVertically(tween(ResultCardExitMs)) { it } + fadeOut(tween(ResultCardExitMs)),
             modifier = Modifier.align(Alignment.BottomCenter),

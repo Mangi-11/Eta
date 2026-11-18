@@ -176,6 +176,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     if (!snapshot.active) VirtualDisplayController.setStageExpanded(false)
                     updateCapsuleWindowBounds()
                     displayedRun?.let(::syncActiveRunOverlayVisibility)
+                    publishExecutionState()
                 }
             }
         }
@@ -989,6 +990,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             state.value = run.overlayState
             ensureOverlayVisible()
         }
+        publishExecutionState()
     }
 
     private fun updateKeepScreenOn() {
@@ -1048,15 +1050,32 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         val guiState = guiControl.state.value
         val activeRuns = runs.all().filterNot { it.session.isTerminal }
         val owner = activeRuns.firstOrNull { it.runId == guiState.ownerRunId }
+        val targetRun = owner ?: activeRuns.firstOrNull()
         val status = if (owner != null && guiState.userPaused) {
             AgentOverlayStatus.Paused
         } else {
-            (owner ?: activeRuns.firstOrNull())?.overlayState?.status
+            targetRun?.overlayState?.status
         }
+        val handoff = targetRun?.request?.handoff
+        val conversationId = handoff
+            ?.takeIf { it.source == AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE }
+            ?.let { AgentUiHandoffPayload.from(it.payload).conversationId }
+            .orEmpty()
+        val archive = handoff
+            ?.takeIf { it.source != AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE }
+            ?.let { item -> AgentExternalArchivePayload.from(item.payload)?.conversationKey?.let { item.source to it } }
+        val guiOverlayActive = capsuleView != null ||
+            (owner != null && !owner.session.isTerminal) ||
+            virtualDisplayState.value.active
         AgentExecutionService.updateRunStatus(
             this,
             status,
             activeRunCount = activeRuns.size,
+            conversationId = conversationId,
+            archivedSource = archive?.first.orEmpty(),
+            archivedKey = archive?.second.orEmpty(),
+            startedAtEpochMs = targetRun?.startedAtEpochMs ?: 0L,
+            suppressLiveUpdate = guiOverlayActive,
         )
     }
 
@@ -1197,15 +1216,14 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     private fun updateCapsuleWindowBounds(expanding: Boolean = capsuleExpanded.value) {
         val vdActive = virtualDisplayState.value.active
         val focusable = capsuleSupplementFocusable.value
-        val widthDp = if (vdActive && expanding && !focusable) {
+        // 虚拟屏激活时窗口宽度固定为展开档，避免展开/收起修改 WindowManager 宽度引发居中水平跳帧。
+        val widthDp = if (vdActive) {
             CAPSULE_STAGE_WINDOW_WIDTH_DP
-        } else if (vdActive) {
-            CAPSULE_MICRO_WINDOW_WIDTH_DP
         } else {
             CAPSULE_WINDOW_WIDTH_DP
         }
         val heightDp = when {
-            focusable -> CAPSULE_SUPPLEMENT_HEIGHT_DP
+            focusable && expanding -> CAPSULE_SUPPLEMENT_HEIGHT_DP
             expanding && vdActive -> CAPSULE_STAGE_HEIGHT_DP
             expanding -> CAPSULE_CONTROLS_HEIGHT_DP
             else -> CAPSULE_COLLAPSED_HEIGHT_DP
@@ -1377,7 +1395,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
      */
     private fun capsuleLayoutParams(): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
-            dpToPx(if (virtualDisplayState.value.active) CAPSULE_MICRO_WINDOW_WIDTH_DP else CAPSULE_WINDOW_WIDTH_DP),
+            dpToPx(if (virtualDisplayState.value.active) CAPSULE_STAGE_WINDOW_WIDTH_DP else CAPSULE_WINDOW_WIDTH_DP),
             dpToPx(CAPSULE_COLLAPSED_HEIGHT_DP),
             overlayType(),
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
@@ -1482,7 +1500,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
 
     private fun setCapsuleInputMode(focusable: Boolean) {
         capsuleSupplementFocusable.value = focusable
-        updateCapsuleWindowBounds()
+        if (capsuleExpanded.value) updateCapsuleWindowBounds(expanding = true)
         val wm = windowManager ?: return
         val capsule = capsuleView ?: return
         val lp = capsuleParams ?: return
@@ -1519,6 +1537,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             // 撤掉胶囊和边缘光，改显半屏结果卡片；无交互时由卡片自身延时退场并回调关闭
             capsuleExpanded.value = false
             removeAmbientWindows()
+            publishExecutionState()
             if (windowManager == null && (AgentAccessibilityService.current() != null || Settings.canDrawOverlays(this))) {
                 windowManager = overlayContext().getSystemService(Context.WINDOW_SERVICE) as? WindowManager
             }
@@ -1603,7 +1622,6 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         private const val RESULT_CARD_HEIGHT_RATIO = 0.5f
         private const val RESULT_OPEN_REQUEST_CODE = 1108
         private const val CAPSULE_WINDOW_WIDTH_DP = 272
-        private const val CAPSULE_MICRO_WINDOW_WIDTH_DP = 290
         private const val CAPSULE_STAGE_WINDOW_WIDTH_DP = 324
         private const val CAPSULE_COLLAPSED_HEIGHT_DP = 68
         private const val CAPSULE_CONTROLS_HEIGHT_DP = 124
