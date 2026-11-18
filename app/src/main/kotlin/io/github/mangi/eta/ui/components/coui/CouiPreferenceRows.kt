@@ -19,7 +19,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -128,10 +127,6 @@ internal fun CouiSettingsIcon(
     enabled: Boolean = true,
 ) {
     val colors = CouiPageDefaults.themeColors()
-    val glyphSize = when (icon) {
-        Icons.AutoMirrored.Rounded.MenuBook -> 22.dp
-        else -> 24.dp
-    }
     Box(
         modifier = Modifier.size(CouiPageDefaults.iconSize),
         contentAlignment = Alignment.Center,
@@ -139,7 +134,7 @@ internal fun CouiSettingsIcon(
         CouiIcon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(glyphSize),
+            modifier = Modifier.size(24.dp),
             tint = if (enabled) tint else colors.disabled,
         )
     }

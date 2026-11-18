@@ -22,7 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.JoinLeft
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -442,7 +442,7 @@ internal fun SubagentSettingsScreen(
                         ListEmptyState(
                             title = "暂无自定义 Subagent",
                             summary = "可在对话中直接让 Eta 创建专属 Subagent（保存在 agents/<name>.md），或点击右上角 + 手动新建",
-                            icon = Icons.Rounded.Extension,
+                            icon = Icons.Rounded.JoinLeft,
                             action = {
                                 CouiButton(
                                     text = "新建 Subagent",
@@ -688,7 +688,7 @@ internal fun SubagentSettingsScreen(
                             ListEmptyState(
                                 title = "暂无自定义 Subagent",
                                 summary = "可在对话中直接让 Eta 创建专属 Subagent（保存在 agents/<name>.md），或点击右上角 + 手动新建",
-                                icon = Icons.Rounded.Extension,
+                                icon = Icons.Rounded.JoinLeft,
                                 action = {
                                     TextButton(
                                         text = "新建 Subagent",

@@ -27,9 +27,9 @@ import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.FindReplace
 import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.Hub
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.JoinLeft
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.KeyboardCommandKey
@@ -129,7 +129,7 @@ internal fun iconForTool(toolId: String): ImageVector = when (toolId) {
     "search_system_memories", "search_coloros_memories" -> Icons.Rounded.Psychology
     "search_personal_orders" -> Icons.Rounded.ShoppingBag
     "terminal", "terminal_job", "terminal_daemon", "run_command" -> Icons.Rounded.Terminal
-    "subagent", "subagent_profile" -> Icons.Rounded.Hub
+    "subagent", "subagent_profile" -> Icons.Rounded.JoinLeft
     "read_file", "stat_file" -> Icons.Rounded.Description
     "write_file", "edit_file" -> Icons.Rounded.EditNote
     "list_directory", "glob_files", "grep_files" -> Icons.Rounded.FolderOpen
