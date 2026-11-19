@@ -53,6 +53,44 @@ class GeminiInteractionsTest {
     }
 
     @Test
+    fun neonAndHydrogenResolveFourLevelsIncludingXHighAndRequestSummaries() {
+        val provider = GeminiProviderSetting(id = "gemini", name = "Gemini")
+        for (modelId in listOf("gemini-4-neon", "gemini-4-hydrogen")) {
+            val model = Model(id = modelId, modelId = modelId, displayName = modelId)
+            val capabilities = requireNotNull(RuntimeConfigRepository.reasoningCapabilities(provider, model))
+            assertEquals(
+                listOf(
+                    ReasoningEffort.DEFAULT,
+                    ReasoningEffort.LOW,
+                    ReasoningEffort.MEDIUM,
+                    ReasoningEffort.HIGH,
+                    ReasoningEffort.XHIGH,
+                ),
+                capabilities.selectableEfforts,
+            )
+            assertEquals(ReasoningEffort.HIGH, capabilities.defaultEffort)
+            assertTrue(capabilities.mandatory)
+            assertFalse(capabilities.supportsBudget)
+            assertEquals(capabilities, GeminiModelCapabilities.reasoningCapabilities(" models/$modelId "))
+            for (effort in capabilities.selectableEfforts) {
+                val body = GeminiInteractionsRequest.build(
+                    config().copy(model = modelId, reasoningCapabilities = capabilities, reasoningEffort = effort),
+                    JSONArray(),
+                    JSONArray(),
+                )
+                val generation = body.getJSONObject("generation_config")
+                assertEquals("auto", generation.getString("thinking_summaries"))
+                assertFalse(generation.has("thinking_budget"))
+                if (effort == ReasoningEffort.DEFAULT) {
+                    assertFalse(generation.has("thinking_level"))
+                } else {
+                    assertEquals(effort.wireValue, generation.getString("thinking_level"))
+                }
+            }
+        }
+    }
+
+    @Test
     fun thoughtSummaryStartAndDeltaReachVisibleThinkingWithoutExposingSignature() {
         val events = mutableListOf<ProviderEvent>()
         val result = read(
@@ -349,7 +387,10 @@ class GeminiInteractionsTest {
         val unlisted = GeminiInteractionsRequest.build(cfg.copy(model = "gemini-future",
             reasoningEffort = ReasoningEffort.MINIMAL), JSONArray(), JSONArray())
         assertEquals("minimal", unlisted.getJSONObject("generation_config").getString("thinking_level"))
-        for (effort in listOf(ReasoningEffort.OFF, ReasoningEffort.XHIGH, ReasoningEffort.MAX)) {
+        val xhigh = GeminiInteractionsRequest.build(cfg.copy(model = "gemini-future",
+            reasoningEffort = ReasoningEffort.XHIGH), JSONArray(), JSONArray())
+        assertEquals("xhigh", xhigh.getJSONObject("generation_config").getString("thinking_level"))
+        for (effort in listOf(ReasoningEffort.OFF, ReasoningEffort.MAX)) {
             try {
                 GeminiInteractionsRequest.build(cfg.copy(reasoningEffort = effort), JSONArray(), JSONArray())
                 fail("不支持的档位必须拒绝")

@@ -49,6 +49,24 @@ class GeminiModelCatalogHttpTest {
     }
 
     @Test
+    fun neonAndHydrogenCatalogEntriesIncludeXHighThinkingCapabilities() {
+        val models = GeminiModelCatalog.parsePage("""{"models":[
+            {"name":"models/gemini-4-neon","displayName":"Gemini 4 Neon","supportedGenerationMethods":["generateContent"]},
+            {"name":"models/gemini-4-hydrogen","displayName":"Gemini 4 Hydrogen","supportedGenerationMethods":["generateContent"]}]}""")
+            .models
+        assertEquals(listOf("gemini-4-neon", "gemini-4-hydrogen"), models.map { it.modelId })
+        for (model in models) {
+            assertTrue(model.supportsReasoning)
+            val capabilities = requireNotNull(model.reasoningCapabilities)
+            assertEquals(
+                listOf(ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH, ReasoningEffort.XHIGH),
+                capabilities.supportedEfforts,
+            )
+            assertEquals(ReasoningEffort.HIGH, capabilities.defaultEffort)
+        }
+    }
+
+    @Test
     fun paginatesWithNativeAuthenticationNormalizesNamesAndDoesNotInferUnknownCapabilities() = runBlocking {
         withServer(listOf(
             """{"models":[{"name":"models/gemini-3.8-flash","displayName":"Flash","inputTokenLimit":1048576,

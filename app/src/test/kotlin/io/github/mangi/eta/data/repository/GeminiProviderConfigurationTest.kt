@@ -112,16 +112,18 @@ class GeminiProviderConfigurationTest {
     }
 
     @Test
-    fun carbonUpgradePreservesExistingModelAndDoesNotRestoreDeletedPresets() = runBlocking {
-        val carbon = Model(id = "existing-carbon", modelId = "gemini-4-carbon", displayName = "我的 Carbon",
+    fun neonAndHydrogenUpgradePreservesExistingModelsAndDoesNotRestoreDeletedPresets() = runBlocking {
+        val neon = Model(id = "existing-neon", modelId = "gemini-4-neon", displayName = "我的 Neon",
             contextWindowOverride = 200_000)
         val provider = requireNotNull(BuiltinProviders.providerById(BuiltinProviders.GEMINI_ID))
-            .withModels(listOf(carbon))
+            .withModels(listOf(neon))
         ProviderRepository.addProvider(provider)
-        SettingsDataStore.setOfficialModelCatalogRevision(4)
+        SettingsDataStore.setOfficialModelCatalogRevision(5)
         ProviderRepository.ensureBuiltInsMerged()
-        assertEquals(listOf(carbon), requireNotNull(ProviderRepository.providerById(provider.id)).models)
-        assertEquals(5, SettingsDataStore.officialModelCatalogRevision())
+        val stored = requireNotNull(ProviderRepository.providerById(provider.id)).models
+        assertEquals(neon, stored.first { it.modelId == "gemini-4-neon" })
+        assertEquals(setOf("gemini-4-neon", "gemini-4-hydrogen"), stored.mapTo(mutableSetOf()) { it.modelId })
+        assertEquals(6, SettingsDataStore.officialModelCatalogRevision())
     }
 
     @Test
@@ -140,7 +142,9 @@ class GeminiProviderConfigurationTest {
         assertEquals(BuiltinProviders.GEMINI_ID, providers.last().id)
         assertEquals(source.id, SettingsDataStore.settings().selectedProviderId)
         assertEquals(source.models.single().id, SettingsDataStore.settings().selectedModelId)
-        assertEquals(4, providers.last().models.size)
+        assertEquals(6, providers.last().models.size)
+        assertTrue(providers.last().models.any { it.modelId == "gemini-4-neon" })
+        assertTrue(providers.last().models.any { it.modelId == "gemini-4-hydrogen" })
         assertTrue(providers.last().models.any { it.modelId == "gemini-4-carbon" })
     }
 

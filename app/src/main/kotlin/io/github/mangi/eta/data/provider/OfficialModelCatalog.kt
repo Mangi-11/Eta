@@ -9,7 +9,7 @@ import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 
 internal object OfficialModelCatalog {
-    internal const val CURRENT_REVISION = 5
+    internal const val CURRENT_REVISION = 6
 
     // 旧安装只补入本次新增的模型，避免恢复用户主动删除的旧预设。
     private val additionsByRevision = mapOf(
@@ -26,6 +26,7 @@ internal object OfficialModelCatalog {
         2 to mapOf(ProviderSourceTypes.OPENAI to setOf("gpt-6.1-sol")),
         4 to mapOf(ProviderSourceTypes.GEMINI to setOf("gemini-3.8-flash", "gemini-4-argon", "gemini-3.5-flash-lite")),
         5 to mapOf(ProviderSourceTypes.GEMINI to setOf("gemini-4-carbon")),
+        6 to mapOf(ProviderSourceTypes.GEMINI to setOf("gemini-4-neon", "gemini-4-hydrogen")),
     )
 
     private val modelsByCatalogId: Map<String, List<Model>> = mapOf(
@@ -65,6 +66,28 @@ internal object OfficialModelCatalog {
             ),
         ).map { it.copy(contextWindowOverride = it.contextWindow) },
         ProviderSourceTypes.GEMINI to listOf(
+            officialModel(
+                id = "builtin-gemini-4-neon",
+                modelId = "gemini-4-neon",
+                displayName = "Gemini 4 Neon",
+                ownedBy = "google",
+                inputModalities = listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY),
+                toolCall = true,
+                reasoning = true,
+                structuredOutput = true,
+                contextWindow = 1_048_576,
+            ),
+            officialModel(
+                id = "builtin-gemini-4-hydrogen",
+                modelId = "gemini-4-hydrogen",
+                displayName = "Gemini 4 Hydrogen",
+                ownedBy = "google",
+                inputModalities = listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY),
+                toolCall = true,
+                reasoning = true,
+                structuredOutput = true,
+                contextWindow = 1_048_576,
+            ),
             officialModel(
                 id = "builtin-gemini-4-carbon",
                 modelId = "gemini-4-carbon",
