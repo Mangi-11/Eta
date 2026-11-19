@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.web.ConfigurableWebBackends
 import io.github.mangi.eta.agent.web.WebHttpTransport
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.WebToolBackend
 import io.github.mangi.eta.data.model.WebToolsCredentials
 import io.github.mangi.eta.data.model.WebToolsSettings
@@ -109,25 +110,45 @@ internal fun validateWebToolsSettings(
         settings.fetchBackend == WebToolBackend.DEEPSEEK
     if (usesDeepSeek) {
         if (credentials.deepSeekApiKey.isBlank() && !hasProviderDeepSeekKey) {
-            throw WebToolsValidationFailure("请填写 DeepSeek API Key，或先在模型提供商中配置 DeepSeek")
+            throw WebToolsValidationFailure(
+                AppStrings.get(
+                    R.string.ui_misc_web_deepseek_key_required,
+                    "请填写 DeepSeek API Key，或先在模型提供商中配置 DeepSeek",
+                ),
+            )
         }
         runCatching {
             ConfigurableWebBackends.deepSeekEndpoint(settings.deepSeek.baseUrl, "search")
         }.getOrElse {
-            throw WebToolsValidationFailure("DeepSeek Base URL 须为合法的 HTTP(S) 地址")
+            throw WebToolsValidationFailure(
+                AppStrings.get(
+                    R.string.ui_misc_web_deepseek_url_invalid,
+                    "DeepSeek Base URL 须为合法的 HTTP(S) 地址",
+                ),
+            )
         }
     }
     if (settings.searchBackend == WebToolBackend.CUSTOM) {
         val rawUrl = settings.customSearch.url.trim()
         if (rawUrl.isEmpty()) {
-            throw WebToolsValidationFailure("请填写自定义搜索接口地址")
+            throw WebToolsValidationFailure(
+                AppStrings.get(
+                    R.string.ui_misc_web_custom_search_url_required,
+                    "请填写自定义搜索接口地址",
+                ),
+            )
         }
         val probeUrl = rawUrl
             .replace("{{query}}", "eta")
             .replace("{{raw_query}}", "eta")
             .replace("{{count}}", "5")
         runCatching { WebHttpTransport.validateUrl(probeUrl) }.getOrElse {
-            throw WebToolsValidationFailure("自定义搜索接口须为合法的 HTTP(S) 地址")
+            throw WebToolsValidationFailure(
+                AppStrings.get(
+                    R.string.ui_misc_web_custom_search_url_invalid,
+                    "自定义搜索接口须为合法的 HTTP(S) 地址",
+                ),
+            )
         }
         runCatching {
             ConfigurableWebBackends.parseCustomHeaders(
@@ -135,19 +156,34 @@ internal fun validateWebToolsSettings(
                 credentials.customSearchApiKey,
             )
         }.getOrElse {
-            throw WebToolsValidationFailure(it.message ?: "自定义搜索请求头格式无效")
+            throw WebToolsValidationFailure(
+                it.message ?: AppStrings.get(
+                    R.string.ui_misc_web_custom_search_headers_invalid,
+                    "自定义搜索请求头格式无效",
+                ),
+            )
         }
     }
     if (settings.fetchBackend == WebToolBackend.CUSTOM) {
         val rawUrl = settings.customFetch.url.trim()
         if (rawUrl.isEmpty()) {
-            throw WebToolsValidationFailure("请填写自定义读取接口地址")
+            throw WebToolsValidationFailure(
+                AppStrings.get(
+                    R.string.ui_misc_web_custom_fetch_url_required,
+                    "请填写自定义读取接口地址",
+                ),
+            )
         }
         val probeUrl = rawUrl
             .replace("{{url}}", "https%3A%2F%2Fexample.com")
             .replace("{{raw_url}}", "https://example.com")
         runCatching { WebHttpTransport.validateUrl(probeUrl) }.getOrElse {
-            throw WebToolsValidationFailure("自定义读取接口须为合法的 HTTP(S) 地址")
+            throw WebToolsValidationFailure(
+                AppStrings.get(
+                    R.string.ui_misc_web_custom_fetch_url_invalid,
+                    "自定义读取接口须为合法的 HTTP(S) 地址",
+                ),
+            )
         }
         runCatching {
             ConfigurableWebBackends.parseCustomHeaders(
@@ -155,7 +191,12 @@ internal fun validateWebToolsSettings(
                 credentials.customFetchApiKey,
             )
         }.getOrElse {
-            throw WebToolsValidationFailure(it.message ?: "自定义读取请求头格式无效")
+            throw WebToolsValidationFailure(
+                it.message ?: AppStrings.get(
+                    R.string.ui_misc_web_custom_fetch_headers_invalid,
+                    "自定义读取请求头格式无效",
+                ),
+            )
         }
     }
 }

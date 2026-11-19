@@ -1,5 +1,7 @@
 package io.github.mangi.eta.data.repository
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.ProviderAuthModes
@@ -36,16 +38,23 @@ internal object ModelRepository {
         val models = currentModels(providerId)
         val modelId = draft.modelId.trim()
         val displayName = draft.displayName.trim()
-        require(modelId.isNotEmpty()) { "Model ID 不能为空" }
-        require(displayName.isNotEmpty()) { "展示名称不能为空" }
+        require(modelId.isNotEmpty()) {
+            AppStrings.get(R.string.repo_err_model_id_required, "Model ID 不能为空")
+        }
+        require(displayName.isNotEmpty()) {
+            AppStrings.get(R.string.repo_err_model_display_name_required, "展示名称不能为空")
+        }
         require(draft.contextWindowOverride == null || draft.contextWindowOverride > 0) {
-            "上下文长度必须是正整数"
+            AppStrings.get(
+                R.string.repo_err_model_context_window_positive,
+                "上下文长度必须是正整数",
+            )
         }
         require(
             models.none { existing ->
                 existing.id != draft.id && existing.modelId.trim().equals(modelId, ignoreCase = true)
             }
-        ) { "Model ID 已存在" }
+        ) { AppStrings.get(R.string.repo_err_model_id_exists, "Model ID 已存在") }
 
         val existing = models.firstOrNull { it.id == draft.id }
         val saved = if (existing == null) {
@@ -112,8 +121,15 @@ internal object ModelRepository {
         adoptedModelIds: Set<String>,
     ): RemoteModelSyncResult {
         val result = ProviderRepository.mutationMutex.withLock {
-            val provider = requireNotNull(ProviderRepository.providerById(providerId)) { "Provider 不存在" }
-            require(provider.authMode == ProviderAuthModes.API_KEY) { "账号模型目录必须绑定当前登录状态，请重新拉取" }
+            val provider = requireNotNull(ProviderRepository.providerById(providerId)) {
+                AppStrings.get(R.string.repo_err_provider_not_found, "Provider 不存在")
+            }
+            require(provider.authMode == ProviderAuthModes.API_KEY) {
+                AppStrings.get(
+                    R.string.repo_err_account_catalog_requires_session,
+                    "账号模型目录必须绑定当前登录状态，请重新拉取",
+                )
+            }
             applyRemoteModels(provider, fetched, adoptedModelIds)
         }
         if (result.applied) ProviderRepository.repairSelection()
@@ -125,15 +141,35 @@ internal object ModelRepository {
         adoptedModelIds: Set<String> = catalog.models.mapTo(mutableSetOf()) { it.modelId },
     ): RemoteModelSyncResult = withContext(Dispatchers.IO) {
         val result = ProviderRepository.mutationMutex.withLock {
-            val provider = requireNotNull(ProviderRepository.providerById(catalog.connection.id)) { "Provider 不存在" }
-            require(catalog.matches(provider)) { "服务商连接已变更，请重新拉取模型" }
+            val provider = requireNotNull(ProviderRepository.providerById(catalog.connection.id)) {
+                AppStrings.get(R.string.repo_err_provider_not_found, "Provider 不存在")
+            }
+            require(catalog.matches(provider)) {
+                AppStrings.get(
+                    R.string.repo_err_provider_connection_changed,
+                    "服务商连接已变更，请重新拉取模型",
+                )
+            }
             val binding = catalog.accountBinding
             if (ProviderAuthModes.isOAuth(provider.authMode)) {
                 if (binding == null || binding.providerId != provider.id || binding.authMode != provider.authMode ||
                     !ProviderCredentialRepository.isCurrent(binding)
-                ) throw ProviderAuthException("oauth_session_changed", "登录状态已变更，请重新拉取模型")
+                ) {
+                    throw ProviderAuthException(
+                        "oauth_session_changed",
+                        AppStrings.get(
+                            R.string.repo_err_oauth_session_changed_refetch,
+                            "登录状态已变更，请重新拉取模型",
+                        ),
+                    )
+                }
             } else {
-                require(binding == null) { "API Key 模型目录不能携带账号绑定" }
+                require(binding == null) {
+                    AppStrings.get(
+                        R.string.repo_err_apikey_catalog_no_account_binding,
+                        "API Key 模型目录不能携带账号绑定",
+                    )
+                }
             }
             applyRemoteModels(provider, catalog.models, adoptedModelIds)
         }
@@ -172,7 +208,9 @@ internal object ModelRepository {
     fun newId(): String = UUID.randomUUID().toString()
 
     private suspend fun currentModels(providerId: String): List<Model> =
-        requireNotNull(ProviderRepository.providerById(providerId)) { "Provider 不存在" }
+        requireNotNull(ProviderRepository.providerById(providerId)) {
+            AppStrings.get(R.string.repo_err_provider_not_found, "Provider 不存在")
+        }
             .models
             .sortedBy { it.sortOrder }
 }

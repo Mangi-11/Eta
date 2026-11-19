@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.DeepSeekAsrConfig
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -19,7 +21,10 @@ internal fun deepSeekAsrRequest(
     wav: ByteArray,
 ): Request {
     if (wav.size > MAX_DEEPSEEK_ASR_BYTES) {
-        throw SpeechFailure(SpeechErrorCode.AUDIO, "录音超过 DeepSeek 识别接口 8 MiB 限制")
+        throw SpeechFailure(
+            SpeechErrorCode.AUDIO,
+            AppStrings.get(R.string.voice_i18n_deepseek_asr_size_limit, "录音超过 DeepSeek 识别接口 8 MiB 限制"),
+        )
     }
     val body = MultipartBody.Builder()
         .setType(MultipartBody.FORM)
@@ -38,10 +43,16 @@ internal fun deepSeekAsrRequest(
 
 internal fun deepSeekAsrTranscript(response: JSONObject): String {
     if (!response.isNull("error")) {
-        throw SpeechFailure(SpeechErrorCode.SERVER, "DeepSeek 语音识别失败，请检查服务权限和配置")
+        throw SpeechFailure(
+            SpeechErrorCode.SERVER,
+            AppStrings.get(R.string.voice_i18n_deepseek_asr_failed, "DeepSeek 语音识别失败，请检查服务权限和配置"),
+        )
     }
     val text = response.opt("text") as? String
-        ?: throw SpeechFailure(SpeechErrorCode.PROTOCOL, "DeepSeek 未返回有效的识别结果")
+        ?: throw SpeechFailure(
+            SpeechErrorCode.PROTOCOL,
+            AppStrings.get(R.string.voice_i18n_deepseek_asr_invalid_result, "DeepSeek 未返回有效的识别结果"),
+        )
     return text.trim()
 }
 

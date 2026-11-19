@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,15 +34,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.itos.coui.motion.couiPressMotion
 import com.itos.coui.motion.rememberCouiPressMotion
+import io.github.mangi.eta.R
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
 
-private val assistantSuggestions = listOf(
-    "总结屏幕内容",
-    "解释当前页面",
-    "提取关键信息",
+private val assistantSuggestionResIds = listOf(
+    R.string.voice_i18n_suggestion_summarize_screen,
+    R.string.voice_i18n_suggestion_explain_page,
+    R.string.voice_i18n_suggestion_extract_key_info,
 )
 
 private val suggestionEnterEasing = CubicBezierEasing(0.20f, 0f, 0f, 1f)
@@ -72,10 +74,11 @@ internal fun EtaAssistantSuggestions(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Spacer(modifier = Modifier.width(10.dp))
-            assistantSuggestions.forEachIndexed { index, suggestion ->
-                val progress = remember(suggestion) { Animatable(0f) }
-                val opacity = remember(suggestion) { Animatable(0f) }
-                val interactionSource = remember(suggestion) { MutableInteractionSource() }
+            assistantSuggestionResIds.forEachIndexed { index, resId ->
+                val suggestion = stringResource(resId)
+                val progress = remember(resId) { Animatable(0f) }
+                val opacity = remember(resId) { Animatable(0f) }
+                val interactionSource = remember(resId) { MutableInteractionSource() }
                 val press = rememberCouiPressMotion()
                 LaunchedEffect(visible) {
                     if (visible) {

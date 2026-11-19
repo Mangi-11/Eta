@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.os.PowerManager
 import io.github.mangi.eta.EtaApp
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.runtime.AgentExecutionService
@@ -13,6 +14,7 @@ import io.github.mangi.eta.agent.runtime.AgentRuntimeClient
 import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.core.AndroidAgentLogger
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.ScheduledTask
@@ -164,7 +166,7 @@ internal object ScheduledTaskRunner {
                     task = task,
                     triggerSource = triggerSource,
                     scheduledForAt = scheduledForAt,
-                    reason = "上一次执行尚未结束，已跳过本次重叠触发",
+                    reason = context.getString(R.string.scheduled_skip_overlap_running),
                 )
             }
             return false
@@ -175,7 +177,7 @@ internal object ScheduledTaskRunner {
             task.capabilities.guiTools &&
             shouldDeferLockedGuiTask(context)
         ) {
-            val reason = "设备当前处于锁屏状态且未启用后台虚拟屏，已改为发送提醒，解锁后点按通知即可执行"
+            val reason = context.getString(R.string.scheduled_skip_locked_gui_deferred)
             recordSkippedAndAdvance(
                 context = context,
                 task = task,
@@ -207,7 +209,7 @@ internal object ScheduledTaskRunner {
                     task = task,
                     triggerSource = triggerSource,
                     scheduledForAt = scheduledForAt,
-                    reason = "系统拒绝在后台启动前台执行服务，请检查精确闹钟与电池无限制权限",
+                    reason = context.getString(R.string.scheduled_skip_fgs_denied),
                 )
                 return false
             }
@@ -304,7 +306,7 @@ internal object ScheduledTaskRunner {
         val baseModelConfig = resolveTaskModelConfig(task)
         if (baseModelConfig == null) {
             val finishedAt = System.currentTimeMillis()
-            val message = "未配置可用的模型，请在「模型提供商」中配置后再试"
+            val message = context.getString(R.string.scheduled_error_no_model_configured)
             val failedRun = ScheduledTaskRun(
                 id = runId,
                 taskId = task.id,
@@ -367,7 +369,7 @@ internal object ScheduledTaskRunner {
         val archivePayload = AgentExternalArchivePayload(
             userText = task.prompt,
             conversationKey = archiveKey,
-            title = task.name.ifBlank { "定时任务" },
+            title = task.name.ifBlank { context.getString(R.string.route_scheduled_tasks) },
             thinkingEnabled = baseModelConfig.thinkingEnabled,
             reasoningEffort = baseModelConfig.effectiveReasoningEffort,
             adapterPayload = runContext.toAdapterPayload(),
@@ -408,23 +410,24 @@ internal object ScheduledTaskRunner {
         val (status, summary, shouldNotifySuccess) = when {
             timedOut -> Triple(
                 ScheduledTaskRunStatus.TIMEOUT,
-                "任务运行超过 ${task.timeoutSeconds} 秒上限，已自动中止",
+                context.getString(R.string.scheduled_run_timeout_summary, task.timeoutSeconds),
                 false,
             )
             userCancelled -> Triple(
                 ScheduledTaskRunStatus.CANCELLED,
-                "已手动停止",
+                context.getString(R.string.scheduled_run_cancelled_summary),
                 false,
             )
             !runResult.ok -> Triple(
                 ScheduledTaskRunStatus.FAILED,
-                runResult.error?.takeIf { it.isNotBlank() } ?: "执行失败",
+                runResult.error?.takeIf { it.isNotBlank() }
+                    ?: context.getString(R.string.scheduled_status_failed),
                 false,
             )
             task.deliveryMode == ScheduledTaskDeliveryMode.ON_CHANGE &&
                 reported?.outcome == ScheduledTaskReportedOutcome.Outcome.NO_CHANGE -> Triple(
                 ScheduledTaskRunStatus.NO_CHANGE,
-                reported.summary.ifBlank { "已检查，无明显变化" },
+                reported.summary.ifBlank { context.getString(R.string.scheduled_run_no_change_summary) },
                 false,
             )
             task.deliveryMode == ScheduledTaskDeliveryMode.SILENT -> Triple(
@@ -580,7 +583,9 @@ internal object ScheduledTaskRunner {
             .replace(Regex("[#>*`]+"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
-        return normalized.take(220).ifBlank { "已完成执行" }
+        return normalized.take(220).ifBlank {
+            AppStrings.get(R.string.scheduled_run_completed_summary, "已完成执行")
+        }
     }
 
     /**

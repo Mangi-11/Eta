@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 列表页与健康检查 -->
+    <string name="scheduled_section_quick_start">快速开始</string>
+    <string name="scheduled_empty_hint">定时任务会在后台静默运行，只在有需要你关注的结果时通知；你也可以直接在聊天中对 Eta 说「每天晚上十点帮我总结今天的重要通知」。</string>
+    <string name="scheduled_section_all_tasks">全部任务 · %1$d/%2$d 已开启</string>
+    <string name="scheduled_unnamed_task">未命名任务</string>
+    <string name="scheduled_meta_next_run">下次 %1$s</string>
+    <string name="scheduled_status_running_background">正在后台运行…</string>
+    <string name="scheduled_status_awaiting_first_run">等待首次触发</string>
+    <string name="scheduled_status_paused">已暂停</string>
+    <string name="scheduled_status_currently_paused">当前已暂停</string>
+    <string name="scheduled_toast_toggle_failed">更新定时任务开关失败</string>
+
+    <string name="scheduled_health_battery_title">建议允许后台无限制耗电</string>
+    <string name="scheduled_health_battery_summary">Android 深度休眠时会对受限应用在 10 秒后切断后台网络，开启「电池无限制」可确保定时推理与网页巡检稳定完成。</string>
+    <string name="scheduled_health_battery_action">前往开启</string>
+    <string name="scheduled_health_exact_alarm_title">精确闹钟权限未开启</string>
+    <string name="scheduled_health_exact_alarm_summary">未开启精确闹钟时，定时任务可能延迟数分钟触发；开启后可准点唤醒执行。</string>
+    <string name="scheduled_health_exact_alarm_action">授权精确闹钟</string>
+    <string name="scheduled_health_notification_title">系统通知未开启</string>
+    <string name="scheduled_health_notification_summary">定时任务仍会在后台执行，但无法推送结果摘要和失败告警通知。</string>
+    <string name="scheduled_health_notification_action">开启通知</string>
+
+    <!-- 详情页 -->
+    <string name="scheduled_detail_missing">该定时任务已不存在或已被删除。</string>
+    <string name="scheduled_detail_section_config">任务指令与配置</string>
+    <string name="scheduled_field_model">执行模型</string>
+    <string name="scheduled_model_follow_default">跟随全局默认模型</string>
+    <string name="scheduled_model_unavailable_fallback">模型已失效（将回退默认）</string>
+    <string name="scheduled_model_current_default">当前默认：%1$s</string>
+    <string name="scheduled_model_use_global_default">使用全局设置中的默认模型</string>
+    <string name="scheduled_model_follow_default_named">跟随默认（%1$s）</string>
+    <string name="scheduled_detail_field_notify_session">通知与会话</string>
+    <string name="scheduled_progress_badge_show">显示进度</string>
+    <string name="scheduled_progress_badge_show_full">显示运行进度</string>
+    <string name="scheduled_progress_badge_silent">静默运行</string>
+    <string name="scheduled_session_badge_dedicated">固定频道</string>
+    <string name="scheduled_session_badge_isolated">独立归档</string>
+    <string name="scheduled_detail_field_capabilities">能力范围</string>
+    <string name="scheduled_detail_miuix_model_meta">模型：%1$s · %2$s · %3$s</string>
+    <string name="scheduled_detail_miuix_capabilities_meta">能力：%1$s</string>
+    <string name="scheduled_detail_memo_title">任务小记事本</string>
+    <string name="scheduled_detail_memo_title_with_hint">任务小记事本（供下次运行对比）</string>
+    <string name="scheduled_action_clear_memo">清空记事本</string>
+    <string name="scheduled_action_clear">清空</string>
+    <string name="scheduled_detail_section_timeline">运行时间线</string>
+    <string name="scheduled_detail_timeline_empty">还没有运行记录，点上方「立即试跑」即可验证实际效果。</string>
+    <string name="scheduled_action_delete_task">删除定时任务</string>
+    <string name="scheduled_delete_dialog_message">确定删除「%1$s」？这会取消后续排期并清除其运行时间线，已导入主聊天的对话保留不受影响。</string>
+    <string name="scheduled_clear_memo_dialog_title">清空任务小记事本</string>
+    <string name="scheduled_clear_memo_dialog_message">清空后，下一次定时运行将不再参考上次记录的状态或游标。</string>
+    <string name="scheduled_next_run_prefix">下次运行：%1$s</string>
+    <string name="scheduled_detail_enable_schedule_title">启用定时排期</string>
+    <string name="scheduled_detail_enable_schedule_on_summary">将按上述排期在后台自动唤醒运行</string>
+    <string name="scheduled_detail_enable_schedule_off_summary">已暂停自动触发，仍可随时手动试跑</string>
+    <string name="scheduled_timeline_tap_live">点按实时查看运行过程</string>
+    <string name="scheduled_timeline_tap_conversation">点按查看完整对话并继续追问</string>
+    <string name="scheduled_toast_stopping">正在停止当前运行…</string>
+    <string name="scheduled_toast_manual_started">已开始后台试跑</string>
+    <string name="scheduled_toast_already_running">该任务正在运行中</string>
+    <string name="scheduled_toast_task_not_found">任务不存在</string>
+    <string name="scheduled_toast_memo_cleared">已清空任务小记事本</string>
+    <string name="scheduled_toast_save_failed">保存定时任务失败</string>
+
+    <!-- 能力边界 -->
+    <string name="scheduled_cap_none">仅纯对话推理</string>
+    <string name="scheduled_cap_short_browser">网页与浏览器</string>
+    <string name="scheduled_cap_short_terminal">终端与文件</string>
+    <string name="scheduled_cap_short_gui">应用界面操作</string>
+    <string name="scheduled_cap_browser_title">网页搜索与内置浏览器</string>
+    <string name="scheduled_cap_browser_summary">锁屏时也能用带登录态的共享 WebView 抓取网页</string>
+    <string name="scheduled_cap_device_read_title">设备信息读取</string>
+    <string name="scheduled_cap_device_read_summary">通知历史、日历、应用使用、系统状态与个人记录</string>
+    <string name="scheduled_cap_device_action_title">设备状态控制</string>
+    <string name="scheduled_cap_device_action_summary">允许调整系统设置、音量、闹钟等写操作</string>
+    <string name="scheduled_cap_terminal_title">终端、文件与 Linux</string>
+    <string name="scheduled_cap_terminal_summary">运行 Android/Linux 命令与工作区文件读写</string>
+    <string name="scheduled_cap_mcp_title">MCP 远程工具</string>
+    <string name="scheduled_cap_mcp_summary">调用已在 Eta 中启用的 MCP 服务器工具</string>
+    <string name="scheduled_cap_gui_title">应用界面操作（GUI）</string>
+    <string name="scheduled_cap_gui_summary">默认关闭；支持后台虚拟屏的设备优先静默运行，否则锁屏时发提醒待解锁</string>
+
+    <!-- 编辑页 -->
+    <string name="scheduled_editor_section_content">任务内容</string>
+    <string name="scheduled_editor_name_label">任务名称</string>
+    <string name="scheduled_editor_name_placeholder">例如：每日晚间简报</string>
+    <string name="scheduled_editor_name_label_with_example">任务名称（如：每日晚间简报）</string>
+    <string name="scheduled_editor_prompt_label">要 Eta 做什么</string>
+    <string name="scheduled_editor_prompt_placeholder">用自然语言描述目标、数据来源和期望输出格式</string>
+    <string name="scheduled_editor_section_schedule">运行时间</string>
+    <string name="scheduled_editor_trigger_time">触发时间</string>
+    <string name="scheduled_editor_interval_label">间隔周期</string>
+    <string name="scheduled_editor_once_delay_label">从现在起延迟</string>
+    <string name="scheduled_editor_cron_label">5 段 Cron 表达式（分 时 日 月 周）</string>
+    <string name="scheduled_editor_schedule_preview">排期预览</string>
+    <string name="scheduled_editor_section_delivery">通知方式</string>
+    <string name="scheduled_editor_result_notification">结果通知</string>
+    <string name="scheduled_editor_show_progress_title">运行时显示进度通知</string>
+    <string name="scheduled_editor_show_progress_summary">关闭后后台静默执行，不弹状态栏运行胶囊，仅在完成时按上方设置推送结果</string>
+    <string name="scheduled_editor_advanced_collapse">收起更多设置</string>
+    <string name="scheduled_editor_advanced_expand">更多设置（模型、权限、会话与防打扰）</string>
+    <string name="scheduled_editor_advanced_summary">当前默认已针对锁屏后台静默执行优化</string>
+    <string name="scheduled_editor_section_model">模型与思考</string>
+    <string name="scheduled_editor_reasoning_effort">思考档位</string>
+    <string name="scheduled_effort_follow_default">跟随全局默认</string>
+    <string name="scheduled_effort_model_default">模型默认</string>
+    <string name="scheduled_editor_section_capabilities">单任务能力边界</string>
+    <string name="scheduled_editor_section_session_policy">会话与保护策略</string>
+    <string name="scheduled_editor_session_mode">结果归属</string>
+    <string name="scheduled_editor_misfire_policy">错过触发时</string>
+    <string name="scheduled_editor_quiet_hours_title">夜间免打扰（23:00 – 07:30）</string>
+    <string name="scheduled_editor_quiet_hours_summary">命中免打扰时段的周期触发将被自动跳过</string>
+    <string name="scheduled_editor_timeout">单次最长运行时间</string>
+
+    <string name="scheduled_trigger_daily">每天</string>
+    <string name="scheduled_trigger_weekdays">工作日</string>
+    <string name="scheduled_trigger_weekly">每周</string>
+    <string name="scheduled_trigger_interval">间隔</string>
+    <string name="scheduled_trigger_once">一次性</string>
+    <string name="scheduled_trigger_cron">Cron</string>
+
+    <string name="scheduled_delivery_option_always">每次完成后通知</string>
+    <string name="scheduled_delivery_option_on_change">仅发现变化时通知</string>
+    <string name="scheduled_delivery_option_silent">静默归档不通知</string>
+
+    <string name="scheduled_session_option_isolated">每次独立归档（主聊天保持干净）</string>
+    <string name="scheduled_session_option_dedicated">固定专属频道（按时间续写）</string>
+
+    <string name="scheduled_misfire_option_catchup">3 小时内最多补跑最近 1 次</string>
+    <string name="scheduled_misfire_option_skip">错过即跳过</string>
+
+    <string name="scheduled_timeout_2m">2 分钟</string>
+    <string name="scheduled_timeout_5m_recommended">5 分钟（推荐）</string>
+    <string name="scheduled_timeout_10m">10 分钟</string>
+    <string name="scheduled_timeout_15m">15 分钟</string>
+
+    <plurals name="scheduled_delay_days">
+        <item quantity="other">%1$d 天后</item>
+    </plurals>
+    <plurals name="scheduled_delay_hours">
+        <item quantity="other">%1$d 小时后</item>
+    </plurals>
+    <plurals name="scheduled_delay_minutes">
+        <item quantity="other">%1$d 分钟后</item>
+    </plurals>
+
+    <string name="scheduled_weekday_narrow_mon">一</string>
+    <string name="scheduled_weekday_narrow_tue">二</string>
+    <string name="scheduled_weekday_narrow_wed">三</string>
+    <string name="scheduled_weekday_narrow_thu">四</string>
+    <string name="scheduled_weekday_narrow_fri">五</string>
+    <string name="scheduled_weekday_narrow_sat">六</string>
+    <string name="scheduled_weekday_narrow_sun">日</string>
+
+    <!-- UI 格式化 -->
+    <string name="scheduled_delivery_badge_always">每次通知</string>
+    <string name="scheduled_delivery_badge_on_change">仅变动提醒</string>
+    <string name="scheduled_delivery_badge_silent">静默归档</string>
+    <string name="scheduled_session_mode_isolated_label">每次独立归档（不刷主聊天）</string>
+    <string name="scheduled_session_mode_dedicated_label">固定专属对话频道</string>
+
+    <string name="scheduled_status_running">运行中</string>
+    <string name="scheduled_status_delivered">已送达</string>
+    <string name="scheduled_status_no_change">无变化</string>
+    <string name="scheduled_status_skipped">已跳过</string>
+    <string name="scheduled_status_failed">执行失败</string>
+    <string name="scheduled_status_timeout">已超时</string>
+    <string name="scheduled_status_cancelled">已停止</string>
+    <string name="scheduled_status_never_run">尚未运行</string>
+
+    <string name="scheduled_trigger_source_schedule">定时触发</string>
+    <string name="scheduled_trigger_source_manual">手动试跑</string>
+    <string name="scheduled_trigger_source_misfire_catchup">延迟补跑</string>
+
+    <string name="scheduled_timestamp_today">今天 %1$s</string>
+    <string name="scheduled_timestamp_yesterday">昨天 %1$s</string>
+    <string name="scheduled_date_time_short">%1$d月%2$d日 %3$s</string>
+    <string name="scheduled_duration_under_1s">&lt;1 秒</string>
+    <string name="scheduled_duration_seconds">%1$d 秒</string>
+    <string name="scheduled_duration_minutes_seconds">%1$d 分 %2$d 秒</string>
+
+    <!-- 排期计算引擎 -->
+    <string name="scheduled_error_invalid_timezone">时区标识无效：%1$s</string>
+    <string name="scheduled_error_once_time_required">请设置一次性任务的触发时间</string>
+    <string name="scheduled_error_once_time_in_past">一次性任务的触发时间必须晚于当前时间</string>
+    <string name="scheduled_error_time_out_of_range">时间超出有效范围</string>
+    <string name="scheduled_error_weekly_days_required">请至少选择一个重复星期</string>
+    <string name="scheduled_error_interval_out_of_range">固定间隔需在 %1$d 分钟到 7 天之间</string>
+    <string name="scheduled_error_cron_invalid">Cron 表达式无效，需为 5 段格式（分 时 日 月 周），例如 0 9 * * 1-5</string>
+    <string name="scheduled_error_cron_no_future_run">该 Cron 表达式在未来 4 年内没有可触发的时间</string>
+
+    <string name="scheduled_skip_quiet_hours">当前处于免打扰时段，已跳过本次执行</string>
+    <string name="scheduled_skip_misfire_policy">已错过预定触发时间，按策略跳过</string>
+    <string name="scheduled_skip_misfire_window_expired">错过触发时间超过补跑窗口，已跳过</string>
+
+    <string name="scheduled_schedule_once_unset">一次性任务</string>
+    <string name="scheduled_schedule_daily">每天 %1$s</string>
+    <string name="scheduled_schedule_weekdays">工作日 %1$s</string>
+    <string name="scheduled_schedule_weekends">周末 %1$s</string>
+    <string name="scheduled_schedule_weekly_generic">每周 %1$s</string>
+    <string name="scheduled_schedule_weekly_days">每%1$s %2$s</string>
+    <string name="scheduled_day_list_separator">、</string>
+    <string name="scheduled_schedule_cron">Cron · %1$s</string>
+    <string name="scheduled_cron_unset">未配置</string>
+
+    <string name="scheduled_weekday_short_mon">周一</string>
+    <string name="scheduled_weekday_short_tue">周二</string>
+    <string name="scheduled_weekday_short_wed">周三</string>
+    <string name="scheduled_weekday_short_thu">周四</string>
+    <string name="scheduled_weekday_short_fri">周五</string>
+    <string name="scheduled_weekday_short_sat">周六</string>
+    <string name="scheduled_weekday_short_sun">周日</string>
+
+    <string name="scheduled_next_run_unscheduled">未排期</string>
+    <string name="scheduled_next_run_soon">即将运行</string>
+    <plurals name="scheduled_next_run_in_minutes">
+        <item quantity="other">%1$d 分钟后（%2$s）</item>
+    </plurals>
+    <string name="scheduled_next_run_today">今天 %1$s</string>
+    <string name="scheduled_next_run_tomorrow">明天 %1$s</string>
+    <string name="scheduled_next_run_day_after_tomorrow">后天 %1$s</string>
+
+    <plurals name="scheduled_interval_days">
+        <item quantity="other">每 %1$d 天</item>
+    </plurals>
+    <plurals name="scheduled_interval_hours">
+        <item quantity="other">每 %1$d 小时</item>
+    </plurals>
+    <string name="scheduled_interval_hours_minutes">每 %1$d 小时 %2$d 分钟</string>
+    <plurals name="scheduled_interval_minutes">
+        <item quantity="other">每 %1$d 分钟</item>
+    </plurals>
+
+    <!-- 仓储与运行器提示 -->
+    <plurals name="scheduled_auto_disabled_consecutive_failures">
+        <item quantity="other">连续失败 %1$d 次，已自动暂停以避免反复耗电与重试</item>
+    </plurals>
+    <string name="scheduled_run_interrupted_process_exit">执行期间应用进程退出，任务已中断</string>
+    <string name="scheduled_skip_overlap_running">上一次执行尚未结束，已跳过本次重叠触发</string>
+    <string name="scheduled_skip_locked_gui_deferred">设备当前处于锁屏状态且未启用后台虚拟屏，已改为发送提醒，解锁后点按通知即可执行</string>
+    <string name="scheduled_skip_fgs_denied">系统拒绝在后台启动前台执行服务，请检查精确闹钟与电池无限制权限</string>
+    <string name="scheduled_error_no_model_configured">未配置可用的模型，请在「模型提供商」中配置后再试</string>
+    <string name="scheduled_run_timeout_summary">任务运行超过 %1$d 秒上限，已自动中止</string>
+    <string name="scheduled_run_cancelled_summary">已手动停止</string>
+    <string name="scheduled_run_no_change_summary">已检查，无明显变化</string>
+    <string name="scheduled_run_completed_summary">已完成执行</string>
+
+    <!-- 灵感模板 -->
+    <string name="scheduled_preset_evening_briefing_title">每日晚间简报</string>
+    <string name="scheduled_preset_evening_briefing_subtitle">汇总今天错过的重要通知、应用使用与明日日程</string>
+    <string name="scheduled_preset_evening_briefing_name">每日晚间简报</string>
+    <string name="scheduled_preset_evening_briefing_prompt">整理一份简洁清晰的今日晚间简报：\n1. 检查今天的重要通知记录，挑出我可能忽略、需要跟进的事项（忽略营销广告和无关系统提示）；\n2. 查看明天的日历安排，列出关键时间点与需要提前准备的事；\n3. 简要点评今天的应用使用分布（如有权限）。\n输出控制在一屏可读完的篇幅，重点前置。</string>
+
+    <string name="scheduled_preset_morning_digest_title">工作日晨间早报</string>
+    <string name="scheduled_preset_morning_digest_subtitle">结合今日日程、当地天气与关注动态生成晨间要点</string>
+    <string name="scheduled_preset_morning_digest_name">工作日晨间早报</string>
+    <string name="scheduled_preset_morning_digest_prompt">为我准备今日晨间早报：\n1. 查看今天的日历日程与待办提醒；\n2. 结合当前位置或常用城市查询今天天气与穿衣/出行建议；\n3. 如果长期记忆中有我正在持续关注的项目或主题，顺带提醒关键进展。\n语气自然简练，直接给重点。</string>
+
+    <string name="scheduled_preset_web_watcher_title">网页动态雷达</string>
+    <string name="scheduled_preset_web_watcher_subtitle">定时巡检指定网页，有变化立刻通知，无变化静默</string>
+    <string name="scheduled_preset_web_watcher_name">网页动态雷达</string>
+    <string name="scheduled_preset_web_watcher_prompt">请帮我巡检目标网页的最新动态（请在此替换为你要盯的网址或主题）：\n- 读取当前页面最新内容，与任务小记事本中记录的上次状态对比；\n- 如果没有任何实质更新，调用 scheduled_task_report 标记 no_change 保持静默；\n- 如果发现新公告、价格变动或状态变化，更新小记事本并用简短结论汇报具体变动内容。</string>
+
+    <string name="scheduled_preset_weekly_review_title">每周手机与习惯复盘</string>
+    <string name="scheduled_preset_weekly_review_subtitle">周日晚总结本周应用时长、存储空间与记忆整理</string>
+    <string name="scheduled_preset_weekly_review_name">每周手机复盘</string>
+    <string name="scheduled_preset_weekly_review_prompt">帮我做一次轻量级的本周复盘：\n1. 汇总本周的应用使用时长变化与主要耗时应用；\n2. 检查设备存储空间和明显的大文件/异常占用（如当前权限允许）；\n3. 总结 3 条具体、不空泛的下周优化建议。\n客观陈述观察到的事实，不要过度臆测。</string>
+</resources>

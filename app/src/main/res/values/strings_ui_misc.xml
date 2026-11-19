@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+  <!-- Community catalog -->
+  <string name="catalog_i18n_title">Add from models.dev</string>
+  <string name="catalog_i18n_entry_summary">Browse the models.dev community catalog and pick models</string>
+  <string name="catalog_i18n_refresh">Refresh model catalog</string>
+  <string name="catalog_i18n_search_providers">Search providers</string>
+  <string name="catalog_i18n_status_section">Catalog status</string>
+  <string name="catalog_i18n_community_title">models.dev community catalog</string>
+  <string name="catalog_i18n_community_privacy">Reading the catalog never uploads your Eta API keys</string>
+  <string name="catalog_i18n_candidate_title">Community candidate entries</string>
+  <string name="catalog_i18n_candidate_summary">Availability depends on your provider account permissions and live API</string>
+  <string name="catalog_i18n_loading_local">Reading local catalog</string>
+  <string name="catalog_i18n_unavailable">Catalog unavailable</string>
+  <string name="catalog_i18n_updating_online">Updating online catalog</string>
+  <string name="catalog_i18n_update_failed">Online update failed</string>
+  <string name="catalog_i18n_update_failed_fallback">%1$s; you can still use the current catalog</string>
+  <string name="catalog_i18n_local_load_failed">Failed to read local catalog</string>
+  <string name="catalog_i18n_local_load_failed_summary">Please try again or check the app installation</string>
+  <string name="catalog_i18n_importable_providers">Importable providers (%1$d)</string>
+  <string name="catalog_i18n_empty_no_catalog">No catalog available</string>
+  <string name="catalog_i18n_empty_no_match">No matching providers found</string>
+  <string name="catalog_i18n_empty_no_catalog_summary">Tap Refresh in the top right and try again</string>
+  <string name="catalog_i18n_empty_no_match_summary">Try a different name or URL</string>
+  <plurals name="catalog_i18n_importable_models_count">
+    <item quantity="one">%d importable model</item>
+    <item quantity="other">%d importable models</item>
+  </plurals>
+  <string name="catalog_i18n_selection_expired">Model selection expired. Please select again</string>
+  <string name="catalog_i18n_save_provider_failed">Failed to save provider. Please try again</string>
+  <string name="catalog_i18n_select_models">Select models</string>
+  <string name="catalog_i18n_import_count">Import (%1$d)</string>
+  <string name="catalog_i18n_provider_not_found">Provider not found in catalog</string>
+  <string name="catalog_i18n_provider_not_found_summary">The catalog may have been updated. Go back and select again</string>
+  <string name="catalog_i18n_provider_section">Provider</string>
+  <string name="catalog_i18n_field_name">Name</string>
+  <string name="catalog_i18n_search_models">Search model name or ID</string>
+  <string name="catalog_i18n_models_count">Models (%1$d)</string>
+  <string name="catalog_i18n_models_selected">Models (%1$d / %2$d selected)</string>
+  <string name="catalog_i18n_no_matching_models">No matching models found</string>
+  <string name="catalog_i18n_context_tokens">%1$s tokens context</string>
+  <string name="catalog_i18n_source_snapshot">Built-in catalog snapshot</string>
+  <string name="catalog_i18n_source_cache">Local cached catalog</string>
+  <string name="catalog_i18n_source_online">Online catalog</string>
+  <plurals name="catalog_i18n_providers_count">
+    <item quantity="one">%d importable provider</item>
+    <item quantity="other">%d importable providers</item>
+  </plurals>
+  <string name="catalog_i18n_updated_at">Updated %1$s</string>
+  <string name="catalog_i18n_import_in_progress">Catalog import is already in progress</string>
+  <string name="catalog_i18n_error_http">Catalog service returned HTTP %1$s</string>
+  <string name="catalog_i18n_error_timeout">Timed out connecting to catalog service</string>
+  <string name="catalog_i18n_error_host">Unable to resolve catalog service host</string>
+  <string name="catalog_i18n_error_ssl">Secure connection to catalog service failed</string>
+  <string name="catalog_i18n_error_too_large">Catalog file exceeds size limit</string>
+  <string name="catalog_i18n_error_invalid_format">Invalid catalog format</string>
+  <string name="catalog_i18n_error_io">Network error or failed to write local cache</string>
+  <string name="catalog_i18n_error_generic">Update failed. Please try again later</string>
+
+  <!-- Providers -->
+  <string name="provider_i18n_builtin_bailian">Alibaba Bailian</string>
+  <string name="provider_i18n_builtin_siliconflow">SiliconFlow</string>
+  <string name="provider_i18n_add_gemini">Add Gemini</string>
+  <string name="provider_i18n_add_gemini_summary">Supports Google AI Studio and Vertex AI</string>
+  <string name="provider_i18n_account_title">%1$s account</string>
+  <string name="provider_i18n_login_loading">Checking sign-in status…</string>
+  <string name="provider_i18n_login_saving">Saving configuration…</string>
+  <string name="provider_i18n_login_disconnecting">Signing out…</string>
+  <string name="provider_i18n_login_preparing">Preparing authorization…</string>
+  <string name="provider_i18n_login_browser_prompt">Complete authorization in your browser</string>
+  <string name="provider_i18n_login_syncing_models">Signed in. Fetching latest models…</string>
+  <string name="provider_i18n_login_chatgpt_hint">Sign in to Codex with your ChatGPT account</string>
+  <string name="provider_i18n_login_grok_hint">Sign in to use your Grok subscription quota</string>
+  <string name="provider_i18n_login_reauth">Please sign in again</string>
+  <string name="provider_i18n_login_plan_disabled">This account does not have model access yet</string>
+  <string name="provider_i18n_logged_in_codex">Signed in to Codex</string>
+  <string name="provider_i18n_logged_in_grok">Signed in to Grok</string>
+  <string name="provider_i18n_open_browser">Open browser</string>
+  <string name="provider_i18n_reauthorize">Reauthorize</string>
+  <string name="provider_i18n_sign_in_with">Sign in with %1$s</string>
+  <string name="provider_i18n_manage_usage">Manage usage</string>
+  <string name="provider_i18n_sign_out">Sign out</string>
+  <string name="provider_i18n_no_browser">No available browser found</string>
+  <string name="provider_i18n_cannot_open_browser">Could not open browser. Check system settings</string>
+  <string name="provider_i18n_custom_headers">Custom headers</string>
+  <string name="provider_i18n_headers_unset">Not set</string>
+  <plurals name="provider_i18n_headers_count">
+    <item quantity="one">%d header set</item>
+    <item quantity="other">%d headers set</item>
+  </plurals>
+  <string name="provider_i18n_headers_summary">Can override User-Agent; authentication and transport headers are managed by the system.</string>
+  <string name="provider_i18n_add_header">Add header</string>
+  <string name="provider_i18n_header_name">Name</string>
+  <string name="provider_i18n_header_value">Value</string>
+  <string name="provider_i18n_gemini_platform">Platform</string>
+  <string name="provider_i18n_gemini_vertex_summary">Standard Vertex AI endpoint (Gemini 4)</string>
+  <string name="provider_i18n_gemini_ai_studio_summary">Native Interactions API (AI Studio API Key)</string>
+  <string name="provider_i18n_auth_method">Authentication</string>
+  <string name="provider_i18n_auth_account_login">Account sign-in</string>
+  <string name="provider_i18n_vertex_project_placeholder">Google Cloud project required for official endpoint</string>
+  <string name="provider_i18n_login_interrupted">Sign-in was interrupted. Please try again</string>
+  <plurals name="provider_i18n_login_synced_models">
+    <item quantity="one">Signed in, synced %d remote model</item>
+    <item quantity="other">Signed in, synced %d remote models</item>
+  </plurals>
+  <string name="provider_i18n_logout_unconfirmed">Signed out; remote revocation unconfirmed</string>
+  <string name="provider_i18n_logout_done">Signed out</string>
+  <string name="provider_i18n_login_sync_failed">Signed in, but model sync failed. Pull models again on the Models tab</string>
+  <string name="provider_i18n_login_load_failed">Could not read sign-in status. Please try again</string>
+  <string name="provider_i18n_logout_failed">Sign-out failed. Please try again</string>
+  <string name="provider_i18n_login_failed">Sign-in failed. Please try again</string>
+  <string name="provider_i18n_connection_missing">Provider connection does not exist</string>
+  <string name="provider_i18n_auth_mode_changed">Provider authentication mode changed. Please pull models again</string>
+  <plurals name="provider_i18n_synced_remote_models">
+    <item quantity="one">Synced %d remote model</item>
+    <item quantity="other">Synced %d remote models</item>
+  </plurals>
+  <string name="provider_i18n_vertex_gemini4_only">Vertex AI chat only supports Gemini 4 series models.</string>
+  <string name="provider_i18n_gemini_thinking_levels">Configure reasoning levels</string>
+  <string name="provider_i18n_gemini_thinking_summary">When off, only Default is used without sending a level parameter; does not disable the model’s own thinking.</string>
+  <string name="provider_i18n_vertex_effort_help">Levels are provided per Gemini 4 model; Default is always available.</string>
+  <string name="provider_i18n_gemini_effort_help">Pick levels manually; support is verified by the server. Default is always available.</string>
+  <string name="provider_i18n_vertex_test_ok">Connected (verified model: %1$s)</string>
+  <string name="provider_i18n_vertex_config_invalid">Invalid Vertex AI connection configuration.</string>
+
+  <!-- Chat stats popover -->
+  <string name="stats_session_title">Session stats</string>
+  <plurals name="stats_turns_count">
+    <item quantity="one">%d turn</item>
+    <item quantity="other">%d turns</item>
+  </plurals>
+  <plurals name="stats_steps_count">
+    <item quantity="one">%d step</item>
+    <item quantity="other">%d steps</item>
+  </plurals>
+  <string name="stats_turns_steps_join">%1$s · %2$s</string>
+  <string name="stats_llm_time">Model time</string>
+  <string name="stats_tool_time">Tool time</string>
+  <string name="stats_avg_ttft">Avg. TTFT</string>
+  <string name="stats_output_speed">Output speed (TPS)</string>
+  <string name="stats_token_usage">Token usage</string>
+  <string name="stats_cache_hit">Cache hit</string>
+  <string name="stats_cache_miss">Uncached</string>
+  <string name="stats_cache_write">Cache write</string>
+  <string name="stats_cache_read">Cache read</string>
+  <string name="stats_last_compaction">Last compaction</string>
+  <string name="stats_last_compaction_id">Last compaction (%1$s)</string>
+  <plurals name="stats_compaction_requests">
+    <item quantity="one">Compaction (%d time)</item>
+    <item quantity="other">Compaction (%d times)</item>
+  </plurals>
+  <string name="stats_hit_percent">%1$s%% hit</string>
+  <string name="stats_compaction_total">Compaction total</string>
+  <string name="stats_compaction_payback">Compaction payback</string>
+  <plurals name="stats_payback_done">
+    <item quantity="one">Paid back (%d turn)</item>
+    <item quantity="other">Paid back (%d turns)</item>
+  </plurals>
+  <string name="stats_payback_needed">Needs %1$d turns (%2$d elapsed)</string>
+  <string name="stats_subagent_single">Subagent</string>
+  <plurals name="stats_subagent_count">
+    <item quantity="one">Subagent (%d run)</item>
+    <item quantity="other">Subagent (%d runs)</item>
+  </plurals>
+  <string name="stats_non_incremental_miss">Non-incremental miss</string>
+  <string name="stats_output">Output</string>
+  <string name="stats_output_reasoning_suffix">" (incl. %1$s reasoning tok)"</string>
+  <string name="stats_duration_seconds">%1$ss</string>
+  <string name="stats_duration_min_sec">%1$dm %2$ds</string>
+
+  <!-- Subagent -->
+  <string name="subagent_i18n_explore_summary">Read-only exploration and multi-source search</string>
+  <string name="subagent_i18n_coder_summary">Engineering tasks, file editing, and terminal execution</string>
+  <string name="subagent_i18n_plan_summary">Read-only architecture analysis and step-by-step planning</string>
+  <string name="subagent_i18n_ephemeral_summary">Temporary specialized Subagent</string>
+  <string name="subagent_i18n_reasoning_auto">Auto</string>
+  <string name="subagent_i18n_action_thinking">Thinking…</string>
+  <string name="subagent_i18n_action_thinking_round">Thinking (round %1$d)…</string>
+  <string name="subagent_i18n_step_thinking">Thinking</string>
+  <string name="subagent_i18n_action_summarizing">Summarizing report…</string>
+  <string name="subagent_i18n_action_analyzing">Analyzing results…</string>
+  <string name="subagent_i18n_action_failed">Execution failed</string>
+
+  <!-- Work step outcome labels -->
+  <string name="workstep_failure_label">Failed</string>
+  <string name="workstep_success_label">Done</string>
+  <string name="workstep_exec_done_label">Completed</string>
+
+  <!-- General UI & misc -->
+  <string name="ui_misc_route_subagents">Subagent</string>
+  <string name="ui_misc_route_character_detail">Character details</string>
+  <string name="ui_misc_route_character_editor">Edit character</string>
+  <string name="ui_misc_route_character_persona">My persona</string>
+  <string name="ui_misc_route_character_memory">Story memory</string>
+  <string name="ui_misc_backup_stop_active_runs">Stop running agent tasks first</string>
+  <string name="ui_misc_backup_runtime_unavailable">Could not verify Agent Runtime status. Please try again later</string>
+  <string name="ui_misc_backup_wait_persistence">Wait for conversations to finish saving</string>
+  <string name="ui_misc_rewrite_interrupted">Regeneration was interrupted. The original reply has been kept.</string>
+  <string name="ui_misc_compaction_interrupted">Context compaction interrupted</string>
+  <string name="ui_misc_compaction_completed">Context compaction completed</string>
+  <string name="ui_misc_compaction_stopped">Context compaction stopped</string>
+  <string name="ui_misc_compaction_failed">Context compaction failed</string>
+  <string name="ui_misc_scheduled_task_default_title">Scheduled task</string>
+  <string name="ui_misc_character_save_failed">Could not save character conversation settings</string>
+  <string name="ui_misc_character_prepare_failed">Could not load or save character settings. Please try again.</string>
+  <string name="ui_misc_scheduled_run_no_conversation">No conversation record available for this run</string>
+  <string name="ui_misc_got_it">Got it</string>
+  <string name="ui_misc_tool_set_clipboard_desc">Write text to the system clipboard for pasting long text or special characters.</string>
+  <string name="ui_misc_tool_get_clipboard_desc">Read the current text from the system clipboard.</string>
+  <string name="ui_misc_tool_read_personal_item">Read search item</string>
+  <string name="ui_misc_tool_read_personal_item_desc">Read the full entry of a previous search result.</string>
+  <string name="ui_misc_tool_summarize_bills">Summarize bills</string>
+  <string name="ui_misc_tool_summarize_bills_desc">Accurately aggregate indexed bills by time range and keywords.</string>
+  <string name="ui_misc_tool_character_memory_get">Read story memory</string>
+  <string name="ui_misc_tool_character_memory_get_desc">Character chats only. Read long-term story events and relationships for the current character.</string>
+  <string name="ui_misc_tool_character_memory_write">Update story memory</string>
+  <string name="ui_misc_tool_character_memory_write_desc">Character chats only. Update the current character’s story memory without writing to MEMORY.md.</string>
+  <string name="ui_misc_perm_calendar_title">Calendar access</string>
+  <string name="ui_misc_perm_calendar_summary">Read schedules and create or edit events and reminders; falls back to Root channel only if Root is granted.</string>
+  <string name="ui_misc_perm_action_authorize">Grant</string>
+  <string name="ui_misc_perm_dnd_title">Do Not Disturb access</string>
+  <string name="ui_misc_perm_dnd_summary">Allows switching between silent, vibrate, and ring modes without Root.</string>
+  <string name="ui_misc_not_enabled">Off</string>
+  <string name="ui_misc_enabled_with_value">On · %1$s</string>
+  <string name="ui_misc_saving">Saving…</string>
+  <string name="ui_misc_image_saved_gallery">Saved to gallery Pictures/Eta</string>
+  <string name="ui_misc_save_failed_retry">Save failed. Please try again</string>
+  <string name="ui_misc_share">Share</string>
+  <string name="ui_misc_share_failed">Share failed</string>
+  <string name="ui_misc_continue_editing">Continue editing</string>
+  <string name="ui_misc_no_browser_for_link">No browser available to open this link</string>
+  <string name="ui_misc_cannot_open_link">Unable to open link</string>
+  <string name="ui_misc_web_deepseek_key_required">Enter a DeepSeek API Key, or configure DeepSeek in Model Providers first</string>
+  <string name="ui_misc_web_deepseek_url_invalid">DeepSeek Base URL must be a valid HTTP(S) address</string>
+  <string name="ui_misc_web_custom_search_url_required">Enter a custom search endpoint URL</string>
+  <string name="ui_misc_web_custom_search_url_invalid">Custom search endpoint must be a valid HTTP(S) address</string>
+  <string name="ui_misc_web_custom_search_headers_invalid">Invalid custom search header format</string>
+  <string name="ui_misc_web_custom_fetch_url_required">Enter a custom fetch endpoint URL</string>
+  <string name="ui_misc_web_custom_fetch_url_invalid">Custom fetch endpoint must be a valid HTTP(S) address</string>
+  <string name="ui_misc_web_custom_fetch_headers_invalid">Invalid custom fetch header format</string>
+  <string name="ui_misc_filter_all">All</string>
+  <string name="ui_misc_disable_all">Disable all</string>
+  <string name="ui_misc_enable_all">Enable all</string>
+  <string name="ui_misc_daemon_completed">Completed</string>
+  <string name="ui_misc_daemon_failed">Failed</string>
+  <string name="ui_misc_daemon_timed_out">Timed out</string>
+  <string name="ui_misc_daemon_stopped">Stopped</string>
+  <string name="ui_misc_daemon_interrupted">Interrupted</string>
+  <string name="ui_misc_mcp_tools_enabled_header">%1$s · %2$d enabled</string>
+  <string name="ui_misc_collapse_description">Collapse</string>
+  <string name="ui_misc_expand_description">Expand</string>
+</resources>

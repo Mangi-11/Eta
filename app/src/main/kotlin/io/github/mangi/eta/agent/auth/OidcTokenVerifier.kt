@@ -9,7 +9,9 @@ import com.nimbusds.jose.jwk.KeyOperation
 import com.nimbusds.jose.jwk.KeyUse
 import com.nimbusds.jose.jwk.RSAKey
 import com.nimbusds.jwt.SignedJWT
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.core.AppStrings
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
@@ -35,11 +37,17 @@ internal class OidcTokenVerifier(private val http: OAuthHttpClient) {
 
     private fun fetchKeys(provider: OAuthProvider, controller: AgentRunController): JWKSet {
         val response = http.get(provider.jwksUrl, controller)
-        if (!response.successful) throw ProviderAuthException("oidc_keys_unavailable", "暂时无法验证账号身份，请稍后重试")
+        if (!response.successful) throw ProviderAuthException(
+            "oidc_keys_unavailable",
+            AppStrings.get(R.string.auth_err_oidc_keys_unavailable, "暂时无法验证账号身份，请稍后重试"),
+        )
         val keys = try {
             JWKSet.parse(response.json.toString())
         } catch (_: Exception) {
-            throw ProviderAuthException("oidc_invalid_keys", "授权服务的身份验证密钥无效")
+            throw ProviderAuthException(
+                "oidc_invalid_keys",
+                AppStrings.get(R.string.auth_err_oidc_invalid_keys, "授权服务的身份验证密钥无效"),
+            )
         }
         cache[provider] = CachedKeys(keys, System.currentTimeMillis() + 3_600_000)
         return keys
@@ -93,14 +101,20 @@ internal class OidcTokenVerifier(private val http: OAuthHttpClient) {
         } catch (error: ProviderAuthException) {
             throw error
         } catch (_: Exception) {
-            throw ProviderAuthException("oidc_identity_invalid", "无法验证登录账号，请重新登录")
+            throw ProviderAuthException(
+                "oidc_identity_invalid",
+                AppStrings.get(R.string.auth_err_oidc_identity_invalid, "无法验证登录账号，请重新登录"),
+            )
         }
 
         private fun parse(encoded: String): SignedJWT = try {
             require(encoded.length in 1..65_536)
             SignedJWT.parse(encoded)
         } catch (_: Exception) {
-            throw ProviderAuthException("oidc_token_invalid", "授权服务返回了无效的身份凭据")
+            throw ProviderAuthException(
+                "oidc_token_invalid",
+                AppStrings.get(R.string.auth_err_oidc_token_invalid, "授权服务返回了无效的身份凭据"),
+            )
         }
 
         private const val CLOCK_SKEW_MS = 30_000L

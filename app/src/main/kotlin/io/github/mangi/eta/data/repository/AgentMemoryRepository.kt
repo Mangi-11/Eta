@@ -2,6 +2,8 @@ package io.github.mangi.eta.data.repository
 
 import android.content.Context
 import android.util.AtomicFile
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import java.io.File
 import java.io.IOException
@@ -115,14 +117,20 @@ internal class AgentMemoryStore(
         } catch (throwable: IOException) {
             throw AgentMemoryException(
                 code = "MEMORY_READ_FAILED",
-                message = "无法读取记忆文件",
+                message = AppStrings.get(
+                    R.string.repo_err_memory_read_failed,
+                    "无法读取记忆文件",
+                ),
                 cause = throwable,
             )
         }
         if (bytes.size > MAX_FILE_BYTES) {
             throw AgentMemoryException(
                 code = "MEMORY_TOO_LARGE",
-                message = "记忆文件超过 1 MiB 安全上限",
+                message = AppStrings.get(
+                    R.string.repo_err_memory_file_exceeds_limit,
+                    "记忆文件超过 1 MiB 安全上限",
+                ),
             )
         }
         val content = bytes.toString(Charsets.UTF_8)
@@ -134,13 +142,19 @@ internal class AgentMemoryStore(
         if (bytes.size > MAX_FILE_BYTES) {
             throw AgentMemoryException(
                 code = "MEMORY_TOO_LARGE",
-                message = "记忆文件不能超过 1 MiB UTF-8 字节",
+                message = AppStrings.get(
+                    R.string.repo_err_memory_write_exceeds_limit,
+                    "记忆文件不能超过 1 MiB UTF-8 字节",
+                ),
             )
         }
         if (!memoryDir.exists() && !memoryDir.mkdirs() && !memoryDir.isDirectory) {
             throw AgentMemoryException(
                 code = "MEMORY_WRITE_FAILED",
-                message = "无法创建记忆目录",
+                message = AppStrings.get(
+                    R.string.repo_err_memory_dir_create_failed,
+                    "无法创建记忆目录",
+                ),
             )
         }
         val output = try {
@@ -148,7 +162,10 @@ internal class AgentMemoryStore(
         } catch (throwable: IOException) {
             throw AgentMemoryException(
                 code = "MEMORY_WRITE_FAILED",
-                message = "无法开始写入记忆文件",
+                message = AppStrings.get(
+                    R.string.repo_err_memory_write_start_failed,
+                    "无法开始写入记忆文件",
+                ),
                 cause = throwable,
             )
         }
@@ -159,7 +176,10 @@ internal class AgentMemoryStore(
             atomicFile.failWrite(output)
             throw AgentMemoryException(
                 code = "MEMORY_WRITE_FAILED",
-                message = "无法保存记忆文件",
+                message = AppStrings.get(
+                    R.string.repo_err_memory_save_failed,
+                    "无法保存记忆文件",
+                ),
                 cause = throwable,
             )
         }
@@ -177,7 +197,10 @@ internal class AgentMemoryStore(
         ) {
             throw AgentMemoryException(
                 code = "MEMORY_RANGE_INVALID",
-                message = "替换行范围无效；请重新读取记忆后再试",
+                message = AppStrings.get(
+                    R.string.repo_err_memory_invalid_replace_range,
+                    "替换行范围无效；请重新读取记忆后再试",
+                ),
             )
         }
         val replacement = mutation.content.memoryLines()

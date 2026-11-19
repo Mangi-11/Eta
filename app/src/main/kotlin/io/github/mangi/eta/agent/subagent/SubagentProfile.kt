@@ -1,9 +1,12 @@
 package io.github.mangi.eta.agent.subagent
 
+import androidx.annotation.StringRes
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.context.PersonalSearchTools
 import io.github.mangi.eta.agent.model.AgentFileToolCatalog
 import io.github.mangi.eta.agent.model.AgentPhoneToolCatalog
 import io.github.mangi.eta.agent.model.AgentTerminalToolCatalog
+import io.github.mangi.eta.core.AppStrings
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -25,7 +28,11 @@ internal data class SubagentProfile(
     val explicitTools: Set<String>? = null,
     val disallowedTools: Set<String> = emptySet(),
     val filePath: String? = null,
+    @StringRes val summaryRes: Int? = null,
 ) {
+    fun localizedSummary(): String =
+        summaryRes?.let { AppStrings.get(it, summary) } ?: summary
+
     fun buildSystemPrompt(): String =
         "$SUBAGENT_ROLE_PREFIX\n\n$roleInstruction"
 
@@ -195,6 +202,7 @@ internal data class SubagentProfile(
                 "严禁尝试修改任何文件或设备状态。在最终回复中直接给出结构化证据、关键路径/时间点与结论摘要。",
             allowWriteFilesAndTerminal = false,
             builtin = true,
+            summaryRes = R.string.subagent_i18n_explore_summary,
         )
 
         val CODER = SubagentProfile(
@@ -206,6 +214,7 @@ internal data class SubagentProfile(
                 "请清楚说明你执行了哪些命令或修改了哪些文件、关键输出与验证结果，以及任何未完成或需后续处理的事项。",
             allowWriteFilesAndTerminal = true,
             builtin = true,
+            summaryRes = R.string.subagent_i18n_coder_summary,
         )
 
         val PLAN = SubagentProfile(
@@ -217,6 +226,7 @@ internal data class SubagentProfile(
                 "请在最终回复中清晰列出：1. 已确认的上下文事实；2. 仍待核实的关键问题；3. 分步执行方案与风险权衡。",
             allowWriteFilesAndTerminal = false,
             builtin = true,
+            summaryRes = R.string.subagent_i18n_plan_summary,
         )
 
         val BUILTIN_PROFILES: List<SubagentProfile> = listOf(EXPLORE, CODER, PLAN)
@@ -285,6 +295,7 @@ internal data class SubagentProfile(
                 allowWriteFilesAndTerminal = true,
                 builtin = false,
                 explicitTools = if (cleanTools.isNotEmpty()) cleanTools.toSet() else setOf("*"),
+                summaryRes = if (cleanRole.isEmpty()) R.string.subagent_i18n_ephemeral_summary else null,
             )
         }
     }

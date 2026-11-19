@@ -1,5 +1,8 @@
 package io.github.mangi.eta.data.model
 
+import androidx.annotation.StringRes
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -18,15 +21,22 @@ internal enum class ImageGenBackend(val wireValue: String) {
 }
 
 @Serializable
-internal enum class ImageGenAspectRatio(val wireValue: String, val displayLabel: String) {
-    AUTO("auto", "自动"),
-    RATIO_1_1("1:1", "1:1 正方形"),
-    RATIO_16_9("16:9", "16:9 横屏"),
-    RATIO_9_16("9:16", "9:16 竖屏"),
-    RATIO_4_3("4:3", "4:3 横图"),
-    RATIO_3_4("3:4", "3:4 竖图"),
-    RATIO_3_2("3:2", "3:2 相机横图"),
-    RATIO_2_3("2:3", "2:3 海报竖图");
+internal enum class ImageGenAspectRatio(
+    val wireValue: String,
+    @StringRes val displayLabelRes: Int,
+    private val fallbackDisplayLabel: String,
+) {
+    AUTO("auto", R.string.imagegen_aspect_ratio_auto, "自动"),
+    RATIO_1_1("1:1", R.string.imagegen_aspect_ratio_1_1, "1:1 正方形"),
+    RATIO_16_9("16:9", R.string.imagegen_aspect_ratio_16_9, "16:9 横屏"),
+    RATIO_9_16("9:16", R.string.imagegen_aspect_ratio_9_16, "9:16 竖屏"),
+    RATIO_4_3("4:3", R.string.imagegen_aspect_ratio_4_3, "4:3 横图"),
+    RATIO_3_4("3:4", R.string.imagegen_aspect_ratio_3_4, "3:4 竖图"),
+    RATIO_3_2("3:2", R.string.imagegen_aspect_ratio_3_2, "3:2 相机横图"),
+    RATIO_2_3("2:3", R.string.imagegen_aspect_ratio_2_3, "2:3 海报竖图");
+
+    val displayLabel: String
+        get() = AppStrings.get(displayLabelRes, fallbackDisplayLabel)
 
     companion object {
         fun fromWireValue(value: String?): ImageGenAspectRatio {
@@ -37,10 +47,17 @@ internal enum class ImageGenAspectRatio(val wireValue: String, val displayLabel:
 }
 
 @Serializable
-internal enum class ImageGenResolution(val wireValue: String, val displayLabel: String) {
-    R_1K("1K", "1K 标准"),
-    R_2K("2K", "2K 高清"),
-    R_4K("4K", "4K 超清");
+internal enum class ImageGenResolution(
+    val wireValue: String,
+    @StringRes val displayLabelRes: Int,
+    private val fallbackDisplayLabel: String,
+) {
+    R_1K("1K", R.string.imagegen_resolution_1k, "1K 标准"),
+    R_2K("2K", R.string.imagegen_resolution_2k, "2K 高清"),
+    R_4K("4K", R.string.imagegen_resolution_4k, "4K 超清");
+
+    val displayLabel: String
+        get() = AppStrings.get(displayLabelRes, fallbackDisplayLabel)
 
     companion object {
         fun fromWireValue(value: String?): ImageGenResolution {
@@ -57,49 +74,168 @@ internal enum class ImageGenResolution(val wireValue: String, val displayLabel: 
 
 internal data class ImageGenModelPreset(
     val id: String,
-    val label: String,
-    val note: String,
-)
+    internal val rawLabel: String,
+    @StringRes val noteRes: Int,
+    private val fallbackNote: String,
+    @StringRes val labelRes: Int? = null,
+) {
+    val label: String
+        get() = labelRes?.let { AppStrings.get(it, rawLabel) } ?: rawLabel
+
+    val note: String
+        get() = AppStrings.get(noteRes, fallbackNote)
+}
 
 internal object ImageGenModelPresets {
     val GEMINI: List<ImageGenModelPreset> = listOf(
-        ImageGenModelPreset("gemini-nano-banana-2.1", "Nano Banana 2.1", "主力推荐 · 1K/2K/4K 与多图一致"),
-        ImageGenModelPreset("gemini-3.1-flash-lite-image", "Nano Banana 2 Lite", "极速低价 · 仅 1K 分辨率"),
-        ImageGenModelPreset("gemini-3.1-flash-image", "Nano Banana 2", "支持 1K~4K 与多参考图"),
-        ImageGenModelPreset("gemini-3-pro-image", "Nano Banana Pro", "专业排版与复杂指令推理"),
-        ImageGenModelPreset("gemini-2.5-flash-image", "Nano Banana 1", "固定分辨率经典模型"),
+        ImageGenModelPreset(
+            id = "gemini-nano-banana-2.1",
+            rawLabel = "Nano Banana 2.1",
+            noteRes = R.string.imagegen_preset_note_gemini_nano_banana_2_1,
+            fallbackNote = "主力推荐 · 1K/2K/4K 与多图一致",
+        ),
+        ImageGenModelPreset(
+            id = "gemini-3.1-flash-lite-image",
+            rawLabel = "Nano Banana 2 Lite",
+            noteRes = R.string.imagegen_preset_note_gemini_3_1_flash_lite,
+            fallbackNote = "极速低价 · 仅 1K 分辨率",
+        ),
+        ImageGenModelPreset(
+            id = "gemini-3.1-flash-image",
+            rawLabel = "Nano Banana 2",
+            noteRes = R.string.imagegen_preset_note_gemini_3_1_flash,
+            fallbackNote = "支持 1K~4K 与多参考图",
+        ),
+        ImageGenModelPreset(
+            id = "gemini-3-pro-image",
+            rawLabel = "Nano Banana Pro",
+            noteRes = R.string.imagegen_preset_note_gemini_3_pro,
+            fallbackNote = "专业排版与复杂指令推理",
+        ),
+        ImageGenModelPreset(
+            id = "gemini-2.5-flash-image",
+            rawLabel = "Nano Banana 1",
+            noteRes = R.string.imagegen_preset_note_gemini_2_5_flash,
+            fallbackNote = "固定分辨率经典模型",
+        ),
     )
 
     val OPENAI_COMPATIBLE: List<ImageGenModelPreset> = listOf(
-        ImageGenModelPreset("gpt-image-2.6-flare", "GPT-Image 2.6 Flare", "OpenAI 快速高质量出图"),
-        ImageGenModelPreset("gpt-image-2.6-sunburst", "GPT-Image 2.6 Sunburst", "OpenAI 精细编辑与高保真"),
-        ImageGenModelPreset("gpt-image-2.5-flare", "GPT-Image 2.5 Flare", "OpenAI 2.5 快速主力"),
-        ImageGenModelPreset("gpt-image-2.5-sunburst", "GPT-Image 2.5 Sunburst", "OpenAI 2.5 精细编辑"),
-        ImageGenModelPreset("gpt-image-1.5", "GPT-Image 1.5", "广泛兼容版本"),
+        ImageGenModelPreset(
+            id = "gpt-image-2.6-flare",
+            rawLabel = "GPT-Image 2.6 Flare",
+            noteRes = R.string.imagegen_preset_note_gpt_2_6_flare,
+            fallbackNote = "OpenAI 快速高质量出图",
+        ),
+        ImageGenModelPreset(
+            id = "gpt-image-2.6-sunburst",
+            rawLabel = "GPT-Image 2.6 Sunburst",
+            noteRes = R.string.imagegen_preset_note_gpt_2_6_sunburst,
+            fallbackNote = "OpenAI 精细编辑与高保真",
+        ),
+        ImageGenModelPreset(
+            id = "gpt-image-2.5-flare",
+            rawLabel = "GPT-Image 2.5 Flare",
+            noteRes = R.string.imagegen_preset_note_gpt_2_5_flare,
+            fallbackNote = "OpenAI 2.5 快速主力",
+        ),
+        ImageGenModelPreset(
+            id = "gpt-image-2.5-sunburst",
+            rawLabel = "GPT-Image 2.5 Sunburst",
+            noteRes = R.string.imagegen_preset_note_gpt_2_5_sunburst,
+            fallbackNote = "OpenAI 2.5 精细编辑",
+        ),
+        ImageGenModelPreset(
+            id = "gpt-image-1.5",
+            rawLabel = "GPT-Image 1.5",
+            noteRes = R.string.imagegen_preset_note_gpt_1_5,
+            fallbackNote = "广泛兼容版本",
+        ),
     )
 
     val XAI: List<ImageGenModelPreset> = listOf(
-        ImageGenModelPreset("grok-imagine-image-2.0", "Grok Imagine 2.0", "xAI 生图与最多 5 张参考图编辑"),
+        ImageGenModelPreset(
+            id = "grok-imagine-image-2.0",
+            rawLabel = "Grok Imagine 2.0",
+            noteRes = R.string.imagegen_preset_note_xai_grok_2_0,
+            fallbackNote = "xAI 生图与最多 5 张参考图编辑",
+        ),
     )
 
     val DOUBAO: List<ImageGenModelPreset> = listOf(
-        ImageGenModelPreset("doubao-seedream-5-5-261028", "Seedream 5.5", "最新主力 · 1K/2K 写实与原生透明底"),
-        ImageGenModelPreset("doubao-seedream-5-0-pro-260628", "Seedream 5.0 Pro", "1K/2K 精准编辑与高细节"),
-        ImageGenModelPreset("doubao-seedream-5-0-flash-260915", "Seedream 5.0 Flash", "1K/2K 响应迅速"),
-        ImageGenModelPreset("doubao-seedream-5-0-lite-260128", "Seedream 5.0 Lite", "支持 2K/4K 与高分辨率出图"),
-        ImageGenModelPreset("doubao-seedream-4-5-251128", "Seedream 4.5", "经典 2K/4K 高质"),
+        ImageGenModelPreset(
+            id = "doubao-seedream-5-5-261028",
+            rawLabel = "Seedream 5.5",
+            noteRes = R.string.imagegen_preset_note_doubao_5_5,
+            fallbackNote = "最新主力 · 1K/2K 写实与原生透明底",
+        ),
+        ImageGenModelPreset(
+            id = "doubao-seedream-5-0-pro-260628",
+            rawLabel = "Seedream 5.0 Pro",
+            noteRes = R.string.imagegen_preset_note_doubao_5_0_pro,
+            fallbackNote = "1K/2K 精准编辑与高细节",
+        ),
+        ImageGenModelPreset(
+            id = "doubao-seedream-5-0-flash-260915",
+            rawLabel = "Seedream 5.0 Flash",
+            noteRes = R.string.imagegen_preset_note_doubao_5_0_flash,
+            fallbackNote = "1K/2K 响应迅速",
+        ),
+        ImageGenModelPreset(
+            id = "doubao-seedream-5-0-lite-260128",
+            rawLabel = "Seedream 5.0 Lite",
+            noteRes = R.string.imagegen_preset_note_doubao_5_0_lite,
+            fallbackNote = "支持 2K/4K 与高分辨率出图",
+        ),
+        ImageGenModelPreset(
+            id = "doubao-seedream-4-5-251128",
+            rawLabel = "Seedream 4.5",
+            noteRes = R.string.imagegen_preset_note_doubao_4_5,
+            fallbackNote = "经典 2K/4K 高质",
+        ),
     )
 
     val QWEN: List<ImageGenModelPreset> = listOf(
-        ImageGenModelPreset("qwen-image-2.0-pro", "Qwen-Image 2.0 Pro", "主力推荐 · 中文排版与写实极强"),
-        ImageGenModelPreset("qwen-image-2.0", "Qwen-Image 2.0", "加速版 · 速度与效果均衡"),
+        ImageGenModelPreset(
+            id = "qwen-image-2.0-pro",
+            rawLabel = "Qwen-Image 2.0 Pro",
+            noteRes = R.string.imagegen_preset_note_qwen_2_0_pro,
+            fallbackNote = "主力推荐 · 中文排版与写实极强",
+        ),
+        ImageGenModelPreset(
+            id = "qwen-image-2.0",
+            rawLabel = "Qwen-Image 2.0",
+            noteRes = R.string.imagegen_preset_note_qwen_2_0,
+            fallbackNote = "加速版 · 速度与效果均衡",
+        ),
     )
 
     val SILICONFLOW: List<ImageGenModelPreset> = listOf(
-        ImageGenModelPreset("Qwen/Qwen-Image", "Qwen-Image", "硅基流动 · 综合与中文表现优秀"),
-        ImageGenModelPreset("Qwen/Qwen-Image-Edit-2509", "Qwen-Image-Edit", "硅基流动 · 支持图生图编辑"),
-        ImageGenModelPreset("Kwai-Kolors/Kolors", "可图 Kolors", "硅基流动 · 高性价比文生图"),
-        ImageGenModelPreset("black-forest-labs/FLUX.1-schnell", "FLUX.1 Schnell", "硅基流动 · 极速文生图"),
+        ImageGenModelPreset(
+            id = "Qwen/Qwen-Image",
+            rawLabel = "Qwen-Image",
+            noteRes = R.string.imagegen_preset_note_sf_qwen_image,
+            fallbackNote = "硅基流动 · 综合与中文表现优秀",
+        ),
+        ImageGenModelPreset(
+            id = "Qwen/Qwen-Image-Edit-2509",
+            rawLabel = "Qwen-Image-Edit",
+            noteRes = R.string.imagegen_preset_note_sf_qwen_edit,
+            fallbackNote = "硅基流动 · 支持图生图编辑",
+        ),
+        ImageGenModelPreset(
+            id = "Kwai-Kolors/Kolors",
+            rawLabel = "可图 Kolors",
+            noteRes = R.string.imagegen_preset_note_sf_kolors,
+            fallbackNote = "硅基流动 · 高性价比文生图",
+            labelRes = R.string.imagegen_preset_label_kolors,
+        ),
+        ImageGenModelPreset(
+            id = "black-forest-labs/FLUX.1-schnell",
+            rawLabel = "FLUX.1 Schnell",
+            noteRes = R.string.imagegen_preset_note_sf_flux_schnell,
+            fallbackNote = "硅基流动 · 极速文生图",
+        ),
     )
 
     fun forBackend(backend: ImageGenBackend): List<ImageGenModelPreset> = when (backend) {

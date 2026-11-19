@@ -1,7 +1,9 @@
 package io.github.mangi.eta.agent.model
 
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
+import io.github.mangi.eta.core.AppStrings
 import java.io.InputStream
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -338,15 +340,21 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             }
             !sawMessageStop
         }
-        if (!sawMessageStop) throw AgentModelFailure.incompleteStream("Anthropic SSE 流未正常结束")
+        if (!sawMessageStop) throw AgentModelFailure.incompleteStream(
+            AppStrings.get(R.string.provider_err_anthropic_stream_not_ended, "Anthropic SSE 流未正常结束"),
+        )
         if (blocks.values.any { it.type in setOf("text", "thinking", "redacted_thinking", "tool_use") && !it.stopped }) {
-            throw AgentModelFailure.incompleteStream("Anthropic SSE 内容块未正常结束")
+            throw AgentModelFailure.incompleteStream(
+                AppStrings.get(R.string.provider_err_anthropic_block_not_ended, "Anthropic SSE 内容块未正常结束"),
+            )
         }
         val toolCalls = blocks.values
             .filter { it.type == "tool_use" && it.name.isNotBlank() }
             .sortedBy { it.index }
         if (toolCalls.isNotEmpty() && blocks.values.any { it.type == "thinking" && it.signature.isEmpty() }) {
-            throw AgentModelFailure.incompleteStream("Anthropic SSE 工具回合缺少思考签名")
+            throw AgentModelFailure.incompleteStream(
+                AppStrings.get(R.string.provider_err_anthropic_missing_signature, "Anthropic SSE 工具回合缺少思考签名"),
+            )
         }
 
         return JSONObject()
@@ -414,7 +422,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
         return when (type) {
             "error" -> throw AgentModelFailure.stream(
                 json.optJSONObject("error") ?: JSONObject(),
-                "Anthropic SSE 返回错误",
+                AppStrings.get(R.string.provider_err_anthropic_sse_error, "Anthropic SSE 返回错误"),
             )
             "message_start" -> {
                 EventResult(usage = parseUsage(json.optJSONObject("message")?.optJSONObject("usage")))

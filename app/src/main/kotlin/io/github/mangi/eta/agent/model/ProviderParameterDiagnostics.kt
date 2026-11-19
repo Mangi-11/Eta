@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.model
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import org.json.JSONObject
 
 /** 有界的服务端参数诊断，不承载失败分类或重试策略。 */
@@ -21,15 +23,19 @@ internal object ProviderParameterDiagnostics {
             }
             if (fields.size >= 3) break
         }
-        return (codes.take(1) + fields.take(3).map { "字段 $it" }).joinToString("；").ifEmpty { null }
+        val separator = AppStrings.get(R.string.provider_param_separator, "；")
+        return (codes.take(1) + fields.take(3).map {
+            AppStrings.get(R.string.provider_param_field, "字段 %1\$s", it)
+        }).joinToString(separator).ifEmpty { null }
     }
 
     private fun safeParameterPath(raw: String): String? {
         if (raw.length > 192 || !parameterPath.matches(raw)) return null
         val segments = raw.split('.')
         if (segments.first().substringBefore('[') !in requestParameterRoots) return null
+        val customField = AppStrings.get(R.string.provider_param_custom_field, "<自定义字段>")
         return segments.joinToString(".") { segment ->
-            if (segment.substringBefore('[') in publicParameterNames) segment else "<自定义字段>"
+            if (segment.substringBefore('[') in publicParameterNames) segment else customField
         }
     }
 

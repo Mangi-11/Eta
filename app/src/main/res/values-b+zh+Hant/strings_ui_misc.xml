@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+  <!-- Community catalog -->
+  <string name="catalog_i18n_title">從 models.dev 新增</string>
+  <string name="catalog_i18n_entry_summary">瀏覽 models.dev 社群目錄並選擇模型</string>
+  <string name="catalog_i18n_refresh">重新整理模型目錄</string>
+  <string name="catalog_i18n_search_providers">搜尋供應商</string>
+  <string name="catalog_i18n_status_section">目錄狀態</string>
+  <string name="catalog_i18n_community_title">models.dev 社群目錄</string>
+  <string name="catalog_i18n_community_privacy">讀取目錄不會上傳 Eta 的 API Key</string>
+  <string name="catalog_i18n_candidate_title">模型為社群候選條目</string>
+  <string name="catalog_i18n_candidate_summary">能否呼叫以供應商帳號權限與實際介面為準</string>
+  <string name="catalog_i18n_loading_local">正在讀取本機目錄</string>
+  <string name="catalog_i18n_unavailable">目錄暫時無法使用</string>
+  <string name="catalog_i18n_updating_online">正在更新線上目錄</string>
+  <string name="catalog_i18n_update_failed">線上更新失敗</string>
+  <string name="catalog_i18n_update_failed_fallback">%1$s；仍可使用目前目錄</string>
+  <string name="catalog_i18n_local_load_failed">本機目錄讀取失敗</string>
+  <string name="catalog_i18n_local_load_failed_summary">請重試或檢查應用程式安裝套件</string>
+  <string name="catalog_i18n_importable_providers">可匯入供應商（%1$d）</string>
+  <string name="catalog_i18n_empty_no_catalog">沒有可用的目錄</string>
+  <string name="catalog_i18n_empty_no_match">找不到相符的供應商</string>
+  <string name="catalog_i18n_empty_no_catalog_summary">點按右上角重新整理後重試</string>
+  <string name="catalog_i18n_empty_no_match_summary">試試其他名稱或網址</string>
+  <plurals name="catalog_i18n_importable_models_count">
+    <item quantity="other">%d 個可匯入模型</item>
+  </plurals>
+  <string name="catalog_i18n_selection_expired">模型選擇已失效，請重新選擇</string>
+  <string name="catalog_i18n_save_provider_failed">儲存供應商失敗，請重試</string>
+  <string name="catalog_i18n_select_models">選擇模型</string>
+  <string name="catalog_i18n_import_count">匯入（%1$d）</string>
+  <string name="catalog_i18n_provider_not_found">目錄中沒有這個供應商</string>
+  <string name="catalog_i18n_provider_not_found_summary">目錄可能已更新，請返回列表重新選擇</string>
+  <string name="catalog_i18n_provider_section">供應商</string>
+  <string name="catalog_i18n_field_name">名稱</string>
+  <string name="catalog_i18n_search_models">搜尋模型名稱或 ID</string>
+  <string name="catalog_i18n_models_count">模型（%1$d）</string>
+  <string name="catalog_i18n_models_selected">模型（已選 %1$d / %2$d）</string>
+  <string name="catalog_i18n_no_matching_models">找不到相符的模型</string>
+  <string name="catalog_i18n_context_tokens">%1$s tokens 上下文</string>
+  <string name="catalog_i18n_source_snapshot">內建目錄快照</string>
+  <string name="catalog_i18n_source_cache">本機快取目錄</string>
+  <string name="catalog_i18n_source_online">線上目錄</string>
+  <plurals name="catalog_i18n_providers_count">
+    <item quantity="other">%d 家可匯入供應商</item>
+  </plurals>
+  <string name="catalog_i18n_updated_at">更新於 %1$s</string>
+  <string name="catalog_i18n_import_in_progress">目錄匯入正在進行</string>
+  <string name="catalog_i18n_error_http">目錄服務傳回 HTTP %1$s</string>
+  <string name="catalog_i18n_error_timeout">連線目錄服務逾時</string>
+  <string name="catalog_i18n_error_host">無法解析目錄服務網址</string>
+  <string name="catalog_i18n_error_ssl">目錄服務安全連線失敗</string>
+  <string name="catalog_i18n_error_too_large">目錄檔案超出大小限制</string>
+  <string name="catalog_i18n_error_invalid_format">目錄格式無效</string>
+  <string name="catalog_i18n_error_io">網路連線或本機快取寫入失敗</string>
+  <string name="catalog_i18n_error_generic">更新失敗，請稍後重試</string>
+
+  <!-- Providers -->
+  <string name="provider_i18n_builtin_bailian">阿里百煉</string>
+  <string name="provider_i18n_builtin_siliconflow">矽基流動</string>
+  <string name="provider_i18n_add_gemini">新增 Gemini</string>
+  <string name="provider_i18n_add_gemini_summary">支援 Google AI Studio 與 Vertex AI</string>
+  <string name="provider_i18n_account_title">%1$s 帳號</string>
+  <string name="provider_i18n_login_loading">正在讀取登入狀態…</string>
+  <string name="provider_i18n_login_saving">正在儲存設定…</string>
+  <string name="provider_i18n_login_disconnecting">正在登出…</string>
+  <string name="provider_i18n_login_preparing">正在準備授權…</string>
+  <string name="provider_i18n_login_browser_prompt">請在瀏覽器中完成授權</string>
+  <string name="provider_i18n_login_syncing_models">登入成功，正在拉取最新模型…</string>
+  <string name="provider_i18n_login_chatgpt_hint">使用 ChatGPT 帳號登入 Codex</string>
+  <string name="provider_i18n_login_grok_hint">登入後使用 Grok 訂閱額度</string>
+  <string name="provider_i18n_login_reauth">請重新登入</string>
+  <string name="provider_i18n_login_plan_disabled">帳號尚未授予模型呼叫權限</string>
+  <string name="provider_i18n_logged_in_codex">已登入 Codex</string>
+  <string name="provider_i18n_logged_in_grok">已登入 Grok</string>
+  <string name="provider_i18n_open_browser">開啟瀏覽器</string>
+  <string name="provider_i18n_reauthorize">重新授權</string>
+  <string name="provider_i18n_sign_in_with">使用 %1$s 登入</string>
+  <string name="provider_i18n_manage_usage">管理用量</string>
+  <string name="provider_i18n_sign_out">登出</string>
+  <string name="provider_i18n_no_browser">找不到可用的瀏覽器</string>
+  <string name="provider_i18n_cannot_open_browser">無法開啟瀏覽器，請檢查系統設定</string>
+  <string name="provider_i18n_custom_headers">自訂請求標頭</string>
+  <string name="provider_i18n_headers_unset">未設定</string>
+  <plurals name="provider_i18n_headers_count">
+    <item quantity="other">已設定 %d 項</item>
+  </plurals>
+  <string name="provider_i18n_headers_summary">可覆寫 User-Agent；認證與傳輸請求標頭由系統管理。</string>
+  <string name="provider_i18n_add_header">新增請求標頭</string>
+  <string name="provider_i18n_header_name">名稱</string>
+  <string name="provider_i18n_header_value">值</string>
+  <string name="provider_i18n_gemini_platform">接入平台</string>
+  <string name="provider_i18n_gemini_vertex_summary">標準 Vertex AI 接入（Gemini 4）</string>
+  <string name="provider_i18n_gemini_ai_studio_summary">原生 Interactions API（AI Studio API Key）</string>
+  <string name="provider_i18n_auth_method">認證方式</string>
+  <string name="provider_i18n_auth_account_login">帳號登入</string>
+  <string name="provider_i18n_vertex_project_placeholder">官方端點需要 Google Cloud 專案</string>
+  <string name="provider_i18n_login_interrupted">登入已中斷，請重試</string>
+  <plurals name="provider_i18n_login_synced_models">
+    <item quantity="other">已登入，已同步 %d 個遠端模型</item>
+  </plurals>
+  <string name="provider_i18n_logout_unconfirmed">已登出，遠端撤銷未確認</string>
+  <string name="provider_i18n_logout_done">已登出</string>
+  <string name="provider_i18n_login_sync_failed">已登入，模型同步失敗，請在模型頁重新拉取</string>
+  <string name="provider_i18n_login_load_failed">無法讀取登入狀態，請重試</string>
+  <string name="provider_i18n_logout_failed">登出失敗，請重試</string>
+  <string name="provider_i18n_login_failed">登入失敗，請重試</string>
+  <string name="provider_i18n_connection_missing">供應商連線不存在</string>
+  <string name="provider_i18n_auth_mode_changed">供應商登入方式已變更，請重新拉取模型</string>
+  <plurals name="provider_i18n_synced_remote_models">
+    <item quantity="other">已同步 %d 個遠端模型</item>
+  </plurals>
+  <string name="provider_i18n_vertex_gemini4_only">Vertex AI 對話僅支援 Gemini 4 系列模型。</string>
+  <string name="provider_i18n_gemini_thinking_levels">設定思考檔位</string>
+  <string name="provider_i18n_gemini_thinking_summary">關閉時僅使用 Default，不傳送檔位參數；不會關閉模型自身的思考。</string>
+  <string name="provider_i18n_vertex_effort_help">檔位依 Gemini 4 模型提供，Default 始終可用。</string>
+  <string name="provider_i18n_gemini_effort_help">可手動選擇檔位，是否支援由伺服器驗證。Default 始終可用。</string>
+  <string name="provider_i18n_vertex_test_ok">連線成功（已驗證模型：%1$s）</string>
+  <string name="provider_i18n_vertex_config_invalid">Vertex AI 連線設定無效。</string>
+
+  <!-- Chat stats popover -->
+  <string name="stats_session_title">對話統計</string>
+  <plurals name="stats_turns_count">
+    <item quantity="other">%d 輪</item>
+  </plurals>
+  <plurals name="stats_steps_count">
+    <item quantity="other">%d 步</item>
+  </plurals>
+  <string name="stats_turns_steps_join">%1$s %2$s</string>
+  <string name="stats_llm_time">模型耗時</string>
+  <string name="stats_tool_time">工具呼叫耗時</string>
+  <string name="stats_avg_ttft">首 token 平均（TTFT）</string>
+  <string name="stats_output_speed">輸出速度（TPS）</string>
+  <string name="stats_token_usage">Token 用量</string>
+  <string name="stats_cache_hit">快取命中</string>
+  <string name="stats_cache_miss">未命中</string>
+  <string name="stats_cache_write">快取寫入</string>
+  <string name="stats_cache_read">快取讀取</string>
+  <string name="stats_last_compaction">最近壓縮</string>
+  <string name="stats_last_compaction_id">最近壓縮（%1$s）</string>
+  <plurals name="stats_compaction_requests">
+    <item quantity="other">壓縮請求（%d 次）</item>
+  </plurals>
+  <string name="stats_hit_percent">命中 %1$s%%</string>
+  <string name="stats_compaction_total">壓縮累計</string>
+  <string name="stats_compaction_payback">壓縮回本</string>
+  <plurals name="stats_payback_done">
+    <item quantity="other">已回本（已 %d 輪）</item>
+  </plurals>
+  <string name="stats_payback_needed">需 %1$d 輪（已 %2$d 輪）</string>
+  <string name="stats_subagent_single">子智能體</string>
+  <plurals name="stats_subagent_count">
+    <item quantity="other">子智能體（%d 次）</item>
+  </plurals>
+  <string name="stats_non_incremental_miss">非增量未命中</string>
+  <string name="stats_output">輸出</string>
+  <string name="stats_output_reasoning_suffix">（其中推理 %1$s tok）</string>
+  <string name="stats_duration_seconds">%1$s秒</string>
+  <string name="stats_duration_min_sec">%1$d分%2$d秒</string>
+
+  <!-- Subagent -->
+  <string name="subagent_i18n_explore_summary">唯讀探索與多源資訊檢索</string>
+  <string name="subagent_i18n_coder_summary">工程執行、檔案編輯與終端機任務</string>
+  <string name="subagent_i18n_plan_summary">唯讀架構分析與分步方案設計</string>
+  <string name="subagent_i18n_ephemeral_summary">臨時專職 Subagent</string>
+  <string name="subagent_i18n_reasoning_auto">自動</string>
+  <string name="subagent_i18n_action_thinking">正在思考…</string>
+  <string name="subagent_i18n_action_thinking_round">第 %1$d 輪思考…</string>
+  <string name="subagent_i18n_step_thinking">思考</string>
+  <string name="subagent_i18n_action_summarizing">正在整理彙報…</string>
+  <string name="subagent_i18n_action_analyzing">正在分析結果…</string>
+  <string name="subagent_i18n_action_failed">執行失敗</string>
+
+  <!-- Work step outcome labels -->
+  <string name="workstep_failure_label">失敗</string>
+  <string name="workstep_success_label">完成</string>
+  <string name="workstep_exec_done_label">執行完成</string>
+
+  <!-- General UI & misc -->
+  <string name="ui_misc_route_subagents">Subagent</string>
+  <string name="ui_misc_route_character_detail">角色詳情</string>
+  <string name="ui_misc_route_character_editor">編輯角色</string>
+  <string name="ui_misc_route_character_persona">我的人設</string>
+  <string name="ui_misc_route_character_memory">劇情記憶</string>
+  <string name="ui_misc_backup_stop_active_runs">請先停止正在執行的 Agent 任務</string>
+  <string name="ui_misc_backup_runtime_unavailable">無法確認 Agent Runtime 狀態，請稍後重試</string>
+  <string name="ui_misc_backup_wait_persistence">請等待對話儲存完成</string>
+  <string name="ui_misc_rewrite_interrupted">重新產生已中斷，原回覆已保留。</string>
+  <string name="ui_misc_compaction_interrupted">上下文壓縮已中斷</string>
+  <string name="ui_misc_compaction_completed">上下文壓縮完成</string>
+  <string name="ui_misc_compaction_stopped">上下文壓縮已停止</string>
+  <string name="ui_misc_compaction_failed">上下文壓縮失敗</string>
+  <string name="ui_misc_scheduled_task_default_title">排程任務</string>
+  <string name="ui_misc_character_save_failed">無法儲存角色對話設定</string>
+  <string name="ui_misc_character_prepare_failed">無法讀取或儲存角色設定，請重試。</string>
+  <string name="ui_misc_scheduled_run_no_conversation">該次執行暫無可檢視的對話記錄</string>
+  <string name="ui_misc_got_it">知道了</string>
+  <string name="ui_misc_tool_set_clipboard_desc">將文字寫入系統剪貼簿，便於後續貼上長文字或特殊字元。</string>
+  <string name="ui_misc_tool_get_clipboard_desc">讀取系統剪貼簿中的目前文字內容。</string>
+  <string name="ui_misc_tool_read_personal_item">讀取檢索詳情</string>
+  <string name="ui_misc_tool_read_personal_item_desc">讀取歷史檢索結果的完整條目。</string>
+  <string name="ui_misc_tool_summarize_bills">帳單彙總</string>
+  <string name="ui_misc_tool_summarize_bills_desc">依時間與關鍵字精確彙總帳單索引。</string>
+  <string name="ui_misc_tool_character_memory_get">讀取劇情記憶</string>
+  <string name="ui_misc_tool_character_memory_get_desc">僅角色對話可用，讀取目前角色的長期劇情與關係。</string>
+  <string name="ui_misc_tool_character_memory_write">整理劇情記憶</string>
+  <string name="ui_misc_tool_character_memory_write_desc">僅角色對話可用，更新目前角色的劇情記憶，不寫入現實 MEMORY.md。</string>
+  <string name="ui_misc_perm_calendar_title">行事曆存取</string>
+  <string name="ui_misc_perm_calendar_summary">讀取行程並建立、修改事件與提醒；未授權時僅在已有 Root 授權下使用增強通道。</string>
+  <string name="ui_misc_perm_action_authorize">授權</string>
+  <string name="ui_misc_perm_dnd_title">勿擾模式存取</string>
+  <string name="ui_misc_perm_dnd_summary">允許在一般權限下切換靜音、震動與響鈴模式。</string>
+  <string name="ui_misc_not_enabled">未開啟</string>
+  <string name="ui_misc_enabled_with_value">已開啟 · %1$s</string>
+  <string name="ui_misc_saving">儲存中…</string>
+  <string name="ui_misc_image_saved_gallery">已儲存到相簿 Pictures/Eta</string>
+  <string name="ui_misc_save_failed_retry">儲存失敗，請重試</string>
+  <string name="ui_misc_share">分享</string>
+  <string name="ui_misc_share_failed">分享失敗</string>
+  <string name="ui_misc_continue_editing">繼續編輯</string>
+  <string name="ui_misc_no_browser_for_link">沒有可開啟連結的瀏覽器</string>
+  <string name="ui_misc_cannot_open_link">目前無法開啟連結</string>
+  <string name="ui_misc_web_deepseek_key_required">請填寫 DeepSeek API Key，或先在模型供應商中設定 DeepSeek</string>
+  <string name="ui_misc_web_deepseek_url_invalid">DeepSeek Base URL 須為合法的 HTTP(S) 網址</string>
+  <string name="ui_misc_web_custom_search_url_required">請填寫自訂搜尋介面網址</string>
+  <string name="ui_misc_web_custom_search_url_invalid">自訂搜尋介面須為合法的 HTTP(S) 網址</string>
+  <string name="ui_misc_web_custom_search_headers_invalid">自訂搜尋請求標頭格式無效</string>
+  <string name="ui_misc_web_custom_fetch_url_required">請填寫自訂讀取介面網址</string>
+  <string name="ui_misc_web_custom_fetch_url_invalid">自訂讀取介面須為合法的 HTTP(S) 網址</string>
+  <string name="ui_misc_web_custom_fetch_headers_invalid">自訂讀取請求標頭格式無效</string>
+  <string name="ui_misc_filter_all">全部</string>
+  <string name="ui_misc_disable_all">全部停用</string>
+  <string name="ui_misc_enable_all">全部啟用</string>
+  <string name="ui_misc_daemon_completed">已完成</string>
+  <string name="ui_misc_daemon_failed">執行失敗</string>
+  <string name="ui_misc_daemon_timed_out">已逾時</string>
+  <string name="ui_misc_daemon_stopped">已停止</string>
+  <string name="ui_misc_daemon_interrupted">已中斷</string>
+  <string name="ui_misc_mcp_tools_enabled_header">%1$s · 已啟用 %2$d</string>
+  <string name="ui_misc_collapse_description">收合說明</string>
+  <string name="ui_misc_expand_description">展開說明</string>
+</resources>

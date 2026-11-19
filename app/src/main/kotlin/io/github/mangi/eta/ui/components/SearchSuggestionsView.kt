@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.runtime.SearchSuggestionsPayload
 import java.io.ByteArrayInputStream
 
@@ -96,9 +97,9 @@ internal class SearchSuggestionsWebView(
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         })
                     } catch (_: ActivityNotFoundException) {
-                        Toast.makeText(context, "没有可打开链接的浏览器", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.ui_misc_no_browser_for_link), Toast.LENGTH_SHORT).show()
                     } catch (_: SecurityException) {
-                        Toast.makeText(context, "当前无法打开链接", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.ui_misc_cannot_open_link), Toast.LENGTH_SHORT).show()
                     }
                 }
                 return true

@@ -7,7 +7,9 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.Message
 import android.os.Messenger
+import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AgentLogger
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.core.safeLogType
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -73,12 +75,25 @@ internal class AgentRuntimeClient(
         )
 
         val lease = AgentRuntimeConnection.acquire(context, logger)
-            ?: return AgentRuntimeWire.RunResult("", false, "", "Agent Runtime 服务绑定失败")
+            ?: return AgentRuntimeWire.RunResult(
+                "",
+                false,
+                "",
+                AppStrings.get(R.string.runtime_err_bind_failed, "Agent Runtime 服务绑定失败"),
+            )
         val serviceMessenger = lease.messenger
         val deathRecipient = IBinder.DeathRecipient {
             if (resultRef.get() == null) {
                 resultRef.set(
-                    AgentRuntimeWire.toBundle(AgentRuntimeWire.RunResult(request.runId, false, "", "Agent Runtime 服务连接已断开", contextSnapshotRef = request.runId))
+                    AgentRuntimeWire.toBundle(
+                        AgentRuntimeWire.RunResult(
+                            request.runId,
+                            false,
+                            "",
+                            AppStrings.get(R.string.runtime_err_disconnected, "Agent Runtime 服务连接已断开"),
+                            contextSnapshotRef = request.runId,
+                        )
+                    )
                 )
                 resultLatch.countDown()
             }
@@ -94,7 +109,13 @@ internal class AgentRuntimeClient(
             AgentWireText.send(serviceMessenger, msg)
             // 最终结果或 Binder 断连负责唤醒；正常长任务不因客户端等待时长被取消。
             resultLatch.await()
-            return resultRef.get()?.let(AgentRuntimeWire::runResultFromBundle) ?: AgentRuntimeWire.RunResult("", false, "", "Agent Runtime 未返回结果")
+            return resultRef.get()?.let(AgentRuntimeWire::runResultFromBundle)
+                ?: AgentRuntimeWire.RunResult(
+                    "",
+                    false,
+                    "",
+                    AppStrings.get(R.string.runtime_err_no_result, "Agent Runtime 未返回结果"),
+                )
         } catch (interrupted: InterruptedException) {
             Thread.currentThread().interrupt()
             runCatching {
@@ -102,7 +123,13 @@ internal class AgentRuntimeClient(
                 cancelMessage.data = AgentRuntimeWire.ackBundle(request.runId)
                 serviceMessenger.send(cancelMessage)
             }
-            return AgentRuntimeWire.RunResult(request.runId, false, "", "Agent Runtime 等待被中断", contextSnapshotRef = request.runId)
+            return AgentRuntimeWire.RunResult(
+                request.runId,
+                false,
+                "",
+                AppStrings.get(R.string.runtime_err_wait_interrupted, "Agent Runtime 等待被中断"),
+                contextSnapshotRef = request.runId,
+            )
         } catch (throwable: Throwable) {
             logger.warn("Agent runtime start request failed: type=${throwable.safeLogType()}")
             return AgentRuntimeWire.RunResult(
@@ -113,7 +140,11 @@ internal class AgentRuntimeClient(
                 error = when (throwable) {
                     is AgentRuntimeWire.PayloadTooLargeException -> throwable.message
                     is AgentRuntimeImageTransfer.ImageTransferException -> throwable.message
-                    else -> "Agent Runtime 请求发送失败（${throwable.safeLogType()}）"
+                    else -> AppStrings.get(
+                        R.string.runtime_err_send_failed,
+                        "Agent Runtime 请求发送失败（%1\$s）",
+                        throwable.safeLogType(),
+                    )
                 },
             )
         } finally {

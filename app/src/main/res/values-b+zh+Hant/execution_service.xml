@@ -10,4 +10,12 @@
     <string name="execution_action_stop">停止</string>
     <string name="execution_chip_running">操作中</string>
     <string name="execution_chip_answering">回答中</string>
+    <string name="execution_bg_cmd_channel">背景指令結果</string>
+    <string name="execution_bg_cmd_completed">背景指令已完成</string>
+    <string name="execution_bg_cmd_timed_out">背景指令已逾時</string>
+    <string name="execution_bg_cmd_stopped">背景指令已停止</string>
+    <string name="execution_bg_cmd_interrupted">背景指令已中斷</string>
+    <string name="execution_bg_cmd_failed">背景指令執行失敗</string>
+    <string name="execution_bg_cmd_open_hint">在終端機的背景任務中查看狀態與日誌</string>
+    <string name="execution_bg_cmd_exit_code">結束碼 %1$d</string>
 </resources>

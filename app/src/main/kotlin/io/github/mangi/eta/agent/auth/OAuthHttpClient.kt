@@ -1,7 +1,9 @@
 package io.github.mangi.eta.agent.auth
 
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentHttpClient
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.core.AppStrings
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import okhttp3.FormBody
@@ -34,18 +36,27 @@ internal class OAuthHttpClient(private val client: OkHttpClient = defaultClient(
                 controller.throwIfCancelled()
                 val body = response.body.source()
                 body.request(MAX_BYTES + 1)
-                if (body.buffer.size > MAX_BYTES) throw ProviderAuthException("oauth_response_too_large", "授权服务返回的数据过大")
+                if (body.buffer.size > MAX_BYTES) throw ProviderAuthException(
+                    "oauth_response_too_large",
+                    AppStrings.get(R.string.auth_err_response_too_large, "授权服务返回的数据过大"),
+                )
                 val text = body.readUtf8()
                 val parsed = try {
                     if (text.isBlank()) JSONObject() else JSONObject(text)
                 } catch (_: Exception) {
-                    throw ProviderAuthException("oauth_invalid_response", "授权服务返回了无效响应（HTTP ${response.code}）")
+                    throw ProviderAuthException(
+                        "oauth_invalid_response",
+                        AppStrings.get(R.string.auth_err_invalid_http_response, "授权服务返回了无效响应（HTTP %1\$d）", response.code),
+                    )
                 }
                 OAuthHttpResponse(response.code, parsed)
             }
         } catch (_: IOException) {
             controller.throwIfCancelled()
-            throw ProviderAuthException("oauth_network_error", "无法连接授权服务，请检查网络后重试")
+            throw ProviderAuthException(
+                "oauth_network_error",
+                AppStrings.get(R.string.auth_err_network, "无法连接授权服务，请检查网络后重试"),
+            )
         } finally {
             binding.close()
         }

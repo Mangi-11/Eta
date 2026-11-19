@@ -1,7 +1,9 @@
 package io.github.mangi.eta.agent.model
 
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
+import io.github.mangi.eta.core.AppStrings
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -161,11 +163,21 @@ internal class AgentContextSummarizer(
             }))
 
     private fun invalidSummary() = AgentModelFailure(
-        "CONTEXT_SUMMARY_INVALID", false, "模型未返回完整且有界的摘要，原始上下文已保留。",
+        "CONTEXT_SUMMARY_INVALID",
+        false,
+        AppStrings.get(
+            R.string.summarizer_err_invalid_summary,
+            "模型未返回完整且有界的摘要，原始上下文已保留。",
+        ),
     )
 
     private fun toolAttemptFailure() = AgentModelFailure(
-        TOOL_CALL_ATTEMPT_CODE, false, "模型在生成摘要时尝试调用工具，原始上下文已保留。",
+        TOOL_CALL_ATTEMPT_CODE,
+        false,
+        AppStrings.get(
+            R.string.summarizer_err_tool_call,
+            "模型在生成摘要时尝试调用工具，原始上下文已保留。",
+        ),
     )
 
     private companion object {

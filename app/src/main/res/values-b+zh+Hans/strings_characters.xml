@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+  <string name="character_library_title">角色</string>
+  <string name="character_library_search_hint">搜索名称或标签</string>
+  <string name="character_library_empty_title">还没有角色</string>
+  <string name="character_library_empty_summary">创建一个角色，或导入 PNG、JSON 角色卡开始对话</string>
+  <string name="character_library_no_results_title">没有找到匹配的角色</string>
+  <string name="character_library_no_results_summary">换个关键词试试，搜索会匹配名称与标签</string>
+  <string name="character_library_section_mine">我的</string>
+
+  <string name="character_action_create">创建角色</string>
+  <string name="character_action_new">新建角色</string>
+  <string name="character_action_edit">编辑角色</string>
+  <string name="character_action_save">保存角色</string>
+  <string name="character_action_import_card">导入角色卡</string>
+  <string name="character_action_restore_default">恢复默认角色</string>
+  <string name="character_action_change_avatar">更换头像</string>
+  <string name="character_action_favorite">收藏</string>
+  <string name="character_action_unfavorite">取消收藏</string>
+  <string name="character_action_start_chat">开始对话</string>
+  <string name="character_action_duplicate">复制角色</string>
+  <string name="character_action_export_png">导出 PNG 角色卡</string>
+  <string name="character_action_export_json">导出 JSON 角色卡</string>
+  <string name="character_action_delete">删除角色</string>
+
+  <string name="character_default_user_name">用户</string>
+  <string name="character_draft_default_name">新角色</string>
+  <string name="character_export_default_basename">角色</string>
+  <string name="character_duplicate_name">%1$s 副本</string>
+
+  <string name="character_detail_loading">正在读取角色…</string>
+  <string name="character_detail_load_failed">无法读取角色，请返回后重试</string>
+  <string name="character_detail_creator_byline">作者 %1$s</string>
+  <string name="character_detail_use_persona">使用我的人设</string>
+  <string name="character_detail_edit_persona">编辑我的人设</string>
+  <string name="character_detail_section_manage">管理</string>
+  <string name="character_detail_memory_summary">此角色各次对话共享的故事与关系记录</string>
+  <string name="character_detail_compatibility_title">兼容说明</string>
+  <plurals name="character_detail_compatibility_summary">
+    <item quantity="other">%1$d 项内容按兼容范围处理</item>
+  </plurals>
+  <string name="character_delete_confirm_message">「%1$s」将从角色库移除，角色图片与剧情记忆一并删除；已有对话保留。此操作无法撤销。</string>
+
+  <string name="character_section_description">角色设定</string>
+  <string name="character_section_greetings">开场白</string>
+  <string name="character_section_prompts">提示词</string>
+  <string name="character_section_credits">作者信息</string>
+
+  <string name="character_greeting_default">默认开场白</string>
+  <string name="character_greeting_numbered">开场白 %1$d</string>
+  <string name="character_greeting_selected">已选择</string>
+  <string name="character_greeting_empty">没有预设开场白，由你先开口</string>
+  <string name="character_greeting_read_full">阅读全文</string>
+  <string name="character_greeting_remove">移除此开场白</string>
+  <string name="character_greeting_add_alternate">添加备用开场白</string>
+
+  <string name="character_editor_loading">正在读取…</string>
+  <string name="character_editor_load_failed">无法读取角色，请返回重试</string>
+  <string name="character_editor_processing">正在处理…</string>
+  <string name="character_editor_advanced_title">高级设置</string>
+  <string name="character_editor_advanced_summary">性格、背景、示例对话、提示词、作者信息与世界书</string>
+  <string name="character_editor_compatibility_note">角色卡中的第三方脚本与扩展界面不会执行，相关数据会保留在导出的角色卡中。</string>
+
+  <string name="character_field_name">名称</string>
+  <string name="character_field_description_label">外貌、性格与经历</string>
+  <string name="character_field_personality">性格与说话风格</string>
+  <string name="character_field_scenario">故事背景</string>
+  <string name="character_field_example_messages">示例对话</string>
+  <string name="character_field_system_prompt">系统提示词</string>
+  <string name="character_field_post_history_instructions">对话后置指令</string>
+  <string name="character_field_creator_notes">作者备注</string>
+  <string name="character_field_tags">标签（每行一个）</string>
+  <string name="character_field_creator">作者</string>
+  <string name="character_field_version">角色版本</string>
+
+  <string name="character_worldbook_section">世界书</string>
+  <string name="character_worldbook_embedded">内嵌世界书</string>
+  <plurals name="character_worldbook_entry_count">
+    <item quantity="other">%1$d 个条目</item>
+  </plurals>
+  <string name="character_worldbook_collapse">收起</string>
+  <string name="character_worldbook_expand_edit">展开编辑</string>
+  <string name="character_worldbook_summary_format">%1$s · %2$s</string>
+  <string name="character_worldbook_name_label">世界书名称</string>
+  <string name="character_worldbook_scan_depth_label">扫描最近消息数（留空使用默认值）</string>
+  <string name="character_worldbook_token_budget_label">Token 预算（留空自动分配）</string>
+  <string name="character_worldbook_recursive_title">递归匹配</string>
+  <string name="character_worldbook_recursive_summary">使用已匹配条目的内容继续寻找相关条目</string>
+  <string name="character_worldbook_entries_section">条目</string>
+  <string name="character_worldbook_entry_default_title">条目 %1$d</string>
+  <string name="character_worldbook_entry_disabled">已停用</string>
+  <string name="character_worldbook_entry_skipped">已跳过：%1$s</string>
+  <string name="character_worldbook_entry_always_in_context">始终参与上下文</string>
+  <string name="character_worldbook_entry_no_keys">尚未设置触发关键词</string>
+  <string name="character_worldbook_add_entry">添加条目</string>
+  <string name="character_worldbook_entry_unsupported_notice">此条目暂不参与匹配：%1$s</string>
+  <string name="character_worldbook_field_content">内容</string>
+  <string name="character_worldbook_entry_title_label">条目标题</string>
+  <string name="character_worldbook_group_trigger">触发</string>
+  <string name="character_worldbook_primary_keys_label">主关键词（每行一个）</string>
+  <string name="character_worldbook_secondary_keys_label">次级关键词（每行一个）</string>
+  <string name="character_worldbook_selective_title">同时匹配次级关键词</string>
+  <string name="character_worldbook_group_insertion">插入</string>
+  <string name="character_worldbook_constant_title">常驻上下文</string>
+  <string name="character_worldbook_before_char_title">放在角色设定之前</string>
+  <string name="character_worldbook_before_char_summary">关闭时放在角色设定之后</string>
+  <string name="character_worldbook_insertion_order_label">插入顺序</string>
+  <string name="character_worldbook_remove_entry">移除条目</string>
+  <string name="character_list_separator_semicolon">；</string>
+  <string name="character_list_separator_comma">、</string>
+
+  <string name="character_persona_title">我的人设</string>
+  <string name="character_persona_entry_summary">角色对你的称呼与你在故事中的身份</string>
+  <string name="character_persona_name_unset">未设置称呼</string>
+  <string name="character_persona_description_hint">设置你在故事中的身份。开始对话时可以选择是否使用；已开始的故事保留当时的人设。</string>
+  <string name="character_persona_name_label">称呼</string>
+  <string name="character_persona_identity_label">身份与关系</string>
+  <string name="character_persona_save">保存人设</string>
+
+  <string name="character_memory_title">剧情记忆</string>
+  <string name="character_memory_description_hint">记录这个角色的重要经历、关系与约定。它由此角色的各次对话共享，受记忆总开关控制。</string>
+  <string name="character_memory_content_label">剧情与关系</string>
+  <string name="character_memory_reload">重新载入</string>
+  <string name="character_memory_save">保存记忆</string>
+
+  <string name="character_error_load_library">角色库读取失败，请重试</string>
+  <string name="character_error_load_detail">角色读取失败，请返回角色库重试</string>
+  <string name="character_error_load_editor">角色读取失败，请重试</string>
+  <string name="character_error_invalid_worldbook">世界书设置无效，请检查扫描深度、预算与条目位置</string>
+  <string name="character_error_import_generic">导入失败，请确认文件是完整的 PNG 或 JSON 角色卡，且未超过大小限制</string>
+  <string name="character_error_name_required">请填写角色名称</string>
+  <string name="character_error_save">角色保存失败，请重试</string>
+  <string name="character_error_duplicate">角色复制失败，请重试</string>
+  <string name="character_error_favorite">收藏状态保存失败，请重试</string>
+  <string name="character_error_change_avatar">头像更换失败，请换一张图片重试</string>
+  <string name="character_error_restore_default">默认角色恢复失败，请重试</string>
+  <string name="character_error_delete">角色删除失败，请重试</string>
+  <string name="character_error_export">角色卡导出失败，请重试</string>
+  <string name="character_notice_exported">角色卡已导出</string>
+  <string name="character_error_start_conversation">新对话创建失败，请重试</string>
+  <string name="character_error_load_persona">用户人设读取失败，请重试</string>
+  <string name="character_error_save_persona">用户人设保存失败，请重试</string>
+  <string name="character_error_load_memory">剧情记忆读取失败，请重试</string>
+  <string name="character_error_save_memory">剧情记忆保存失败，请检查内容长度后重试</string>
+  <string name="character_notice_memory_saved">剧情记忆已保存</string>
+  <string name="character_notice_memory_conflict">剧情记忆已被对话更新。当前草稿仍保留，请复制需要的内容后重新载入，再合并保存。</string>
+
+  <string name="character_import_error_v3_invalid">PNG 中优先使用的 V3 角色数据损坏，未回退到 V2。请重新下载原始角色卡。</string>
+  <string name="character_import_error_metadata_missing">这张 PNG 没有角色卡信息，请选择原始角色卡图片，而不是截图或压缩后的图片。</string>
+  <string name="character_import_error_invalid_json">角色卡 JSON 格式无效，请检查文件是否完整。</string>
+  <string name="character_import_error_too_large">角色卡超出大小限制，请简化设定或选择更小的文件。</string>
+  <string name="character_import_error_invalid_utf8">角色卡文本编码无效，需要 UTF-8 编码的 JSON 文件。</string>
+  <string name="character_import_error_unsupported_spec">暂不支持这份角色卡声明的格式，请导出为 V2 或 V3 角色卡后重试。</string>
+  <string name="character_import_error_invalid_png">PNG 文件损坏或结构不完整，请重新下载原始角色卡。</string>
+  <string name="character_import_error_invalid_data">角色卡字段格式无效，请检查名称、文本、开场白及内嵌世界书数据。</string>
+
+  <string name="character_rewrite_incomplete">重新生成未完成，已保留原回复。</string>
+
+  <string name="character_repo_not_found">角色已不存在</string>
+  <string name="character_repo_invalid_card_data">角色卡数据无效</string>
+  <string name="character_repo_persona_name_length">用户名称需为 1 至 256 个字符</string>
+  <string name="character_repo_persona_too_large">用户设定超过 1 MiB 限制</string>
+  <string name="character_repo_invalid_avatar_path">角色图片路径无效</string>
+  <string name="character_repo_invalid_id">角色 ID 无效</string>
+  <string name="character_repo_avatar_must_be_png">角色图片必须是 PNG</string>
+  <string name="character_repo_create_dir_failed">无法创建角色目录</string>
+  <string name="character_repo_avatar_too_large">图片超过 32 MiB 限制</string>
+  <string name="character_repo_avatar_invalid_or_large">无法读取图片或图片尺寸过大</string>
+  <string name="character_repo_avatar_unreadable">无法读取图片</string>
+  <string name="character_repo_name_length">角色名称需为 1 至 512 个字符</string>
+  <string name="character_repo_card_too_large">角色卡文件超过 32 MiB 限制</string>
+
+  <string name="character_backup_invalid_id">备份中的角色 ID 重复或无效</string>
+  <string name="character_backup_name_too_long">备份中的角色名称过长</string>
+  <string name="character_backup_invalid_assets">备份中的角色资源无效</string>
+  <string name="character_backup_memory_too_large">角色记忆超过 1 MiB 限制</string>
+  <string name="character_backup_invalid_avatar">备份中的角色图片无效</string>
+  <string name="character_backup_invalid_persona">备份中的用户人设无效</string>
+  <string name="character_backup_invalid_binding_id">备份中的角色会话 ID 无效</string>
+  <string name="character_backup_binding_persona_too_large">备份中的角色用户设定过大</string>
+  <string name="character_backup_invalid_link">备份中的正文关联缺少有效消息</string>
+  <string name="character_backup_invalid_revision">备份中的正文候选或选中版本无效</string>
+  <string name="character_backup_invalid_rewrite_target">备份中的重新生成目标无效</string>
+
+  <string name="character_memory_invalid_id">角色记忆标识无效</string>
+</resources>

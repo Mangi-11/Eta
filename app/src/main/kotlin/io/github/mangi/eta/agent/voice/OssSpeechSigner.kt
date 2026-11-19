@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.SpeechCredentials
 import io.github.mangi.eta.data.model.SpeechOssConfig
 import java.security.MessageDigest
@@ -59,7 +61,10 @@ internal object OssSpeechSigner {
     private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it.toInt() and 255) }
     private fun objectUrl(config: SpeechOssConfig, key: String) = speechBaseUrl(config.endpoint).toHttpUrl().let { endpoint ->
         if (endpoint.encodedPath != "/" || endpoint.port != 443) {
-            throw SpeechFailure(SpeechErrorCode.CONFIGURATION, "OSS Endpoint 须为标准地域域名，不包含路径或端口")
+            throw SpeechFailure(
+                SpeechErrorCode.CONFIGURATION,
+                AppStrings.get(R.string.voice_i18n_oss_endpoint_invalid, "OSS Endpoint 须为标准地域域名，不包含路径或端口"),
+            )
         }
         endpoint.newBuilder().host("${config.bucket}.${endpoint.host}")
             .encodedPath("/${encode(key, true)}").build()

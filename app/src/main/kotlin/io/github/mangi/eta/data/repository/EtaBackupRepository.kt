@@ -12,7 +12,9 @@ import io.github.mangi.eta.data.db.ProviderModelEntity
 import io.github.mangi.eta.data.db.ProviderWithModelsSeed
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.model.ProviderAuthModes
+import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AndroidAgentLogger
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.core.safeStackTrace
 import kotlinx.coroutines.CancellationException
@@ -235,7 +237,10 @@ internal object EtaBackupRepository {
                         }
                     } catch (failure: Exception) {
                         throw IllegalStateException(
-                            "数据已导入，但订阅登录清理未完成。订阅连接保持停用，请重新选择登录方式并登录。",
+                            AppStrings.get(
+                                R.string.backup_err_import_oauth_cleanup_incomplete,
+                                "数据已导入，但订阅登录清理未完成。订阅连接保持停用，请重新选择登录方式并登录。",
+                            ),
                             failure,
                         )
                     }
@@ -246,7 +251,13 @@ internal object EtaBackupRepository {
                         ProviderRepository.ensureBuiltInsMerged()
                         ProviderRepository.repairSelection()
                     } catch (failure: Exception) {
-                        throw IllegalStateException("数据已导入，但默认模型设置未完全恢复，请重新选择服务商和模型。", failure)
+                        throw IllegalStateException(
+                            AppStrings.get(
+                                R.string.backup_err_import_default_model_incomplete,
+                                "数据已导入，但默认模型设置未完全恢复，请重新选择服务商和模型。",
+                            ),
+                            failure,
+                        )
                     }
                 }
                 summary

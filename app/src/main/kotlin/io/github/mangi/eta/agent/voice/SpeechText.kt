@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.ASTNode
@@ -24,14 +26,27 @@ internal object SpeechText {
                     val marker = items.firstOrNull()?.children?.firstOrNull { it.type == MarkdownTokenTypes.LIST_NUMBER }
                     val start = marker?.let { markdown.substring(it.startOffset, it.endOffset).trim().dropLast(1).toIntOrNull() } ?: 1
                     for ((index, item) in items.withIndex()) {
-                        append("\n第 ${start + index} 项：")
+                        append('\n')
+                        append(
+                            AppStrings.get(
+                                R.string.voice_i18n_speech_text_ordered_item,
+                                "第 %1\$d 项：",
+                                start + index,
+                            ),
+                        )
                         appendNode(item)
                     }
                     append('\n')
                 }
                 GFMTokenTypes.CHECK_BOX -> {
                     val marker = markdown.substring(node.startOffset, node.endOffset)
-                    append(if ('x' in marker || 'X' in marker) "已完成：" else "未完成：")
+                    append(
+                        if ('x' in marker || 'X' in marker) {
+                            AppStrings.get(R.string.voice_i18n_speech_text_task_done, "已完成：")
+                        } else {
+                            AppStrings.get(R.string.voice_i18n_speech_text_task_todo, "未完成：")
+                        },
+                    )
                 }
                 MarkdownElementTypes.IMAGE -> append(' ')
                 MarkdownElementTypes.LINK_DEFINITION,

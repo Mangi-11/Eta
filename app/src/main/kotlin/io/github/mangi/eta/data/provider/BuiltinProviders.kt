@@ -1,5 +1,8 @@
 package io.github.mangi.eta.data.provider
 
+import androidx.annotation.StringRes
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
@@ -135,6 +138,25 @@ internal object BuiltinProviders {
         ),
     )
 
+    private val BAILIAN_DEFAULT_NAMES = setOf("阿里百炼", "阿里百煉", "Alibaba Bailian")
+    private val SILICONFLOW_DEFAULT_NAMES = setOf("硅基流动", "矽基流動", "SiliconFlow")
+
     fun providerById(id: String): ProviderSetting? =
         PROVIDERS.firstOrNull { it.id == id }
+
+    /**
+     * 仅当内置 Provider 名称仍为默认名称时返回对应多语言资源；用户手动改名后保留用户自定义名称。
+     */
+    @StringRes
+    fun defaultNameRes(id: String, storedName: String): Int? {
+        val trimmed = storedName.trim()
+        return when (id) {
+            BAILIAN_ID -> R.string.provider_i18n_builtin_bailian.takeIf { trimmed in BAILIAN_DEFAULT_NAMES }
+            SILICONFLOW_ID -> R.string.provider_i18n_builtin_siliconflow.takeIf { trimmed in SILICONFLOW_DEFAULT_NAMES }
+            else -> null
+        }
+    }
+
+    fun localizedDisplayName(id: String, storedName: String): String =
+        defaultNameRes(id, storedName)?.let { AppStrings.get(it, storedName) } ?: storedName
 }

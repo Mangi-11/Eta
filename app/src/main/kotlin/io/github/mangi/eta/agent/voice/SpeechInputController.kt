@@ -1,7 +1,9 @@
 package io.github.mangi.eta.agent.voice
 
 import android.content.Context
+import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AndroidAgentLogger
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.AsrProvider
 import io.github.mangi.eta.data.model.SpeechCredentials
 import io.github.mangi.eta.data.model.SpeechSettings
@@ -75,7 +77,11 @@ internal class SpeechInputController(
     fun start(settings: SpeechSettings? = null, credentials: SpeechCredentials? = null, holdToTalk: Boolean = false) {
         cancel()
         val session = generation
-        mutableState.value = SpeechInputState(phase = EtaSpeechPhase.STARTING, progress = "正在连接", holdToTalk = holdToTalk)
+        mutableState.value = SpeechInputState(
+            phase = EtaSpeechPhase.STARTING,
+            progress = AppStrings.get(R.string.voice_i18n_progress_connecting, "正在连接"),
+            holdToTalk = holdToTalk,
+        )
         job = scope.launch(Dispatchers.Main.immediate) {
             try {
                 val rawConfig = settings ?: loadSettings()
@@ -105,7 +111,17 @@ internal class SpeechInputController(
                                             update {
                                                 it.copy(
                                                     phase = EtaSpeechPhase.LISTENING,
-                                                    progress = if (it.holdToTalk) "松开发送，移出取消" else "正在聆听，点击完成结束",
+                                                    progress = if (it.holdToTalk) {
+                                                        AppStrings.get(
+                                                            R.string.voice_i18n_progress_hold_to_talk,
+                                                            "松开发送，移出取消",
+                                                        )
+                                                    } else {
+                                                        AppStrings.get(
+                                                            R.string.voice_i18n_progress_listening_tap_done,
+                                                            "正在聆听，点击完成结束",
+                                                        )
+                                                    },
                                                 )
                                             }
                                         },
@@ -118,7 +134,14 @@ internal class SpeechInputController(
                                     it.copy(
                                         phase = EtaSpeechPhase.RECOGNIZING,
                                         level = 0f,
-                                        progress = if (it.holdToTalk) "正在识别并发送" else "正在识别",
+                                        progress = if (it.holdToTalk) {
+                                            AppStrings.get(
+                                                R.string.voice_i18n_progress_recognizing_and_sending,
+                                                "正在识别并发送",
+                                            )
+                                        } else {
+                                            AppStrings.get(R.string.voice_i18n_progress_recognizing, "正在识别")
+                                        },
                                     )
                                 }
                             }
@@ -151,7 +174,12 @@ internal class SpeechInputController(
                         recording?.cancel()
                     }
                 }
-                if (text.isBlank()) throw SpeechFailure(SpeechErrorCode.NO_SPEECH, "没有识别到语音，请重试")
+                if (text.isBlank()) {
+                    throw SpeechFailure(
+                        SpeechErrorCode.NO_SPEECH,
+                        AppStrings.get(R.string.voice_i18n_no_speech_recognized, "没有识别到语音，请重试"),
+                    )
+                }
                 val final = refined(session, config.refineTranscript, text)
                 if (generation == session) {
                     val holdMode = mutableState.value.holdToTalk
@@ -185,7 +213,10 @@ internal class SpeechInputController(
     private suspend fun refined(session: Long, refineTranscript: Boolean, text: String): String {
         if (!refineTranscript || generation != session) return text
         mutableState.value = mutableState.value.copy(
-            phase = EtaSpeechPhase.RECOGNIZING, preview = text, progress = "正在校对", level = 0f,
+            phase = EtaSpeechPhase.RECOGNIZING,
+            preview = text,
+            progress = AppStrings.get(R.string.voice_i18n_progress_refining, "正在校对"),
+            level = 0f,
         )
         return try {
             refiner.refine(text)
@@ -202,7 +233,11 @@ internal class SpeechInputController(
         finishRequested = true
         if (mutableState.value.phase == EtaSpeechPhase.STARTING) { cancel(); return }
         recorder?.finish()
-        val progressText = if (mutableState.value.holdToTalk) "正在识别并发送" else "正在识别"
+        val progressText = if (mutableState.value.holdToTalk) {
+            AppStrings.get(R.string.voice_i18n_progress_recognizing_and_sending, "正在识别并发送")
+        } else {
+            AppStrings.get(R.string.voice_i18n_progress_recognizing, "正在识别")
+        }
         mutableState.value = mutableState.value.copy(phase = EtaSpeechPhase.RECOGNIZING, progress = progressText, level = 0f)
     }
 

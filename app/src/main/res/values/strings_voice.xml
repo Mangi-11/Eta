@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Assistant foreground service & overlay suggestions -->
+    <string name="voice_i18n_fg_listening">Eta is listening</string>
+    <string name="voice_i18n_fg_speaking">Eta is reading aloud</string>
+    <string name="voice_i18n_fg_channel_name">Assistant voice</string>
+    <string name="voice_i18n_fg_content_text">Active only while the assistant overlay is visible</string>
+    <string name="voice_i18n_fg_action_stop">Stop</string>
+    <string name="voice_i18n_fg_permission_denied">The system does not allow the overlay to use audio. Check microphone permission and default digital assistant settings.</string>
+    <string name="voice_i18n_suggestion_summarize_screen">Summarize screen</string>
+    <string name="voice_i18n_suggestion_explain_page">Explain this page</string>
+    <string name="voice_i18n_suggestion_extract_key_info">Extract key info</string>
+
+    <!-- Speech input & recognition progress -->
+    <string name="voice_i18n_progress_connecting">Connecting</string>
+    <string name="voice_i18n_progress_hold_to_talk">Release to send, slide away to cancel</string>
+    <string name="voice_i18n_progress_listening_tap_done">Listening, tap Done to finish</string>
+    <string name="voice_i18n_progress_recognizing">Recognizing</string>
+    <string name="voice_i18n_progress_recognizing_and_sending">Recognizing and sending</string>
+    <string name="voice_i18n_progress_refining">Proofreading</string>
+    <string name="voice_i18n_progress_uploading_audio">Uploading recording</string>
+    <string name="voice_i18n_progress_waiting_file_transcription">Waiting for file transcription, tap to cancel anytime</string>
+
+    <!-- Speech text readable formatting -->
+    <string name="voice_i18n_speech_text_ordered_item">"Item %1$d: "</string>
+    <string name="voice_i18n_speech_text_task_done">"Completed: "</string>
+    <string name="voice_i18n_speech_text_task_todo">"Incomplete: "</string>
+
+    <!-- General speech errors, permissions, audio & network -->
+    <string name="voice_i18n_credentials_decrypt_failed">Unable to decrypt speech credentials. Please re-enter and save them.</string>
+    <string name="voice_i18n_mic_permission_required">Please allow Eta to use the microphone</string>
+    <string name="voice_i18n_service_timeout">Speech service timed out. Please try again.</string>
+    <string name="voice_i18n_network_unavailable">Unable to connect to the speech service. Check your network.</string>
+    <string name="voice_i18n_service_unreadable_data">The speech service returned unreadable data</string>
+    <string name="voice_i18n_http_response_too_large">Speech service response is too large</string>
+    <string name="voice_i18n_http_auth_failed">Speech service authentication failed. Check your credentials and permissions.</string>
+    <string name="voice_i18n_http_rate_limited">Too many requests to the speech service. Please try again later.</string>
+    <string name="voice_i18n_http_request_failed">Speech service request failed (HTTP %1$d)</string>
+    <string name="voice_i18n_audio_focus_unavailable">Unable to acquire audio focus right now. Please try again later.</string>
+    <string name="voice_i18n_audio_playback_failed">Audio playback failed</string>
+    <string name="voice_i18n_audio_format_or_length_invalid">Invalid speech audio format or length</string>
+    <string name="voice_i18n_audio_incomplete">Speech audio is incomplete. Please try again.</string>
+    <string name="voice_i18n_audio_chunk_too_large">Speech audio chunk is too large</string>
+    <string name="voice_i18n_socket_receive_backpressure">Speech data could not be processed in time. Please try again.</string>
+    <string name="voice_i18n_socket_send_backpressure">Network upload fell behind. Check your network and try again.</string>
+    <string name="voice_i18n_upload_backpressure">Network upload fell behind. Please try again.</string>
+
+    <!-- Recording & playback validation -->
+    <string name="voice_i18n_recorder_format_unsupported">This device does not support the required voice recording format</string>
+    <string name="voice_i18n_recorder_init_failed">Unable to initialize the microphone</string>
+    <string name="voice_i18n_recorder_mic_busy">Microphone is unavailable and may be in use by another app</string>
+    <string name="voice_i18n_recorder_read_failed">Failed to read from the microphone</string>
+    <string name="voice_i18n_recording_too_long">Recording exceeds the maximum length</string>
+    <string name="voice_i18n_no_audio_recorded">No audio was recorded. Please try again.</string>
+    <string name="voice_i18n_no_speech_recognized">No speech detected. Please try again.</string>
+    <string name="voice_i18n_playback_no_readable_text">This message has no readable text</string>
+    <string name="voice_i18n_playback_text_too_long">The text is too long. Choose a shorter answer to read aloud.</string>
+
+    <!-- Configuration & OSS validation -->
+    <string name="voice_i18n_config_required_field">Please configure %1$s first</string>
+    <string name="voice_i18n_config_tts_required">Please configure speech synthesis in Settings first</string>
+    <string name="voice_i18n_tts_provider_not_selected">Please select a speech synthesis service first</string>
+    <string name="voice_i18n_tts_uses_segmented_streaming">The current speech service uses segmented streaming synthesis</string>
+    <string name="voice_i18n_asr_requires_streaming">The current speech service requires streaming recognition</string>
+    <string name="voice_i18n_config_style_too_long">Keep the reading style within 500 characters</string>
+    <string name="voice_i18n_config_minimax_speed_range">MiniMax speaking speed must be between 0.5x and 2x</string>
+    <string name="voice_i18n_config_oss_bucket_prefix_invalid">Check your OSS bucket name and directory prefix</string>
+    <string name="voice_i18n_config_base_url_invalid">Base URL must be an HTTPS URL without credentials or query parameters</string>
+    <string name="voice_i18n_oss_endpoint_invalid">OSS endpoint must be a standard regional domain without a path or port</string>
+    <string name="voice_i18n_oss_pending_cleanup_limit">Too many recordings are pending cleanup. Check OSS delete permissions and restart Eta.</string>
+    <string name="voice_i18n_oss_cleanup_record_failed">Unable to record recording cleanup info</string>
+
+    <!-- Configuration field labels -->
+    <string name="voice_i18n_field_voice">a voice</string>
+    <string name="voice_i18n_field_qwen_tts_api_key">Qwen TTS API Key</string>
+    <string name="voice_i18n_field_doubao_tts_credentials">Doubao TTS credentials</string>
+    <string name="voice_i18n_field_doubao_app_id">Doubao App ID</string>
+    <string name="voice_i18n_field_gemini_tts_api_key">Gemini TTS API Key</string>
+    <string name="voice_i18n_field_minimax_tts_api_key">MiniMax TTS API Key</string>
+    <string name="voice_i18n_field_mimo_tts_api_key">MiMo TTS API Key</string>
+    <string name="voice_i18n_field_deepseek_tts_api_key">DeepSeek TTS API Key</string>
+    <string name="voice_i18n_field_mimo_asr_api_key">MiMo recognition API Key</string>
+    <string name="voice_i18n_field_deepseek_asr_api_key">DeepSeek recognition API Key</string>
+    <string name="voice_i18n_field_doubao_asr_credentials">Doubao recognition credentials</string>
+    <string name="voice_i18n_field_qwen_asr_api_key">Qwen recognition API Key</string>
+    <string name="voice_i18n_field_oss_bucket">OSS Bucket</string>
+    <string name="voice_i18n_field_oss_region">OSS region</string>
+    <string name="voice_i18n_field_oss_access_key_id">OSS AccessKey ID</string>
+    <string name="voice_i18n_field_oss_access_key_secret">OSS AccessKey Secret</string>
+
+    <!-- Transcript refiner errors -->
+    <string name="voice_i18n_refiner_chat_model_required">Please configure a chat model first</string>
+    <string name="voice_i18n_refiner_returned_tool_call">Proofreading model returned a tool call</string>
+    <string name="voice_i18n_refiner_incomplete_response">Proofreading model returned an incomplete response</string>
+
+    <!-- Qwen ASR & TTS -->
+    <string name="voice_i18n_qwen_asr_failed">Qwen recognition failed. Check model permissions and configuration.</string>
+    <string name="voice_i18n_qwen_asr_connection_ended_early">Qwen recognition connection closed unexpectedly</string>
+    <string name="voice_i18n_file_transcription_invalid_task_id">Invalid file transcription task ID</string>
+    <string name="voice_i18n_qwen_file_transcription_failed">Qwen file transcription failed. Check service permissions.</string>
+    <string name="voice_i18n_file_transcription_unknown_status">File transcription returned an unknown task status</string>
+    <string name="voice_i18n_qwen_tts_failed">Qwen speech synthesis failed. Check your configuration.</string>
+    <string name="voice_i18n_qwen_tts_stream_failed">Qwen speech synthesis failed. Check model permissions and configuration.</string>
+    <string name="voice_i18n_qwen_tts_connection_ended_early">Qwen speech synthesis connection closed unexpectedly</string>
+
+    <!-- Doubao ASR & TTS -->
+    <string name="voice_i18n_doubao_asr_invalid_frame">Doubao recognition returned an invalid audio protocol frame</string>
+    <string name="voice_i18n_doubao_asr_failed_code">Doubao recognition failed (%1$d)</string>
+    <string name="voice_i18n_doubao_asr_connection_ended_early">Doubao recognition connection closed unexpectedly</string>
+    <string name="voice_i18n_doubao_tts_invalid_frame">Doubao speech synthesis returned an invalid protocol frame</string>
+    <string name="voice_i18n_doubao_tts_failed_code">Doubao speech synthesis failed (%1$d)</string>
+    <string name="voice_i18n_doubao_tts_stream_failed">Doubao speech synthesis failed. Check the voice and service configuration.</string>
+    <string name="voice_i18n_doubao_tts_connection_ended_early">Doubao speech synthesis connection closed unexpectedly</string>
+
+    <!-- DeepSeek ASR & TTS -->
+    <string name="voice_i18n_deepseek_asr_size_limit">Recording exceeds DeepSeek recognition 8 MiB limit</string>
+    <string name="voice_i18n_deepseek_asr_failed">DeepSeek speech recognition failed. Check service permissions and configuration.</string>
+    <string name="voice_i18n_deepseek_asr_invalid_result">DeepSeek did not return a valid recognition result</string>
+    <string name="voice_i18n_deepseek_tts_stream_char_limit">Text exceeds the DeepSeek streaming session character limit</string>
+    <string name="voice_i18n_deepseek_tts_content_filter">DeepSeek could not synthesize this text. Adjust it and try again.</string>
+    <string name="voice_i18n_deepseek_tts_invalid_input">Invalid DeepSeek speech synthesis parameters or text</string>
+    <string name="voice_i18n_deepseek_tts_failed_code">DeepSeek speech synthesis failed (%1$s)</string>
+    <string name="voice_i18n_deepseek_tts_connection_ended_early">DeepSeek speech synthesis connection closed unexpectedly</string>
+
+    <!-- Gemini TTS -->
+    <string name="voice_i18n_gemini_tts_unsupported_audio_format">Gemini returned an unsupported audio format</string>
+    <string name="voice_i18n_gemini_tts_incomplete">Gemini did not finish reading aloud. Shorten the text or adjust the style and try again.</string>
+    <string name="voice_i18n_gemini_tts_auth_failed">Gemini authentication failed. Check your API Key, region, and model permissions.</string>
+    <string name="voice_i18n_gemini_tts_rate_limited">Gemini quota exceeded or too many requests. Please try again later.</string>
+    <string name="voice_i18n_gemini_tts_failed">Gemini speech synthesis failed. Check model permissions and configuration.</string>
+
+    <!-- MiMo ASR & TTS -->
+    <string name="voice_i18n_mimo_asr_size_limit">Recording exceeds the MiMo recognition size limit</string>
+    <string name="voice_i18n_mimo_asr_failed">MiMo speech recognition failed. Check service permissions and configuration.</string>
+    <string name="voice_i18n_mimo_asr_no_result">MiMo did not return a recognition result</string>
+    <string name="voice_i18n_mimo_asr_incomplete">MiMo recognition result is incomplete. Shorten the recording and try again.</string>
+    <string name="voice_i18n_mimo_asr_content_filter">MiMo could not process this recording. Please try again.</string>
+    <string name="voice_i18n_mimo_asr_abnormal_finish">MiMo did not complete speech recognition normally</string>
+    <string name="voice_i18n_mimo_asr_invalid_result">MiMo returned an invalid recognition result</string>
+    <string name="voice_i18n_mimo_tts_failed">MiMo speech synthesis failed. Check service permissions and configuration.</string>
+    <string name="voice_i18n_mimo_tts_no_audio_data">MiMo did not return audio data</string>
+    <string name="voice_i18n_mimo_tts_invalid_audio_data">MiMo returned invalid audio data</string>
+    <string name="voice_i18n_mimo_tts_incomplete">MiMo speech synthesis is incomplete. Shorten the text and try again.</string>
+    <string name="voice_i18n_mimo_tts_content_filter">MiMo could not synthesize this text. Adjust it and try again.</string>
+    <string name="voice_i18n_mimo_tts_unknown_status">MiMo returned an unknown speech status</string>
+    <string name="voice_i18n_mimo_tts_invalid_encoding">Invalid MiMo audio encoding</string>
+
+    <!-- MiniMax TTS -->
+    <string name="voice_i18n_minimax_tts_invalid_status">MiniMax returned an invalid audio status</string>
+    <string name="voice_i18n_minimax_tts_encoding_incomplete">Incomplete MiniMax audio encoding</string>
+    <string name="voice_i18n_minimax_tts_encoding_invalid">Invalid MiniMax audio encoding</string>
+    <string name="voice_i18n_minimax_tts_timeout">MiniMax speech synthesis timed out. Please try again.</string>
+    <string name="voice_i18n_minimax_tts_rate_limited">Too many MiniMax requests. Please try again later.</string>
+    <string name="voice_i18n_minimax_tts_auth_failed">MiniMax authentication failed. Check your API Key.</string>
+    <string name="voice_i18n_minimax_tts_invalid_config">MiniMax cannot process the current text or voice. Check your configuration.</string>
+    <string name="voice_i18n_minimax_tts_failed_code">MiniMax speech synthesis failed (%1$d)</string>
+</resources>

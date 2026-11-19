@@ -1,5 +1,6 @@
 package io.github.mangi.eta.agent.subagent
 
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.memory.AgentMemoryContext
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.model.AgentModelExecutionException
@@ -10,6 +11,7 @@ import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.agent.skill.SkillContext
 import io.github.mangi.eta.agent.terminal.TerminalExecutionContext
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
+import io.github.mangi.eta.core.AppStrings
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -220,7 +222,7 @@ internal class SubagentExecutor(
                 childController.isCancelled ||
                 throwable is AgentRunCancelledException
             val errorMessage = if (cancelled) {
-                "已停止"
+                AppStrings.get(R.string.subagent_status_stopped, "已停止")
             } else {
                 throwable.message ?: throwable.javaClass.simpleName
             }
@@ -405,7 +407,7 @@ internal class SubagentExecutor(
         private val steps = mutableListOf<SubagentStepSnapshot>()
         private var totalToolSteps = 0
         private var status = SubagentActivitySnapshot.STATUS_RUNNING
-        private var currentAction = "正在思考…"
+        private var currentAction = AppStrings.get(R.string.subagent_i18n_action_thinking, "正在思考…")
         private val roundTexts = linkedMapOf<Int, StringBuilder>()
         private var finalOutput = ""
         private var errorText: String? = null
@@ -422,7 +424,11 @@ internal class SubagentExecutor(
             when (event) {
                 is AgentEvent.RoundStarted -> {
                     pendingStepUsage = null
-                    currentAction = if (event.round <= 1) "正在思考…" else "第 ${event.round} 轮思考…"
+                    currentAction = if (event.round <= 1) {
+                        AppStrings.get(R.string.subagent_i18n_action_thinking, "正在思考…")
+                    } else {
+                        AppStrings.get(R.string.subagent_i18n_action_thinking_round, "第 %1\$d 轮思考…", event.round)
+                    }
                     true
                 }
 
@@ -440,18 +446,18 @@ internal class SubagentExecutor(
                             steps += SubagentStepSnapshot(
                                 id = stepId,
                                 kind = SubagentStepSnapshot.KIND_THINKING,
-                                title = "思考",
+                                title = AppStrings.get(R.string.subagent_i18n_step_thinking, "思考"),
                                 detail = event.delta.takeLastUtf16Safe(MAX_STEP_DETAIL_CHARS),
                                 status = SubagentStepSnapshot.STATUS_RUNNING,
                             )
                         }
-                        currentAction = "正在思考…"
+                        currentAction = AppStrings.get(R.string.subagent_i18n_action_thinking, "正在思考…")
                         false
                     }
 
                     AgentEvent.AssistantBlockKind.TEXT -> {
                         roundTexts.getOrPut(event.round) { StringBuilder() }.append(event.delta)
-                        currentAction = "正在整理汇报…"
+                        currentAction = AppStrings.get(R.string.subagent_i18n_action_summarizing, "正在整理汇报…")
                         false
                     }
 
@@ -523,7 +529,7 @@ internal class SubagentExecutor(
                             detail = combinedDetail,
                         )
                     }
-                    currentAction = "正在分析结果…"
+                    currentAction = AppStrings.get(R.string.subagent_i18n_action_analyzing, "正在分析结果…")
                     true
                 }
 
@@ -560,7 +566,11 @@ internal class SubagentExecutor(
             status = SubagentActivitySnapshot.STATUS_COMPLETED
             finalOutput = content.trim().takeUtf16Safe(MAX_OUTPUT_CHARS)
             val tools = toolCount()
-            currentAction = if (tools > 0) "完成 · $tools 次工具调用" else "完成"
+            currentAction = if (tools > 0) {
+                AppStrings.get(R.string.subagent_completed_with_tools, "完成 · %1\$d 次工具调用", tools)
+            } else {
+                AppStrings.get(R.string.subagent_status_completed, "完成")
+            }
         }
 
         fun markFailed(error: String, partial: String) = synchronized(lock) {
@@ -568,15 +578,17 @@ internal class SubagentExecutor(
             status = SubagentActivitySnapshot.STATUS_FAILED
             errorText = error.takeUtf16Safe(1_000)
             if (partial.isNotBlank()) finalOutput = partial.takeUtf16Safe(MAX_OUTPUT_CHARS)
-            currentAction = error.lineSequence().firstOrNull()?.takeUtf16Safe(80) ?: "执行失败"
+            currentAction = error.lineSequence().firstOrNull()?.takeUtf16Safe(80)
+                ?: AppStrings.get(R.string.subagent_i18n_action_failed, "执行失败")
         }
 
         fun markCancelled(partial: String) = synchronized(lock) {
             finishAllRunningSteps(SubagentStepSnapshot.STATUS_FAILED)
             status = SubagentActivitySnapshot.STATUS_CANCELLED
-            errorText = "已停止"
+            val stopped = AppStrings.get(R.string.subagent_status_stopped, "已停止")
+            errorText = stopped
             if (partial.isNotBlank()) finalOutput = partial.takeUtf16Safe(MAX_OUTPUT_CHARS)
-            currentAction = "已停止"
+            currentAction = stopped
         }
 
         fun partialOutput(): String = synchronized(lock) {

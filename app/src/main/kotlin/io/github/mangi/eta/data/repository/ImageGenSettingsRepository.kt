@@ -3,7 +3,9 @@ package io.github.mangi.eta.data.repository
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.imagegen.ImageGenRuntimeConfig
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.DoubaoImageConfig
@@ -36,7 +38,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
-internal class ImageGenCredentialsUnavailable : IllegalStateException("AI 生图凭据暂时不可用，请重新填写并保存")
+internal class ImageGenCredentialsUnavailable : IllegalStateException(
+    AppStrings.get(
+        R.string.imagegen_error_credentials_unavailable,
+        "AI 生图凭据暂时不可用，请重新填写并保存",
+    ),
+)
 
 internal data class LinkedImageProviderOption(
     val id: String,
@@ -85,7 +92,7 @@ internal object ImageGenSettingsRepository {
                 .putString(KEY_CREDENTIALS, Base64.getEncoder().encodeToString(encrypted))
                 .commit(),
         ) {
-            "AI 生图凭据保存失败"
+            AppStrings.get(R.string.imagegen_error_credentials_save_failed, "AI 生图凭据保存失败")
         }
     }
 
@@ -400,13 +407,21 @@ internal object ImageGenSettingsRepository {
     /** 校验带凭据的接口地址：公网必须使用 HTTPS，仅本机与局域网私网允许 HTTP。 */
     internal fun validateEndpointUrl(baseUrl: String): String? {
         val trimmed = baseUrl.trim()
-        if (trimmed.isEmpty()) return "接口地址不能为空"
-        val uri = runCatching { URI(trimmed) }.getOrNull() ?: return "接口地址格式无效"
-        val scheme = uri.scheme?.lowercase() ?: return "接口地址缺少协议头（https://）"
-        val host = uri.host?.lowercase()?.takeIf { it.isNotBlank() } ?: return "接口地址缺少有效主机名"
+        if (trimmed.isEmpty()) {
+            return AppStrings.get(R.string.imagegen_error_url_empty, "接口地址不能为空")
+        }
+        val uri = runCatching { URI(trimmed) }.getOrNull()
+            ?: return AppStrings.get(R.string.imagegen_error_url_invalid, "接口地址格式无效")
+        val scheme = uri.scheme?.lowercase()
+            ?: return AppStrings.get(R.string.imagegen_error_url_missing_scheme, "接口地址缺少协议头（https://）")
+        val host = uri.host?.lowercase()?.takeIf { it.isNotBlank() }
+            ?: return AppStrings.get(R.string.imagegen_error_url_missing_host, "接口地址缺少有效主机名")
         if (scheme == "https") return null
         if (scheme == "http" && isLocalOrPrivateHost(host)) return null
-        return "携带 API Key 的公网接口必须使用 HTTPS 协议"
+        return AppStrings.get(
+            R.string.imagegen_error_url_https_required,
+            "携带 API Key 的公网接口必须使用 HTTPS 协议",
+        )
     }
 
     private fun isLocalOrPrivateHost(host: String): Boolean {

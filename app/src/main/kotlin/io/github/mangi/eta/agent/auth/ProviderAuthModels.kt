@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.auth
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import kotlinx.serialization.Serializable
 
@@ -80,6 +82,9 @@ internal enum class OAuthProvider(
 
     companion object {
         fun fromAuthMode(mode: String): OAuthProvider = entries.firstOrNull { it.authMode == mode }
-            ?: throw ProviderAuthException("unsupported_auth_mode", "当前连接不支持账号登录")
+            ?: throw ProviderAuthException(
+                "unsupported_auth_mode",
+                AppStrings.get(R.string.auth_err_unsupported_auth_mode, "当前连接不支持账号登录"),
+            )
     }
 }

@@ -28,9 +28,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.roleplay.CharacterProfile
 import io.github.mangi.eta.ui.components.CharacterAvatar
 import top.yukonga.miuix.kmp.basic.Icon
@@ -96,7 +98,9 @@ internal fun CharacterPortraitCard(
             ) {
                 Icon(
                     imageVector = if (card.favorite) Icons.Rounded.Star else Icons.Rounded.StarOutline,
-                    contentDescription = if (card.favorite) "取消收藏" else "收藏",
+                    contentDescription = stringResource(
+                        if (card.favorite) R.string.character_action_unfavorite else R.string.character_action_favorite,
+                    ),
                     modifier = Modifier.size(16.dp),
                     tint = if (card.favorite) FavoriteColor else Color.White,
                 )
@@ -181,7 +185,7 @@ internal fun CharacterAddTile(
                 Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(24.dp), tint = colors.primary)
             }
             Spacer(Modifier.height(12.dp))
-            Text("新建角色", style = MiuixTheme.textStyles.body2, fontWeight = FontWeight.Medium, color = colors.onSurface)
+            Text(stringResource(R.string.character_action_new), style = MiuixTheme.textStyles.body2, fontWeight = FontWeight.Medium, color = colors.onSurface)
         }
         Box(
             modifier = Modifier
@@ -199,7 +203,7 @@ internal fun CharacterAddTile(
         ) {
             Icon(Icons.Rounded.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.onSurfaceVariantSummary)
             Spacer(Modifier.width(6.dp))
-            Text("导入角色卡", style = MiuixTheme.textStyles.footnote1, color = colors.onSurfaceVariantSummary)
+            Text(stringResource(R.string.character_action_import_card), style = MiuixTheme.textStyles.footnote1, color = colors.onSurfaceVariantSummary)
         }
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -175,7 +176,8 @@ fun AgentAppRoot(
     val skills = appViewModel.skills
     val memory = appViewModel.memory
     val permissionHealth = appViewModel.permissionHealth
-    val toolsState = remember { buildToolsState(context) }
+    val configuration = LocalConfiguration.current
+    val toolsState = remember(configuration) { buildToolsState(context) }
     val characterStore = viewModel<CharacterLibraryViewModel>().store
     val communityCatalogStore = viewModel<CommunityCatalogViewModel>().store
     val requestExecutionNotifications = rememberExecutionNotificationRequest()
@@ -847,7 +849,7 @@ fun AgentAppRoot(
                                     } else {
                                         Toast.makeText(
                                             context,
-                                            "该次运行暂无可查看的对话记录",
+                                            resources.getString(R.string.ui_misc_scheduled_run_no_conversation),
                                             Toast.LENGTH_SHORT,
                                         ).show()
                                     }
@@ -890,9 +892,9 @@ fun AgentAppRoot(
             characterStore.notice?.let { notice ->
                 CouiNoticeDialog(
                     visible = true,
-                    title = "角色",
+                    title = stringResource(R.string.conversation_dock_characters),
                     message = notice,
-                    confirmText = "知道了",
+                    confirmText = stringResource(R.string.ui_misc_got_it),
                     onDismissRequest = characterStore::dismissNotice,
                 )
             }
@@ -994,7 +996,7 @@ fun AgentAppRoot(
             GlassDialog(
                 show = characterStore.notice != null,
                 backdrop = sceneBackdrop,
-                title = "角色",
+                title = stringResource(R.string.conversation_dock_characters),
                 summary = retainedNotice,
                 onDismissRequest = characterStore::dismissNotice,
                 onDismissFinished = { if (characterStore.notice == null) retainedNotice = null },
@@ -1005,7 +1007,7 @@ fun AgentAppRoot(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = "知道了",
+                        text = stringResource(R.string.ui_misc_got_it),
                         style = MiuixTheme.textStyles.button,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

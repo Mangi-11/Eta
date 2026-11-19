@@ -59,13 +59,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.itos.coui.layout.CouiPageDefaults
 import com.itos.coui.theme.CouiTheme
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.imagegen.GeneratedImageActivityPayload
 import io.github.mangi.eta.agent.imagegen.GeneratedImageStore
 import io.github.mangi.eta.data.model.AppearanceUiStyle
@@ -129,7 +132,7 @@ internal fun GeneratedImageMessageCard(
                 } else {
                     GeneratedImageStatusNotice(
                         isError = false,
-                        title = message.resultSummary ?: "图片生成完成",
+                        title = message.resultSummary ?: stringResource(R.string.imagegen_card_completed),
                         detail = payload?.prompt,
                         isCoui = isCoui,
                     )
@@ -137,13 +140,14 @@ internal fun GeneratedImageMessageCard(
             }
 
             ToolActivityStatusUi.Failed, ToolActivityStatusUi.Unknown -> {
+                val failedTitle = stringResource(R.string.imagegen_card_failed)
                 val detail = payload?.errorMessage
                     ?: message.outcomeLine()
                     ?: message.resultSummary
-                    ?: "图片生成失败"
+                    ?: failedTitle
                 GeneratedImageStatusNotice(
                     isError = true,
-                    title = "图片生成失败",
+                    title = failedTitle,
                     detail = detail,
                     isCoui = isCoui,
                 )
@@ -241,8 +245,14 @@ private fun GeneratingPlaceholderCard(
                         modifier = Modifier.size(22.dp),
                     )
                 }
-                val countLabel = payload?.requestedCount?.takeIf { it > 1 }?.let { "（$it 张）" }.orEmpty()
-                val actionLabel = if ((payload?.referenceCount ?: 0) > 0) "正在编辑图片$countLabel" else "正在绘制图片$countLabel"
+                val requestedCount = payload?.requestedCount ?: 1
+                val isEditing = (payload?.referenceCount ?: 0) > 0
+                val actionLabel = when {
+                    isEditing && requestedCount > 1 -> stringResource(R.string.imagegen_card_editing_multiple, requestedCount)
+                    isEditing -> stringResource(R.string.imagegen_card_editing)
+                    requestedCount > 1 -> stringResource(R.string.imagegen_card_generating_multiple, requestedCount)
+                    else -> stringResource(R.string.imagegen_card_generating)
+                }
                 Text(
                     text = actionLabel,
                     fontSize = 14.sp,
@@ -250,7 +260,11 @@ private fun GeneratingPlaceholderCard(
                     color = titleColor,
                 )
                 Text(
-                    text = if (elapsedSeconds > 0) "已用时 ${elapsedSeconds}s" else "请稍候…",
+                    text = if (elapsedSeconds > 0) {
+                        stringResource(R.string.imagegen_card_elapsed_seconds, elapsedSeconds)
+                    } else {
+                        stringResource(R.string.imagegen_card_please_wait)
+                    },
                     fontSize = 12.sp,
                     color = summaryColor,
                 )
@@ -280,6 +294,7 @@ private fun GeneratedImagesGalleryCard(
     onEditImage: ((String) -> Unit)?,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val previewer = LocalChatImagePreviewer.current.takeUnless { assistantOverlay }
@@ -386,7 +401,11 @@ private fun GeneratedImagesGalleryCard(
             ) {
                 ImageCardChipButton(
                     icon = Icons.Rounded.Download,
-                    label = if (saving) "保存中" else if (payload.images.size > 1) "全部保存" else "保存",
+                    label = when {
+                        saving -> stringResource(R.string.imagegen_card_saving)
+                        payload.images.size > 1 -> stringResource(R.string.imagegen_card_save_all)
+                        else -> stringResource(R.string.action_save)
+                    },
                     enabled = !saving,
                     surfaceBg = surfaceBg,
                     contentColor = titleColor,
@@ -402,17 +421,25 @@ private fun GeneratedImagesGalleryCard(
                             saving = false
                             if (okCount > 0) {
                                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                                val msg = if (okCount == 1) "已保存到相册 Pictures/Eta" else "已保存 $okCount 张图片到相册"
+                                val msg = if (okCount == 1) {
+                                    resources.getString(R.string.imagegen_card_saved_single)
+                                } else {
+                                    resources.getString(R.string.imagegen_card_saved_multiple, okCount)
+                                }
                                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(context, "保存失败，请重试", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    resources.getString(R.string.imagegen_card_save_failed),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                             }
                         }
                     },
                 )
                 ImageCardChipButton(
                     icon = Icons.Rounded.Share,
-                    label = "分享",
+                    label = stringResource(R.string.imagegen_card_action_share),
                     surfaceBg = surfaceBg,
                     contentColor = titleColor,
                     onClick = {
@@ -421,7 +448,11 @@ private fun GeneratedImagesGalleryCard(
                                 GeneratedImageStore.shareImage(context, firstPath)
                             }
                             if (res.isFailure) {
-                                Toast.makeText(context, "分享失败", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    resources.getString(R.string.imagegen_card_share_failed),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                             }
                         }
                     },
@@ -429,13 +460,17 @@ private fun GeneratedImagesGalleryCard(
                 if (onEditImage != null) {
                     ImageCardChipButton(
                         icon = Icons.Rounded.AutoFixHigh,
-                        label = "改图",
+                        label = stringResource(R.string.imagegen_card_action_edit),
                         surfaceBg = surfaceBg,
                         contentColor = titleColor,
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onEditImage(toAttachableUri(firstPath))
-                            Toast.makeText(context, "已载入输入框，可直接描述修改要求", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                resources.getString(R.string.imagegen_card_edit_loaded_hint),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         },
                     )
                 }
@@ -450,7 +485,7 @@ private fun GeneratedImagesGalleryCard(
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Text(
-                            text = "提示词",
+                            text = stringResource(R.string.imagegen_card_prompt_label),
                             fontSize = 11.sp,
                             color = summaryColor,
                         )
@@ -543,7 +578,7 @@ private fun GeneratedImageTile(
             bitmap != null -> {
                 Image(
                     bitmap = bitmap,
-                    contentDescription = "AI 生成的图片",
+                    contentDescription = stringResource(R.string.imagegen_generated_image_desc),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -561,7 +596,7 @@ private fun GeneratedImageTile(
                         modifier = Modifier.size(22.dp),
                     )
                     Text(
-                        text = "本地图片已被清理",
+                        text = stringResource(R.string.imagegen_card_image_missing),
                         fontSize = 11.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     )

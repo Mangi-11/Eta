@@ -1,5 +1,6 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentConversationCodec
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.model.AgentProviderClient
@@ -10,6 +11,7 @@ import io.github.mangi.eta.agent.model.ProviderEvent
 import io.github.mangi.eta.agent.model.ProviderRequest
 import io.github.mangi.eta.agent.model.ProviderRequestPurpose
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import kotlinx.coroutines.CancellationException
@@ -32,7 +34,10 @@ internal class SpeechTranscriptRefiner(
         val input = transcript.trim()
         if (input.length < MIN_CHARS || input.length > MAX_CHARS) return transcript
         val config = loadConfig()?.let(::lightweight)
-            ?: throw SpeechFailure(SpeechErrorCode.CONFIGURATION, "请先配置对话模型")
+            ?: throw SpeechFailure(
+                SpeechErrorCode.CONFIGURATION,
+                AppStrings.get(R.string.voice_i18n_refiner_chat_model_required, "请先配置对话模型"),
+            )
         val output = withTimeout(TIMEOUT_MS) { request(config, input) }
         return output.takeIf { plausible(input, it) } ?: transcript
     }
@@ -50,11 +55,17 @@ internal class SpeechTranscriptRefiner(
             ) { event ->
                 if (event is ProviderEvent.HostedToolStarted ||
                     event is ProviderEvent.BlockStart && event.kind == AssistantBlockKind.TOOL_CALL) {
-                    throw SpeechFailure(SpeechErrorCode.PROTOCOL, "纠错模型返回了工具调用")
+                    throw SpeechFailure(
+                        SpeechErrorCode.PROTOCOL,
+                        AppStrings.get(R.string.voice_i18n_refiner_returned_tool_call, "纠错模型返回了工具调用"),
+                    )
                 }
             }
             if (response.stopReason != AssistantStopReason.END_TURN) {
-                throw SpeechFailure(SpeechErrorCode.PROTOCOL, "纠错模型未完整返回")
+                throw SpeechFailure(
+                    SpeechErrorCode.PROTOCOL,
+                    AppStrings.get(R.string.voice_i18n_refiner_incomplete_response, "纠错模型未完整返回"),
+                )
             }
             response.assistantMessage.optString("content").trim()
         }

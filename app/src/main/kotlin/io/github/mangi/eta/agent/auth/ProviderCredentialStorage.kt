@@ -4,6 +4,8 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.AtomicFile
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import java.io.File
 import java.security.KeyStore
 import java.security.MessageDigest
@@ -100,7 +102,10 @@ internal class EncryptedProviderCredentialStorage(context: Context) : ProviderCr
     private fun key(create: Boolean): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
-        if (!create) throw ProviderAuthException("credential_key_unavailable", "登录凭据的密钥不可用，请退出后重新登录")
+        if (!create) throw ProviderAuthException(
+            "credential_key_unavailable",
+            AppStrings.get(R.string.auth_err_key_unavailable, "登录凭据的密钥不可用，请退出后重新登录"),
+        )
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
             init(KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
@@ -116,7 +121,10 @@ internal class EncryptedProviderCredentialStorage(context: Context) : ProviderCr
     } catch (error: ProviderAuthException) {
         throw error
     } catch (_: Exception) {
-        throw ProviderAuthException("credential_storage_failed", "无法读写登录凭据，请退出后重新登录")
+        throw ProviderAuthException(
+            "credential_storage_failed",
+            AppStrings.get(R.string.auth_err_storage_failed, "无法读写登录凭据，请退出后重新登录"),
+        )
     }
 
     private companion object {

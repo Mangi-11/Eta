@@ -1,6 +1,8 @@
 package io.github.mangi.eta.agent.auth
 
 import com.nimbusds.jwt.SignedJWT
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 
 /** Codex 授权和请求共享同一客户端与工作区上下文，不能复用其他授权通道的令牌。 */
 internal object CodexOAuth {
@@ -16,6 +18,9 @@ internal object CodexOAuth {
             ?.takeIf { it.isNotBlank() && it.length <= 512 }
             ?: throw IllegalArgumentException()
     } catch (_: Exception) {
-        throw ProviderAuthException("codex_account_missing", "Codex 凭据缺少工作区信息，请重新登录")
+        throw ProviderAuthException(
+            "codex_account_missing",
+            AppStrings.get(R.string.auth_err_codex_account_missing, "Codex 凭据缺少工作区信息，请重新登录"),
+        )
     }
 }

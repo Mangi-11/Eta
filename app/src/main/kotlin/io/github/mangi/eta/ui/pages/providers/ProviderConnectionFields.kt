@@ -1,5 +1,3 @@
-@file:android.annotation.SuppressLint("LocalContextGetResourceValueCall")
-
 package io.github.mangi.eta.ui.pages.providers
 
 import androidx.compose.foundation.clickable
@@ -20,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -62,7 +59,6 @@ internal fun ProviderConnectionFields(
     onDisconnect: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    val context = LocalContext.current
     var apiKeyVisible by remember { mutableStateOf(false) }
     val oauth = ProviderAuthModes.isOAuth(draft.authMode)
     val accountMode = providerAccountAuthMode(provider)
@@ -71,6 +67,22 @@ internal fun ProviderConnectionFields(
     val showWebSearchSwitch =
         (provider is GeminiProviderSetting && !isGeminiVertex) ||
             (draft.endpointMode == OpenAiEndpointMode.RESPONSES && provider !is AnthropicProviderSetting)
+    val geminiPlatformTitle = stringResource(R.string.provider_i18n_gemini_platform)
+    val geminiPlatformSummary = stringResource(
+        if (isGeminiVertex) R.string.provider_i18n_gemini_vertex_summary else R.string.provider_i18n_gemini_ai_studio_summary,
+    )
+    val authMethodTitle = stringResource(R.string.provider_i18n_auth_method)
+    val accountLoginLabel = stringResource(R.string.provider_i18n_auth_account_login)
+    val apiKeyToggleDescription = stringResource(
+        if (apiKeyVisible) R.string.page_hide_bb0e7e else R.string.page_show_71b677,
+    )
+    val endpointModeSummary = stringResource(
+        if (draft.endpointMode == OpenAiEndpointMode.RESPONSES) {
+            R.string.page_using_typed_items_with_semantic_streaming_events_f9c906
+        } else {
+            R.string.page_use_standard_chat_completions_ee4b1a
+        },
+    )
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
@@ -91,15 +103,11 @@ internal fun ProviderConnectionFields(
             if (provider is GeminiProviderSetting) {
                 Divider()
                 CouiDropdownPreference(
-                    title = "接入平台",
+                    title = geminiPlatformTitle,
                     items = listOf("Google AI Studio", "Google Cloud Vertex AI"),
                     selectedIndex = if (isGeminiVertex) 1 else 0,
                     enabled = enabled,
-                    summary = if (isGeminiVertex) {
-                        "标准 Vertex AI 接入（Gemini 4）"
-                    } else {
-                        "原生 Interactions API（AI Studio API Key）"
-                    },
+                    summary = geminiPlatformSummary,
                     onSelectedIndexChange = { index ->
                         onDraftChange(
                             draft.withGeminiEndpointMode(
@@ -112,8 +120,8 @@ internal fun ProviderConnectionFields(
             if (accountMode != null) {
                 Divider()
                 CouiDropdownPreference(
-                    title = "认证方式",
-                    items = listOf("API Key", "账号登录"),
+                    title = authMethodTitle,
+                    items = listOf("API Key", accountLoginLabel),
                     selectedIndex = if (oauth) 1 else 0,
                     enabled = enabled,
                     onSelectedIndexChange = { index ->
@@ -166,9 +174,7 @@ internal fun ProviderConnectionFields(
                             ) {
                                 CouiIcon(
                                     imageVector = if (apiKeyVisible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                                    contentDescription = context.getString(
-                                        if (apiKeyVisible) R.string.page_hide_bb0e7e else R.string.page_show_71b677,
-                                    ),
+                                    contentDescription = apiKeyToggleDescription,
                                     modifier = Modifier.size(20.dp),
                                     tint = colors.summary,
                                 )
@@ -181,7 +187,7 @@ internal fun ProviderConnectionFields(
                             value = draft.vertexProject,
                             onValueChange = { onDraftChange(draft.copy(vertexProject = it)) },
                             label = "Project ID / Number",
-                            placeholder = "官方端点需要 Google Cloud 项目",
+                            placeholder = stringResource(R.string.provider_i18n_vertex_project_placeholder),
                             singleLine = true,
                             enabled = enabled,
                         )
@@ -213,13 +219,7 @@ internal fun ProviderConnectionFields(
                         items = listOf("Chat Completions API", "Responses API"),
                         selectedIndex = if (draft.endpointMode == OpenAiEndpointMode.RESPONSES) 1 else 0,
                         enabled = enabled,
-                        summary = context.getString(
-                            if (draft.endpointMode == OpenAiEndpointMode.RESPONSES) {
-                                R.string.page_using_typed_items_with_semantic_streaming_events_f9c906
-                            } else {
-                                R.string.page_use_standard_chat_completions_ee4b1a
-                            },
-                        ),
+                        summary = endpointModeSummary,
                         onSelectedIndexChange = { index ->
                             onDraftChange(
                                 draft.copy(
@@ -259,18 +259,14 @@ internal fun ProviderConnectionFields(
             }
             if (provider is GeminiProviderSetting) {
                 EtaGlassSpinnerPreference(
-                    title = "接入平台",
+                    title = geminiPlatformTitle,
                     items = listOf(
                         DropdownItem(text = "Google AI Studio"),
                         DropdownItem(text = "Google Cloud Vertex AI"),
                     ),
                     selectedIndex = if (isGeminiVertex) 1 else 0,
                     enabled = enabled,
-                    summary = if (isGeminiVertex) {
-                        "标准 Vertex AI 接入（Gemini 4）"
-                    } else {
-                        "原生 Interactions API（AI Studio API Key）"
-                    },
+                    summary = geminiPlatformSummary,
                     onSelectedIndexChange = { index ->
                         onDraftChange(
                             draft.withGeminiEndpointMode(
@@ -282,8 +278,8 @@ internal fun ProviderConnectionFields(
             }
             if (accountMode != null) {
                 EtaGlassSpinnerPreference(
-                    title = "认证方式",
-                    items = listOf(DropdownItem(text = "API Key"), DropdownItem(text = "账号登录")),
+                    title = authMethodTitle,
+                    items = listOf(DropdownItem(text = "API Key"), DropdownItem(text = accountLoginLabel)),
                     selectedIndex = if (oauth) 1 else 0,
                     enabled = enabled,
                     onSelectedIndexChange = { index ->
@@ -325,7 +321,7 @@ internal fun ProviderConnectionFields(
                             IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
                                 Icon(
                                     imageVector = if (apiKeyVisible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                                    contentDescription = context.getString(if (apiKeyVisible) R.string.page_hide_bb0e7e else R.string.page_show_71b677),
+                                    contentDescription = apiKeyToggleDescription,
                                 )
                             }
                         },
@@ -369,10 +365,7 @@ internal fun ProviderConnectionFields(
                         items = listOf(DropdownItem(text = "Chat Completions API"), DropdownItem(text = "Responses API")),
                         selectedIndex = if (draft.endpointMode == OpenAiEndpointMode.RESPONSES) 1 else 0,
                         enabled = enabled,
-                        summary = context.getString(
-                            if (draft.endpointMode == OpenAiEndpointMode.RESPONSES) R.string.page_using_typed_items_with_semantic_streaming_events_f9c906
-                            else R.string.page_use_standard_chat_completions_ee4b1a,
-                        ),
+                        summary = endpointModeSummary,
                         onSelectedIndexChange = { index ->
                             onDraftChange(draft.copy(endpointMode = if (index == 1) OpenAiEndpointMode.RESPONSES else OpenAiEndpointMode.CHAT_COMPLETIONS))
                         },

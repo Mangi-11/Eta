@@ -3,6 +3,8 @@ package io.github.mangi.eta.agent.voice
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import kotlinx.coroutines.CancellationException
 
 internal class SpeechPcmOutput : SpeechAudioOutput {
@@ -26,7 +28,12 @@ internal class SpeechPcmOutput : SpeechAudioOutput {
                 check(!finished) { "Speech audio input already finished" }
                 val remaining = bytes.size - offset
                 val count = audio.write(bytes, offset, remaining, AudioTrack.WRITE_NON_BLOCKING)
-                if (count < 0) throw SpeechFailure(SpeechErrorCode.AUDIO, "音频播放失败")
+                if (count < 0) {
+                    throw SpeechFailure(
+                        SpeechErrorCode.AUDIO,
+                        AppStrings.get(R.string.voice_i18n_audio_playback_failed, "音频播放失败"),
+                    )
+                }
                 frames += count / BYTES_PER_FRAME
                 // 空音轨提前启动会在等待云端首包时超时停用；写满后再启动，短写也表示已达到可写上限。
                 if (!started && frames > 0 && (frames >= audio.bufferSizeInFrames || count < remaining)) {

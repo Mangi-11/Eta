@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <!-- Backends -->
+    <string name="imagegen_backend_gemini">Google Gemini (Nano Banana)</string>
+    <string name="imagegen_backend_openai">OpenAI &amp; compatible</string>
+    <string name="imagegen_backend_xai">xAI (Grok Imagine)</string>
+    <string name="imagegen_backend_doubao">Doubao (Volcengine Ark Seedream)</string>
+    <string name="imagegen_backend_qwen">Qwen (Alibaba Cloud Bailian Qwen-Image)</string>
+    <string name="imagegen_backend_siliconflow">SiliconFlow</string>
+
+    <string name="imagegen_backend_short_gemini">Gemini</string>
+    <string name="imagegen_backend_short_openai">OpenAI compatible</string>
+    <string name="imagegen_backend_short_xai">xAI Grok</string>
+    <string name="imagegen_backend_short_doubao">Doubao Seedream</string>
+    <string name="imagegen_backend_short_qwen">Qwen-Image</string>
+    <string name="imagegen_backend_short_siliconflow">SiliconFlow</string>
+
+    <!-- Aspect ratios -->
+    <string name="imagegen_aspect_ratio_auto">Auto</string>
+    <string name="imagegen_aspect_ratio_1_1">1:1 Square</string>
+    <string name="imagegen_aspect_ratio_16_9">16:9 Landscape</string>
+    <string name="imagegen_aspect_ratio_9_16">9:16 Portrait</string>
+    <string name="imagegen_aspect_ratio_4_3">4:3 Horizontal</string>
+    <string name="imagegen_aspect_ratio_3_4">3:4 Vertical</string>
+    <string name="imagegen_aspect_ratio_3_2">3:2 Camera Landscape</string>
+    <string name="imagegen_aspect_ratio_2_3">2:3 Poster Portrait</string>
+
+    <!-- Resolutions -->
+    <string name="imagegen_resolution_1k">1K Standard</string>
+    <string name="imagegen_resolution_2k">2K HD</string>
+    <string name="imagegen_resolution_4k">4K Ultra HD</string>
+
+    <!-- Model presets -->
+    <string name="imagegen_preset_custom_model">Custom model ID</string>
+    <string name="imagegen_preset_label_kolors">Kolors</string>
+    <string name="imagegen_preset_note_gemini_nano_banana_2_1">Recommended · 1K/2K/4K &amp; multi-image consistency</string>
+    <string name="imagegen_preset_note_gemini_3_1_flash_lite">Ultra-fast &amp; low-cost · 1K only</string>
+    <string name="imagegen_preset_note_gemini_3_1_flash">1K–4K &amp; multiple reference images</string>
+    <string name="imagegen_preset_note_gemini_3_pro">Pro typography &amp; complex instruction reasoning</string>
+    <string name="imagegen_preset_note_gemini_2_5_flash">Classic fixed-resolution model</string>
+    <string name="imagegen_preset_note_gpt_2_6_flare">Fast, high-quality OpenAI generation</string>
+    <string name="imagegen_preset_note_gpt_2_6_sunburst">Fine-grained editing &amp; high fidelity</string>
+    <string name="imagegen_preset_note_gpt_2_5_flare">Fast OpenAI 2.5 workhorse</string>
+    <string name="imagegen_preset_note_gpt_2_5_sunburst">Fine-grained OpenAI 2.5 editing</string>
+    <string name="imagegen_preset_note_gpt_1_5">Widely compatible version</string>
+    <string name="imagegen_preset_note_xai_grok_2_0">xAI generation &amp; editing with up to 5 references</string>
+    <string name="imagegen_preset_note_doubao_5_5">Latest flagship · 1K/2K photorealism &amp; native transparency</string>
+    <string name="imagegen_preset_note_doubao_5_0_pro">1K/2K precise editing &amp; rich detail</string>
+    <string name="imagegen_preset_note_doubao_5_0_flash">Fast 1K/2K generation</string>
+    <string name="imagegen_preset_note_doubao_5_0_lite">Supports 2K/4K high-resolution output</string>
+    <string name="imagegen_preset_note_doubao_4_5">Classic 2K/4K high quality</string>
+    <string name="imagegen_preset_note_qwen_2_0_pro">Recommended · Strong Chinese typography &amp; realism</string>
+    <string name="imagegen_preset_note_qwen_2_0">Fast edition · Balanced speed and quality</string>
+    <string name="imagegen_preset_note_sf_qwen_image">SiliconFlow · Great all-round &amp; Chinese rendering</string>
+    <string name="imagegen_preset_note_sf_qwen_edit">SiliconFlow · Supports image-to-image editing</string>
+    <string name="imagegen_preset_note_sf_kolors">SiliconFlow · Cost-effective text-to-image</string>
+    <string name="imagegen_preset_note_sf_flux_schnell">SiliconFlow · Ultra-fast text-to-image</string>
+
+    <!-- Settings screen -->
+    <string name="imagegen_enable_title">Enable AI image generation</string>
+    <string name="imagegen_enable_summary">When enabled, any chat model can automatically invoke image generation and editing tools, showing generated images directly in the conversation.</string>
+    <string name="imagegen_section_service">Image service</string>
+    <string name="imagegen_provider_channel">Provider</string>
+    <string name="imagegen_credential_source">Credential source</string>
+    <string name="imagegen_link_auto_match">Auto-match existing provider</string>
+    <string name="imagegen_link_provider_no_key">%1$s (No API key)</string>
+    <string name="imagegen_link_standalone">Enter standalone API key</string>
+    <string name="imagegen_model_presets">Model presets</string>
+    <string name="imagegen_official_default">Official default</string>
+    <string name="imagegen_linked_provider_footer_with_url">Reusing the API key and endpoint (%2$s) from “%1$s”. To specify a different URL or region, switch “Credential source” to “Enter standalone API key”.</string>
+    <string name="imagegen_linked_provider_footer">Reusing the API key and endpoint from “%1$s”. To specify a different URL or region, switch “Credential source” to “Enter standalone API key”.</string>
+    <string name="imagegen_section_connection">Connection &amp; model</string>
+    <string name="imagegen_field_model_id">Model ID</string>
+    <string name="imagegen_field_model_or_endpoint_id">Model ID or Endpoint ID</string>
+    <string name="imagegen_gemini_platform">Platform</string>
+    <string name="imagegen_gemini_endpoint_ai_studio">Google AI Studio (Interactions API)</string>
+    <string name="imagegen_gemini_endpoint_vertex">Google Cloud Vertex AI</string>
+    <string name="imagegen_field_base_url_optional">Endpoint URL (leave blank for official default)</string>
+    <string name="imagegen_field_vertex_project">Vertex Project (leave blank for Express mode)</string>
+    <string name="imagegen_field_vertex_project_placeholder">Leave blank to use the official global Express endpoint</string>
+    <string name="imagegen_field_vertex_location">Vertex Location</string>
+    <string name="imagegen_field_vertex_location_default">Vertex Location (default: global)</string>
+    <string name="imagegen_field_openai_base_url">Base URL (OpenAI or compatible relay)</string>
+    <string name="imagegen_field_xai_base_url">xAI Base URL</string>
+    <string name="imagegen_field_doubao_base_url">Volcengine Ark Base URL</string>
+    <string name="imagegen_qwen_region">Bailian region</string>
+    <string name="imagegen_qwen_region_beijing">China North 2 (Beijing)</string>
+    <string name="imagegen_qwen_region_singapore">Singapore (International)</string>
+    <string name="imagegen_field_qwen_base_url">Custom workspace domain (optional; leave blank for regional default)</string>
+    <string name="imagegen_field_siliconflow_base_url">SiliconFlow Base URL</string>
+    <string name="imagegen_field_api_key">API Key</string>
+    <string name="imagegen_toggle_api_key_visibility">Toggle API key visibility</string>
+    <string name="imagegen_section_defaults">Default preferences</string>
+    <string name="imagegen_default_aspect_ratio">Default aspect ratio</string>
+    <string name="imagegen_default_quality_tier">Default quality tier</string>
+    <string name="imagegen_default_resolution">Default resolution</string>
+    <string name="imagegen_quality_standard_auto">Standard (Auto)</string>
+    <string name="imagegen_quality_high">High quality (High)</string>
+    <string name="imagegen_resolution_fixed_by_model">%1$s (fixed by model)</string>
+    <string name="imagegen_doubao_watermark_title">Add AI watermark</string>
+    <string name="imagegen_doubao_watermark_summary">Off by default. When enabled, adds a Volcengine Ark watermark in the bottom-right corner.</string>
+    <string name="imagegen_qwen_prompt_extend_title">Smart prompt enhancement</string>
+    <string name="imagegen_qwen_prompt_extend_summary">Let Qwen automatically enrich scene details (recommended).</string>
+    <string name="imagegen_qwen_watermark_title">Add Qwen-Image watermark</string>
+    <string name="imagegen_default_off">Off by default</string>
+    <string name="imagegen_action_test">Test generation</string>
+    <string name="imagegen_action_testing">Generating…</string>
+    <string name="imagegen_action_save_config">Save settings</string>
+    <string name="imagegen_action_saving">Saving…</string>
+    <string name="imagegen_section_local_images">Local images</string>
+    <string name="imagegen_open_gallery">Generated images gallery</string>
+    <string name="imagegen_gallery_summary_empty">No local images yet</string>
+    <plurals name="imagegen_gallery_summary_count">
+        <item quantity="one">%1$d image · %2$s</item>
+        <item quantity="other">%1$d images · %2$s</item>
+    </plurals>
+    <string name="imagegen_test_preview_desc">Test generation preview</string>
+    <string name="imagegen_test_preview_title">Test succeeded, tap to view full image</string>
+    <string name="imagegen_test_saved_prompt">Connectivity test · Orange cat wearing a blue scarf</string>
+
+    <!-- Settings store status & errors -->
+    <string name="imagegen_status_saved_enabled">Saved and enabled AI image generation</string>
+    <string name="imagegen_status_saved">Settings saved</string>
+    <string name="imagegen_status_test_success">Test succeeded (%1$d×%2$d)</string>
+    <string name="imagegen_error_decrypt_failed">Could not decrypt saved standalone API keys. Re-enter and save if using standalone mode.</string>
+    <string name="imagegen_error_enable_requires_api_key">Enter an API key or link a configured model provider before enabling AI image generation.</string>
+    <string name="imagegen_error_model_id_empty">Model ID cannot be empty.</string>
+    <string name="imagegen_error_save_failed">Failed to save.</string>
+    <string name="imagegen_error_test_requires_api_key">Enter an API key or link a configured provider before testing.</string>
+    <string name="imagegen_error_test_failed">Test failed: %1$s</string>
+
+    <!-- Gallery screen -->
+    <string name="imagegen_action_clear">Clear</string>
+    <string name="imagegen_gallery_clear_all_desc">Clear all</string>
+    <string name="imagegen_gallery_clear_title">Clear generated images</string>
+    <plurals name="imagegen_gallery_clear_message">
+        <item quantity="one">Delete %1$d locally cached image (about %2$s)? Images already saved to your system gallery will not be affected.</item>
+        <item quantity="other">Delete %1$d locally cached images (about %2$s)? Images already saved to your system gallery will not be affected.</item>
+    </plurals>
+    <string name="imagegen_gallery_delete_title">Delete this image</string>
+    <string name="imagegen_gallery_delete_message">Once deleted, this local original image can no longer be loaded in chat history.</string>
+    <string name="imagegen_gallery_deleted">Deleted</string>
+    <string name="imagegen_gallery_delete_failed">Failed to delete. Please try again</string>
+    <plurals name="imagegen_gallery_cleared">
+        <item quantity="one">Cleared %1$d local image</item>
+        <item quantity="other">Cleared %1$d local images</item>
+    </plurals>
+    <string name="imagegen_gallery_nothing_to_clear">No images to clear</string>
+    <string name="imagegen_gallery_empty_title">No generated images yet</string>
+    <string name="imagegen_gallery_empty_summary">Enable AI image generation and ask Eta to draw in chat to automatically save images here.</string>
+    <plurals name="imagegen_gallery_header_summary">
+        <item quantity="one">%1$d image · %2$s used (tap to view, save, or share)</item>
+        <item quantity="other">%1$d images · %2$s used (tap to view, save, or share)</item>
+    </plurals>
+    <string name="imagegen_generated_image_desc">AI-generated image</string>
+    <string name="imagegen_gallery_delete_image_desc">Delete image</string>
+    <string name="imagegen_gallery_no_prompt">No prompt recorded</string>
+
+    <!-- Chat message card -->
+    <string name="imagegen_card_completed">Image generation completed</string>
+    <string name="imagegen_card_failed">Image generation failed</string>
+    <string name="imagegen_card_generating">Generating image</string>
+    <string name="imagegen_card_generating_multiple">Generating %1$d images</string>
+    <string name="imagegen_card_editing">Editing image</string>
+    <string name="imagegen_card_editing_multiple">Editing %1$d images</string>
+    <string name="imagegen_card_elapsed_seconds">Elapsed %1$ds</string>
+    <string name="imagegen_card_please_wait">Please wait…</string>
+    <string name="imagegen_card_saving">Saving</string>
+    <string name="imagegen_card_save_all">Save all</string>
+    <string name="imagegen_card_saved_single">Saved to gallery (Pictures/Eta)</string>
+    <string name="imagegen_card_saved_multiple">Saved %1$d images to gallery</string>
+    <string name="imagegen_card_save_failed">Failed to save. Please try again</string>
+    <string name="imagegen_card_action_share">Share</string>
+    <string name="imagegen_card_share_failed">Failed to share</string>
+    <string name="imagegen_card_action_edit">Edit</string>
+    <string name="imagegen_card_edit_loaded_hint">Attached to input. Describe the changes you want.</string>
+    <string name="imagegen_card_prompt_label">Prompt</string>
+    <string name="imagegen_card_image_missing">Local image was cleared</string>
+
+    <!-- Repository & storage errors -->
+    <string name="imagegen_error_credentials_unavailable">AI image generation credentials are temporarily unavailable. Please re-enter and save.</string>
+    <string name="imagegen_error_credentials_save_failed">Failed to save AI image generation credentials</string>
+    <string name="imagegen_error_url_empty">Endpoint URL cannot be empty</string>
+    <string name="imagegen_error_url_invalid">Invalid endpoint URL format</string>
+    <string name="imagegen_error_url_missing_scheme">Endpoint URL is missing a scheme (https://)</string>
+    <string name="imagegen_error_url_missing_host">Endpoint URL is missing a valid hostname</string>
+    <string name="imagegen_error_url_https_required">Public endpoints with an API key must use HTTPS</string>
+    <string name="imagegen_store_error_publish_failed">Failed to atomically publish generated image: %1$s</string>
+    <string name="imagegen_store_error_save_local_failed">Failed to save generated image locally</string>
+    <string name="imagegen_store_error_read_image_failed">Could not read image data</string>
+    <string name="imagegen_store_error_gallery_write_failed">Could not write to system gallery</string>
+    <string name="imagegen_store_error_gallery_stream_failed">Could not open gallery output stream</string>
+    <string name="imagegen_store_error_gallery_publish_failed">Failed to update gallery publish status</string>
+    <string name="imagegen_store_error_share_prepare_failed">Could not prepare image for sharing</string>
+    <string name="imagegen_share_chooser_title">Share image</string>
+
+    <!-- Client labels & errors -->
+    <string name="imagegen_client_label_openai">OpenAI Image</string>
+    <string name="imagegen_client_label_siliconflow">SiliconFlow Image</string>
+    <string name="imagegen_client_label_doubao">Doubao Seedream</string>
+    <string name="imagegen_client_label_qwen">Qwen-Image</string>
+    <string name="imagegen_error_missing_api_key">AI image generation API key is not configured. Go to Settings → AI Image Generation to enter one or link an existing provider.</string>
+    <string name="imagegen_error_missing_model">Image model ID is not configured. Check your model settings in Settings → AI Image Generation.</string>
+    <string name="imagegen_error_empty_prompt">Image prompt cannot be empty</string>
+    <string name="imagegen_error_edit_unsupported">The current model (%1$s) does not support image editing. Please switch to a model that supports editing.</string>
+    <string name="imagegen_error_too_many_reference_images">The current model (%1$s) supports up to %2$d reference images, but %3$d were provided.</string>
+    <string name="imagegen_error_gemini_empty_output">Gemini returned no image data. Check whether the model supports image generation or adjust your prompt.</string>
+    <string name="imagegen_error_missing_image_array">Response did not include an image array (data / images)</string>
+    <string name="imagegen_error_empty_output">Image API returned no valid images</string>
+    <string name="imagegen_error_qwen_failed">Qwen image generation failed (%1$s)</string>
+    <string name="imagegen_error_qwen_missing_choices">Qwen API did not return output.choices</string>
+    <string name="imagegen_error_qwen_missing_image_url">Qwen API did not return a valid image URL</string>
+    <string name="imagegen_error_redirect_blocked">%1$s returned a redirect (HTTP %2$d), which was blocked for credential security. Check that your Base URL is accurate.</string>
+    <string name="imagegen_error_empty_body">%1$s returned an empty response</string>
+    <string name="imagegen_error_network">%1$s request failed: network error or timeout</string>
+    <string name="imagegen_error_download_http">Failed to download generated image (HTTP %1$d)</string>
+    <string name="imagegen_error_image_too_large">Generated image is too large and exceeds the local cache limit</string>
+    <string name="imagegen_error_download_empty">Downloaded image is empty</string>
+    <string name="imagegen_error_download_network">Network error while downloading generated image</string>
+    <string name="imagegen_error_invalid_reference_image">Reference file is not a valid image format and was rejected</string>
+    <string name="imagegen_error_reference_decode_failed">Failed to decode reference image for editing</string>
+    <string name="imagegen_error_response_too_large">Server response is too large and exceeds the local safety limit</string>
+    <string name="imagegen_error_batch_too_large">Total size of generated images exceeds the safe memory budget. Reduce the count or resolution.</string>
+    <string name="imagegen_http_error_bad_request">Request parameters, model specs, or prompt content are not supported</string>
+    <string name="imagegen_http_error_unauthorized">Invalid or unauthorized API key</string>
+    <string name="imagegen_http_error_forbidden">No permission to access this image model or insufficient account privileges</string>
+    <string name="imagegen_http_error_not_found">Model ID or endpoint path not found</string>
+    <string name="imagegen_http_error_rate_limit">Too many requests or quota exhausted. Please try again later</string>
+    <string name="imagegen_http_error_server">Upstream image service is temporarily unavailable. Please try again later</string>
+    <string name="imagegen_http_error_generic">Service returned an error</string>
+    <string name="imagegen_http_error_summary">%1$s request failed (HTTP %2$d): %3$s</string>
+    <string name="imagegen_http_error_summary_with_code">%1$s request failed (HTTP %2$d / %3$s): %4$s</string>
+    <string name="imagegen_deprecation_gpt_image_1">OpenAI has retired gpt-image-1. Switch to gpt-image-2.6-flare, gpt-image-2.5-flare, or gpt-image-1.5 instead.</string>
+</resources>

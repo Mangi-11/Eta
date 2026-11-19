@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
@@ -53,7 +55,10 @@ internal object DoubaoTtsCodec {
     }
 
     fun decode(bytes: ByteArray): Frame {
-        fun invalid(): Nothing = throw SpeechFailure(SpeechErrorCode.PROTOCOL, "豆包语音合成返回了无效协议帧")
+        fun invalid(): Nothing = throw SpeechFailure(
+            SpeechErrorCode.PROTOCOL,
+            AppStrings.get(R.string.voice_i18n_doubao_tts_invalid_frame, "豆包语音合成返回了无效协议帧"),
+        )
         if (bytes.size < 8) invalid()
         val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)
         val version = buffer.get().toInt() and 0xff

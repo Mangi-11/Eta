@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.imagegen
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.CustomHeader
 import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
@@ -65,7 +67,10 @@ internal data class ImageGenModelCapability(
                 ImageGenBackend.OPENAI_COMPATIBLE -> {
                     val isOfficialOpenAi = baseUrl.isBlank() || baseUrl.contains("api.openai.com", ignoreCase = true)
                     val notice = if (isOfficialOpenAi && lower == "gpt-image-1") {
-                        "OpenAI 官方已下线 gpt-image-1，请改用 gpt-image-2.6-flare / gpt-image-2.5-flare 或 gpt-image-1.5"
+                        AppStrings.get(
+                            R.string.imagegen_deprecation_gpt_image_1,
+                            "OpenAI 官方已下线 gpt-image-1，请改用 gpt-image-2.6-flare / gpt-image-2.5-flare 或 gpt-image-1.5",
+                        )
                     } else {
                         null
                     }

@@ -1,11 +1,14 @@
 package io.github.mangi.eta.ui.screens.imagegen
 
 import android.content.Context
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.imagegen.GeneratedImageRecord
 import io.github.mangi.eta.agent.imagegen.GeneratedImageStore
 import io.github.mangi.eta.agent.imagegen.ImageGenClient
@@ -71,7 +74,7 @@ internal class ImageGenSettingsStore(
                 credentials = try {
                     ImageGenSettingsRepository.credentials(context)
                 } catch (_: ImageGenCredentialsUnavailable) {
-                    errorMessage = "历史独立 API Key 解密失败，如需独立配置请重新输入并保存"
+                    errorMessage = context.getString(R.string.imagegen_error_decrypt_failed)
                     ImageGenCredentials()
                 }
                 linkedProviders = ImageGenBackend.entries.associateWith { backend ->
@@ -164,11 +167,11 @@ internal class ImageGenSettingsStore(
                 )
                 if (draftSettings.enabled) {
                     if (resolved.apiKey.isBlank()) {
-                        errorMessage = "开启 AI 生图前，请填写 API Key 或关联已配置 Key 的模型服务商"
+                        errorMessage = context.getString(R.string.imagegen_error_enable_requires_api_key)
                         return@launch
                     }
                     if (resolved.model.isBlank()) {
-                        errorMessage = "模型 ID 不能为空"
+                        errorMessage = context.getString(R.string.imagegen_error_model_id_empty)
                         return@launch
                     }
                     ImageGenSettingsRepository.validateEndpointUrl(resolved.baseUrl)?.let { err ->
@@ -179,9 +182,15 @@ internal class ImageGenSettingsStore(
                 ImageGenSettingsRepository.saveCredentials(context, draftCredentials)
                 ImageGenSettingsRepository.save(normalizedSettings)
                 settings = normalizedSettings
-                statusMessage = if (normalizedSettings.enabled) "已保存并启用 AI 生图" else "配置已保存"
+                statusMessage = context.getString(
+                    if (normalizedSettings.enabled) {
+                        R.string.imagegen_status_saved_enabled
+                    } else {
+                        R.string.imagegen_status_saved
+                    },
+                )
             } catch (throwable: Throwable) {
-                errorMessage = throwable.message ?: "保存失败"
+                errorMessage = throwable.message ?: context.getString(R.string.imagegen_error_save_failed)
             } finally {
                 saving = false
             }
@@ -206,7 +215,7 @@ internal class ImageGenSettingsStore(
                     credentialsOverride = draftCredentials,
                 )
                 if (resolved.apiKey.isBlank()) {
-                    errorMessage = "请先填写 API Key 或关联已配置 Key 的服务商后再试画"
+                    errorMessage = context.getString(R.string.imagegen_error_test_requires_api_key)
                     return@launch
                 }
                 ImageGenSettingsRepository.validateEndpointUrl(resolved.baseUrl)?.let { err ->
@@ -231,13 +240,13 @@ internal class ImageGenSettingsStore(
                         context = context,
                         bytes = first.bytes,
                         mimeType = first.mimeType,
-                        prompt = "连通性测试 · 戴蓝色围巾的橘猫",
+                        prompt = context.getString(R.string.imagegen_test_saved_prompt),
                         model = resolved.model,
                         backend = resolved.backend.wireValue,
                     )
                 }
                 testPreviewRecord = record
-                statusMessage = "试画成功（${record.width}×${record.height}）"
+                statusMessage = context.getString(R.string.imagegen_status_test_success, record.width, record.height)
                 refreshGalleryStats()
             } catch (_: AgentRunCancelledException) {
                 // 页面离开或主动取消时不报错。
@@ -246,7 +255,10 @@ internal class ImageGenSettingsStore(
             } catch (e: ImageGenException) {
                 errorMessage = e.message
             } catch (throwable: Throwable) {
-                errorMessage = "试画失败：${throwable.javaClass.simpleName}"
+                errorMessage = context.getString(
+                    R.string.imagegen_error_test_failed,
+                    throwable.javaClass.simpleName,
+                )
             } finally {
                 if (activeTestController === controller) {
                     activeTestController = null
@@ -257,23 +269,29 @@ internal class ImageGenSettingsStore(
     }
 }
 
-internal fun ImageGenBackend.displayName(): String = when (this) {
-    ImageGenBackend.GEMINI -> "Google Gemini（Nano Banana）"
-    ImageGenBackend.OPENAI_COMPATIBLE -> "OpenAI 及兼容接口"
-    ImageGenBackend.XAI -> "xAI（Grok Imagine）"
-    ImageGenBackend.DOUBAO -> "豆包（火山方舟 Seedream）"
-    ImageGenBackend.QWEN -> "千问（阿里云百炼 Qwen-Image）"
-    ImageGenBackend.SILICONFLOW -> "硅基流动（SiliconFlow）"
-}
+@Composable
+internal fun ImageGenBackend.displayName(): String = stringResource(
+    when (this) {
+        ImageGenBackend.GEMINI -> R.string.imagegen_backend_gemini
+        ImageGenBackend.OPENAI_COMPATIBLE -> R.string.imagegen_backend_openai
+        ImageGenBackend.XAI -> R.string.imagegen_backend_xai
+        ImageGenBackend.DOUBAO -> R.string.imagegen_backend_doubao
+        ImageGenBackend.QWEN -> R.string.imagegen_backend_qwen
+        ImageGenBackend.SILICONFLOW -> R.string.imagegen_backend_siliconflow
+    },
+)
 
-internal fun ImageGenBackend.shortName(): String = when (this) {
-    ImageGenBackend.GEMINI -> "Gemini"
-    ImageGenBackend.OPENAI_COMPATIBLE -> "OpenAI 兼容"
-    ImageGenBackend.XAI -> "xAI Grok"
-    ImageGenBackend.DOUBAO -> "豆包 Seedream"
-    ImageGenBackend.QWEN -> "千问 Qwen-Image"
-    ImageGenBackend.SILICONFLOW -> "硅基流动"
-}
+@Composable
+internal fun ImageGenBackend.shortName(): String = stringResource(
+    when (this) {
+        ImageGenBackend.GEMINI -> R.string.imagegen_backend_short_gemini
+        ImageGenBackend.OPENAI_COMPATIBLE -> R.string.imagegen_backend_short_openai
+        ImageGenBackend.XAI -> R.string.imagegen_backend_short_xai
+        ImageGenBackend.DOUBAO -> R.string.imagegen_backend_short_doubao
+        ImageGenBackend.QWEN -> R.string.imagegen_backend_short_qwen
+        ImageGenBackend.SILICONFLOW -> R.string.imagegen_backend_short_siliconflow
+    },
+)
 
 internal fun formatImageStorageSize(bytes: Long): String = when {
     bytes <= 0L -> "0 B"

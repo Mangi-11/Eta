@@ -189,13 +189,15 @@ private fun daemonStatusColor(task: DaemonTaskUi) = when {
 @Composable
 private fun daemonMeta(task: DaemonTaskUi): String {
     val environmentLabel = task.environment.displayName
-    val stateLabel = when (task.status) {
-        "completed" -> "已完成"
-        "failed" -> "执行失败"
-        "timed_out" -> "已超时"
-        "stopped" -> "已停止"
-        "interrupted" -> "已中断"
-        else -> stringResource(if (task.running) R.string.terminal_daemon_running else R.string.terminal_daemon_exited)
-    }
+    val stateLabel = stringResource(
+        when (task.status) {
+            "completed" -> R.string.ui_misc_daemon_completed
+            "failed" -> R.string.ui_misc_daemon_failed
+            "timed_out" -> R.string.ui_misc_daemon_timed_out
+            "stopped" -> R.string.ui_misc_daemon_stopped
+            "interrupted" -> R.string.ui_misc_daemon_interrupted
+            else -> if (task.running) R.string.terminal_daemon_running else R.string.terminal_daemon_exited
+        },
+    )
     return "$environmentLabel · ${task.identity} · $stateLabel"
 }

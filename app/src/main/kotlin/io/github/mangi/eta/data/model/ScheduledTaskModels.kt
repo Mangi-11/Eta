@@ -1,5 +1,7 @@
 package io.github.mangi.eta.data.model
 
+import androidx.annotation.StringRes
+import io.github.mangi.eta.R
 import kotlinx.serialization.Serializable
 
 /**
@@ -213,10 +215,10 @@ data class ScheduledTaskRun(
 /** 空状态精选灵感模板。 */
 data class ScheduledTaskPreset(
     val id: String,
-    val title: String,
-    val subtitle: String,
-    val defaultName: String,
-    val prompt: String,
+    @StringRes val titleRes: Int,
+    @StringRes val subtitleRes: Int,
+    @StringRes val defaultNameRes: Int,
+    @StringRes val promptRes: Int,
     val schedule: ScheduledTaskSchedule,
     val deliveryMode: ScheduledTaskDeliveryMode,
     val sessionMode: ScheduledTaskSessionMode,
@@ -227,14 +229,10 @@ internal object ScheduledTaskPresets {
     val all: List<ScheduledTaskPreset> = listOf(
         ScheduledTaskPreset(
             id = "evening_briefing",
-            title = "每日晚间简报",
-            subtitle = "汇总今天错过的重要通知、应用使用与明日日程",
-            defaultName = "每日晚间简报",
-            prompt = "整理一份简洁清晰的今日晚间简报：\n" +
-                "1. 检查今天的重要通知记录，挑出我可能忽略、需要跟进的事项（忽略营销广告和无关系统提示）；\n" +
-                "2. 查看明天的日历安排，列出关键时间点与需要提前准备的事；\n" +
-                "3. 简要点评今天的应用使用分布（如有权限）。\n" +
-                "输出控制在一屏可读完的篇幅，重点前置。",
+            titleRes = R.string.scheduled_preset_evening_briefing_title,
+            subtitleRes = R.string.scheduled_preset_evening_briefing_subtitle,
+            defaultNameRes = R.string.scheduled_preset_evening_briefing_name,
+            promptRes = R.string.scheduled_preset_evening_briefing_prompt,
             schedule = ScheduledTaskSchedule(
                 kind = ScheduledTaskTriggerKind.DAILY,
                 hour = 22,
@@ -253,14 +251,10 @@ internal object ScheduledTaskPresets {
         ),
         ScheduledTaskPreset(
             id = "morning_digest",
-            title = "工作日晨间早报",
-            subtitle = "结合今日日程、当地天气与关注动态生成晨间要点",
-            defaultName = "工作日晨间早报",
-            prompt = "为我准备今日晨间早报：\n" +
-                "1. 查看今天的日历日程与待办提醒；\n" +
-                "2. 结合当前位置或常用城市查询今天天气与穿衣/出行建议；\n" +
-                "3. 如果长期记忆中有我正在持续关注的项目或主题，顺带提醒关键进展。\n" +
-                "语气自然简练，直接给重点。",
+            titleRes = R.string.scheduled_preset_morning_digest_title,
+            subtitleRes = R.string.scheduled_preset_morning_digest_subtitle,
+            defaultNameRes = R.string.scheduled_preset_morning_digest_name,
+            promptRes = R.string.scheduled_preset_morning_digest_prompt,
             schedule = ScheduledTaskSchedule(
                 kind = ScheduledTaskTriggerKind.WEEKDAYS,
                 hour = 8,
@@ -279,13 +273,10 @@ internal object ScheduledTaskPresets {
         ),
         ScheduledTaskPreset(
             id = "web_watcher",
-            title = "网页动态雷达",
-            subtitle = "定时巡检指定网页，有变化立刻通知，无变化静默",
-            defaultName = "网页动态雷达",
-            prompt = "请帮我巡检目标网页的最新动态（请在此替换为你要盯的网址或主题）：\n" +
-                "- 读取当前页面最新内容，与任务小记事本中记录的上次状态对比；\n" +
-                "- 如果没有任何实质更新，调用 scheduled_task_report 标记 no_change 保持静默；\n" +
-                "- 如果发现新公告、价格变动或状态变化，更新小记事本并用简短结论汇报具体变动内容。",
+            titleRes = R.string.scheduled_preset_web_watcher_title,
+            subtitleRes = R.string.scheduled_preset_web_watcher_subtitle,
+            defaultNameRes = R.string.scheduled_preset_web_watcher_name,
+            promptRes = R.string.scheduled_preset_web_watcher_prompt,
             schedule = ScheduledTaskSchedule(
                 kind = ScheduledTaskTriggerKind.INTERVAL,
                 intervalMinutes = 120,
@@ -303,14 +294,10 @@ internal object ScheduledTaskPresets {
         ),
         ScheduledTaskPreset(
             id = "weekly_review",
-            title = "每周手机与习惯复盘",
-            subtitle = "周日晚总结本周应用时长、存储空间与记忆整理",
-            defaultName = "每周手机复盘",
-            prompt = "帮我做一次轻量级的本周复盘：\n" +
-                "1. 汇总本周的应用使用时长变化与主要耗时应用；\n" +
-                "2. 检查设备存储空间和明显的大文件/异常占用（如当前权限允许）；\n" +
-                "3. 总结 3 条具体、不空泛的下周优化建议。\n" +
-                "客观陈述观察到的事实，不要过度臆测。",
+            titleRes = R.string.scheduled_preset_weekly_review_title,
+            subtitleRes = R.string.scheduled_preset_weekly_review_subtitle,
+            defaultNameRes = R.string.scheduled_preset_weekly_review_name,
+            promptRes = R.string.scheduled_preset_weekly_review_prompt,
             schedule = ScheduledTaskSchedule(
                 kind = ScheduledTaskTriggerKind.WEEKLY,
                 hour = 21,

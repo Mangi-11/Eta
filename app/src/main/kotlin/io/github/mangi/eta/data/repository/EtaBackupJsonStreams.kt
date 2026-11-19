@@ -4,7 +4,9 @@ import android.content.Context
 import android.util.JsonReader
 import android.util.JsonToken
 import android.util.JsonWriter
+import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AndroidAgentLogger
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.db.ConversationContextCheckpointEntity
 import io.github.mangi.eta.data.db.ConversationEntity
 import io.github.mangi.eta.data.db.ConversationMessageEntity
@@ -83,22 +85,41 @@ internal object EtaBackupJsonStreams {
             val cancellation = currentCoroutineContext()
             val checked = PushbackInputStream(LimitedInput(input, MAX_BACKUP_BYTES, cancellation::ensureActive))
             val first = checked.read()
-            if (first < 0) throw EtaBackupException("备份文件为空")
+            if (first < 0) {
+                throw EtaBackupException(
+                    AppStrings.get(R.string.backup_err_empty_file, "备份文件为空"),
+                )
+            }
             checked.unread(first)
             JsonReader(checked.reader(Charsets.UTF_8)).use { reader ->
                 JsonWriter(header.writer(Charsets.UTF_8).buffered()).use { writer ->
-                    if (reader.peek() == JsonToken.END_DOCUMENT) throw EtaBackupException("备份文件为空")
+                    if (reader.peek() == JsonToken.END_DOCUMENT) {
+                        throw EtaBackupException(
+                            AppStrings.get(R.string.backup_err_empty_file, "备份文件为空"),
+                        )
+                    }
                     reader.beginObject()
                     writer.beginObject()
                     val seen = mutableSetOf<String>()
                     while (reader.hasNext()) {
                         cancellation.ensureActive()
                         val name = reader.nextName()
-                        if (!seen.add(name)) throw EtaBackupException("备份中存在重复字段")
+                        if (!seen.add(name)) {
+                            throw EtaBackupException(
+                                AppStrings.get(R.string.backup_err_duplicate_field, "备份中存在重复字段"),
+                            )
+                        }
                         onPhase(if (name in knownFields) "read_$name" else "read_unknown")
                         when {
                             name in recordFields -> {
-                                if (reader.peek() != JsonToken.BEGIN_ARRAY) throw EtaBackupException("备份中的记录列表格式无效")
+                                if (reader.peek() != JsonToken.BEGIN_ARRAY) {
+                                    throw EtaBackupException(
+                                        AppStrings.get(
+                                            R.string.backup_err_invalid_record_list,
+                                            "备份中的记录列表格式无效",
+                                        ),
+                                    )
+                                }
                                 JsonWriter(File(directory, "$name.json").writer(Charsets.UTF_8).buffered()).use { records ->
                                     copyValue(reader, records, 0, cancellation::ensureActive)
                                 }
@@ -112,7 +133,14 @@ internal object EtaBackupJsonStreams {
                     }
                     reader.endObject()
                     writer.endObject()
-                    if (reader.peek() != JsonToken.END_DOCUMENT) throw EtaBackupException("备份文件末尾存在额外内容")
+                    if (reader.peek() != JsonToken.END_DOCUMENT) {
+                        throw EtaBackupException(
+                            AppStrings.get(
+                                R.string.backup_err_trailing_content,
+                                "备份文件末尾存在额外内容",
+                            ),
+                        )
+                    }
                 }
             }
             onPhase("read_header")
@@ -121,7 +149,10 @@ internal object EtaBackupJsonStreams {
         } catch (failure: Throwable) {
             removeDirectory(directory)
             if (failure is CancellationException || failure is EtaBackupException || failure is Error) throw failure
-            throw EtaBackupException("备份文件格式无效", failure)
+            throw EtaBackupException(
+                AppStrings.get(R.string.backup_err_invalid_format, "备份文件格式无效"),
+                failure,
+            )
         }
     }
 
@@ -213,13 +244,29 @@ internal object EtaBackupJsonStreams {
     }
 
     private fun sizeLimitFailure(limit: Long): EtaBackupException {
-        val size = if (limit >= 1024 * 1024) "${limit / (1024 * 1024)} MiB" else "$limit 字节"
-        return EtaBackupException("备份文件超过 $size 限制")
+        val message = if (limit >= 1024 * 1024) {
+            AppStrings.get(
+                R.string.backup_err_size_limit_mib,
+                "备份文件超过 %1\$d MiB 限制",
+                limit / (1024 * 1024),
+            )
+        } else {
+            AppStrings.get(
+                R.string.backup_err_size_limit_bytes,
+                "备份文件超过 %1\$d 字节 限制",
+                limit,
+            )
+        }
+        return EtaBackupException(message)
     }
 
     private fun copyValue(reader: JsonReader, writer: JsonWriter, depth: Int, checkCancelled: () -> Unit) {
         checkCancelled()
-        if (depth > 128) throw EtaBackupException("备份中的 JSON 嵌套过深")
+        if (depth > 128) {
+            throw EtaBackupException(
+                AppStrings.get(R.string.backup_err_json_too_deep, "备份中的 JSON 嵌套过深"),
+            )
+        }
         when (reader.peek()) {
             JsonToken.BEGIN_ARRAY -> {
                 reader.beginArray(); writer.beginArray()
@@ -238,7 +285,9 @@ internal object EtaBackupJsonStreams {
             JsonToken.NUMBER -> writer.value(BigDecimal(reader.nextString()))
             JsonToken.BOOLEAN -> writer.value(reader.nextBoolean())
             JsonToken.NULL -> { reader.nextNull(); writer.nullValue() }
-            else -> throw EtaBackupException("备份文件格式无效")
+            else -> throw EtaBackupException(
+                AppStrings.get(R.string.backup_err_invalid_format, "备份文件格式无效"),
+            )
         }
     }
 

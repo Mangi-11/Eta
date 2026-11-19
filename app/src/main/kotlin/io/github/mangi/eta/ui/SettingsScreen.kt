@@ -85,6 +85,7 @@ import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ImageGenSettings
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.enabledModel
+import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.repository.ImageGenSettingsRepository
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
@@ -260,7 +261,8 @@ private fun SettingsPageContent(
         selectedProvider?.models?.find { it.id == selectedModelId }
     }
     val providerSummary = selectedProvider?.let { provider ->
-        "${provider.name} / ${selectedModel?.displayName ?: stringResource(R.string.settings_model_not_selected)}"
+        val providerDisplayName = BuiltinProviders.defaultNameRes(provider.id, provider.name)?.let { stringResource(it) } ?: provider.name
+        "$providerDisplayName / ${selectedModel?.displayName ?: stringResource(R.string.settings_model_not_selected)}"
     } ?: stringResource(R.string.settings_not_configured)
 
     // prefs 绑定到 XposedService：service 到达时切换到 RemotePreferences（跨进程提交到
@@ -516,9 +518,7 @@ private fun SettingsPageContent(
         onDispose { EtaApp.removeServiceStateListener(listener) }
     }
     val powerAssistantTargets = PowerAssistantTarget.entries
-    val powerAssistantItems = remember(context) {
-        powerAssistantTargets.map { target -> target.displayName(context) }
-    }
+    val powerAssistantItems = powerAssistantTargets.map { target -> target.displayName() }
     val onPowerTargetSelect: (Int) -> Unit = { index ->
         val target = powerAssistantTargets.getOrNull(index)
         val targetPrefs = prefs
@@ -658,7 +658,7 @@ private fun SettingsPageContent(
                     )
                     CouiIconDivider()
                     CouiPreference(
-                        title = "Subagent",
+                        title = stringResource(R.string.ui_misc_route_subagents),
                         icon = { CouiSettingsIcon(Icons.Rounded.JoinLeft, SettingsIconColors.Blue) },
                         onClick = { onNavigate(AppRoute.Subagents) },
                     )
@@ -697,7 +697,7 @@ private fun SettingsPageContent(
                     )
                     CouiIconDivider()
                     CouiPreference(
-                        title = "角色",
+                        title = stringResource(R.string.conversation_dock_characters),
                         icon = {
                             CouiSettingsIcon(
                                 Icons.Rounded.SportsBar,
@@ -730,7 +730,7 @@ private fun SettingsPageContent(
                         .collectAsState(initial = ImageGenSettings())
                     CouiPreference(
                         title = stringResource(R.string.image_gen_settings_title),
-                        value = if (imageGenSettings.enabled) imageGenSettings.backend.shortName() else "未开启",
+                        value = if (imageGenSettings.enabled) imageGenSettings.backend.shortName() else stringResource(R.string.ui_misc_not_enabled),
                         icon = {
                             CouiSettingsIcon(
                                 Icons.Rounded.Image,
@@ -1099,7 +1099,7 @@ private fun SettingsPageContent(
                             onClick = { onNavigate(AppRoute.Memory) },
                         )
                         ArrowPreference(
-                            title = "Subagent",
+                            title = stringResource(R.string.ui_misc_route_subagents),
                             startAction = { SettingsIcon(Icons.Rounded.JoinLeft) },
                             onClick = { onNavigate(AppRoute.Subagents) },
                         )
@@ -1119,7 +1119,7 @@ private fun SettingsPageContent(
                             onClick = { onNavigate(AppRoute.ScheduledTasks) },
                         )
                         ArrowPreference(
-                            title = "角色",
+                            title = stringResource(R.string.conversation_dock_characters),
                             startAction = { SettingsIcon(Icons.Rounded.SportsBar) },
                             onClick = { onNavigate(AppRoute.Characters) },
                         )
@@ -1145,7 +1145,11 @@ private fun SettingsPageContent(
                             .collectAsState(initial = ImageGenSettings())
                         ArrowPreference(
                             title = stringResource(R.string.image_gen_settings_title),
-                            summary = if (imageGenSettings.enabled) "已开启 · ${imageGenSettings.backend.shortName()}" else "未开启",
+                            summary = if (imageGenSettings.enabled) {
+                                stringResource(R.string.ui_misc_enabled_with_value, imageGenSettings.backend.shortName())
+                            } else {
+                                stringResource(R.string.ui_misc_not_enabled)
+                            },
                             startAction = { SettingsIcon(Icons.Rounded.Image) },
                             onClick = { onNavigate(AppRoute.ImageGenSettings) },
                         )
@@ -1516,9 +1520,10 @@ private fun putStringSync(
 ): Boolean =
     runCatching { prefs.edit().putString(key, value).commit() }.getOrDefault(false)
 
-private fun PowerAssistantTarget.displayName(context: Context): String =
+@Composable
+private fun PowerAssistantTarget.displayName(): String =
     when (this) {
-        PowerAssistantTarget.OEM -> context.getString(R.string.power_assistant_system_default)
+        PowerAssistantTarget.OEM -> stringResource(R.string.power_assistant_system_default)
         PowerAssistantTarget.GEMINI -> "Gemini"
         PowerAssistantTarget.ETA -> "Eta"
     }

@@ -1,5 +1,8 @@
 package io.github.mangi.eta.agent.context
 
+import androidx.annotation.StringRes
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -8,20 +11,84 @@ internal object PersonalSearchTools {
     data class Search(
         val name: String,
         val source: String,
-        val title: String,
-        val description: String,
-    )
+        @StringRes private val titleRes: Int,
+        private val titleFallback: String,
+        @StringRes private val descriptionRes: Int,
+        private val descriptionFallback: String,
+    ) {
+        val title: String
+            get() = AppStrings.get(titleRes, titleFallback)
+
+        val description: String
+            get() = AppStrings.get(descriptionRes, descriptionFallback)
+    }
 
     val searches =
         listOf(
-            Search("search_bills", "bills", "查询账单", "按商户、内容和时间查找账单记录。"),
-            Search("search_todos", "todos", "查询待办线索", "查询系统从个人信息中提取的待办线索，未识别时间的记录不能按时间命中。"),
-            Search("search_calendar_todos", "calendar_todos", "查询日历待办", "查询日历中的待办及其计划时间。"),
-            Search("search_memory_collections", "collections", "查询记忆合集", "查找已保存的记忆合集，不支持业务时间筛选。"),
-            Search("search_daily_events", "events", "查询生活事件", "查找系统记录或推断的生活事件，不把推断当成确认事实。"),
-            Search("search_flights", "flights", "查询航班行程", "按航班、机场和计划起飞时间检索行程。"),
-            Search("search_hotels", "hotels", "查询酒店预订", "按酒店、地址、订单和入住时间检索预订。"),
-            Search("search_trains", "trains", "查询火车行程", "按车次、车站和出发时间检索行程。"),
+            Search(
+                name = "search_bills",
+                source = "bills",
+                titleRes = R.string.tool_cat_search_bills_title,
+                titleFallback = "查询账单",
+                descriptionRes = R.string.tool_cat_search_bills_desc,
+                descriptionFallback = "按商户、内容和时间查找账单记录。",
+            ),
+            Search(
+                name = "search_todos",
+                source = "todos",
+                titleRes = R.string.tool_cat_search_todos_title,
+                titleFallback = "查询待办线索",
+                descriptionRes = R.string.tool_cat_search_todos_desc,
+                descriptionFallback = "查询系统从个人信息中提取的待办线索，未识别时间的记录不能按时间命中。",
+            ),
+            Search(
+                name = "search_calendar_todos",
+                source = "calendar_todos",
+                titleRes = R.string.tool_cat_search_calendar_todos_title,
+                titleFallback = "查询日历待办",
+                descriptionRes = R.string.tool_cat_search_calendar_todos_desc,
+                descriptionFallback = "查询日历中的待办及其计划时间。",
+            ),
+            Search(
+                name = "search_memory_collections",
+                source = "collections",
+                titleRes = R.string.tool_cat_search_memory_collections_title,
+                titleFallback = "查询记忆合集",
+                descriptionRes = R.string.tool_cat_search_memory_collections_desc,
+                descriptionFallback = "查找已保存的记忆合集，不支持业务时间筛选。",
+            ),
+            Search(
+                name = "search_daily_events",
+                source = "events",
+                titleRes = R.string.tool_cat_search_daily_events_title,
+                titleFallback = "查询生活事件",
+                descriptionRes = R.string.tool_cat_search_daily_events_desc,
+                descriptionFallback = "查找系统记录或推断的生活事件，不把推断当成确认事实。",
+            ),
+            Search(
+                name = "search_flights",
+                source = "flights",
+                titleRes = R.string.tool_cat_search_flights_title,
+                titleFallback = "查询航班行程",
+                descriptionRes = R.string.tool_cat_search_flights_desc,
+                descriptionFallback = "按航班、机场和计划起飞时间检索行程。",
+            ),
+            Search(
+                name = "search_hotels",
+                source = "hotels",
+                titleRes = R.string.tool_cat_search_hotels_title,
+                titleFallback = "查询酒店预订",
+                descriptionRes = R.string.tool_cat_search_hotels_desc,
+                descriptionFallback = "按酒店、地址、订单和入住时间检索预订。",
+            ),
+            Search(
+                name = "search_trains",
+                source = "trains",
+                titleRes = R.string.tool_cat_search_trains_title,
+                titleFallback = "查询火车行程",
+                descriptionRes = R.string.tool_cat_search_trains_desc,
+                descriptionFallback = "按车次、车站和出发时间检索行程。",
+            ),
         )
     val names =
         searches.mapTo(linkedSetOf()) { it.name } + setOf("read_personal_item", "summarize_bills")

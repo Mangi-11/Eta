@@ -37,6 +37,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,6 +79,7 @@ internal fun ImageGenGalleryScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val previewer = LocalChatImagePreviewer.current
     var records by remember { mutableStateOf<List<GeneratedImageRecord>>(emptyList()) }
@@ -113,7 +116,10 @@ internal fun ImageGenGalleryScreen(
             val ok = withContext(Dispatchers.IO) { GeneratedImageStore.deleteRecord(context, rec.filePath) }
             pendingDelete = null
             reload()
-            Toast.makeText(context, if (ok) "已删除" else "删除失败，请重试", Toast.LENGTH_SHORT).show()
+            val msg = resources.getString(
+                if (ok) R.string.imagegen_gallery_deleted else R.string.imagegen_gallery_delete_failed,
+            )
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -122,7 +128,11 @@ internal fun ImageGenGalleryScreen(
             val count = withContext(Dispatchers.IO) { GeneratedImageStore.clearAll(context) }
             confirmClearAll = false
             reload()
-            val msg = if (count > 0) "已清理 $count 张本地图片" else "没有可清理的图片"
+            val msg = if (count > 0) {
+                resources.getQuantityString(R.plurals.imagegen_gallery_cleared, count, count)
+            } else {
+                resources.getString(R.string.imagegen_gallery_nothing_to_clear)
+            }
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         }
     }
@@ -130,12 +140,20 @@ internal fun ImageGenGalleryScreen(
     val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
 
     if (confirmClearAll) {
+        val clearTitle = stringResource(R.string.imagegen_gallery_clear_title)
+        val clearMessage = pluralStringResource(
+            R.plurals.imagegen_gallery_clear_message,
+            records.size,
+            records.size,
+            formatImageStorageSize(totalBytes),
+        )
+        val clearAction = stringResource(R.string.imagegen_action_clear)
         if (isCoui) {
             CouiConfirmDialog(
                 visible = true,
-                title = "清空已生成图片",
-                message = "将删除本地缓存的 ${records.size} 张图片（约 ${formatImageStorageSize(totalBytes)}），已保存到系统相册的图片不受影响。",
-                confirmText = "清空",
+                title = clearTitle,
+                message = clearMessage,
+                confirmText = clearAction,
                 destructive = true,
                 onDismissRequest = { confirmClearAll = false },
                 onConfirm = clearAll,
@@ -143,14 +161,14 @@ internal fun ImageGenGalleryScreen(
         } else {
             GlassDialog(
                 show = true,
-                title = "清空已生成图片",
-                summary = "将删除本地缓存的 ${records.size} 张图片（约 ${formatImageStorageSize(totalBytes)}），已保存到系统相册的图片不受影响。",
+                title = clearTitle,
+                summary = clearMessage,
                 backdrop = currentGlassOverlayBackdrop(),
                 onDismissRequest = { confirmClearAll = false },
             ) {
                 MiuixDialogActions(
-                    cancelText = "取消",
-                    confirmText = "清空",
+                    cancelText = stringResource(R.string.action_cancel),
+                    confirmText = clearAction,
                     destructive = true,
                     onCancel = { confirmClearAll = false },
                     onConfirm = clearAll,
@@ -160,12 +178,15 @@ internal fun ImageGenGalleryScreen(
     }
 
     pendingDelete?.let { target ->
+        val deleteTitle = stringResource(R.string.imagegen_gallery_delete_title)
+        val deleteMessage = stringResource(R.string.imagegen_gallery_delete_message)
+        val deleteAction = stringResource(R.string.action_delete)
         if (isCoui) {
             CouiConfirmDialog(
                 visible = true,
-                title = "删除这张图片",
-                message = "删除后将无法在聊天历史中再次加载这张本地原图。",
-                confirmText = "删除",
+                title = deleteTitle,
+                message = deleteMessage,
+                confirmText = deleteAction,
                 destructive = true,
                 onDismissRequest = { pendingDelete = null },
                 onConfirm = { deleteSingle(target) },
@@ -173,14 +194,14 @@ internal fun ImageGenGalleryScreen(
         } else {
             GlassDialog(
                 show = true,
-                title = "删除这张图片",
-                summary = "删除后将无法在聊天历史中再次加载这张本地原图。",
+                title = deleteTitle,
+                summary = deleteMessage,
                 backdrop = currentGlassOverlayBackdrop(),
                 onDismissRequest = { pendingDelete = null },
             ) {
                 MiuixDialogActions(
-                    cancelText = "取消",
-                    confirmText = "删除",
+                    cancelText = stringResource(R.string.action_cancel),
+                    confirmText = deleteAction,
                     destructive = true,
                     onCancel = { pendingDelete = null },
                     onConfirm = { deleteSingle(target) },
@@ -208,7 +229,7 @@ internal fun ImageGenGalleryScreen(
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                         ) {
                             Text(
-                                text = "清空",
+                                text = stringResource(R.string.imagegen_action_clear),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = StatusError,
@@ -221,14 +242,19 @@ internal fun ImageGenGalleryScreen(
                     item(key = "empty") {
                         ListEmptyState(
                             icon = Icons.Rounded.PhotoLibrary,
-                            title = "还没有生成的图片",
-                            summary = "开启 AI 生图后，在聊天里让 Eta 画图即可自动保存到这里",
+                            title = stringResource(R.string.imagegen_gallery_empty_title),
+                            summary = stringResource(R.string.imagegen_gallery_empty_summary),
                         )
                     }
                 } else {
                     item(key = "summary") {
                         Text(
-                            text = "共 ${records.size} 张 · 占用 ${formatImageStorageSize(totalBytes)}（点击大图可保存或分享）",
+                            text = pluralStringResource(
+                                R.plurals.imagegen_gallery_header_summary,
+                                records.size,
+                                records.size,
+                                formatImageStorageSize(totalBytes),
+                            ),
                             fontSize = 12.sp,
                             color = colors.summary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -273,7 +299,7 @@ internal fun ImageGenGalleryScreen(
                         IconButton(onClick = { confirmClearAll = true }) {
                             Icon(
                                 imageVector = Icons.Rounded.DeleteOutline,
-                                contentDescription = "清空全部",
+                                contentDescription = stringResource(R.string.imagegen_gallery_clear_all_desc),
                                 tint = StatusError,
                             )
                         }
@@ -284,14 +310,19 @@ internal fun ImageGenGalleryScreen(
                     item(key = "empty") {
                         ListEmptyState(
                             icon = Icons.Rounded.PhotoLibrary,
-                            title = "还没有生成的图片",
-                            summary = "开启 AI 生图后，在聊天里让 Eta 画图即可自动保存到这里",
+                            title = stringResource(R.string.imagegen_gallery_empty_title),
+                            summary = stringResource(R.string.imagegen_gallery_empty_summary),
                         )
                     }
                 } else {
                     item(key = "summary") {
                         Text(
-                            text = "共 ${records.size} 张 · 占用 ${formatImageStorageSize(totalBytes)}（点击大图可保存或分享）",
+                            text = pluralStringResource(
+                                R.plurals.imagegen_gallery_header_summary,
+                                records.size,
+                                records.size,
+                                formatImageStorageSize(totalBytes),
+                            ),
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -377,7 +408,7 @@ private fun GalleryImageTile(
             if (bitmap != null) {
                 Image(
                     bitmap = bitmap,
-                    contentDescription = record.prompt.ifBlank { "AI 生成的图片" },
+                    contentDescription = record.prompt.ifBlank { stringResource(R.string.imagegen_generated_image_desc) },
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -392,17 +423,18 @@ private fun GalleryImageTile(
                     .clickable(onClick = onDelete),
                 contentAlignment = Alignment.Center,
             ) {
+                val deleteImageDesc = stringResource(R.string.imagegen_gallery_delete_image_desc)
                 if (isCoui) {
                     CouiIcon(
                         imageVector = Icons.Rounded.DeleteOutline,
-                        contentDescription = "删除图片",
+                        contentDescription = deleteImageDesc,
                         tint = Color.White,
                         modifier = Modifier.size(15.dp),
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Rounded.DeleteOutline,
-                        contentDescription = "删除图片",
+                        contentDescription = deleteImageDesc,
                         tint = Color.White,
                         modifier = Modifier.size(15.dp),
                     )
@@ -414,7 +446,7 @@ private fun GalleryImageTile(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = record.prompt.ifBlank { "未记录提示词" },
+                text = record.prompt.ifBlank { stringResource(R.string.imagegen_gallery_no_prompt) },
                 fontSize = 12.sp,
                 color = titleColor,
                 maxLines = 1,

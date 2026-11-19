@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import java.io.EOFException
 import okhttp3.Response
 import okio.BufferedSource
@@ -13,7 +15,10 @@ internal fun readSpeechSse(source: BufferedSource, onEvent: (String, String) -> 
             source.readUtf8LineStrict(SpeechHttp.MAX_JSON_BYTES)
         } catch (_: EOFException) {
             if (source.buffer.size > SpeechHttp.MAX_JSON_BYTES) {
-                throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音音频块过大")
+                throw SpeechFailure(
+                    SpeechErrorCode.PROTOCOL,
+                    AppStrings.get(R.string.voice_i18n_audio_chunk_too_large, "语音音频块过大"),
+                )
             }
             source.readUtf8()
         }
@@ -33,7 +38,10 @@ internal class SpeechSseDecoder(private val onEvent: (String, String) -> Unit) {
             line.startsWith("data:") -> {
                 val value = line.substring(5).removePrefix(" ")
                 if (data.length.toLong() + value.length + 1 > SpeechHttp.MAX_JSON_BYTES) {
-                    throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音音频块过大")
+                    throw SpeechFailure(
+                        SpeechErrorCode.PROTOCOL,
+                        AppStrings.get(R.string.voice_i18n_audio_chunk_too_large, "语音音频块过大"),
+                    )
                 }
                 if (data.isNotEmpty()) data.append('\n')
                 data.append(value)
@@ -55,7 +63,10 @@ internal fun readSpeechEvents(response: Response, onEvent: (String, String) -> B
     val source = response.body.source()
     if (response.body.contentType()?.subtype == "json") {
         if (source.request(SpeechHttp.MAX_JSON_BYTES + 1)) {
-            throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音服务响应过大")
+            throw SpeechFailure(
+                SpeechErrorCode.PROTOCOL,
+                AppStrings.get(R.string.voice_i18n_http_response_too_large, "语音服务响应过大"),
+            )
         }
         onEvent("", source.readUtf8())
     } else {
@@ -72,12 +83,22 @@ internal class SpeechSegmentAudio(
 
     fun write(audio: ByteArray) {
         bytes += audio.size
-        if (bytes > limit) throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音音频格式或长度无效")
+        if (bytes > limit) {
+            throw SpeechFailure(
+                SpeechErrorCode.PROTOCOL,
+                AppStrings.get(R.string.voice_i18n_audio_format_or_length_invalid, "语音音频格式或长度无效"),
+            )
+        }
         pcm.write(audio)
     }
 
     fun end(completed: Boolean) {
-        if (!completed || bytes == 0L) throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音音频不完整，请重试")
+        if (!completed || bytes == 0L) {
+            throw SpeechFailure(
+                SpeechErrorCode.PROTOCOL,
+                AppStrings.get(R.string.voice_i18n_audio_incomplete, "语音音频不完整，请重试"),
+            )
+        }
         pcm.end()
     }
 }

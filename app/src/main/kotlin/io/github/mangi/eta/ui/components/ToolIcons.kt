@@ -76,17 +76,17 @@ internal fun iconForTool(toolId: String): ImageVector = when (toolId) {
     "get_current_context" -> Icons.Rounded.Smartphone
     "open_app", "launch_app" -> Icons.Rounded.Apps
     "open_uri" -> Icons.AutoMirrored.Rounded.OpenInNew
-    "browser_use", "网页浏览" -> Icons.Rounded.Language
-    "web_search", "web_search_call", "网页搜索" -> Icons.Rounded.TravelExplore
+    "browser_use", "网页浏览", "網頁瀏覽", "Web browsing", "Browse web" -> Icons.Rounded.Language
+    "web_search", "web_search_call", "网页搜索", "網頁搜尋", "Web search" -> Icons.Rounded.TravelExplore
     "browser_read" -> Icons.AutoMirrored.Rounded.MenuBook
     "fetch_url" -> Icons.AutoMirrored.Rounded.Article
     "browser_interact" -> Icons.Rounded.AdsClick
     "browser_screenshot" -> Icons.Rounded.ScreenshotMonitor
-    "file_search", "file_search_call", "文件搜索" -> Icons.AutoMirrored.Rounded.ManageSearch
-    "code_interpreter", "code_interpreter_call", "代码执行" -> Icons.Rounded.Terminal
-    "computer", "computer_call", "计算机操作" -> Icons.Rounded.Computer
-    "image_generation", "image_generation_call", "generate_image", "图像生成" -> Icons.Rounded.Image
-    "mcp_call", "MCP 工具" -> Icons.Rounded.Extension
+    "file_search", "file_search_call", "文件搜索", "檔案搜尋", "File search" -> Icons.AutoMirrored.Rounded.ManageSearch
+    "code_interpreter", "code_interpreter_call", "代码执行", "程式碼執行", "Code execution", "Code interpreter" -> Icons.Rounded.Terminal
+    "computer", "computer_call", "计算机操作", "電腦操作", "Computer use" -> Icons.Rounded.Computer
+    "image_generation", "image_generation_call", "generate_image", "图像生成", "影像生成", "圖片生成", "Image generation" -> Icons.Rounded.Image
+    "mcp_call", "MCP 工具", "MCP tool" -> Icons.Rounded.Extension
     "memory_get", "memory_write", "character_memory_get", "character_memory_write" ->
         Icons.Rounded.Psychology
     "release_gui" -> Icons.Rounded.Smartphone

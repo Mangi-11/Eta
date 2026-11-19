@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.DeepSeekTtsConfig
 import kotlinx.coroutines.coroutineScope
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -72,7 +74,10 @@ internal suspend fun streamDeepSeekSpeech(
     val totalBillingChars = chunks.sumOf(::deepSeekBillingCharCount)
     val totalBytes = chunks.sumOf { it.toByteArray(Charsets.UTF_8).size }
     if (totalBillingChars > MAX_WS_BILLING_CHARS || totalBytes > MAX_WS_UTF8_BYTES) {
-        throw SpeechFailure(SpeechErrorCode.CONFIGURATION, "正文超过 DeepSeek 流式会话字符上限")
+        throw SpeechFailure(
+            SpeechErrorCode.CONFIGURATION,
+            AppStrings.get(R.string.voice_i18n_deepseek_tts_stream_char_limit, "正文超过 DeepSeek 流式会话字符上限"),
+        )
     }
     SpeechSocket(deepSeekTtsStreamRequest(config, key), typed = true).use { socket ->
         socket.awaitReady()
@@ -87,7 +92,10 @@ internal suspend fun streamDeepSeekSpeech(
                 if (frame.bytes.isNotEmpty()) {
                     audioBytes += frame.bytes.size
                     if (audioBytes > MAX_DEEPSEEK_STREAM_AUDIO_BYTES) {
-                        throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音音频格式或长度无效")
+                        throw SpeechFailure(
+                            SpeechErrorCode.PROTOCOL,
+                            AppStrings.get(R.string.voice_i18n_audio_format_or_length_invalid, "语音音频格式或长度无效"),
+                        )
                     }
                     pcm.write(frame.bytes)
                 }
@@ -98,27 +106,37 @@ internal suspend fun streamDeepSeekSpeech(
                 when (val code = message.optString("code")) {
                     "success" -> {
                         if (audioBytes == 0L) {
-                            throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音音频不完整，请重试")
+                            throw SpeechFailure(
+                                SpeechErrorCode.PROTOCOL,
+                                AppStrings.get(R.string.voice_i18n_audio_incomplete, "语音音频不完整，请重试"),
+                            )
                         }
                         pcm.end()
                         return@coroutineScope
                     }
                     "content_filter" -> throw SpeechFailure(
                         SpeechErrorCode.SERVER,
-                        "DeepSeek 未能合成这段文本，请调整后重试",
+                        AppStrings.get(R.string.voice_i18n_deepseek_tts_content_filter, "DeepSeek 未能合成这段文本，请调整后重试"),
                     )
                     "invalid_input" -> throw SpeechFailure(
                         SpeechErrorCode.CONFIGURATION,
-                        "DeepSeek 语音合成参数或文本无效",
+                        AppStrings.get(R.string.voice_i18n_deepseek_tts_invalid_input, "DeepSeek 语音合成参数或文本无效"),
                     )
                     else -> throw SpeechFailure(
                         SpeechErrorCode.SERVER,
-                        "DeepSeek 语音合成失败（${code.ifBlank { "unknown" }}）",
+                        AppStrings.get(
+                            R.string.voice_i18n_deepseek_tts_failed_code,
+                            "DeepSeek 语音合成失败（%1\$s）",
+                            code.ifBlank { "unknown" },
+                        ),
                     )
                 }
             }
         }
-        throw SpeechFailure(SpeechErrorCode.PROTOCOL, "DeepSeek 语音合成连接提前结束")
+        throw SpeechFailure(
+            SpeechErrorCode.PROTOCOL,
+            AppStrings.get(R.string.voice_i18n_deepseek_tts_connection_ended_early, "DeepSeek 语音合成连接提前结束"),
+        )
     }
 }
 

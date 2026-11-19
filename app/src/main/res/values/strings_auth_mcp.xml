@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="auth_err_codex_callback_start">Could not start Codex sign-in callback. Finish any other sign-in and retry.</string>
+    <string name="auth_err_code_expired">Verification code expired. Please sign in again.</string>
+    <string name="auth_err_access_denied">Sign-in was not authorized.</string>
+    <string name="auth_err_account_mismatch">Signed-in account does not match the original account. Create a new provider connection.</string>
+    <string name="auth_err_account_context_mismatch">Refreshed account context does not match. Please sign in again.</string>
+    <string name="auth_err_session_expired">Sign-in session expired. Please sign in again.</string>
+    <string name="auth_err_client_rejected">Authorization service did not accept this client.</string>
+    <string name="auth_err_request_failed">Authorization request failed (HTTP %1$d). Please try again later.</string>
+    <string name="auth_err_incomplete_response">Authorization service returned incomplete data.</string>
+    <string name="auth_err_invalid_response">Authorization service returned invalid data.</string>
+    <string name="auth_err_login_required">Please sign in to this provider account first.</string>
+    <string name="auth_err_plan_permission_required">Account credentials cannot be used for this subscription connection. Please sign in again.</string>
+    <string name="auth_err_provider_missing">Provider connection does not exist.</string>
+    <string name="auth_err_session_changed">Sign-in state changed. Please retry.</string>
+    <string name="auth_err_unsupported_auth_mode">This connection does not support account sign-in.</string>
+    <string name="auth_err_response_too_large">Authorization service returned too much data.</string>
+    <string name="auth_err_invalid_http_response">Authorization service returned an invalid response (HTTP %1$d).</string>
+    <string name="auth_err_network">Could not connect to authorization service. Check your network and retry.</string>
+    <string name="auth_err_codex_account_missing">Codex credentials are missing workspace info. Please sign in again.</string>
+    <string name="auth_err_key_unavailable">Credential encryption key is unavailable. Sign out and sign in again.</string>
+    <string name="auth_err_storage_failed">Could not read or write sign-in credentials. Sign out and sign in again.</string>
+    <string name="auth_callback_success_html">Authorization received. Return to Eta to finish signing in.</string>
+    <string name="auth_callback_failed_html">Authorization incomplete. Return to Eta and retry.</string>
+    <string name="auth_err_login_timeout">Sign-in timed out. Please retry.</string>
+    <string name="auth_err_callback_unavailable">Could not receive sign-in callback. Please retry.</string>
+    <string name="auth_err_callback_invalid">Invalid sign-in callback.</string>
+    <string name="auth_err_oidc_keys_unavailable">Could not verify account identity right now. Please try again later.</string>
+    <string name="auth_err_oidc_invalid_keys">Authorization service returned invalid identity verification keys.</string>
+    <string name="auth_err_oidc_identity_invalid">Could not verify signed-in account. Please sign in again.</string>
+    <string name="auth_err_oidc_token_invalid">Authorization service returned invalid identity credentials.</string>
+
+    <string name="mcp_err_server_not_found">MCP server does not exist.</string>
+    <string name="mcp_err_tool_empty">MCP tool returned an empty response.</string>
+    <string name="mcp_err_init_empty">MCP initialize returned an empty response.</string>
+    <string name="mcp_err_unsupported_protocol">MCP server returned an unsupported protocol version.</string>
+    <string name="mcp_err_client_closed">MCP client is closed.</string>
+    <string name="mcp_err_tools_list_empty">MCP tools/list returned an empty response.</string>
+    <string name="mcp_err_tools_list_legacy">MCP tools/list returned a legacy protocol result.</string>
+    <string name="mcp_err_tools_list_unsupported">MCP tools/list returned an unsupported result type.</string>
+    <string name="mcp_err_client_busy">MCP client is executing another request.</string>
+    <string name="mcp_err_body_empty">MCP response body is empty.</string>
+    <string name="mcp_err_id_mismatch">MCP response ID mismatch.</string>
+    <string name="mcp_err_missing_result">MCP response is missing result.</string>
+    <string name="mcp_err_response_too_large">MCP response exceeds size limit.</string>
+    <string name="mcp_err_http_status">MCP request failed: HTTP %1$d %2$s</string>
+    <string name="mcp_err_protocol_code">MCP protocol error: code=%1$d %2$s</string>
+    <string name="mcp_err_invalid_url">Invalid MCP URL.</string>
+</resources>

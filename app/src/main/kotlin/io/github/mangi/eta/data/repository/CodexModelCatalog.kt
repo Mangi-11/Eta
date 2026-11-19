@@ -1,5 +1,7 @@
 package io.github.mangi.eta.data.repository
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ModelSource
@@ -13,24 +15,54 @@ import kotlinx.serialization.json.intOrNull
 /** Codex 账号目录是独立协议，不按公共 API 的预设或 supported_in_api 筛选。 */
 internal object CodexModelCatalog {
     fun parse(entries: JsonArray): List<Model> = entries.mapIndexedNotNull { index, element ->
-        val item = element as? JsonObject ?: error("Codex 模型目录包含无效模型项")
+        val item = element as? JsonObject ?: error(
+            AppStrings.get(
+                R.string.repo_err_codex_catalog_invalid_entry,
+                "Codex 模型目录包含无效模型项",
+            ),
+        )
         when (item.string("visibility")) {
             "list" -> Unit
             "hide", "none" -> return@mapIndexedNotNull null
-            else -> error("Codex 模型目录缺少有效的可见性信息")
+            else -> error(
+                AppStrings.get(
+                    R.string.repo_err_codex_catalog_invalid_visibility,
+                    "Codex 模型目录缺少有效的可见性信息",
+                ),
+            )
         }
         val slug = item.string("slug")?.takeIf(String::isNotBlank)
-            ?: error("Codex 模型目录缺少模型标识")
+            ?: error(
+                AppStrings.get(
+                    R.string.repo_err_codex_catalog_missing_model_id,
+                    "Codex 模型目录缺少模型标识",
+                ),
+            )
         val levels = item["supported_reasoning_levels"]?.let { raw ->
-            require(raw is JsonArray) { "Codex 模型目录的推理档位无效" }
+            require(raw is JsonArray) {
+                AppStrings.get(
+                    R.string.repo_err_codex_catalog_invalid_reasoning_levels,
+                    "Codex 模型目录的推理档位无效",
+                )
+            }
             raw.mapNotNull { option -> effort((option as? JsonObject)?.string("effort")) }.distinct()
         }.orEmpty()
         val default = effort(item.string("default_reasoning_level"))?.takeIf { it in levels }
         val reasoning = levels.filter { it != ReasoningEffort.OFF }
         val modalities = item["input_modalities"]?.let { raw ->
-            require(raw is JsonArray) { "Codex 模型目录的输入类型无效" }
+            require(raw is JsonArray) {
+                AppStrings.get(
+                    R.string.repo_err_codex_catalog_invalid_input_modalities,
+                    "Codex 模型目录的输入类型无效",
+                )
+            }
             raw.map { value ->
-                require(value is JsonPrimitive && value.isString) { "Codex 模型目录的输入类型无效" }
+                require(value is JsonPrimitive && value.isString) {
+                    AppStrings.get(
+                        R.string.repo_err_codex_catalog_invalid_input_modalities,
+                        "Codex 模型目录的输入类型无效",
+                    )
+                }
                 value.content
             }
         } ?: listOf(Model.TEXT_MODALITY, Model.IMAGE_MODALITY)

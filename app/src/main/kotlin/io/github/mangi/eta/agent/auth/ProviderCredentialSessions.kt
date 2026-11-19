@@ -1,6 +1,8 @@
 package io.github.mangi.eta.agent.auth
 
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.core.AppStrings
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
@@ -75,7 +77,10 @@ internal class ProviderCredentialSessions(
             if (!rejected && !expiresSoon && credential.expiresAt > now()) return credential.accessToken
             if (credential.refreshToken.isBlank()) {
                 invalidate(providerId, session, generation)
-                throw ProviderAuthException("oauth_session_expired", "登录已失效，请重新登录")
+                throw ProviderAuthException(
+                    "oauth_session_expired",
+                    AppStrings.get(R.string.auth_err_session_expired, "登录已失效，请重新登录"),
+                )
             }
             val refreshed = try {
                 oauth.refresh(credential, controller)
@@ -129,19 +134,31 @@ internal class ProviderCredentialSessions(
 
     private fun requireCredential(credential: ProviderCredential?, authMode: String): ProviderCredential {
         if (credential == null || credential.subject == null || credential.authMode != authMode || credential.accessToken.isBlank()) {
-            throw ProviderAuthException("oauth_login_required", "请先登录此服务商账号")
+            throw ProviderAuthException(
+                "oauth_login_required",
+                AppStrings.get(R.string.auth_err_login_required, "请先登录此服务商账号"),
+            )
         }
-        if (!credential.planEnabled) throw ProviderAuthException("oauth_plan_permission_required", "账号凭据不能用于当前订阅连接，请重新登录")
+        if (!credential.planEnabled) throw ProviderAuthException(
+            "oauth_plan_permission_required",
+            AppStrings.get(R.string.auth_err_plan_permission_required, "账号凭据不能用于当前订阅连接，请重新登录"),
+        )
         return credential
     }
 
     private fun session(providerId: String): Session {
-        if (providerId.isBlank()) throw ProviderAuthException("oauth_provider_missing", "服务商连接不存在")
+        if (providerId.isBlank()) throw ProviderAuthException(
+            "oauth_provider_missing",
+            AppStrings.get(R.string.auth_err_provider_missing, "服务商连接不存在"),
+        )
         return sessions.computeIfAbsent(providerId) { Session() }
     }
 
     private fun requireGeneration(current: Long, expected: Long) {
-        if (current != expected) throw ProviderAuthException("oauth_session_changed", "登录状态已变更，请重试")
+        if (current != expected) throw ProviderAuthException(
+            "oauth_session_changed",
+            AppStrings.get(R.string.auth_err_session_changed, "登录状态已变更，请重试"),
+        )
     }
 
     private companion object { const val REFRESH_MARGIN_MS = 60_000L }

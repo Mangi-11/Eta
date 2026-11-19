@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.SpeechCredentials
 import io.github.mangi.eta.data.model.SpeechSettings
 import io.github.mangi.eta.data.model.TtsProvider
@@ -17,7 +19,10 @@ internal suspend fun synthesizeSpeech(settings: SpeechSettings, credentials: Spe
         TtsProvider.MINIMAX -> return@withTimeout synthesizeMiniMax(settings.minimaxTts, credentials.minimaxTts, text, onAudio)
         TtsProvider.MIMO -> return@withTimeout synthesizeMimo(settings.mimoTts, credentials.mimoTts, text, onAudio)
         TtsProvider.DEEPSEEK -> return@withTimeout synthesizeDeepSeek(settings.deepseekTts, credentials.deepseekTts, text, onAudio)
-        TtsProvider.NONE -> throw SpeechFailure(SpeechErrorCode.CONFIGURATION, "请先选择语音播报服务")
+        TtsProvider.NONE -> throw SpeechFailure(
+            SpeechErrorCode.CONFIGURATION,
+            AppStrings.get(R.string.voice_i18n_tts_provider_not_selected, "请先选择语音播报服务"),
+        )
         TtsProvider.QWEN, TtsProvider.DOUBAO -> Unit
     }
     val qwen = settings.tts == TtsProvider.QWEN
@@ -38,7 +43,12 @@ internal suspend fun synthesizeSpeech(settings: SpeechSettings, credentials: Spe
         val source = response.body.source()
         while (!source.exhausted() && !decoder.finished) {
             val line = try { source.readUtf8LineStrict(SpeechHttp.MAX_JSON_BYTES) } catch (error: java.io.EOFException) {
-                if (source.buffer.size > SpeechHttp.MAX_JSON_BYTES) throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音音频块过大")
+                if (source.buffer.size > SpeechHttp.MAX_JSON_BYTES) {
+                    throw SpeechFailure(
+                        SpeechErrorCode.PROTOCOL,
+                        AppStrings.get(R.string.voice_i18n_audio_chunk_too_large, "语音音频块过大"),
+                    )
+                }
                 source.readUtf8()
             }
             decoder.line(line)
@@ -68,7 +78,10 @@ internal class SpeechAudioStreamDecoder(private val qwen: Boolean, onAudio: (Byt
         val encoded: String
         if (qwen) {
             if (message.optString("code").isNotBlank() || message.optInt("status_code", 200) != 200) {
-                throw SpeechFailure(SpeechErrorCode.SERVER, "千问语音合成失败，请检查配置")
+                throw SpeechFailure(
+                    SpeechErrorCode.SERVER,
+                    AppStrings.get(R.string.voice_i18n_qwen_tts_failed, "千问语音合成失败，请检查配置"),
+                )
             }
             val output = message.getJSONObject("output")
             encoded = output.optJSONObject("audio")?.optString("data").orEmpty()
@@ -77,7 +90,14 @@ internal class SpeechAudioStreamDecoder(private val qwen: Boolean, onAudio: (Byt
             when (message.getInt("code")) {
                 0 -> Unit
                 20000000 -> finished = true
-                else -> throw SpeechFailure(SpeechErrorCode.SERVER, "豆包语音合成失败（${message.getInt("code")}）")
+                else -> throw SpeechFailure(
+                    SpeechErrorCode.SERVER,
+                    AppStrings.get(
+                        R.string.voice_i18n_doubao_tts_failed_code,
+                        "豆包语音合成失败（%1\$d）",
+                        message.getInt("code"),
+                    ),
+                )
             }
             encoded = message.optString("data")
         }

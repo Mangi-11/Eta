@@ -1,5 +1,7 @@
 package io.github.mangi.eta.data.update
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
@@ -29,14 +31,33 @@ internal object AppUpdateChecker {
             .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IOException("GitHub Release 请求失败（HTTP ${response.code}）")
+                throw IOException(
+                    AppStrings.get(
+                        R.string.update_err_github_release_http,
+                        "GitHub Release 请求失败（HTTP %1\$d）",
+                        response.code,
+                    ),
+                )
             }
             val json = runCatching { JSONObject(response.body.string()) }
-                .getOrElse { throw IOException("GitHub Release 响应不是有效 JSON", it) }
+                .getOrElse {
+                    throw IOException(
+                        AppStrings.get(
+                            R.string.update_err_github_release_invalid_json,
+                            "GitHub Release 响应不是有效 JSON",
+                        ),
+                        it,
+                    )
+                }
             val tag = json.optString("tag_name").trim()
             val url = json.optString("html_url").trim()
             if (tag.isEmpty() || url.isEmpty()) {
-                throw IOException("GitHub Release 响应缺少 tag_name/html_url")
+                throw IOException(
+                    AppStrings.get(
+                        R.string.update_err_github_release_missing_fields,
+                        "GitHub Release 响应缺少 tag_name/html_url",
+                    ),
+                )
             }
             return AppLatestRelease(version = tag.removePrefix("v"), url = url)
         }

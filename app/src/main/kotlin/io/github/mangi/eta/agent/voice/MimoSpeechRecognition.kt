@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.MimoAsrConfig
 import java.util.Base64
 import okhttp3.Request
@@ -12,7 +14,10 @@ internal suspend fun recognizeMimoSpeech(config: MimoAsrConfig, key: String, wav
 internal fun mimoAsrRequest(config: MimoAsrConfig, key: String, wav: ByteArray): Request {
     val encodedBytes = 4 * ((wav.size.toLong() + 2) / 3)
     if (encodedBytes > MAX_MIMO_ASR_BASE64_BYTES) {
-        throw SpeechFailure(SpeechErrorCode.AUDIO, "录音超过 Mimo 识别接口的大小限制")
+        throw SpeechFailure(
+            SpeechErrorCode.AUDIO,
+            AppStrings.get(R.string.voice_i18n_mimo_asr_size_limit, "录音超过 Mimo 识别接口的大小限制"),
+        )
     }
     val audio = JSONObject().put("type", "input_audio").put(
         "input_audio", JSONObject().put("data", "data:audio/wav;base64," + Base64.getEncoder().encodeToString(wav)),
@@ -27,18 +32,36 @@ internal fun mimoAsrRequest(config: MimoAsrConfig, key: String, wav: ByteArray):
 
 internal fun mimoAsrTranscript(response: JSONObject): String {
     if (!response.isNull("error")) {
-        throw SpeechFailure(SpeechErrorCode.SERVER, "MiMo 语音识别失败，请检查服务权限和配置")
+        throw SpeechFailure(
+            SpeechErrorCode.SERVER,
+            AppStrings.get(R.string.voice_i18n_mimo_asr_failed, "MiMo 语音识别失败，请检查服务权限和配置"),
+        )
     }
     val choice = response.optJSONArray("choices")?.optJSONObject(0)
-        ?: throw SpeechFailure(SpeechErrorCode.PROTOCOL, "MiMo 未返回识别结果")
+        ?: throw SpeechFailure(
+            SpeechErrorCode.PROTOCOL,
+            AppStrings.get(R.string.voice_i18n_mimo_asr_no_result, "MiMo 未返回识别结果"),
+        )
     when (choice.optString("finish_reason")) {
         "stop" -> Unit
-        "length" -> throw SpeechFailure(SpeechErrorCode.SERVER, "MiMo 识别结果不完整，请缩短录音后重试")
-        "content_filter" -> throw SpeechFailure(SpeechErrorCode.SERVER, "MiMo 未能处理这段录音，请重试")
-        else -> throw SpeechFailure(SpeechErrorCode.PROTOCOL, "MiMo 未正常完成语音识别")
+        "length" -> throw SpeechFailure(
+            SpeechErrorCode.SERVER,
+            AppStrings.get(R.string.voice_i18n_mimo_asr_incomplete, "MiMo 识别结果不完整，请缩短录音后重试"),
+        )
+        "content_filter" -> throw SpeechFailure(
+            SpeechErrorCode.SERVER,
+            AppStrings.get(R.string.voice_i18n_mimo_asr_content_filter, "MiMo 未能处理这段录音，请重试"),
+        )
+        else -> throw SpeechFailure(
+            SpeechErrorCode.PROTOCOL,
+            AppStrings.get(R.string.voice_i18n_mimo_asr_abnormal_finish, "MiMo 未正常完成语音识别"),
+        )
     }
     val text = choice.optJSONObject("message")?.opt("content") as? String
-        ?: throw SpeechFailure(SpeechErrorCode.PROTOCOL, "MiMo 返回了无效的识别结果")
+        ?: throw SpeechFailure(
+            SpeechErrorCode.PROTOCOL,
+            AppStrings.get(R.string.voice_i18n_mimo_asr_invalid_result, "MiMo 返回了无效的识别结果"),
+        )
     return text.trim()
 }
 

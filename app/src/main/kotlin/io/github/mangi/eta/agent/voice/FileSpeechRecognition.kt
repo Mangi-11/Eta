@@ -1,6 +1,8 @@
 package io.github.mangi.eta.agent.voice
 
 import android.content.Context
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.AsrProvider
 import io.github.mangi.eta.data.model.SpeechCredentials
 import io.github.mangi.eta.data.model.SpeechSettings
@@ -24,20 +26,23 @@ internal suspend fun recognizeSpeechFile(
     withTimeout(300_000) {
         when (settings.asr) {
             AsrProvider.MIMO -> {
-                onProgress("正在识别")
+                onProgress(AppStrings.get(R.string.voice_i18n_progress_recognizing, "正在识别"))
                 recognizeMimoSpeech(settings.mimoAsr, credentials.mimoAsr, wav)
             }
             AsrProvider.DEEPSEEK -> {
-                onProgress("正在识别")
+                onProgress(AppStrings.get(R.string.voice_i18n_progress_recognizing, "正在识别"))
                 recognizeDeepSeekSpeech(settings.deepseekAsr, credentials.deepseekAsr, wav)
             }
             AsrProvider.QWEN_FLASH -> {
-                onProgress("正在识别")
+                onProgress(AppStrings.get(R.string.voice_i18n_progress_recognizing, "正在识别"))
                 recognizeQwenShortAudio(settings, credentials, wav)
             }
             AsrProvider.QWEN_FILE -> recognizeQwenFile(context, settings, credentials, wav, onProgress)
             AsrProvider.QWEN_REALTIME, AsrProvider.DOUBAO ->
-                throw SpeechFailure(SpeechErrorCode.CONFIGURATION, "当前语音服务需要流式识别")
+                throw SpeechFailure(
+                    SpeechErrorCode.CONFIGURATION,
+                    AppStrings.get(R.string.voice_i18n_asr_requires_streaming, "当前语音服务需要流式识别"),
+                )
         }
     }
 }
@@ -69,7 +74,7 @@ private suspend fun recognizeQwenFile(
     onProgress: (String) -> Unit,
 ): String {
     val base = speechBaseUrl(settings.qwenAsr.endpoint())
-    onProgress("正在上传录音")
+    onProgress(AppStrings.get(R.string.voice_i18n_progress_uploading_audio, "正在上传录音"))
     return SpeechOssUpload(context).withAudio(settings.oss, credentials, wav) { audioUrl ->
         val parameters = JSONObject().put("channel_id", JSONArray().put(0)).put("enable_itn", true)
         settings.language.takeIf(String::isNotBlank)?.let { parameters.put("language", it) }
@@ -80,9 +85,17 @@ private suspend fun recognizeQwenFile(
         ).header("X-DashScope-Async", "enable").build())
         val task = submitted.getJSONObject("output").getString("task_id")
         if (!Regex("[A-Za-z0-9_-]+").matches(task)) {
-            throw SpeechFailure(SpeechErrorCode.PROTOCOL, "文件转写任务编号无效")
+            throw SpeechFailure(
+                SpeechErrorCode.PROTOCOL,
+                AppStrings.get(R.string.voice_i18n_file_transcription_invalid_task_id, "文件转写任务编号无效"),
+            )
         }
-        onProgress("正在等待文件转写，可随时取消")
+        onProgress(
+            AppStrings.get(
+                R.string.voice_i18n_progress_waiting_file_transcription,
+                "正在等待文件转写，可随时取消",
+            ),
+        )
         awaitQwenFileTranscript(base, credentials.qwenAsr, task)
     }
 }
@@ -102,8 +115,14 @@ private suspend fun awaitQwenFileTranscript(base: String, key: String, task: Str
                 return fileTranscript(transcription)
             }
             "FAILED", "CANCELED", "UNKNOWN" ->
-                throw SpeechFailure(SpeechErrorCode.SERVER, "千问文件转写失败，请检查服务权限")
-            else -> throw SpeechFailure(SpeechErrorCode.PROTOCOL, "文件转写返回未知任务状态")
+                throw SpeechFailure(
+                    SpeechErrorCode.SERVER,
+                    AppStrings.get(R.string.voice_i18n_qwen_file_transcription_failed, "千问文件转写失败，请检查服务权限"),
+                )
+            else -> throw SpeechFailure(
+                SpeechErrorCode.PROTOCOL,
+                AppStrings.get(R.string.voice_i18n_file_transcription_unknown_status, "文件转写返回未知任务状态"),
+            )
         }
     }
 }

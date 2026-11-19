@@ -1,8 +1,10 @@
 package io.github.mangi.eta.data.repository
 
 import android.content.Context
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.scheduler.ScheduledTaskAlarmScheduler
 import io.github.mangi.eta.agent.scheduler.ScheduledTaskScheduleCalculator
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.db.EtaDatabase
 import io.github.mangi.eta.data.db.ScheduledTaskDao
 import io.github.mangi.eta.data.db.ScheduledTaskEntity
@@ -220,7 +222,13 @@ internal object ScheduledTaskRepository {
             current.enabled &&
             nextFailures >= ScheduledTask.MAX_CONSECUTIVE_FAILURES
         val autoDisableReason = if (autoDisabled) {
-            "连续失败 ${nextFailures} 次，已自动暂停以避免反复耗电与重试"
+            AppStrings.quantity(
+                R.plurals.scheduled_auto_disabled_consecutive_failures,
+                nextFailures,
+                "连续失败 %1\$d 次，已自动暂停以避免反复耗电与重试",
+                "连续失败 %1\$d 次，已自动暂停以避免反复耗电与重试",
+                nextFailures,
+            )
         } else if (run.status.isSuccess) {
             null
         } else {
@@ -271,13 +279,17 @@ internal object ScheduledTaskRepository {
         context: Context? = null,
     ) {
         val d = dao(context)
+        val interruptedSummary = AppStrings.get(
+            R.string.scheduled_run_interrupted_process_exit,
+            "执行期间应用进程退出，任务已中断",
+        )
         val dangling = d.runningRuns()
         dangling.forEach { entity ->
             d.upsertRun(
                 entity.copy(
                     status = ScheduledTaskRunStatus.FAILED.wireValue,
                     finishedAt = nowMs,
-                    summary = entity.summary.ifBlank { "执行期间应用进程退出，任务已中断" },
+                    summary = entity.summary.ifBlank { interruptedSummary },
                 )
             )
         }
@@ -287,7 +299,7 @@ internal object ScheduledTaskRepository {
             var updated = if (wasRunning) {
                 task.copy(
                     lastStatus = ScheduledTaskRunStatus.FAILED,
-                    lastSummary = task.lastSummary.ifBlank { "执行期间应用进程退出，任务已中断" },
+                    lastSummary = task.lastSummary.ifBlank { interruptedSummary },
                     updatedAt = nowMs,
                 )
             } else {

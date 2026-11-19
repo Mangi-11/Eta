@@ -79,6 +79,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalHapticFeedback
 import io.github.mangi.eta.agent.imagegen.GeneratedImageStore
 import kotlinx.coroutines.Dispatchers
@@ -324,6 +325,7 @@ private fun ChatImageViewerOverlay(
         val currentSource = request.images.getOrNull(previewer.activePage)
         if (!currentSource.isNullOrBlank()) {
             val viewerContext = LocalContext.current
+            val viewerResources = LocalResources.current
             val viewerScope = rememberCoroutineScope()
             val viewerHaptic = LocalHapticFeedback.current
             var saving by remember { mutableStateOf(false) }
@@ -343,7 +345,7 @@ private fun ChatImageViewerOverlay(
             ) {
                 ViewerActionPill(
                     icon = Icons.Rounded.Download,
-                    label = if (saving) "保存中…" else "保存",
+                    label = stringResource(if (saving) R.string.ui_misc_saving else R.string.action_save),
                     enabled = !saving,
                     onClick = {
                         if (saving) return@ViewerActionPill
@@ -355,23 +357,35 @@ private fun ChatImageViewerOverlay(
                             saving = false
                             if (result.isSuccess) {
                                 viewerHaptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                                Toast.makeText(viewerContext, "已保存到相册 Pictures/Eta", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    viewerContext,
+                                    viewerResources.getString(R.string.ui_misc_image_saved_gallery),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                             } else {
-                                Toast.makeText(viewerContext, "保存失败，请重试", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    viewerContext,
+                                    viewerResources.getString(R.string.ui_misc_save_failed_retry),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                             }
                         }
                     },
                 )
                 ViewerActionPill(
                     icon = Icons.Rounded.Share,
-                    label = "分享",
+                    label = stringResource(R.string.ui_misc_share),
                     onClick = {
                         viewerScope.launch {
                             val result = withContext(Dispatchers.IO) {
                                 GeneratedImageStore.shareImage(viewerContext, currentSource)
                             }
                             if (result.isFailure) {
-                                Toast.makeText(viewerContext, "分享失败", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    viewerContext,
+                                    viewerResources.getString(R.string.ui_misc_share_failed),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                             }
                         }
                     },
@@ -379,7 +393,7 @@ private fun ChatImageViewerOverlay(
                 request.onEditImage?.let { onEdit ->
                     ViewerActionPill(
                         icon = Icons.Rounded.AutoFixHigh,
-                        label = "继续编辑",
+                        label = stringResource(R.string.ui_misc_continue_editing),
                         onClick = {
                             viewerHaptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             previewer.dismiss()

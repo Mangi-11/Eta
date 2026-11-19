@@ -9,7 +9,9 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import androidx.core.util.AtomicFile
+import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AndroidAgentLogger
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.core.safeLogType
 import java.io.File
 import java.io.IOException
@@ -133,7 +135,13 @@ internal object GeneratedImageStore {
                 if (!dir.exists()) dir.mkdirs()
                 staged.forEach { (tempFile, targetFile, _) ->
                     if (!tempFile.renameTo(targetFile)) {
-                        throw IOException("无法原子发布生成图片：${targetFile.name}")
+                        throw IOException(
+                            AppStrings.get(
+                                R.string.imagegen_store_error_publish_failed,
+                                "无法原子发布生成图片：%1\$s",
+                                targetFile.name,
+                            ),
+                        )
                     }
                     committedFiles += targetFile
                 }
@@ -151,7 +159,10 @@ internal object GeneratedImageStore {
             staged.forEach { (tempFile, _, _) -> runCatching { if (tempFile.exists()) tempFile.delete() } }
             committedFiles.forEach { file -> runCatching { if (file.exists()) file.delete() } }
             if (throwable is RuntimeException) throw throwable
-            throw IOException("保存生成图片到本地失败", throwable)
+            throw IOException(
+                AppStrings.get(R.string.imagegen_store_error_save_local_failed, "保存生成图片到本地失败"),
+                throwable,
+            )
         }
     }
 
@@ -265,7 +276,7 @@ internal object GeneratedImageStore {
 
     fun saveToSystemGallery(context: Context, source: String): Result<Uri> = runCatching {
         val (bytes, mimeType) = decodeSourceBytes(source)
-            ?: error("无法读取图片数据")
+            ?: error(AppStrings.get(R.string.imagegen_store_error_read_image_failed, "无法读取图片数据"))
         val ext = extensionForMime(mimeType)
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val displayName = "Eta_${timestamp}_${UUID.randomUUID().toString().take(4)}.$ext"
@@ -277,15 +288,15 @@ internal object GeneratedImageStore {
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            ?: error("无法写入系统相册")
+            ?: error(AppStrings.get(R.string.imagegen_store_error_gallery_write_failed, "无法写入系统相册"))
         try {
             resolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
-                ?: error("无法打开相册输出流")
+                ?: error(AppStrings.get(R.string.imagegen_store_error_gallery_stream_failed, "无法打开相册输出流"))
             values.clear()
             values.put(MediaStore.Images.Media.IS_PENDING, 0)
             val updatedRows = resolver.update(uri, values, null, null)
             if (updatedRows <= 0) {
-                error("相册发布状态更新失败")
+                error(AppStrings.get(R.string.imagegen_store_error_gallery_publish_failed, "相册发布状态更新失败"))
             }
             uri
         } catch (throwable: Throwable) {
@@ -298,14 +309,17 @@ internal object GeneratedImageStore {
         val appContext = context.applicationContext
         val authority = "${appContext.packageName}.fileprovider"
         val (shareFile, mimeType) = prepareShareableFile(appContext, source)
-            ?: error("无法准备待分享图片")
+            ?: error(AppStrings.get(R.string.imagegen_store_error_share_prepare_failed, "无法准备待分享图片"))
         val contentUri = FileProvider.getUriForFile(appContext, authority, shareFile)
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = mimeType
             putExtra(Intent.EXTRA_STREAM, contentUri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val chooser = Intent.createChooser(sendIntent, "分享图片").apply {
+        val chooser = Intent.createChooser(
+            sendIntent,
+            context.getString(R.string.imagegen_share_chooser_title),
+        ).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(chooser)

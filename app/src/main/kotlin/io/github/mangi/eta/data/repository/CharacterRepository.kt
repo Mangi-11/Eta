@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.util.AtomicFile
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.roleplay.CharacterCard
 import io.github.mangi.eta.agent.roleplay.CharacterCardCodec
 import io.github.mangi.eta.agent.roleplay.CharacterCardException
@@ -15,6 +16,7 @@ import io.github.mangi.eta.agent.roleplay.CharacterCardPng
 import io.github.mangi.eta.agent.roleplay.CharacterProfile
 import io.github.mangi.eta.agent.roleplay.RoleplayBinding
 import io.github.mangi.eta.agent.roleplay.UserPersona
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.db.CharacterEntity
 import io.github.mangi.eta.data.db.EtaDatabase
 import io.github.mangi.eta.data.db.UserPersonaEntity
@@ -64,7 +66,9 @@ internal object CharacterRepository {
     }
 
     suspend fun save(profile: CharacterProfile, avatarBytes: ByteArray? = null): CharacterProfile = withContext(Dispatchers.IO) {
-        val existing = dao().character(profile.id) ?: throw IllegalArgumentException("角色已不存在")
+        val existing = dao().character(profile.id) ?: throw IllegalArgumentException(
+            AppStrings.get(R.string.character_repo_not_found, "角色已不存在"),
+        )
         val card = validated(profile.card)
         val avatar = avatarBytes?.let { writeAvatar(profile.id, normalizeAvatar(it), uniqueName = true) }
         val saved = profile.copy(card = card, avatarPath = avatar ?: profile.avatarPath,
@@ -79,18 +83,25 @@ internal object CharacterRepository {
     }
 
     suspend fun replaceAvatar(id: String, input: InputStream): CharacterProfile = withContext(Dispatchers.IO) {
-        val profile = get(id) ?: throw IllegalArgumentException("角色已不存在")
+        val profile = get(id) ?: throw IllegalArgumentException(
+            AppStrings.get(R.string.character_repo_not_found, "角色已不存在"),
+        )
         save(profile, avatarBytes = input.readRoleplayBytes())
     }
 
     suspend fun duplicate(id: String): CharacterProfile = withContext(Dispatchers.IO) {
-        val profile = get(id) ?: throw IllegalArgumentException("角色已不存在")
-        createStored(validated(profile.card.withEdits(name = "${profile.card.name} 副本")), avatarBytes(profile.avatarPath))
+        val profile = get(id) ?: throw IllegalArgumentException(
+            AppStrings.get(R.string.character_repo_not_found, "角色已不存在"),
+        )
+        val copyName = AppStrings.get(R.string.character_duplicate_name, "%1\$s 副本", profile.card.name)
+        createStored(validated(profile.card.withEdits(name = copyName)), avatarBytes(profile.avatarPath))
     }
 
     /** 删除角色及其图片、剧情记忆目录；已有对话保留当时的角色快照，不受影响。 */
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
-        get(id) ?: throw IllegalArgumentException("角色已不存在")
+        get(id) ?: throw IllegalArgumentException(
+            AppStrings.get(R.string.character_repo_not_found, "角色已不存在"),
+        )
         dao().deleteCharacter(id)
         CharacterMemoryRepository.discard(appContext(), id)
     }
@@ -127,12 +138,18 @@ internal object CharacterRepository {
         } catch (failure: CharacterCardException) {
             throw failure
         } catch (failure: IllegalArgumentException) {
-            throw CharacterCardException(if (png) "CARD_INVALID_PNG" else "CARD_INVALID_DATA", "角色卡数据无效", failure)
+            throw CharacterCardException(
+                if (png) "CARD_INVALID_PNG" else "CARD_INVALID_DATA",
+                AppStrings.get(R.string.character_repo_invalid_card_data, "角色卡数据无效"),
+                failure,
+            )
         }
     }
 
     suspend fun export(id: String, format: CharacterCardFormat, output: OutputStream) = withContext(Dispatchers.IO) {
-        val profile = get(id) ?: throw IllegalArgumentException("角色已不存在")
+        val profile = get(id) ?: throw IllegalArgumentException(
+            AppStrings.get(R.string.character_repo_not_found, "角色已不存在"),
+        )
         val bytes = when (format) {
             CharacterCardFormat.JSON -> CharacterCardCodec.encodeJson(profile.card).toByteArray(Charsets.UTF_8)
             CharacterCardFormat.PNG -> CharacterCardPng.write(avatarBytes(profile.avatarPath) ?: defaultAvatar(profile.card.name), profile.card)
@@ -146,13 +163,19 @@ internal object CharacterRepository {
     }
 
     suspend fun savePersona(persona: UserPersona) = withContext(Dispatchers.IO) {
-        require(persona.name.isNotBlank() && persona.name.length <= 256) { "用户名称需为 1 至 256 个字符" }
-        require(persona.description.toByteArray(Charsets.UTF_8).size <= 1024 * 1024) { "用户设定超过 1 MiB 限制" }
+        require(persona.name.isNotBlank() && persona.name.length <= 256) {
+            AppStrings.get(R.string.character_repo_persona_name_length, "用户名称需为 1 至 256 个字符")
+        }
+        require(persona.description.toByteArray(Charsets.UTF_8).size <= 1024 * 1024) {
+            AppStrings.get(R.string.character_repo_persona_too_large, "用户设定超过 1 MiB 限制")
+        }
         dao().upsertPersona(UserPersonaEntity(name = persona.name.trim(), description = persona.description))
     }
 
     suspend fun binding(id: String): RoleplayBinding {
-        val profile = get(id) ?: throw IllegalArgumentException("角色已不存在")
+        val profile = get(id) ?: throw IllegalArgumentException(
+            AppStrings.get(R.string.character_repo_not_found, "角色已不存在"),
+        )
         val persona = persona()
         return RoleplayBinding(profile.id, CharacterCardCodec.encodeJson(profile.card), profile.card.name,
             profile.avatarPath, persona.name, persona.description)
@@ -162,15 +185,23 @@ internal object CharacterRepository {
         if (path == null) return null
         val file = File(path)
         val root = File(appContext().filesDir, "roleplay").canonicalFile
-        require(file.canonicalPath.startsWith(root.path + File.separator)) { "角色图片路径无效" }
+        require(file.canonicalPath.startsWith(root.path + File.separator)) {
+            AppStrings.get(R.string.character_repo_invalid_avatar_path, "角色图片路径无效")
+        }
         return if (file.isFile) file.inputStream().use { it.readRoleplayBytes() } else null
     }
 
     internal fun writeAvatar(id: String, bytes: ByteArray, uniqueName: Boolean = false): String {
-        require(id.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "角色 ID 无效" }
-        require(CharacterCardPng.isPng(bytes)) { "角色图片必须是 PNG" }
+        require(id.matches(Regex("[A-Za-z0-9_-]{1,128}"))) {
+            AppStrings.get(R.string.character_repo_invalid_id, "角色 ID 无效")
+        }
+        require(CharacterCardPng.isPng(bytes)) {
+            AppStrings.get(R.string.character_repo_avatar_must_be_png, "角色图片必须是 PNG")
+        }
         val directory = File(appContext().filesDir, "roleplay/$id")
-        check(directory.isDirectory || directory.mkdirs()) { "无法创建角色目录" }
+        check(directory.isDirectory || directory.mkdirs()) {
+            AppStrings.get(R.string.character_repo_create_dir_failed, "无法创建角色目录")
+        }
         val file = File(directory, if (uniqueName) "avatar-${UUID.randomUUID()}.png" else "avatar.png")
         val atomic = AtomicFile(file)
         val output = atomic.startWrite()
@@ -185,11 +216,13 @@ internal object CharacterRepository {
     }
 
     private fun normalizeAvatar(bytes: ByteArray): ByteArray {
-        require(bytes.size <= MAX_FILE_BYTES) { "图片超过 32 MiB 限制" }
+        require(bytes.size <= MAX_FILE_BYTES) {
+            AppStrings.get(R.string.character_repo_avatar_too_large, "图片超过 32 MiB 限制")
+        }
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         require(bounds.outWidth > 0 && bounds.outHeight > 0 && bounds.outWidth.toLong() * bounds.outHeight <= 64_000_000) {
-            "无法读取图片或图片尺寸过大"
+            AppStrings.get(R.string.character_repo_avatar_invalid_or_large, "无法读取图片或图片尺寸过大")
         }
         val options = BitmapFactory.Options().apply {
             var sample = 1
@@ -197,7 +230,7 @@ internal object CharacterRepository {
             inSampleSize = sample
         }
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-            ?: throw IllegalArgumentException("无法读取图片")
+            ?: throw IllegalArgumentException(AppStrings.get(R.string.character_repo_avatar_unreadable, "无法读取图片"))
         return try {
             ByteArrayOutputStream().also { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }.toByteArray()
         } finally { bitmap.recycle() }
@@ -215,7 +248,9 @@ internal object CharacterRepository {
     }
 
     private fun validated(card: CharacterCard): CharacterCard {
-        require(card.name.isNotBlank() && card.name.length <= 512) { "角色名称需为 1 至 512 个字符" }
+        require(card.name.isNotBlank() && card.name.length <= 512) {
+            AppStrings.get(R.string.character_repo_name_length, "角色名称需为 1 至 512 个字符")
+        }
         return CharacterCardCodec.decodeJson(CharacterCardCodec.encodeJson(card.withEdits(name = card.name.trim())))
     }
 
@@ -268,7 +303,10 @@ private fun InputStream.readRoleplayBytes(): ByteArray {
         val count = read(buffer)
         if (count < 0) break
         if (output.size().toLong() + count > CharacterRepository.MAX_FILE_BYTES) {
-            throw CharacterCardException("CARD_TOO_LARGE", "角色卡文件超过 32 MiB 限制")
+            throw CharacterCardException(
+                "CARD_TOO_LARGE",
+                AppStrings.get(R.string.character_repo_card_too_large, "角色卡文件超过 32 MiB 限制"),
+            )
         }
         output.write(buffer, 0, count)
     }

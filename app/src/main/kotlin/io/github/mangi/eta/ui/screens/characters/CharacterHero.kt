@@ -38,10 +38,12 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.roleplay.CharacterMacros
 import io.github.mangi.eta.agent.roleplay.CharacterProfile
 import io.github.mangi.eta.data.model.AppearanceUiStyle
@@ -140,7 +142,7 @@ internal fun CharacterHero(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.PhotoCamera,
-                        contentDescription = "更换头像",
+                        contentDescription = stringResource(R.string.character_action_change_avatar),
                         modifier = Modifier.size(18.dp),
                         tint = colors.onSurface,
                     )
@@ -161,14 +163,19 @@ internal fun CharacterHero(
                 IconButton(onClick = onToggleFavorite, enabled = !busy, minWidth = 36.dp, minHeight = 36.dp) {
                     Icon(
                         imageVector = if (card.favorite) Icons.Rounded.Star else Icons.Rounded.StarOutline,
-                        contentDescription = if (card.favorite) "取消收藏" else "收藏",
+                        contentDescription = stringResource(
+                            if (card.favorite) R.string.character_action_unfavorite else R.string.character_action_favorite,
+                        ),
                         modifier = Modifier.size(20.dp),
                         tint = if (card.favorite) FavoriteColor else colors.onSurfaceVariantSummary,
                     )
                 }
             }
+            val creatorByline = card.creator.takeIf(String::isNotBlank)?.let {
+                stringResource(R.string.character_detail_creator_byline, it)
+            }
             val byline = listOfNotNull(
-                card.creator.takeIf(String::isNotBlank)?.let { "作者 $it" },
+                creatorByline,
                 card.version.takeIf(String::isNotBlank)?.let { "v$it" },
             ).joinToString(" · ")
             if (byline.isNotEmpty()) {
@@ -216,9 +223,10 @@ internal fun CharacterHero(
                 )
             }
             Spacer(Modifier.height(20.dp))
+            val startChatText = stringResource(R.string.character_action_start_chat)
             if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
                 CouiButton(
-                    text = "开始对话",
+                    text = startChatText,
                     enabled = !busy,
                     onClick = onStart,
                     role = CouiButtonRole.Primary,
@@ -226,7 +234,7 @@ internal fun CharacterHero(
                 )
             } else {
                 TextButton(
-                    text = "开始对话",
+                    text = startChatText,
                     enabled = !busy,
                     onClick = onStart,
                     modifier = Modifier.fillMaxWidth(),
@@ -291,7 +299,7 @@ internal fun GreetingPager(
                             if (page == pagerState.settledPage) {
                                 Icon(
                                     imageVector = Icons.Rounded.Check,
-                                    contentDescription = "已选择",
+                                    contentDescription = stringResource(R.string.character_greeting_selected),
                                     modifier = Modifier.size(12.dp),
                                     tint = colors.onPrimary,
                                 )
@@ -301,7 +309,7 @@ internal fun GreetingPager(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = text.ifBlank { "没有预设开场白，由你先开口" },
+                    text = text.ifBlank { stringResource(R.string.character_greeting_empty) },
                     style = MiuixTheme.textStyles.body2,
                     color = if (text.isBlank()) colors.onSurfaceVariantSummary else colors.onSurface,
                     maxLines = 6,
@@ -310,7 +318,7 @@ internal fun GreetingPager(
                 )
                 if (text.isNotBlank()) {
                     Text(
-                        text = "阅读全文",
+                        text = stringResource(R.string.character_greeting_read_full),
                         style = MiuixTheme.textStyles.footnote1,
                         color = colors.primary,
                     )

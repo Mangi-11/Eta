@@ -9,6 +9,8 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import java.io.Closeable
 import kotlinx.coroutines.CancellationException
 
@@ -54,7 +56,12 @@ internal class SpeechAudioLease(
         if (current !== this) throw CancellationException("Speech owner replaced")
         beforeFocus()
         focused = manager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        if (!focused) throw SpeechFailure(SpeechErrorCode.AUDIO, "当前无法获得音频焦点，请稍后重试")
+        if (!focused) {
+            throw SpeechFailure(
+                SpeechErrorCode.AUDIO,
+                AppStrings.get(R.string.voice_i18n_audio_focus_unavailable, "当前无法获得音频焦点，请稍后重试"),
+            )
+        }
     }
 
     override fun close() {

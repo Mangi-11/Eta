@@ -32,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -106,6 +108,7 @@ internal fun ScheduledTaskEditorScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val isEditing = !taskId.isNullOrBlank()
     val preset = remember(presetId) { ScheduledTaskPresets.find(presetId) }
@@ -117,8 +120,10 @@ internal fun ScheduledTaskEditorScreen(
     var loadedExisting by remember(taskId) { mutableStateOf<ScheduledTask?>(null) }
     var initialized by remember(taskId, presetId) { mutableStateOf(false) }
 
-    var name by remember { mutableStateOf(preset?.defaultName.orEmpty()) }
-    var prompt by remember { mutableStateOf(preset?.prompt.orEmpty()) }
+    val presetDefaultName = preset?.let { stringResource(it.defaultNameRes) }.orEmpty()
+    val presetPrompt = preset?.let { stringResource(it.promptRes) }.orEmpty()
+    var name by remember(taskId, presetId) { mutableStateOf(presetDefaultName) }
+    var prompt by remember(taskId, presetId) { mutableStateOf(presetPrompt) }
     var triggerKind by remember { mutableStateOf(preset?.schedule?.kind ?: ScheduledTaskTriggerKind.DAILY) }
     var hour by remember { mutableIntStateOf(preset?.schedule?.hour ?: 9) }
     var minute by remember { mutableIntStateOf(preset?.schedule?.minute ?: 0) }
@@ -191,20 +196,25 @@ internal fun ScheduledTaskEditorScreen(
 
     val previewNowMs = remember(currentSchedule, quietHoursEnabled) { System.currentTimeMillis() }
     val previewQuietHours = remember(quietHoursEnabled) { ScheduledTaskQuietHours(enabled = quietHoursEnabled) }
-    val scheduleError = remember(currentSchedule, previewNowMs) {
-        ScheduledTaskScheduleCalculator.validateSchedule(currentSchedule, previewNowMs)
-    }
-    val nextRunPreview = remember(currentSchedule, previewNowMs, previewQuietHours, scheduleError) {
+    val scheduleError = ScheduledTaskScheduleCalculator.validateSchedule(currentSchedule, previewNowMs)
+    val nextRunTimestamp = remember(currentSchedule, previewNowMs, previewQuietHours, scheduleError) {
         if (scheduleError != null) {
-            scheduleError
+            null
         } else {
-            val next = ScheduledTaskScheduleCalculator.computeNextRunAt(
+            ScheduledTaskScheduleCalculator.computeNextRunAt(
                 schedule = currentSchedule,
                 afterMs = previewNowMs,
                 quietHours = previewQuietHours,
             )
-            "下次运行：${ScheduledTaskScheduleCalculator.formatNextRunLabel(next, previewNowMs)}"
         }
+    }
+    val nextRunPreview = if (scheduleError != null) {
+        scheduleError
+    } else {
+        stringResource(
+            R.string.scheduled_next_run_prefix,
+            ScheduledTaskScheduleCalculator.formatNextRunLabel(nextRunTimestamp, previewNowMs),
+        )
     }
 
     val pickerState = remember(providers, primaryProviderId, primaryModelId) {
@@ -214,11 +224,16 @@ internal fun ScheduledTaskEditorScreen(
         selectedModelId?.takeIf { it.isNotBlank() }?.let { providers.enabledModel(it) }
     }
     val primaryModelName = pickerState.selectedModel?.displayName
-    val followTitle = "跟随全局默认模型"
-    val followSubtitle = primaryModelName?.let { "当前默认：$it" } ?: "使用全局设置中的默认模型"
+    val followTitle = stringResource(R.string.scheduled_model_follow_default)
+    val followSubtitle = if (primaryModelName != null) {
+        stringResource(R.string.scheduled_model_current_default, primaryModelName)
+    } else {
+        stringResource(R.string.scheduled_model_use_global_default)
+    }
     val modelSummary = when {
         resolvedCustom != null -> "${resolvedCustom.provider.name} / ${resolvedCustom.model.displayName}"
-        !primaryModelName.isNullOrBlank() -> "跟随默认（$primaryModelName）"
+        !primaryModelName.isNullOrBlank() ->
+            stringResource(R.string.scheduled_model_follow_default_named, primaryModelName)
         else -> followTitle
     }
     val effectiveCapabilities = remember(providers, resolvedCustom, primaryModelId) {
@@ -228,13 +243,11 @@ internal fun ScheduledTaskEditorScreen(
     val effortOptions = remember(effectiveCapabilities) {
         listOf<ReasoningEffort?>(null) + effectiveCapabilities?.selectableEfforts.orEmpty()
     }
-    val effortLabels = remember(effortOptions) {
-        effortOptions.map { effort ->
-            when (effort) {
-                null -> "跟随全局默认"
-                ReasoningEffort.DEFAULT -> "模型默认"
-                else -> effort.displayName
-            }
+    val effortLabels = effortOptions.map { effort ->
+        when (effort) {
+            null -> stringResource(R.string.scheduled_effort_follow_default)
+            ReasoningEffort.DEFAULT -> stringResource(R.string.scheduled_effort_model_default)
+            else -> effort.displayName
         }
     }
     val selectedEffortIndex = remember(effortOptions, selectedReasoningEffort) {
@@ -302,7 +315,7 @@ internal fun ScheduledTaskEditorScreen(
                     onFailure = { failure ->
                         Toast.makeText(
                             context,
-                            failure.message ?: "保存定时任务失败",
+                            failure.message ?: resources.getString(R.string.scheduled_toast_save_failed),
                             Toast.LENGTH_SHORT,
                         ).show()
                     },
@@ -315,39 +328,43 @@ internal fun ScheduledTaskEditorScreen(
         if (isEditing) R.string.route_scheduled_task_edit else R.string.route_scheduled_task_new,
     )
 
-    val triggerTabs = remember {
-        listOf(
-            ScheduledTaskTriggerKind.DAILY to "每天",
-            ScheduledTaskTriggerKind.WEEKDAYS to "工作日",
-            ScheduledTaskTriggerKind.WEEKLY to "每周",
-            ScheduledTaskTriggerKind.INTERVAL to "间隔",
-            ScheduledTaskTriggerKind.ONCE to "一次性",
-            ScheduledTaskTriggerKind.CRON to "Cron",
-        )
-    }
-    val deliveryOptions = remember {
-        listOf(
-            ScheduledTaskDeliveryMode.ALWAYS to "每次完成后通知",
-            ScheduledTaskDeliveryMode.ON_CHANGE to "仅发现变化时通知",
-            ScheduledTaskDeliveryMode.SILENT to "静默归档不通知",
-        )
-    }
-    val sessionOptions = remember {
-        listOf(
-            ScheduledTaskSessionMode.ISOLATED to "每次独立归档（主聊天保持干净）",
-            ScheduledTaskSessionMode.DEDICATED to "固定专属频道（按时间续写）",
-        )
-    }
-    val misfireOptions = remember {
-        listOf(
-            ScheduledTaskMisfirePolicy.RUN_ONCE_WITHIN_WINDOW to "3 小时内最多补跑最近 1 次",
-            ScheduledTaskMisfirePolicy.SKIP to "错过即跳过",
-        )
-    }
+    val triggerTabs = listOf(
+        ScheduledTaskTriggerKind.DAILY to stringResource(R.string.scheduled_trigger_daily),
+        ScheduledTaskTriggerKind.WEEKDAYS to stringResource(R.string.scheduled_trigger_weekdays),
+        ScheduledTaskTriggerKind.WEEKLY to stringResource(R.string.scheduled_trigger_weekly),
+        ScheduledTaskTriggerKind.INTERVAL to stringResource(R.string.scheduled_trigger_interval),
+        ScheduledTaskTriggerKind.ONCE to stringResource(R.string.scheduled_trigger_once),
+        ScheduledTaskTriggerKind.CRON to stringResource(R.string.scheduled_trigger_cron),
+    )
+    val deliveryOptions = listOf(
+        ScheduledTaskDeliveryMode.ALWAYS to stringResource(R.string.scheduled_delivery_option_always),
+        ScheduledTaskDeliveryMode.ON_CHANGE to stringResource(R.string.scheduled_delivery_option_on_change),
+        ScheduledTaskDeliveryMode.SILENT to stringResource(R.string.scheduled_delivery_option_silent),
+    )
+    val sessionOptions = listOf(
+        ScheduledTaskSessionMode.ISOLATED to stringResource(R.string.scheduled_session_option_isolated),
+        ScheduledTaskSessionMode.DEDICATED to stringResource(R.string.scheduled_session_option_dedicated),
+    )
+    val misfireOptions = listOf(
+        ScheduledTaskMisfirePolicy.RUN_ONCE_WITHIN_WINDOW to stringResource(R.string.scheduled_misfire_option_catchup),
+        ScheduledTaskMisfirePolicy.SKIP to stringResource(R.string.scheduled_misfire_option_skip),
+    )
     val timeoutChoices = remember { listOf(120, 300, 600, 900) }
-    val timeoutLabels = remember { listOf("2 分钟", "5 分钟（推荐）", "10 分钟", "15 分钟") }
+    val timeoutLabels = listOf(
+        stringResource(R.string.scheduled_timeout_2m),
+        stringResource(R.string.scheduled_timeout_5m_recommended),
+        stringResource(R.string.scheduled_timeout_10m),
+        stringResource(R.string.scheduled_timeout_15m),
+    )
     val intervalChoices = remember { listOf(15, 30, 60, 120, 240, 360, 720) }
     val onceDelayChoices = remember { listOf(15, 30, 60, 120, 360, 1440) }
+    val onceDelayOptions = onceDelayChoices.map { mins ->
+        mins to when {
+            mins >= 1440 -> pluralStringResource(R.plurals.scheduled_delay_days, mins / 1440, mins / 1440)
+            mins >= 60 -> pluralStringResource(R.plurals.scheduled_delay_hours, mins / 60, mins / 60)
+            else -> pluralStringResource(R.plurals.scheduled_delay_minutes, mins, mins)
+        }
+    }
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
@@ -368,7 +385,7 @@ internal fun ScheduledTaskEditorScreen(
                         visible = showModelSheet,
                         onDismissRequest = { showModelSheet = false },
                         dark = dark,
-                        title = "执行模型",
+                        title = stringResource(R.string.scheduled_field_model),
                         confirmAction = CouiDialogAction(
                             text = stringResource(R.string.action_close),
                             onClick = { showModelSheet = false },
@@ -390,7 +407,7 @@ internal fun ScheduledTaskEditorScreen(
                     }
                 },
             ) {
-                Group(title = "任务内容") {
+                Group(title = stringResource(R.string.scheduled_editor_section_content)) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -400,15 +417,15 @@ internal fun ScheduledTaskEditorScreen(
                         CouiTextField(
                             value = name,
                             onValueChange = { name = it.take(80) },
-                            label = "任务名称",
-                            placeholder = "例如：每日晚间简报",
+                            label = stringResource(R.string.scheduled_editor_name_label),
+                            placeholder = stringResource(R.string.scheduled_editor_name_placeholder),
                             singleLine = true,
                         )
                         CouiTextField(
                             value = prompt,
                             onValueChange = { prompt = it.take(8000) },
-                            label = "要 Eta 做什么",
-                            placeholder = "用自然语言描述目标、数据来源和期望输出格式",
+                            label = stringResource(R.string.scheduled_editor_prompt_label),
+                            placeholder = stringResource(R.string.scheduled_editor_prompt_placeholder),
                             singleLine = false,
                             minLines = 4,
                             maxLines = 10,
@@ -416,7 +433,7 @@ internal fun ScheduledTaskEditorScreen(
                     }
                 }
 
-                CouiSectionTitle("运行时间")
+                CouiSectionTitle(stringResource(R.string.scheduled_editor_section_schedule))
                 CouiChipTabs(
                     items = triggerTabs,
                     selectedKey = triggerKind,
@@ -432,14 +449,14 @@ internal fun ScheduledTaskEditorScreen(
                         ScheduledTaskTriggerKind.DAILY,
                         ScheduledTaskTriggerKind.WEEKDAYS -> {
                             CouiPreference(
-                                title = "触发时间",
+                                title = stringResource(R.string.scheduled_editor_trigger_time),
                                 value = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
                                 onClick = openTimePicker,
                             )
                         }
                         ScheduledTaskTriggerKind.WEEKLY -> {
                             CouiPreference(
-                                title = "触发时间",
+                                title = stringResource(R.string.scheduled_editor_trigger_time),
                                 value = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
                                 onClick = openTimePicker,
                             )
@@ -458,7 +475,7 @@ internal fun ScheduledTaskEditorScreen(
                         }
                         ScheduledTaskTriggerKind.INTERVAL -> {
                             QuickOptionPillsRow(
-                                title = "间隔周期",
+                                title = stringResource(R.string.scheduled_editor_interval_label),
                                 options = intervalChoices.map { it to ScheduledTaskScheduleCalculator.formatInterval(it) },
                                 selected = intervalMinutes,
                                 onSelect = { intervalMinutes = it },
@@ -467,14 +484,8 @@ internal fun ScheduledTaskEditorScreen(
                         }
                         ScheduledTaskTriggerKind.ONCE -> {
                             QuickOptionPillsRow(
-                                title = "从现在起延迟",
-                                options = onceDelayChoices.map { mins ->
-                                    mins to when {
-                                        mins >= 1440 -> "${mins / 1440} 天后"
-                                        mins >= 60 -> "${mins / 60} 小时后"
-                                        else -> "${mins} 分钟后"
-                                    }
-                                },
+                                title = stringResource(R.string.scheduled_editor_once_delay_label),
+                                options = onceDelayOptions,
                                 selected = onceDelayMinutes,
                                 onSelect = { mins ->
                                     onceDelayMinutes = mins
@@ -492,7 +503,7 @@ internal fun ScheduledTaskEditorScreen(
                                 CouiTextField(
                                     value = cronExpression,
                                     onValueChange = { cronExpression = it.take(80) },
-                                    label = "5 段 Cron 表达式（分 时 日 月 周）",
+                                    label = stringResource(R.string.scheduled_editor_cron_label),
                                     placeholder = "0 9 * * 1-5",
                                     singleLine = true,
                                 )
@@ -501,23 +512,23 @@ internal fun ScheduledTaskEditorScreen(
                     }
                     Divider()
                     CouiPreference(
-                        title = "排期预览",
+                        title = stringResource(R.string.scheduled_editor_schedule_preview),
                         summary = nextRunPreview,
                         showChevron = false,
                     )
                 }
 
-                Group(title = "通知方式") {
+                Group(title = stringResource(R.string.scheduled_editor_section_delivery)) {
                     CouiDropdownPreference(
-                        title = "结果通知",
+                        title = stringResource(R.string.scheduled_editor_result_notification),
                         items = deliveryOptions.map { it.second },
                         selectedIndex = deliveryOptions.indexOfFirst { it.first == deliveryMode }.coerceAtLeast(0),
                         onSelectedIndexChange = { idx -> deliveryMode = deliveryOptions[idx].first },
                     )
                     Divider()
                     CouiSwitchPreference(
-                        title = "运行时显示进度通知",
-                        summary = "关闭后后台静默执行，不弹状态栏运行胶囊，仅在完成时按上方设置推送结果",
+                        title = stringResource(R.string.scheduled_editor_show_progress_title),
+                        summary = stringResource(R.string.scheduled_editor_show_progress_summary),
                         checked = showRunningNotification,
                         onCheckedChange = { showRunningNotification = it },
                     )
@@ -526,23 +537,29 @@ internal fun ScheduledTaskEditorScreen(
                 Spacer(modifier = Modifier.height(CouiPageDefaults.groupSpacing))
                 Group {
                     CouiPreference(
-                        title = if (showAdvanced) "收起更多设置" else "更多设置（模型、权限、会话与防打扰）",
-                        summary = if (showAdvanced) null else "当前默认已针对锁屏后台静默执行优化",
+                        title = stringResource(
+                            if (showAdvanced) {
+                                R.string.scheduled_editor_advanced_collapse
+                            } else {
+                                R.string.scheduled_editor_advanced_expand
+                            },
+                        ),
+                        summary = if (showAdvanced) null else stringResource(R.string.scheduled_editor_advanced_summary),
                         onClick = { showAdvanced = !showAdvanced },
                     )
                 }
 
                 if (showAdvanced) {
-                    Group(title = "模型与思考") {
+                    Group(title = stringResource(R.string.scheduled_editor_section_model)) {
                         CouiPreference(
-                            title = "执行模型",
+                            title = stringResource(R.string.scheduled_field_model),
                             summary = modelSummary,
                             onClick = { showModelSheet = true },
                         )
                         if (effortOptions.size > 1) {
                             Divider()
                             CouiDropdownPreference(
-                                title = "思考档位",
+                                title = stringResource(R.string.scheduled_editor_reasoning_effort),
                                 items = effortLabels,
                                 selectedIndex = selectedEffortIndex,
                                 onSelectedIndexChange = { idx ->
@@ -552,74 +569,74 @@ internal fun ScheduledTaskEditorScreen(
                         }
                     }
 
-                    Group(title = "单任务能力边界") {
+                    Group(title = stringResource(R.string.scheduled_editor_section_capabilities)) {
                         CouiSwitchPreference(
-                            title = "网页搜索与内置浏览器",
-                            summary = "锁屏时也能用带登录态的共享 WebView 抓取网页",
+                            title = stringResource(R.string.scheduled_cap_browser_title),
+                            summary = stringResource(R.string.scheduled_cap_browser_summary),
                             checked = capabilities.browserTools,
                             onCheckedChange = { capabilities = capabilities.copy(browserTools = it) },
                         )
                         Divider()
                         CouiSwitchPreference(
-                            title = "设备信息读取",
-                            summary = "通知历史、日历、应用使用、系统状态与个人记录",
+                            title = stringResource(R.string.scheduled_cap_device_read_title),
+                            summary = stringResource(R.string.scheduled_cap_device_read_summary),
                             checked = capabilities.deviceReadTools,
                             onCheckedChange = { capabilities = capabilities.copy(deviceReadTools = it) },
                         )
                         Divider()
                         CouiSwitchPreference(
-                            title = "设备状态控制",
-                            summary = "允许调整系统设置、音量、闹钟等写操作",
+                            title = stringResource(R.string.scheduled_cap_device_action_title),
+                            summary = stringResource(R.string.scheduled_cap_device_action_summary),
                             checked = capabilities.deviceActionTools,
                             onCheckedChange = { capabilities = capabilities.copy(deviceActionTools = it) },
                         )
                         Divider()
                         CouiSwitchPreference(
-                            title = "终端、文件与 Linux",
-                            summary = "运行 Android/Linux 命令与工作区文件读写",
+                            title = stringResource(R.string.scheduled_cap_terminal_title),
+                            summary = stringResource(R.string.scheduled_cap_terminal_summary),
                             checked = capabilities.terminalTools,
                             onCheckedChange = { capabilities = capabilities.copy(terminalTools = it) },
                         )
                         Divider()
                         CouiSwitchPreference(
-                            title = "MCP 远程工具",
-                            summary = "调用已在 Eta 中启用的 MCP 服务器工具",
+                            title = stringResource(R.string.scheduled_cap_mcp_title),
+                            summary = stringResource(R.string.scheduled_cap_mcp_summary),
                             checked = capabilities.mcpTools,
                             onCheckedChange = { capabilities = capabilities.copy(mcpTools = it) },
                         )
                         Divider()
                         CouiSwitchPreference(
-                            title = "应用界面操作（GUI）",
-                            summary = "默认关闭；支持后台虚拟屏的设备优先静默运行，否则锁屏时发提醒待解锁",
+                            title = stringResource(R.string.scheduled_cap_gui_title),
+                            summary = stringResource(R.string.scheduled_cap_gui_summary),
                             checked = capabilities.guiTools,
                             onCheckedChange = { capabilities = capabilities.copy(guiTools = it) },
                         )
                     }
 
-                    Group(title = "会话与保护策略") {
+                    Group(title = stringResource(R.string.scheduled_editor_section_session_policy)) {
                         CouiDropdownPreference(
-                            title = "结果归属",
+                            title = stringResource(R.string.scheduled_editor_session_mode),
                             items = sessionOptions.map { it.second },
                             selectedIndex = sessionOptions.indexOfFirst { it.first == sessionMode }.coerceAtLeast(0),
                             onSelectedIndexChange = { idx -> sessionMode = sessionOptions[idx].first },
                         )
                         Divider()
                         CouiDropdownPreference(
-                            title = "错过触发时",
+                            title = stringResource(R.string.scheduled_editor_misfire_policy),
                             items = misfireOptions.map { it.second },
                             selectedIndex = misfireOptions.indexOfFirst { it.first == misfirePolicy }.coerceAtLeast(0),
                             onSelectedIndexChange = { idx -> misfirePolicy = misfireOptions[idx].first },
                         )
                         Divider()
                         CouiSwitchPreference(
-                            title = "夜间免打扰（23:00 – 07:30）",
-                            summary = "命中免打扰时段的周期触发将被自动跳过",
+                            title = stringResource(R.string.scheduled_editor_quiet_hours_title),
+                            summary = stringResource(R.string.scheduled_editor_quiet_hours_summary),
                             checked = quietHoursEnabled,
                             onCheckedChange = { quietHoursEnabled = it },
                         )
                         Divider()
                         CouiDropdownPreference(
-                            title = "单次最长运行时间",
+                            title = stringResource(R.string.scheduled_editor_timeout),
                             items = timeoutLabels,
                             selectedIndex = timeoutChoices.indexOf(timeoutSeconds).coerceAtLeast(1),
                             onSelectedIndexChange = { idx -> timeoutSeconds = timeoutChoices[idx] },
@@ -648,7 +665,7 @@ internal fun ScheduledTaskEditorScreen(
                     GlassBottomSheet(
                         show = showModelSheet,
                         backdrop = currentGlassOverlayBackdrop(),
-                        title = "执行模型",
+                        title = stringResource(R.string.scheduled_field_model),
                         onDismissRequest = { showModelSheet = false },
                         insideMargin = DpSize(0.dp, 0.dp),
                     ) {
@@ -666,7 +683,7 @@ internal fun ScheduledTaskEditorScreen(
                 },
             ) {
                 item(key = "basic_content") {
-                    SmallTitle(text = "任务内容")
+                    SmallTitle(text = stringResource(R.string.scheduled_editor_section_content))
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -681,13 +698,13 @@ internal fun ScheduledTaskEditorScreen(
                             TextField(
                                 value = name,
                                 onValueChange = { name = it.take(80) },
-                                label = "任务名称（如：每日晚间简报）",
+                                label = stringResource(R.string.scheduled_editor_name_label_with_example),
                                 singleLine = true,
                             )
                             TextField(
                                 value = prompt,
                                 onValueChange = { prompt = it.take(8000) },
-                                label = "要 Eta 做什么",
+                                label = stringResource(R.string.scheduled_editor_prompt_label),
                                 minLines = 4,
                                 maxLines = 10,
                             )
@@ -696,7 +713,7 @@ internal fun ScheduledTaskEditorScreen(
                 }
 
                 item(key = "schedule_section") {
-                    SmallTitle(text = "运行时间")
+                    SmallTitle(text = stringResource(R.string.scheduled_editor_section_schedule))
                     QuickOptionPillsRow(
                         title = "",
                         options = triggerTabs,
@@ -718,14 +735,14 @@ internal fun ScheduledTaskEditorScreen(
                             ScheduledTaskTriggerKind.DAILY,
                             ScheduledTaskTriggerKind.WEEKDAYS -> {
                                 ArrowPreference(
-                                    title = "触发时间",
+                                    title = stringResource(R.string.scheduled_editor_trigger_time),
                                     summary = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
                                     onClick = openTimePicker,
                                 )
                             }
                             ScheduledTaskTriggerKind.WEEKLY -> {
                                 ArrowPreference(
-                                    title = "触发时间",
+                                    title = stringResource(R.string.scheduled_editor_trigger_time),
                                     summary = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
                                     onClick = openTimePicker,
                                 )
@@ -743,7 +760,7 @@ internal fun ScheduledTaskEditorScreen(
                             }
                             ScheduledTaskTriggerKind.INTERVAL -> {
                                 QuickOptionPillsRow(
-                                    title = "间隔周期",
+                                    title = stringResource(R.string.scheduled_editor_interval_label),
                                     options = intervalChoices.map { it to ScheduledTaskScheduleCalculator.formatInterval(it) },
                                     selected = intervalMinutes,
                                     onSelect = { intervalMinutes = it },
@@ -752,14 +769,8 @@ internal fun ScheduledTaskEditorScreen(
                             }
                             ScheduledTaskTriggerKind.ONCE -> {
                                 QuickOptionPillsRow(
-                                    title = "从现在起延迟",
-                                    options = onceDelayChoices.map { mins ->
-                                        mins to when {
-                                            mins >= 1440 -> "${mins / 1440} 天后"
-                                            mins >= 60 -> "${mins / 60} 小时后"
-                                            else -> "${mins} 分钟后"
-                                        }
-                                    },
+                                    title = stringResource(R.string.scheduled_editor_once_delay_label),
+                                    options = onceDelayOptions,
                                     selected = onceDelayMinutes,
                                     onSelect = { mins ->
                                         onceDelayMinutes = mins
@@ -773,7 +784,7 @@ internal fun ScheduledTaskEditorScreen(
                                     TextField(
                                         value = cronExpression,
                                         onValueChange = { cronExpression = it.take(80) },
-                                        label = "5 段 Cron 表达式（分 时 日 月 周）",
+                                        label = stringResource(R.string.scheduled_editor_cron_label),
                                         singleLine = true,
                                     )
                                 }
@@ -789,22 +800,22 @@ internal fun ScheduledTaskEditorScreen(
                 }
 
                 item(key = "delivery_section") {
-                    SmallTitle(text = "通知方式")
+                    SmallTitle(text = stringResource(R.string.scheduled_editor_section_delivery))
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                     ) {
                         GlassDropdownPreference(
-                            title = "结果通知",
+                            title = stringResource(R.string.scheduled_editor_result_notification),
                             items = deliveryOptions.map { it.second },
                             selectedIndex = deliveryOptions.indexOfFirst { it.first == deliveryMode }.coerceAtLeast(0),
                             onSelectedIndexChange = { idx -> deliveryMode = deliveryOptions[idx].first },
                             backdrop = currentGlassOverlayBackdrop(),
                         )
                         SwitchPreference(
-                            title = "运行时显示进度通知",
-                            summary = "关闭后后台静默执行，不弹状态栏运行胶囊，仅在完成时推送结果",
+                            title = stringResource(R.string.scheduled_editor_show_progress_title),
+                            summary = stringResource(R.string.scheduled_editor_show_progress_summary),
                             checked = showRunningNotification,
                             onCheckedChange = { showRunningNotification = it },
                         )
@@ -818,8 +829,14 @@ internal fun ScheduledTaskEditorScreen(
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                     ) {
                         ArrowPreference(
-                            title = if (showAdvanced) "收起更多设置" else "更多设置（模型、权限、会话与防打扰）",
-                            summary = if (showAdvanced) null else "当前默认已针对锁屏后台静默执行优化",
+                            title = stringResource(
+                                if (showAdvanced) {
+                                    R.string.scheduled_editor_advanced_collapse
+                                } else {
+                                    R.string.scheduled_editor_advanced_expand
+                                },
+                            ),
+                            summary = if (showAdvanced) null else stringResource(R.string.scheduled_editor_advanced_summary),
                             onClick = { showAdvanced = !showAdvanced },
                         )
                     }
@@ -827,20 +844,20 @@ internal fun ScheduledTaskEditorScreen(
 
                 if (showAdvanced) {
                     item(key = "advanced_model") {
-                        SmallTitle(text = "模型与思考")
+                        SmallTitle(text = stringResource(R.string.scheduled_editor_section_model))
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 4.dp),
                         ) {
                             ArrowPreference(
-                                title = "执行模型",
+                                title = stringResource(R.string.scheduled_field_model),
                                 summary = modelSummary,
                                 onClick = { showModelSheet = true },
                             )
                             if (effortOptions.size > 1) {
                                 GlassDropdownPreference(
-                                    title = "思考档位",
+                                    title = stringResource(R.string.scheduled_editor_reasoning_effort),
                                     items = effortLabels,
                                     selectedIndex = selectedEffortIndex,
                                     onSelectedIndexChange = { idx ->
@@ -853,45 +870,45 @@ internal fun ScheduledTaskEditorScreen(
                     }
 
                     item(key = "advanced_caps") {
-                        SmallTitle(text = "单任务能力边界")
+                        SmallTitle(text = stringResource(R.string.scheduled_editor_section_capabilities))
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 4.dp),
                         ) {
                             SwitchPreference(
-                                title = "网页搜索与内置浏览器",
-                                summary = "锁屏时也能用共享 WebView 抓取网页",
+                                title = stringResource(R.string.scheduled_cap_browser_title),
+                                summary = stringResource(R.string.scheduled_cap_browser_summary),
                                 checked = capabilities.browserTools,
                                 onCheckedChange = { capabilities = capabilities.copy(browserTools = it) },
                             )
                             SwitchPreference(
-                                title = "设备信息读取",
-                                summary = "通知历史、日历、应用使用与系统状态",
+                                title = stringResource(R.string.scheduled_cap_device_read_title),
+                                summary = stringResource(R.string.scheduled_cap_device_read_summary),
                                 checked = capabilities.deviceReadTools,
                                 onCheckedChange = { capabilities = capabilities.copy(deviceReadTools = it) },
                             )
                             SwitchPreference(
-                                title = "设备状态控制",
-                                summary = "允许调整系统设置、音量、闹钟等写操作",
+                                title = stringResource(R.string.scheduled_cap_device_action_title),
+                                summary = stringResource(R.string.scheduled_cap_device_action_summary),
                                 checked = capabilities.deviceActionTools,
                                 onCheckedChange = { capabilities = capabilities.copy(deviceActionTools = it) },
                             )
                             SwitchPreference(
-                                title = "终端、文件与 Linux",
-                                summary = "运行 Android/Linux 命令与文件读写",
+                                title = stringResource(R.string.scheduled_cap_terminal_title),
+                                summary = stringResource(R.string.scheduled_cap_terminal_summary),
                                 checked = capabilities.terminalTools,
                                 onCheckedChange = { capabilities = capabilities.copy(terminalTools = it) },
                             )
                             SwitchPreference(
-                                title = "MCP 远程工具",
-                                summary = "调用已启用的 MCP 工具",
+                                title = stringResource(R.string.scheduled_cap_mcp_title),
+                                summary = stringResource(R.string.scheduled_cap_mcp_summary),
                                 checked = capabilities.mcpTools,
                                 onCheckedChange = { capabilities = capabilities.copy(mcpTools = it) },
                             )
                             SwitchPreference(
-                                title = "应用界面操作（GUI）",
-                                summary = "默认关闭；支持后台虚拟屏优先静默，否则锁屏发提醒待解锁",
+                                title = stringResource(R.string.scheduled_cap_gui_title),
+                                summary = stringResource(R.string.scheduled_cap_gui_summary),
                                 checked = capabilities.guiTools,
                                 onCheckedChange = { capabilities = capabilities.copy(guiTools = it) },
                             )
@@ -899,34 +916,34 @@ internal fun ScheduledTaskEditorScreen(
                     }
 
                     item(key = "advanced_session") {
-                        SmallTitle(text = "会话与保护策略")
+                        SmallTitle(text = stringResource(R.string.scheduled_editor_section_session_policy))
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 4.dp),
                         ) {
                             GlassDropdownPreference(
-                                title = "结果归属",
+                                title = stringResource(R.string.scheduled_editor_session_mode),
                                 items = sessionOptions.map { it.second },
                                 selectedIndex = sessionOptions.indexOfFirst { it.first == sessionMode }.coerceAtLeast(0),
                                 onSelectedIndexChange = { idx -> sessionMode = sessionOptions[idx].first },
                                 backdrop = currentGlassOverlayBackdrop(),
                             )
                             GlassDropdownPreference(
-                                title = "错过触发时",
+                                title = stringResource(R.string.scheduled_editor_misfire_policy),
                                 items = misfireOptions.map { it.second },
                                 selectedIndex = misfireOptions.indexOfFirst { it.first == misfirePolicy }.coerceAtLeast(0),
                                 onSelectedIndexChange = { idx -> misfirePolicy = misfireOptions[idx].first },
                                 backdrop = currentGlassOverlayBackdrop(),
                             )
                             SwitchPreference(
-                                title = "夜间免打扰（23:00 – 07:30）",
-                                summary = "命中免打扰时段的周期触发将被跳过",
+                                title = stringResource(R.string.scheduled_editor_quiet_hours_title),
+                                summary = stringResource(R.string.scheduled_editor_quiet_hours_summary),
                                 checked = quietHoursEnabled,
                                 onCheckedChange = { quietHoursEnabled = it },
                             )
                             GlassDropdownPreference(
-                                title = "单次最长运行时间",
+                                title = stringResource(R.string.scheduled_editor_timeout),
                                 items = timeoutLabels,
                                 selectedIndex = timeoutChoices.indexOf(timeoutSeconds).coerceAtLeast(1),
                                 onSelectedIndexChange = { idx -> timeoutSeconds = timeoutChoices[idx] },
@@ -946,7 +963,15 @@ private fun WeekdaySelectorRow(
     onToggleDay: (Int) -> Unit,
     isCoui: Boolean,
 ) {
-    val labels = listOf(1 to "一", 2 to "二", 3 to "三", 4 to "四", 5 to "五", 6 to "六", 7 to "日")
+    val labels = listOf(
+        1 to stringResource(R.string.scheduled_weekday_narrow_mon),
+        2 to stringResource(R.string.scheduled_weekday_narrow_tue),
+        3 to stringResource(R.string.scheduled_weekday_narrow_wed),
+        4 to stringResource(R.string.scheduled_weekday_narrow_thu),
+        5 to stringResource(R.string.scheduled_weekday_narrow_fri),
+        6 to stringResource(R.string.scheduled_weekday_narrow_sat),
+        7 to stringResource(R.string.scheduled_weekday_narrow_sun),
+    )
     val accent = if (isCoui) CouiPageDefaults.themeColors().accent else MiuixTheme.colorScheme.primary
     val inactiveBg = if (isCoui) {
         if (CouiTheme.isDark) androidx.compose.ui.graphics.Color(0x1FFFFFFF) else androidx.compose.ui.graphics.Color(0x0F000000)

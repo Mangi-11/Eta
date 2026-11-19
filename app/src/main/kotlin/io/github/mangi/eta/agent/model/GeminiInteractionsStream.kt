@@ -1,9 +1,11 @@
 package io.github.mangi.eta.agent.model
 
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.agent.runtime.SearchSuggestionsBudget
 import io.github.mangi.eta.agent.runtime.SearchSuggestionsPayload
+import io.github.mangi.eta.core.AppStrings
 import java.io.InputStream
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -40,12 +42,16 @@ internal class GeminiInteractionsStream(
 
     fun read(stream: InputStream, controller: AgentRunController): JSONObject {
         readProviderSse(stream, controller, onEvent = ::accept)
-        return assistant ?: throw AgentModelFailure.incompleteStream("Gemini 响应提前结束，未收到完整终态。")
+        return assistant ?: throw AgentModelFailure.incompleteStream(
+            AppStrings.get(R.string.provider_err_gemini_incomplete, "Gemini 响应提前结束，未收到完整终态。"),
+        )
     }
 
     private fun accept(eventName: String, data: String): Boolean {
         if (data.trim() == "[DONE]") {
-            throw AgentModelFailure.incompleteStream("Gemini 响应缺少完成事件。")
+            throw AgentModelFailure.incompleteStream(
+                AppStrings.get(R.string.provider_err_gemini_missing_completed, "Gemini 响应缺少完成事件。"),
+            )
         }
         receivedChars += data.length
         if (data.length > MAX_EVENT_CHARS || receivedChars > MAX_STREAM_CHARS) malformed("GEMINI_STREAM_LIMIT")
@@ -73,7 +79,8 @@ internal class GeminiInteractionsStream(
                 return false
             }
             "error" -> throw AgentModelFailure.stream(
-                event.optJSONObject("error") ?: JSONObject(), "Gemini 流式响应失败。",
+                event.optJSONObject("error") ?: JSONObject(),
+                AppStrings.get(R.string.provider_err_gemini_stream_failed, "Gemini 流式响应失败。"),
             )
             // 新增事件可以忽略；已知步骤里的未知输出必须明确失败。
         }
@@ -215,7 +222,10 @@ internal class GeminiInteractionsStream(
         interaction.optJSONObject("usage")?.let(::mergeUsage)
         if (status == "failed" || status == "cancelled") {
             val errors = interaction.optJSONArray("errors")
-            throw AgentModelFailure.stream(errors?.optJSONObject(0) ?: JSONObject(), "Gemini 请求未成功完成。")
+            throw AgentModelFailure.stream(
+                errors?.optJSONObject(0) ?: JSONObject(),
+                AppStrings.get(R.string.provider_err_gemini_request_failed, "Gemini 请求未成功完成。"),
+            )
         }
         if (status !in setOf("completed", "requires_action", "incomplete", "budget_exceeded")) malformed()
         // 累计用量可能先于正文到达；终态统一发布，确保展示层已有对应的正文块。
@@ -223,19 +233,31 @@ internal class GeminiInteractionsStream(
         if (status == "incomplete" || status == "budget_exceeded") {
             // 明确的预算终态不能作为成功回答，也不能按网络中断重试或执行已生成的工具调用。
             emitSuggestions(JSONObject())
-            throw AgentModelFailure("MODEL_OUTPUT_LIMIT", false,
-                "Gemini 输出未完整生成，可能已达到输出或执行预算；请调整输出上限或思考档位后重试。")
+            throw AgentModelFailure(
+                "MODEL_OUTPUT_LIMIT",
+                false,
+                AppStrings.get(
+                    R.string.provider_err_gemini_output_limit,
+                    "Gemini 输出未完整生成，可能已达到输出或执行预算；请调整输出上限或思考档位后重试。",
+                ),
+            )
         }
         if (steps.values.any { !it.stopped }) {
-            throw AgentModelFailure.incompleteStream("Gemini 输出步骤未完整结束。")
+            throw AgentModelFailure.incompleteStream(
+                AppStrings.get(R.string.provider_err_gemini_step_incomplete, "Gemini 输出步骤未完整结束。"),
+            )
         }
         val calls = steps.values.filter { it.type == "function_call" }
         if (status == "requires_action" && calls.isEmpty()) malformed()
         if (calls.isNotEmpty() && status != "requires_action") {
-            throw AgentModelFailure.incompleteStream("Gemini 工具调用缺少可执行的完整终态。")
+            throw AgentModelFailure.incompleteStream(
+                AppStrings.get(R.string.provider_err_gemini_tool_call_incomplete, "Gemini 工具调用缺少可执行的完整终态。"),
+            )
         }
         if (searchCalls != searchResults) {
-            throw AgentModelFailure.incompleteStream("Gemini 搜索步骤未完整结束。")
+            throw AgentModelFailure.incompleteStream(
+                AppStrings.get(R.string.provider_err_gemini_search_incomplete, "Gemini 搜索步骤未完整结束。"),
+            )
         }
         val reason = when (status) {
             "requires_action" -> "tool_calls"
@@ -367,9 +389,18 @@ internal class GeminiInteractionsStream(
 
     private fun malformed(code: String = "GEMINI_STREAM_INVALID"): Nothing =
         throw AgentModelFailure(code, false, when (code) {
-            "GEMINI_UNSUPPORTED_OUTPUT" -> "Gemini 返回了当前不支持的输出类型。"
-            "GEMINI_SEARCH_SUGGESTIONS_LIMIT" -> "Gemini 搜索建议超过展示容量限制。"
-            else -> "Gemini 流式响应格式无效或超过容量限制。"
+            "GEMINI_UNSUPPORTED_OUTPUT" -> AppStrings.get(
+                R.string.provider_err_gemini_unsupported_output,
+                "Gemini 返回了当前不支持的输出类型。",
+            )
+            "GEMINI_SEARCH_SUGGESTIONS_LIMIT" -> AppStrings.get(
+                R.string.provider_err_gemini_search_suggestions_limit,
+                "Gemini 搜索建议超过展示容量限制。",
+            )
+            else -> AppStrings.get(
+                R.string.provider_err_gemini_stream_invalid,
+                "Gemini 流式响应格式无效或超过容量限制。",
+            )
         })
 
     private companion object {

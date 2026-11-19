@@ -1,0 +1,738 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AgentTraceFormatter: argument labels & actions -->
+    <string name="trace_arg_web_search">搜索网页</string>
+    <string name="trace_arg_run_command_android">执行命令 · Android</string>
+    <string name="trace_arg_write_file">写入文件</string>
+    <string name="trace_arg_read_file">读取文件</string>
+    <string name="trace_arg_list_directory">列出目录</string>
+    <string name="trace_arg_edit_file">精确编辑文件</string>
+    <string name="trace_arg_stat_file">查看文件信息</string>
+    <string name="trace_arg_glob_files">按路径查找文件</string>
+    <string name="trace_arg_grep_files">搜索文件内容</string>
+    <string name="trace_arg_inspect_app">检查应用</string>
+    <string name="trace_arg_input_text">输入文本</string>
+    <string name="trace_arg_append_text">追加文本</string>
+    <string name="trace_arg_replace_text">替换文本</string>
+    <string name="trace_arg_paste_text">粘贴文本</string>
+    <string name="trace_arg_clear_text">清空文本</string>
+    <string name="trace_arg_submit">提交</string>
+    <string name="trace_arg_get_clipboard">读取剪贴板</string>
+    <string name="trace_arg_search_apps">搜索应用</string>
+    <string name="trace_arg_launch_app">打开应用</string>
+    <string name="trace_arg_present_to_user">呈现到主屏</string>
+    <string name="trace_arg_get_current_context">读取时间与位置</string>
+    <string name="trace_arg_observe_screen">观察屏幕</string>
+    <string name="trace_arg_with_screenshot">含截图</string>
+    <string name="trace_arg_with_ui_tree">含界面树</string>
+    <string name="trace_arg_tap">点击屏幕</string>
+    <string name="trace_arg_long_press">长按屏幕</string>
+    <string name="trace_arg_tap_area">点击区域</string>
+    <string name="trace_arg_tap_element">点击元素</string>
+    <string name="trace_arg_long_press_element">长按元素</string>
+    <string name="trace_arg_swipe">滑动屏幕</string>
+    <string name="trace_arg_scroll">滚动屏幕</string>
+    <string name="trace_arg_scroll_element">滚动元素</string>
+    <string name="trace_arg_press_key">按键</string>
+    <string name="trace_arg_wait">等待</string>
+    <string name="trace_arg_wait_for_text">等待文本出现</string>
+    <string name="trace_arg_wait_for_package">等待应用就绪</string>
+    <string name="trace_arg_open_system_panel">打开系统面板</string>
+    <string name="trace_arg_read_image">查看图片</string>
+    <string name="trace_arg_edit_image">编辑图片</string>
+    <string name="trace_arg_generate_image">生成图片</string>
+    <string name="trace_arg_image_count">%1$s · %2$d 张</string>
+    <string name="trace_arg_open_uri">交给外部应用</string>
+    <string name="trace_arg_browser_action">浏览器操作</string>
+    <string name="trace_arg_fetch_url">读取网页</string>
+    <string name="trace_arg_fetch_continue">继续读取网页</string>
+    <string name="trace_arg_terminal_async">后台</string>
+    <string name="trace_arg_read_history">读取当前会话历史</string>
+    <string name="trace_arg_memory_fallback">记忆</string>
+    <string name="trace_arg_skills_list">查看技能列表</string>
+    <string name="trace_arg_skills_read">读取技能</string>
+    <string name="trace_arg_skills_read_resource">读取技能资源</string>
+    <string name="trace_arg_skills_list_curated">浏览精选技能</string>
+    <string name="trace_arg_skills_inspect_github">查看技能详情</string>
+    <string name="trace_arg_skills_install_from_github">安装技能</string>
+    <string name="trace_arg_search_notes">查询便签</string>
+    <string name="trace_arg_search_system_memories">查询系统记忆</string>
+    <string name="trace_arg_read_personal_item">读取检索详情</string>
+    <string name="trace_arg_summarize_bills">汇总账单</string>
+    <string name="trace_arg_preparing">准备执行</string>
+    <string name="trace_arg_subagent_save">保存 Subagent</string>
+    <string name="trace_arg_subagent_delete">删除 Subagent</string>
+    <string name="trace_arg_subagent_get">读取 Subagent</string>
+    <string name="trace_arg_subagent_list">查看 Subagent 列表</string>
+    <string name="trace_arg_subagent_manage">管理 Subagent</string>
+
+    <plurals name="trace_arg_char_count">
+        <item quantity="other">%1$d 字符</item>
+    </plurals>
+    <string name="trace_unit_seconds_text">%1$s 秒</string>
+    <string name="trace_unit_ms">%1$d 毫秒</string>
+    <string name="trace_redacted">&lt;已隐藏&gt;</string>
+
+    <!-- AgentTraceFormatter: device action labels -->
+    <string name="trace_act_set_alarm">设置闹钟</string>
+    <string name="trace_act_set_timer">设置计时器</string>
+    <string name="trace_act_device_status">查看设备状态</string>
+    <string name="trace_act_network_info">查看网络信息</string>
+    <string name="trace_act_top_memory_apps">查看内存占用排行</string>
+    <string name="trace_act_top_storage_apps">查看存储占用排行</string>
+    <string name="trace_act_media_control">控制媒体播放</string>
+    <string name="trace_act_set_volume">调整音量</string>
+    <string name="trace_act_get_setting">读取系统设置</string>
+    <string name="trace_act_wifi_credentials">读取 Wi-Fi 密码</string>
+    <string name="trace_act_recent_notifications">读取最近通知</string>
+    <string name="trace_act_search_notification_history">搜索通知历史</string>
+    <string name="trace_act_recent_app_activity">查看应用活动</string>
+    <string name="trace_act_app_usage_summary">查看应用使用统计</string>
+    <string name="trace_act_get_current_location">获取当前位置</string>
+    <string name="trace_act_get_device_environment">查看设备环境</string>
+    <string name="trace_act_list_alarms">查看闹钟列表</string>
+    <string name="trace_act_list_active_timers">查看计时器</string>
+    <string name="trace_act_search_clipboard_history">搜索剪贴板历史</string>
+    <string name="trace_act_get_health_summary">查看健康摘要</string>
+    <string name="trace_act_read_sms_code">读取短信验证码</string>
+    <string name="trace_act_get_logcat">读取系统日志</string>
+    <string name="trace_act_search_media">搜索媒体文件</string>
+    <string name="trace_act_search_audio">搜索音频</string>
+    <string name="trace_act_search_recordings">搜索录音</string>
+    <string name="trace_act_search_files">搜索文件</string>
+    <string name="trace_act_search_calendar_events">搜索日程</string>
+    <string name="trace_act_search_contacts">搜索联系人</string>
+    <string name="trace_act_search_call_history">搜索通话记录</string>
+    <string name="trace_act_search_messages">搜索短信</string>
+    <string name="trace_act_search_downloads">搜索下载内容</string>
+    <string name="trace_act_search_coloros_notes">搜索便签</string>
+    <string name="trace_act_search_coloros_recordings">搜索录音机</string>
+    <string name="trace_act_search_recording_summaries">搜索录音摘要</string>
+    <string name="trace_act_search_coloros_memories">搜索小布记忆</string>
+    <string name="trace_act_search_saved_places">搜索收藏地点</string>
+    <string name="trace_act_search_personal_orders">搜索个人订单</string>
+    <string name="trace_act_search_qq_chat_images">搜索 QQ 聊天图片</string>
+    <string name="trace_act_search_wechat_chat_images">搜索微信聊天图片</string>
+    <string name="trace_act_set_setting">修改系统设置</string>
+    <string name="trace_act_set_device_state">修改设备状态</string>
+    <string name="trace_act_app_state_control">管理应用状态</string>
+
+    <!-- AgentTraceFormatter: browser, directions, keys, terminal -->
+    <string name="trace_browser_act_navigate">打开网页</string>
+    <string name="trace_browser_act_get_readable">提取正文</string>
+    <string name="trace_browser_act_get_text">读取文本</string>
+    <string name="trace_browser_act_find_elements">查找元素</string>
+    <string name="trace_browser_act_click">点击网页</string>
+    <string name="trace_browser_act_type">输入内容</string>
+    <string name="trace_browser_act_scroll">滚动网页</string>
+    <string name="trace_browser_act_screenshot">网页截图</string>
+    <string name="trace_browser_act_get_page_info">查看网页信息</string>
+    <string name="trace_browser_act_go_back">网页后退</string>
+    <string name="trace_browser_act_go_forward">网页前进</string>
+    <string name="trace_browser_act_reload">刷新网页</string>
+    <string name="trace_browser_act_wait_for_selector">等待网页元素</string>
+
+    <string name="trace_browser_res_navigate">已打开</string>
+    <string name="trace_browser_res_get_readable">已提取正文</string>
+    <string name="trace_browser_res_get_text">已读取文本</string>
+    <string name="trace_browser_res_find_elements">已找到元素</string>
+    <string name="trace_browser_res_click">已点击网页</string>
+    <string name="trace_browser_res_type">已输入内容</string>
+    <string name="trace_browser_res_scroll">已滚动网页</string>
+    <string name="trace_browser_res_screenshot">已截图</string>
+    <string name="trace_browser_res_get_page_info">已读取页面信息</string>
+    <string name="trace_browser_res_go_back">已后退</string>
+    <string name="trace_browser_res_go_forward">已前进</string>
+    <string name="trace_browser_res_reload">已刷新</string>
+    <string name="trace_browser_res_wait_for_selector">已等到目标元素</string>
+
+    <string name="trace_browser_title">《%1$s》</string>
+    <string name="trace_browser_approx_chars">约 %1$s</string>
+    <plurals name="trace_browser_elements">
+        <item quantity="other">%1$d 个元素</item>
+    </plurals>
+
+    <string name="trace_dir_up">向上</string>
+    <string name="trace_dir_down">向下</string>
+    <string name="trace_dir_left">向左</string>
+    <string name="trace_dir_right">向右</string>
+
+    <string name="trace_key_back">返回</string>
+    <string name="trace_key_home">主页</string>
+    <string name="trace_key_recents">最近任务</string>
+    <string name="trace_key_notifications">通知栏</string>
+    <string name="trace_key_quick_settings">控制中心</string>
+    <string name="trace_key_power">电源</string>
+    <string name="trace_key_volume_up">音量加</string>
+    <string name="trace_key_volume_down">音量减</string>
+    <string name="trace_key_mute">静音</string>
+
+    <string name="trace_terminal_default">终端</string>
+    <string name="trace_terminal_job">异步命令</string>
+    <string name="trace_terminal_daemon">后台服务</string>
+    <string name="trace_terminal_job_start">启动命令</string>
+    <string name="trace_terminal_job_list">任务列表</string>
+    <string name="trace_terminal_job_read">读取输出</string>
+    <string name="trace_terminal_job_wait">等待完成</string>
+    <string name="trace_terminal_job_stop">停止命令</string>
+    <string name="trace_terminal_job_other">任务操作</string>
+    <string name="trace_terminal_daemon_start">启动服务</string>
+    <string name="trace_terminal_daemon_list">服务列表</string>
+    <string name="trace_terminal_daemon_logs">查看日志</string>
+    <string name="trace_terminal_daemon_stop">停止服务</string>
+    <string name="trace_terminal_daemon_other">服务操作</string>
+    <string name="trace_terminal_act_check_root">检测 Root 授权</string>
+    <string name="trace_terminal_act_open">创建会话</string>
+    <string name="trace_terminal_act_exec">执行命令</string>
+    <string name="trace_terminal_act_open_and_exec">单次执行</string>
+    <string name="trace_terminal_act_read_async">读取后台输出</string>
+    <string name="trace_terminal_act_close">关闭终端</string>
+    <string name="trace_terminal_act_daemon_start">启动守护任务</string>
+    <string name="trace_terminal_act_daemon_list">守护任务列表</string>
+    <string name="trace_terminal_act_daemon_logs">查看守护日志</string>
+    <string name="trace_terminal_act_daemon_stop">停止守护任务</string>
+    <string name="trace_terminal_act_other">终端操作</string>
+
+    <!-- AgentTraceFormatter: result summaries -->
+    <string name="trace_res_unconfirmed">操作已提交，效果未确认</string>
+    <string name="trace_res_browser_done">浏览器操作完成</string>
+    <plurals name="trace_res_images_generated">
+        <item quantity="other">已生成 %1$d 张图片</item>
+    </plurals>
+    <string name="trace_res_image_gen_done">图片生成完成</string>
+    <string name="trace_res_done">完成</string>
+    <string name="trace_res_failed">失败</string>
+    <string name="trace_res_saved">已保存</string>
+    <string name="trace_res_deleted">已删除</string>
+    <string name="trace_res_opened">已打开</string>
+    <string name="trace_res_presented">已呈现到主屏</string>
+    <string name="trace_res_history_read">已读取历史分页</string>
+    <string name="trace_res_screen_captured">已截取当前屏幕</string>
+    <string name="trace_res_ui_captured">已获取当前界面</string>
+    <string name="trace_res_tapped">已点击</string>
+    <string name="trace_res_long_pressed">已长按</string>
+    <string name="trace_res_swiped">已滑动</string>
+    <string name="trace_res_scrolled">已滚动</string>
+    <string name="trace_res_text_entered">已输入文本</string>
+    <string name="trace_res_text_cleared">已清空文本</string>
+    <string name="trace_res_key_pressed">已按键</string>
+    <string name="trace_res_wait_done">等待完成</string>
+    <string name="trace_res_text_appeared">已出现目标文本</string>
+    <string name="trace_res_app_ready">应用已就绪</string>
+    <string name="trace_res_app_inspected">已获取应用信息</string>
+    <string name="trace_res_clipboard_read">已读取剪贴板</string>
+    <string name="trace_res_clipboard_copied">已复制到剪贴板</string>
+    <string name="trace_res_web_search_failed">网页搜索失败</string>
+    <string name="trace_res_web_fetch_failed">网页读取失败</string>
+    <string name="trace_res_no_results">未找到相关结果</string>
+    <plurals name="trace_res_web_search_found">
+        <item quantity="other">找到 %1$d 条搜索结果</item>
+    </plurals>
+    <string name="trace_res_read_prefix">已读前 %1$s</string>
+    <string name="trace_res_read_amount">已读 %1$s</string>
+    <plurals name="trace_res_subagent_tool_calls">
+        <item quantity="other">完成 · %1$d 次工具调用</item>
+    </plurals>
+    <plurals name="trace_res_subagent_count">
+        <item quantity="other">%1$d 个 Subagent</item>
+    </plurals>
+    <plurals name="trace_res_skills_installed">
+        <item quantity="other">已安装 %1$d 个技能</item>
+    </plurals>
+    <string name="trace_res_available_next_turn">下一轮可用</string>
+    <plurals name="trace_res_skills_found">
+        <item quantity="other">找到 %1$d 个技能</item>
+    </plurals>
+    <plurals name="trace_res_skills_already_installed">
+        <item quantity="other">%1$d 个已安装</item>
+    </plurals>
+    <string name="trace_res_executed_unconfirmed">已执行，效果未确认</string>
+    <plurals name="trace_res_found_results">
+        <item quantity="other">找到 %1$d 条结果</item>
+    </plurals>
+    <string name="trace_res_no_matches">未找到匹配内容</string>
+    <plurals name="trace_res_found_matches">
+        <item quantity="other">找到 %1$d 处匹配</item>
+    </plurals>
+    <string name="trace_res_no_entries">暂无内容</string>
+    <plurals name="trace_res_fetched_entries">
+        <item quantity="other">已获取 %1$d 项内容</item>
+    </plurals>
+    <string name="trace_res_no_matching_apps">未找到匹配应用</string>
+    <plurals name="trace_res_found_apps">
+        <item quantity="other">找到 %1$d 个应用</item>
+    </plurals>
+    <plurals name="trace_res_search_apps_found">
+        <item quantity="other">已找到 %1$d 个应用</item>
+    </plurals>
+    <plurals name="trace_res_candidates">
+        <item quantity="other">%1$d 个候选</item>
+    </plurals>
+    <plurals name="trace_res_bytes_read">
+        <item quantity="other">已读 %1$d 字节</item>
+    </plurals>
+    <plurals name="trace_res_replacements">
+        <item quantity="other">已替换 %1$d 处</item>
+    </plurals>
+    <plurals name="trace_res_image_count">
+        <item quantity="other">%1$d 张图片</item>
+    </plurals>
+    <string name="trace_res_has_more">还有更多</string>
+    <string name="trace_res_partial_scope">采集范围有限</string>
+    <string name="trace_res_truncated">已截断</string>
+    <string name="trace_res_launch_unconfirmed">已请求打开，待确认</string>
+    <string name="trace_res_virtual_display">虚拟屏</string>
+    <string name="trace_res_terminal_timeout">失败 · 执行超时</string>
+    <string name="trace_res_terminal_done">执行完成</string>
+    <string name="trace_res_terminal_exit_code">失败 · 退出码 %1$d</string>
+    <string name="trace_list_separator">、</string>
+    <string name="trace_list_with_more">%1$s 等</string>
+    <string name="trace_char_count_large_unit">万字</string>
+    <string name="trace_char_count_thousands">%1$sk 字</string>
+    <string name="trace_char_count_ten_thousands">%1$s 万字</string>
+    <plurals name="trace_char_count">
+        <item quantity="other">%1$d 字</item>
+    </plurals>
+
+    <!-- AgentDeviceResultFormatter -->
+    <string name="trace_dev_env_read">已读取设备环境</string>
+    <string name="trace_dev_usage_read">已读取应用使用统计</string>
+    <string name="trace_dev_activity_read">已读取应用活动记录</string>
+    <string name="trace_dev_flashlight">手电筒</string>
+    <string name="trace_dev_hotspot">个人热点</string>
+    <string name="trace_dev_sound_mode">响铃模式</string>
+    <string name="trace_dev_dnd">勿扰模式</string>
+    <string name="trace_dev_brightness">亮度</string>
+    <string name="trace_dev_screen_timeout">自动息屏</string>
+    <string name="trace_dev_kv">%1$s：%2$s</string>
+    <string name="trace_dev_loc_perm">位置未授权</string>
+    <string name="trace_dev_loc_bg_perm">后台位置未授权</string>
+    <string name="trace_dev_loc_disabled">系统定位已关闭</string>
+    <string name="trace_dev_loc_none">暂无最近位置</string>
+    <string name="trace_dev_loc_unavailable">位置不可用</string>
+    <plurals name="trace_dev_age_seconds">
+        <item quantity="other">%1$d 秒前</item>
+    </plurals>
+    <plurals name="trace_dev_age_minutes">
+        <item quantity="other">%1$d 分钟前</item>
+    </plurals>
+    <plurals name="trace_dev_age_hours">
+        <item quantity="other">%1$d 小时前</item>
+    </plurals>
+    <plurals name="trace_dev_age_days">
+        <item quantity="other">%1$d 天前</item>
+    </plurals>
+    <string name="trace_dev_recent_location">最近位置：%1$s, %2$s</string>
+    <string name="trace_dev_recent_location_age">最近位置：%1$s, %2$s（%3$s）</string>
+    <string name="trace_dev_vol_media">媒体音量</string>
+    <string name="trace_dev_vol_alarm">闹钟音量</string>
+    <string name="trace_dev_vol_ring">铃声音量</string>
+    <string name="trace_dev_vol_notification">通知音量</string>
+    <string name="trace_dev_vol_call">通话音量</string>
+    <string name="trace_dev_vol_system">系统音量</string>
+    <string name="trace_dev_vol_level">%1$d 档</string>
+    <string name="trace_dev_unit_min">%1$s 分钟</string>
+    <string name="trace_dev_unit_sec">%1$s 秒</string>
+    <string name="trace_dev_app_kept_stopped">应用：保持停止</string>
+    <string name="trace_dev_app_kept_stopped_pkg">应用 %1$s：保持停止</string>
+    <string name="trace_dev_app_stopped">已停止应用</string>
+    <string name="trace_dev_app_stopped_pkg">已停止应用 %1$s</string>
+    <string name="trace_dev_app_not_stopped">应用：未停止</string>
+    <string name="trace_dev_app_not_stopped_pkg">应用 %1$s：未停止</string>
+    <string name="trace_dev_app_kept_frozen">应用：保持冻结</string>
+    <string name="trace_dev_app_kept_frozen_pkg">应用 %1$s：保持冻结</string>
+    <string name="trace_dev_app_frozen">已冻结应用</string>
+    <string name="trace_dev_app_frozen_pkg">已冻结应用 %1$s</string>
+    <string name="trace_dev_app_kept_enabled">应用：保持启用</string>
+    <string name="trace_dev_app_kept_enabled_pkg">应用 %1$s：保持启用</string>
+    <string name="trace_dev_app_unfrozen">已解冻应用</string>
+    <string name="trace_dev_app_unfrozen_pkg">已解冻应用 %1$s</string>
+    <string name="trace_dev_setting_unchanged">系统设置未变化</string>
+    <string name="trace_dev_setting_changed">系统设置已修改</string>
+    <string name="trace_dev_media_play">已发送播放指令</string>
+    <string name="trace_dev_media_pause">已发送暂停指令</string>
+    <string name="trace_dev_media_play_pause">已发送播放/暂停切换指令</string>
+    <string name="trace_dev_media_next">已发送下一首指令</string>
+    <string name="trace_dev_media_previous">已发送上一首指令</string>
+    <string name="trace_dev_media_stop">已发送停止播放指令</string>
+    <string name="trace_dev_net_cellular">移动网络</string>
+    <string name="trace_dev_net_ethernet">以太网</string>
+    <string name="trace_dev_net_generic">网络</string>
+    <string name="trace_dev_net_disconnected">网络：未连接</string>
+    <string name="trace_dev_net_connected">%1$s：已连接互联网</string>
+    <string name="trace_dev_net_unvalidated">%1$s：已连接，互联网未验证</string>
+    <string name="trace_dev_battery_charging">电量 %1$d%% · 正在充电</string>
+    <string name="trace_dev_battery_discharging">电量 %1$d%% · 未充电</string>
+    <string name="trace_dev_change_arrow">%1$s：%2$s → %3$s</string>
+    <string name="trace_dev_change_kept">%1$s：保持%2$s</string>
+    <string name="trace_dev_change_kept_num">%1$s：保持 %2$s</string>
+    <string name="trace_dev_change_bool_set">%1$s：已%2$s</string>
+    <string name="trace_dev_change_set">%1$s：已设为%2$s</string>
+    <string name="trace_dev_change_set_num">%1$s：已设为 %2$s</string>
+    <string name="trace_dev_state_on">开启</string>
+    <string name="trace_dev_state_off">关闭</string>
+    <string name="trace_dev_label_bluetooth">蓝牙</string>
+    <string name="trace_dev_label_mobile_data">移动数据</string>
+    <string name="trace_dev_label_airplane_mode">飞行模式</string>
+    <string name="trace_dev_label_location">定位</string>
+    <string name="trace_dev_label_battery_saver">省电模式</string>
+    <string name="trace_dev_label_auto_rotate">自动旋转</string>
+    <string name="trace_dev_label_auto_brightness">自动亮度</string>
+    <string name="trace_dev_label_dark_mode">深色模式</string>
+    <string name="trace_dev_label_night_light">护眼模式</string>
+    <string name="trace_dev_sound_silent">静音</string>
+    <string name="trace_dev_sound_vibrate">振动</string>
+    <string name="trace_dev_sound_normal">正常</string>
+    <string name="trace_dev_dnd_priority">优先事项</string>
+    <string name="trace_dev_dnd_silent">全部静音</string>
+    <string name="trace_dev_dnd_alarms">仅闹钟</string>
+
+    <!-- AgentFileResultFormatter -->
+    <string name="trace_file_dir_empty">目录为空</string>
+    <plurals name="trace_file_dir_listed">
+        <item quantity="other">已列出 %1$d 项内容</item>
+    </plurals>
+    <string name="trace_file_no_files">未找到匹配文件</string>
+    <plurals name="trace_file_found_files">
+        <item quantity="other">找到 %1$d 个文件</item>
+    </plurals>
+    <string name="trace_file_appended">已追加 %1$s</string>
+    <string name="trace_file_written">已写入 %1$s</string>
+    <string name="trace_file_line_not_reached_more">尚未到达目标行 · 可继续读取</string>
+    <string name="trace_file_line_not_reached_eof">未到达目标行 · 已到文件末尾</string>
+    <string name="trace_file_line_not_reached">尚未到达目标行</string>
+    <string name="trace_file_read">已读取 %1$s</string>
+    <string name="trace_file_kind_file_size">文件 · %1$s</string>
+    <string name="trace_file_kind_dir">目录</string>
+    <string name="trace_file_kind_symlink">符号链接</string>
+    <string name="trace_file_kind_other">其他文件类型</string>
+    <string name="trace_file_scan_limited">扫描范围有限</string>
+    <plurals name="trace_unit_bytes">
+        <item quantity="other">%1$d 字节</item>
+    </plurals>
+
+    <!-- AgentPersonalResultFormatter -->
+    <string name="trace_personal_arg_search_memory">检索记忆</string>
+    <string name="trace_personal_arg_read_memory">读取记忆</string>
+    <string name="trace_personal_arg_append_memory">追加记忆</string>
+    <string name="trace_personal_arg_clear_memory">清空记忆</string>
+    <string name="trace_personal_arg_update_memory">更新记忆</string>
+    <string name="trace_personal_arg_search_story_memory">检索剧情记忆</string>
+    <string name="trace_personal_arg_read_story_memory">读取剧情记忆</string>
+    <string name="trace_personal_arg_append_story_memory">追加剧情记忆</string>
+    <string name="trace_personal_arg_clear_story_memory">清空剧情记忆</string>
+    <string name="trace_personal_arg_update_story_memory">更新剧情记忆</string>
+    <string name="trace_personal_sms_code_read">已读取验证码</string>
+    <string name="trace_personal_sms_code_empty">未收到最新验证码</string>
+    <string name="trace_personal_item_read">已读取详情</string>
+    <string name="trace_personal_bills_summarized">已汇总账单</string>
+    <plurals name="trace_personal_memory_found">
+        <item quantity="other">找到 %1$d 条相关记忆</item>
+    </plurals>
+    <string name="trace_personal_memory_empty">未找到相关记忆</string>
+    <string name="trace_personal_memory_read_prefix">已读取前段记忆</string>
+    <string name="trace_personal_memory_read">已读取记忆</string>
+    <plurals name="trace_personal_story_found">
+        <item quantity="other">找到 %1$d 条相关剧情</item>
+    </plurals>
+    <string name="trace_personal_story_empty">未找到相关剧情</string>
+    <string name="trace_personal_story_read_prefix">已读取前段剧情记忆</string>
+    <string name="trace_personal_story_read">已读取剧情记忆</string>
+    <string name="trace_personal_memory_cleared">已清空记忆</string>
+    <string name="trace_personal_memory_saved">已保存记忆</string>
+    <string name="trace_personal_memory_updated">已更新记忆</string>
+    <string name="trace_personal_story_cleared">已清空剧情记忆</string>
+    <string name="trace_personal_story_saved">已保存剧情记忆</string>
+    <string name="trace_personal_story_updated">已更新剧情记忆</string>
+
+    <plurals name="trace_personal_found_system_memories">
+        <item quantity="other">找到 %1$d 条系统记忆</item>
+    </plurals>
+    <string name="trace_personal_empty_system_memories">未找到相关系统记忆</string>
+    <plurals name="trace_personal_found_notes">
+        <item quantity="other">找到 %1$d 条便签</item>
+    </plurals>
+    <string name="trace_personal_empty_notes">未找到相关便签</string>
+    <plurals name="trace_personal_found_calendar_events">
+        <item quantity="other">找到 %1$d 个日程</item>
+    </plurals>
+    <string name="trace_personal_empty_calendar_events">未找到相关日程</string>
+    <plurals name="trace_personal_found_contacts">
+        <item quantity="other">找到 %1$d 位联系人</item>
+    </plurals>
+    <string name="trace_personal_empty_contacts">未找到匹配联系人</string>
+    <plurals name="trace_personal_found_messages">
+        <item quantity="other">找到 %1$d 条短信</item>
+    </plurals>
+    <string name="trace_personal_empty_messages">未找到相关短信</string>
+    <plurals name="trace_personal_found_call_history">
+        <item quantity="other">找到 %1$d 条通话记录</item>
+    </plurals>
+    <string name="trace_personal_empty_call_history">未找到通话记录</string>
+    <plurals name="trace_personal_found_saved_places">
+        <item quantity="other">找到 %1$d 个地点</item>
+    </plurals>
+    <string name="trace_personal_empty_saved_places">未找到相关地点</string>
+    <plurals name="trace_personal_found_personal_orders">
+        <item quantity="other">找到 %1$d 个订单</item>
+    </plurals>
+    <string name="trace_personal_empty_personal_orders">未找到相关订单</string>
+    <plurals name="trace_personal_found_bills">
+        <item quantity="other">找到 %1$d 笔账单</item>
+    </plurals>
+    <string name="trace_personal_empty_bills">未找到账单记录</string>
+    <plurals name="trace_personal_found_todos">
+        <item quantity="other">找到 %1$d 条待办</item>
+    </plurals>
+    <string name="trace_personal_empty_todos">未找到待办</string>
+    <plurals name="trace_personal_found_flights">
+        <item quantity="other">找到 %1$d 趟航班</item>
+    </plurals>
+    <string name="trace_personal_empty_flights">未找到航班行程</string>
+    <plurals name="trace_personal_found_hotels">
+        <item quantity="other">找到 %1$d 个酒店预订</item>
+    </plurals>
+    <string name="trace_personal_empty_hotels">未找到预订记录</string>
+    <plurals name="trace_personal_found_trains">
+        <item quantity="other">找到 %1$d 趟火车</item>
+    </plurals>
+    <string name="trace_personal_empty_trains">未找到火车行程</string>
+    <plurals name="trace_personal_found_daily_events">
+        <item quantity="other">找到 %1$d 个生活事件</item>
+    </plurals>
+    <string name="trace_personal_empty_daily_events">未找到生活事件</string>
+    <plurals name="trace_personal_found_memory_collections">
+        <item quantity="other">找到 %1$d 个记忆合集</item>
+    </plurals>
+    <string name="trace_personal_empty_memory_collections">未找到记忆合集</string>
+    <plurals name="trace_personal_found_recordings">
+        <item quantity="other">找到 %1$d 条录音</item>
+    </plurals>
+    <string name="trace_personal_empty_recordings">未找到录音</string>
+    <plurals name="trace_personal_found_recording_summaries">
+        <item quantity="other">找到 %1$d 条录音摘要</item>
+    </plurals>
+    <string name="trace_personal_empty_recording_summaries">未找到录音摘要</string>
+    <plurals name="trace_personal_found_notifications">
+        <item quantity="other">找到 %1$d 条通知</item>
+    </plurals>
+    <string name="trace_personal_empty_notifications">未找到通知</string>
+    <plurals name="trace_personal_found_clipboard">
+        <item quantity="other">找到 %1$d 条剪贴板记录</item>
+    </plurals>
+    <string name="trace_personal_empty_clipboard">未找到剪贴板记录</string>
+    <plurals name="trace_personal_found_downloads">
+        <item quantity="other">找到 %1$d 个下载记录</item>
+    </plurals>
+    <string name="trace_personal_empty_downloads">未找到下载记录</string>
+    <plurals name="trace_personal_found_media">
+        <item quantity="other">找到 %1$d 个媒体文件</item>
+    </plurals>
+    <string name="trace_personal_empty_media">未找到相关媒体文件</string>
+    <plurals name="trace_personal_found_audio">
+        <item quantity="other">找到 %1$d 个音频文件</item>
+    </plurals>
+    <string name="trace_personal_empty_audio">未找到相关音频文件</string>
+    <plurals name="trace_personal_found_files">
+        <item quantity="other">找到 %1$d 个文件</item>
+    </plurals>
+    <string name="trace_personal_empty_files">未找到相关文件</string>
+    <plurals name="trace_personal_found_chat_images">
+        <item quantity="other">找到 %1$d 张聊天图片</item>
+    </plurals>
+    <string name="trace_personal_empty_chat_images">未找到聊天图片</string>
+
+    <!-- AgentPhoneResultFormatter -->
+    <string name="trace_phone_note_read">已读取便签</string>
+    <string name="trace_phone_event_read">已读取日程</string>
+    <string name="trace_phone_alarm_submitted">已提交闹钟请求</string>
+    <string name="trace_phone_timer_submitted">已提交计时请求</string>
+    <string name="trace_phone_alarm_created">已创建闹钟</string>
+    <string name="trace_phone_timer_set">已设置计时器</string>
+    <string name="trace_phone_alarm_deleted">已删除闹钟</string>
+    <plurals name="trace_phone_events_created">
+        <item quantity="other">已创建 %1$d 个日程</item>
+    </plurals>
+    <string name="trace_phone_event_created">已创建日程</string>
+    <string name="trace_phone_event_deleted">已删除日程</string>
+    <string name="trace_phone_note_created">已创建便签</string>
+    <string name="trace_phone_note_recycled">便签已移至回收站</string>
+    <string name="trace_phone_calendars_empty">未找到可用日历</string>
+    <plurals name="trace_phone_calendars_found">
+        <item quantity="other">找到 %1$d 个可用日历</item>
+    </plurals>
+    <string name="trace_phone_alarms_empty">暂无闹钟</string>
+    <plurals name="trace_phone_alarms_found">
+        <item quantity="other">找到 %1$d 个闹钟</item>
+    </plurals>
+    <string name="trace_phone_timers_empty">暂无活跃计时器</string>
+    <plurals name="trace_phone_timers_found">
+        <item quantity="other">找到 %1$d 个计时器</item>
+    </plurals>
+    <plurals name="trace_phone_dur_hours">
+        <item quantity="other">%1$d 小时</item>
+    </plurals>
+    <plurals name="trace_phone_dur_minutes">
+        <item quantity="other">%1$d 分钟</item>
+    </plurals>
+    <plurals name="trace_phone_dur_seconds">
+        <item quantity="other">%1$d 秒</item>
+    </plurals>
+    <string name="trace_phone_alarm_unchanged">闹钟时间未变化 · %1$s</string>
+    <string name="trace_phone_alarm_changed">闹钟时间：%1$s → %2$s</string>
+    <string name="trace_phone_alarm_updated">已更新闹钟时间</string>
+    <string name="trace_phone_alarm_disabled_suffix">未启用</string>
+    <string name="trace_phone_alarm_kept_on">闹钟保持开启</string>
+    <string name="trace_phone_alarm_kept_off">闹钟保持关闭</string>
+    <string name="trace_phone_alarm_turned_on">闹钟已开启</string>
+    <string name="trace_phone_alarm_turned_off">闹钟已关闭</string>
+    <string name="trace_phone_event_updated">已更新日程</string>
+    <string name="trace_phone_event_unchanged">日程未变化</string>
+    <string name="trace_phone_field_title">标题</string>
+    <string name="trace_phone_field_time">时间</string>
+    <string name="trace_phone_field_location">地点</string>
+    <string name="trace_phone_field_description">说明</string>
+    <string name="trace_phone_field_reminders">提醒</string>
+
+    <!-- AgentPhoneToolCatalog & PersonalSearchTools -->
+    <string name="tool_cat_get_flashlight_title">手电筒状态</string>
+    <string name="tool_cat_get_flashlight_desc">查询手电筒实际状态及是否被相机占用。</string>
+    <string name="tool_cat_set_flashlight_title">设置手电筒</string>
+    <string name="tool_cat_set_flashlight_desc">开启或关闭手电筒并通过系统回调验证；已处于目标状态时不重复切换。</string>
+    <string name="tool_cat_get_device_state_title">查询系统开关</string>
+    <string name="tool_cat_get_device_state_desc">查询指定系统开关，不用 GUI。</string>
+    <string name="tool_cat_get_display_state_title">显示状态</string>
+    <string name="tool_cat_get_display_state_desc">查询亮度、自动亮度、旋转和息屏时间。</string>
+    <string name="tool_cat_set_brightness_title">设置亮度</string>
+    <string name="tool_cat_set_brightness_desc">按系统亮度滑块百分比设置并读回验证；不支持可靠百分比接口时明确失败。</string>
+    <string name="tool_cat_set_screen_timeout_title">设置息屏时间</string>
+    <string name="tool_cat_set_screen_timeout_desc">设置无操作后的自动息屏秒数，并读回验证。</string>
+    <string name="tool_cat_get_sound_state_title">声音状态</string>
+    <string name="tool_cat_get_sound_state_desc">读取各类音量、响铃及勿扰状态。</string>
+    <string name="tool_cat_set_sound_mode_title">设置响铃模式</string>
+    <string name="tool_cat_set_sound_mode_desc">设置正常、静音或振动模式并验证；普通身份可能需要勿扰访问权限。</string>
+    <string name="tool_cat_set_do_not_disturb_title">设置勿扰模式</string>
+    <string name="tool_cat_set_do_not_disturb_desc">直接设置勿扰策略并读回验证。</string>
+    <string name="tool_cat_get_hotspot_title">热点状态</string>
+    <string name="tool_cat_get_hotspot_desc">查询互联网共享热点是否开启；需要系统提供兼容接口。</string>
+    <string name="tool_cat_set_hotspot_title">设置个人热点</string>
+    <string name="tool_cat_set_hotspot_desc">使用现有热点配置开启或关闭网络共享，不更改名称和密码。</string>
+    <string name="tool_cat_list_calendars_title">可用日历</string>
+    <string name="tool_cat_list_calendars_desc">列出当前用户可写的日历 ID 和名称；创建时必须选择真实日历，不能猜 calendar_id。</string>
+    <string name="tool_cat_read_calendar_event_title">日程详情</string>
+    <string name="tool_cat_read_calendar_event_desc">按原始 event_id 读取实时事件与提醒；不得使用 DMP 文档 ID。</string>
+    <string name="tool_cat_create_calendar_event_title">创建日程</string>
+    <string name="tool_cat_create_calendar_event_desc">直接创建日程和提醒，事务完成后读回确认。一次性日程使用起止时间；全天事件使用 UTC 零点和排他的结束零点。超时后先查询，不要重复创建。</string>
+    <string name="tool_cat_create_calendar_events_title">批量创建日程</string>
+    <string name="tool_cat_create_calendar_events_desc">一次创建同一日历中的多条日程和提醒；先校验全部参数，再在同一事务中写入并逐条核对。最多 30 条，结果未确认时先查询，不要重复创建。</string>
+    <string name="tool_cat_update_calendar_event_title">修改日程</string>
+    <string name="tool_cat_update_calendar_event_desc">按原始 event_id 修改日程字段和提醒，并读回确认；修改时间须同时给出起止时间。当前不修改重复事件。</string>
+    <string name="tool_cat_delete_calendar_event_title">删除日程</string>
+    <string name="tool_cat_delete_calendar_event_desc">删除精确原始 event_id；重复事件必须明确 scope=series，不能把索引 ID 当作事件 ID。</string>
+    <string name="tool_cat_update_alarm_time_title">修改闹钟时间</string>
+    <string name="tool_cat_update_alarm_time_desc">按 alarm_id 修改小时和分钟，保留原启用状态并验证。</string>
+    <string name="tool_cat_set_alarm_enabled_title">闹钟开关</string>
+    <string name="tool_cat_set_alarm_enabled_desc">启用或关闭精确 alarm_id，读回验证；不按模糊时间匹配多个闹钟。</string>
+    <string name="tool_cat_delete_alarm_title">删除闹钟</string>
+    <string name="tool_cat_delete_alarm_desc">删除精确 alarm_id 后核对；不得使用 DMP 索引 ID。</string>
+    <string name="tool_cat_create_note_title">创建便签</string>
+    <string name="tool_cat_create_note_desc">直接创建系统便签，解析实际结果 UUID 并读回；返回未确认时不能重复创建。</string>
+    <string name="tool_cat_read_note_title">便签详情</string>
+    <string name="tool_cat_read_note_desc">按原始 note_id UUID 读取便签正文；不能使用 DMP 文档 ID。</string>
+    <string name="tool_cat_delete_note_title">回收便签</string>
+    <string name="tool_cat_delete_note_desc">按原始 note_id UUID 将便签移入回收站并验证，不是永久删除。</string>
+
+    <string name="tool_cat_search_bills_title">查询账单</string>
+    <string name="tool_cat_search_bills_desc">按商户、内容和时间查找账单记录。</string>
+    <string name="tool_cat_search_todos_title">查询待办线索</string>
+    <string name="tool_cat_search_todos_desc">查询系统从个人信息中提取的待办线索，未识别时间的记录不能按时间命中。</string>
+    <string name="tool_cat_search_calendar_todos_title">查询日历待办</string>
+    <string name="tool_cat_search_calendar_todos_desc">查询日历中的待办及其计划时间。</string>
+    <string name="tool_cat_search_memory_collections_title">查询记忆合集</string>
+    <string name="tool_cat_search_memory_collections_desc">查找已保存的记忆合集，不支持业务时间筛选。</string>
+    <string name="tool_cat_search_daily_events_title">查询生活事件</string>
+    <string name="tool_cat_search_daily_events_desc">查找系统记录或推断的生活事件，不把推断当成确认事实。</string>
+    <string name="tool_cat_search_flights_title">查询航班行程</string>
+    <string name="tool_cat_search_flights_desc">按航班、机场和计划起飞时间检索行程。</string>
+    <string name="tool_cat_search_hotels_title">查询酒店预订</string>
+    <string name="tool_cat_search_hotels_desc">按酒店、地址、订单和入住时间检索预订。</string>
+    <string name="tool_cat_search_trains_title">查询火车行程</string>
+    <string name="tool_cat_search_trains_desc">按车次、车站和出发时间检索行程。</string>
+
+    <!-- AgentLoop errors -->
+    <string name="loop_err_reply_rewrite_tool_call">改写回复时模型请求了工具，已停止；原回复未改变。</string>
+    <string name="loop_err_reply_rewrite_incomplete">模型未返回完整的改写回复；原回复未改变。</string>
+    <string name="loop_err_empty_response">模型接口第 %1$d 轮返回为空</string>
+    <string name="loop_err_empty_response_reason">模型接口第 %1$d 轮返回为空：%2$s</string>
+    <string name="loop_err_content_filter">模型服务商拦截了本次回复，未完成的内容已丢弃。请修改或删除触发拦截的请求后重试，或换用其他模型。</string>
+    <string name="loop_err_content_filter_detail">模型服务商拦截了本次回复，未完成的内容已丢弃。服务商说明：%1$s请修改或删除触发拦截的请求后重试，或换用其他模型。</string>
+    <string name="loop_err_output_limit">模型输出额度已耗尽但未生成正文，请检查输出上限或降低思考强度。</string>
+    <string name="loop_err_empty_model_response">模型未返回正文或工具调用，请检查服务商状态。</string>
+
+    <!-- AgentModelClient & AgentModelFailure errors -->
+    <string name="model_err_base_url_required">请先配置 API 地址</string>
+    <string name="model_err_api_key_required">请先配置 API Key</string>
+    <string name="model_err_oauth_provider_required">账号登录缺少服务商标识，请重新选择服务商</string>
+    <string name="model_err_oauth_api_key_forbidden">账号登录配置不能包含 API Key</string>
+    <string name="model_err_auth_mode_unsupported">不支持的服务商认证方式</string>
+    <string name="model_err_model_required">请先配置模型名</string>
+    <string name="model_err_mandatory_thinking">当前模型强制启用思考，不能选择 Off 或禁用思考权限</string>
+    <string name="model_err_extra_body_invalid">额外请求体 JSON 无效：%1$s</string>
+
+    <string name="model_err_context_overflow">模型上下文超过容量限制。</string>
+    <string name="model_err_http_400_details">模型请求参数无效（HTTP 400；%1$s），请检查模型配置。</string>
+    <string name="model_err_http_quota">模型接口额度或计费受限（HTTP %1$d），请检查服务商账户。</string>
+    <string name="model_err_http_400">模型请求参数无效（HTTP 400），请检查模型配置。</string>
+    <string name="model_err_http_401">模型接口认证失败（HTTP 401），请检查 API Key。</string>
+    <string name="model_err_http_403">模型接口拒绝访问（HTTP 403），请检查账户与模型权限。</string>
+    <string name="model_err_http_404">模型接口或模型不存在（HTTP 404），请检查接口地址与模型名称。</string>
+    <string name="model_err_http_429">模型接口暂时限流（HTTP 429）。</string>
+    <string name="model_err_http_other">模型接口返回 HTTP %1$d</string>
+    <string name="model_err_timeout">模型请求等待超时（连接或写入超时，或读取响应等待超过 %1$d 分钟）。</string>
+    <string name="model_err_connection_failed">模型连接中断或暂时无法建立，请检查网络与服务商状态。</string>
+    <string name="model_err_auth_failed">模型接口认证失败，请检查 API Key。</string>
+
+    <!-- AgentContextCompactor & AgentContextSummarizer errors -->
+    <string name="compactor_err_no_complete_batch">没有可安全压缩的完整历史批次。</string>
+    <string name="compactor_err_no_history">没有可压缩的历史内容。</string>
+    <string name="compactor_err_no_reduction">摘要未能缩小上下文，原始上下文已保留。</string>
+    <string name="summarizer_err_invalid_summary">模型未返回完整且有界的摘要，原始上下文已保留。</string>
+    <string name="summarizer_err_tool_call">模型在生成摘要时尝试调用工具，原始上下文已保留。</string>
+
+    <!-- AgentRuntime errors & details -->
+    <string name="runtime_err_stopped">已停止</string>
+    <string name="runtime_err_service_stopped">Agent Runtime 服务已停止</string>
+    <string name="runtime_err_missing_body">Agent Runtime 请求缺少消息体</string>
+    <string name="runtime_err_invalid_format">Agent Runtime 请求格式无效</string>
+    <string name="runtime_err_missing_input">Agent Runtime 请求缺少 runId 或用户输入</string>
+    <string name="runtime_err_full_result_unavailable">完整运行结果不可用</string>
+    <string name="runtime_err_read_image_failed">Agent Runtime 无法读取图片</string>
+    <string name="runtime_err_no_model_configured">请先在 Eta 中配置可用的模型</string>
+    <string name="runtime_err_prepare_failed">Agent Runtime 无法准备请求</string>
+    <string name="runtime_err_finished_recover">任务已结束，请恢复完整结果</string>
+    <string name="runtime_err_fgs_start_failed">无法启动后台执行服务，请返回 Eta 后重试</string>
+    <string name="runtime_err_result_transfer_failed">完整结果传输失败，已保存的历史未删除。请重新打开会话恢复。</string>
+    <string name="runtime_detail_gui_paused">手机操作已暂停</string>
+    <string name="runtime_err_rewrite_roleplay_only">只有角色会话可以改写角色回复</string>
+    <string name="runtime_err_rewrite_target_missing">缺少有效的角色回复目标</string>
+    <string name="runtime_err_rewrite_target_not_found">角色回复目标不存在或不属于当前会话</string>
+    <string name="runtime_err_bind_failed">Agent Runtime 服务绑定失败</string>
+    <string name="runtime_err_disconnected">Agent Runtime 服务连接已断开</string>
+    <string name="runtime_err_no_result">Agent Runtime 未返回结果</string>
+    <string name="runtime_err_wait_interrupted">Agent Runtime 等待被中断</string>
+    <string name="runtime_err_send_failed">Agent Runtime 请求发送失败（%1$s）</string>
+    <string name="runtime_err_image_max_count">一次最多支持 %1$d 张图片</string>
+    <string name="runtime_err_image_cache_create">无法创建图片传输缓存</string>
+    <string name="runtime_err_image_remote_url_long">远程图片链接过长</string>
+    <string name="runtime_err_image_single_too_large">单张图片不能超过 %1$d MiB</string>
+    <string name="runtime_err_image_empty">图片内容为空</string>
+    <string name="runtime_err_image_total_too_large">图片总大小不能超过 %1$d MiB</string>
+    <string name="runtime_err_image_read_outgoing">无法读取待发送图片</string>
+    <string name="runtime_err_image_fd_invalid_size">图片文件描述符无有效大小</string>
+    <string name="runtime_err_image_incomplete">图片传输不完整</string>
+    <string name="runtime_err_image_inline_too_large">内联图片数据过大</string>
+    <string name="runtime_err_image_legacy_unreadable">无法读取旧协议中的图片</string>
+    <string name="runtime_err_image_open_local">无法打开本地图片</string>
+    <string name="runtime_err_image_ref_unreadable">图片引用不可读</string>
+    <string name="runtime_err_image_inline_unsupported">不支持的内联图片格式</string>
+</resources>

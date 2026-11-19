@@ -1,8 +1,10 @@
 package io.github.mangi.eta.ui.app
 
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
 import io.github.mangi.eta.agent.runtime.AgentUiHandoffPayload
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.ui.model.AgentChatHomeUiState
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
@@ -56,7 +58,11 @@ internal object AgentPendingResultRecovery {
                     runId = runId,
                     messages = state.messages,
                     ok = result.ok,
-                    detail = if (result.ok) "上下文压缩完成" else result.error ?: "上下文压缩失败",
+                    detail = if (result.ok) {
+                        AppStrings.get(R.string.ui_misc_compaction_completed, "上下文压缩完成")
+                    } else {
+                        result.error ?: AppStrings.get(R.string.ui_misc_compaction_failed, "上下文压缩失败")
+                    },
                 )), false)
         }
 

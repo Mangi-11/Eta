@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+  <string name="character_library_title">Characters</string>
+  <string name="character_library_search_hint">Search by name or tag</string>
+  <string name="character_library_empty_title">No characters yet</string>
+  <string name="character_library_empty_summary">Create a character or import a PNG or JSON character card to start chatting</string>
+  <string name="character_library_no_results_title">No matching characters</string>
+  <string name="character_library_no_results_summary">Try another keyword — search matches names and tags</string>
+  <string name="character_library_section_mine">Mine</string>
+
+  <string name="character_action_create">Create character</string>
+  <string name="character_action_new">New character</string>
+  <string name="character_action_edit">Edit character</string>
+  <string name="character_action_save">Save character</string>
+  <string name="character_action_import_card">Import character card</string>
+  <string name="character_action_restore_default">Restore default character</string>
+  <string name="character_action_change_avatar">Change avatar</string>
+  <string name="character_action_favorite">Favorite</string>
+  <string name="character_action_unfavorite">Remove from favorites</string>
+  <string name="character_action_start_chat">Start chat</string>
+  <string name="character_action_duplicate">Duplicate character</string>
+  <string name="character_action_export_png">Export PNG character card</string>
+  <string name="character_action_export_json">Export JSON character card</string>
+  <string name="character_action_delete">Delete character</string>
+
+  <string name="character_default_user_name">User</string>
+  <string name="character_draft_default_name">New character</string>
+  <string name="character_export_default_basename">character</string>
+  <string name="character_duplicate_name">%1$s Copy</string>
+
+  <string name="character_detail_loading">Loading character…</string>
+  <string name="character_detail_load_failed">Could not load character. Go back and try again</string>
+  <string name="character_detail_creator_byline">By %1$s</string>
+  <string name="character_detail_use_persona">Use my persona</string>
+  <string name="character_detail_edit_persona">Edit my persona</string>
+  <string name="character_detail_section_manage">Manage</string>
+  <string name="character_detail_memory_summary">Story and relationship notes shared across chats with this character</string>
+  <string name="character_detail_compatibility_title">Compatibility notes</string>
+  <plurals name="character_detail_compatibility_summary">
+    <item quantity="one">%1$d item handled within compatibility scope</item>
+    <item quantity="other">%1$d items handled within compatibility scope</item>
+  </plurals>
+  <string name="character_delete_confirm_message">“%1$s” will be removed from the library along with its image and story memory. Existing conversations will be kept. This cannot be undone.</string>
+
+  <string name="character_section_description">Character profile</string>
+  <string name="character_section_greetings">Greetings</string>
+  <string name="character_section_prompts">Prompts</string>
+  <string name="character_section_credits">Credits</string>
+
+  <string name="character_greeting_default">Default greeting</string>
+  <string name="character_greeting_numbered">Greeting %1$d</string>
+  <string name="character_greeting_selected">Selected</string>
+  <string name="character_greeting_empty">No preset greeting — you start the conversation</string>
+  <string name="character_greeting_read_full">Read full text</string>
+  <string name="character_greeting_remove">Remove greeting</string>
+  <string name="character_greeting_add_alternate">Add alternate greeting</string>
+
+  <string name="character_editor_loading">Loading…</string>
+  <string name="character_editor_load_failed">Could not load character. Go back and try again</string>
+  <string name="character_editor_processing">Processing…</string>
+  <string name="character_editor_advanced_title">Advanced settings</string>
+  <string name="character_editor_advanced_summary">Personality, scenario, example dialogue, prompts, credits, and worldbook</string>
+  <string name="character_editor_compatibility_note">Third-party scripts and extension UIs in character cards are not executed, and their data is preserved when exporting.</string>
+
+  <string name="character_field_name">Name</string>
+  <string name="character_field_description_label">Appearance, personality, and background</string>
+  <string name="character_field_personality">Personality and speaking style</string>
+  <string name="character_field_scenario">Scenario</string>
+  <string name="character_field_example_messages">Example dialogue</string>
+  <string name="character_field_system_prompt">System prompt</string>
+  <string name="character_field_post_history_instructions">Post-history instructions</string>
+  <string name="character_field_creator_notes">Creator notes</string>
+  <string name="character_field_tags">Tags (one per line)</string>
+  <string name="character_field_creator">Creator</string>
+  <string name="character_field_version">Character version</string>
+
+  <string name="character_worldbook_section">Worldbook</string>
+  <string name="character_worldbook_embedded">Embedded worldbook</string>
+  <plurals name="character_worldbook_entry_count">
+    <item quantity="one">%1$d entry</item>
+    <item quantity="other">%1$d entries</item>
+  </plurals>
+  <string name="character_worldbook_collapse">Collapse</string>
+  <string name="character_worldbook_expand_edit">Expand to edit</string>
+  <string name="character_worldbook_summary_format">%1$s · %2$s</string>
+  <string name="character_worldbook_name_label">Worldbook name</string>
+  <string name="character_worldbook_scan_depth_label">Recent messages to scan (leave blank for default)</string>
+  <string name="character_worldbook_token_budget_label">Token budget (leave blank for automatic)</string>
+  <string name="character_worldbook_recursive_title">Recursive scanning</string>
+  <string name="character_worldbook_recursive_summary">Scan matched entries to trigger additional related entries</string>
+  <string name="character_worldbook_entries_section">Entries</string>
+  <string name="character_worldbook_entry_default_title">Entry %1$d</string>
+  <string name="character_worldbook_entry_disabled">Disabled</string>
+  <string name="character_worldbook_entry_skipped">Skipped: %1$s</string>
+  <string name="character_worldbook_entry_always_in_context">Always in context</string>
+  <string name="character_worldbook_entry_no_keys">No trigger keywords set</string>
+  <string name="character_worldbook_add_entry">Add entry</string>
+  <string name="character_worldbook_entry_unsupported_notice">This entry is currently not used for matching: %1$s</string>
+  <string name="character_worldbook_field_content">Content</string>
+  <string name="character_worldbook_entry_title_label">Entry title</string>
+  <string name="character_worldbook_group_trigger">Trigger</string>
+  <string name="character_worldbook_primary_keys_label">Primary keywords (one per line)</string>
+  <string name="character_worldbook_secondary_keys_label">Secondary keywords (one per line)</string>
+  <string name="character_worldbook_selective_title">Require secondary keywords</string>
+  <string name="character_worldbook_group_insertion">Insertion</string>
+  <string name="character_worldbook_constant_title">Always active</string>
+  <string name="character_worldbook_before_char_title">Place before character definition</string>
+  <string name="character_worldbook_before_char_summary">When off, placed after character definition</string>
+  <string name="character_worldbook_insertion_order_label">Insertion order</string>
+  <string name="character_worldbook_remove_entry">Remove entry</string>
+  <string name="character_list_separator_semicolon">"; "</string>
+  <string name="character_list_separator_comma">", "</string>
+
+  <string name="character_persona_title">My persona</string>
+  <string name="character_persona_entry_summary">How characters address you and your role in the story</string>
+  <string name="character_persona_name_unset">Name not set</string>
+  <string name="character_persona_description_hint">Set your identity in the story. You can choose whether to use it when starting a chat; existing stories keep the persona they started with.</string>
+  <string name="character_persona_name_label">Name</string>
+  <string name="character_persona_identity_label">Identity and relationship</string>
+  <string name="character_persona_save">Save persona</string>
+
+  <string name="character_memory_title">Story memory</string>
+  <string name="character_memory_description_hint">Record key events, relationships, and promises for this character. Shared across all chats with this character and governed by the global memory switch.</string>
+  <string name="character_memory_content_label">Story and relationships</string>
+  <string name="character_memory_reload">Reload</string>
+  <string name="character_memory_save">Save memory</string>
+
+  <string name="character_error_load_library">Failed to load character library. Please try again</string>
+  <string name="character_error_load_detail">Failed to load character. Go back to the library and try again</string>
+  <string name="character_error_load_editor">Failed to load character. Please try again</string>
+  <string name="character_error_invalid_worldbook">Invalid worldbook settings. Check scan depth, token budget, and entry position</string>
+  <string name="character_error_import_generic">Import failed. Make sure the file is a valid PNG or JSON character card within the size limit</string>
+  <string name="character_error_name_required">Please enter a character name</string>
+  <string name="character_error_save">Failed to save character. Please try again</string>
+  <string name="character_error_duplicate">Failed to duplicate character. Please try again</string>
+  <string name="character_error_favorite">Failed to update favorite status. Please try again</string>
+  <string name="character_error_change_avatar">Failed to change avatar. Try another image</string>
+  <string name="character_error_restore_default">Failed to restore default character. Please try again</string>
+  <string name="character_error_delete">Failed to delete character. Please try again</string>
+  <string name="character_error_export">Failed to export character card. Please try again</string>
+  <string name="character_notice_exported">Character card exported</string>
+  <string name="character_error_start_conversation">Failed to start conversation. Please try again</string>
+  <string name="character_error_load_persona">Failed to load persona. Please try again</string>
+  <string name="character_error_save_persona">Failed to save persona. Please try again</string>
+  <string name="character_error_load_memory">Failed to load story memory. Please try again</string>
+  <string name="character_error_save_memory">Failed to save story memory. Check the content length and try again</string>
+  <string name="character_notice_memory_saved">Story memory saved</string>
+  <string name="character_notice_memory_conflict">Story memory was updated by a conversation. Your draft is preserved — copy what you need, reload, then merge and save.</string>
+
+  <string name="character_import_error_v3_invalid">The prioritized V3 character data in this PNG is corrupted and did not fall back to V2. Please redownload the original character card.</string>
+  <string name="character_import_error_metadata_missing">This PNG contains no character card data. Choose the original character card image instead of a screenshot or compressed copy.</string>
+  <string name="character_import_error_invalid_json">Invalid character card JSON format. Check that the file is complete.</string>
+  <string name="character_import_error_too_large">Character card exceeds the size limit. Simplify the card or choose a smaller file.</string>
+  <string name="character_import_error_invalid_utf8">Invalid text encoding. A UTF-8 encoded JSON file is required.</string>
+  <string name="character_import_error_unsupported_spec">This character card format is not supported. Export it as a V2 or V3 character card and try again.</string>
+  <string name="character_import_error_invalid_png">The PNG file is corrupted or incomplete. Please redownload the original character card.</string>
+  <string name="character_import_error_invalid_data">Invalid character card fields. Check the name, text, greetings, and embedded worldbook data.</string>
+
+  <string name="character_rewrite_incomplete">Regeneration did not complete; the original reply was kept.</string>
+
+  <string name="character_repo_not_found">Character no longer exists</string>
+  <string name="character_repo_invalid_card_data">Invalid character card data</string>
+  <string name="character_repo_persona_name_length">Persona name must be 1 to 256 characters</string>
+  <string name="character_repo_persona_too_large">Persona description exceeds the 1 MiB limit</string>
+  <string name="character_repo_invalid_avatar_path">Invalid character image path</string>
+  <string name="character_repo_invalid_id">Invalid character ID</string>
+  <string name="character_repo_avatar_must_be_png">Character image must be a PNG</string>
+  <string name="character_repo_create_dir_failed">Could not create character directory</string>
+  <string name="character_repo_avatar_too_large">Image exceeds the 32 MiB limit</string>
+  <string name="character_repo_avatar_invalid_or_large">Could not read image or dimensions are too large</string>
+  <string name="character_repo_avatar_unreadable">Could not read image</string>
+  <string name="character_repo_name_length">Character name must be 1 to 512 characters</string>
+  <string name="character_repo_card_too_large">Character card file exceeds the 32 MiB limit</string>
+
+  <string name="character_backup_invalid_id">Duplicate or invalid character ID in backup</string>
+  <string name="character_backup_name_too_long">Character name in backup is too long</string>
+  <string name="character_backup_invalid_assets">Invalid character assets in backup</string>
+  <string name="character_backup_memory_too_large">Character story memory exceeds the 1 MiB limit</string>
+  <string name="character_backup_invalid_avatar">Invalid character image in backup</string>
+  <string name="character_backup_invalid_persona">Invalid user persona in backup</string>
+  <string name="character_backup_invalid_binding_id">Invalid character conversation ID in backup</string>
+  <string name="character_backup_binding_persona_too_large">Character persona data in backup is too large</string>
+  <string name="character_backup_invalid_link">Invalid message link in backup</string>
+  <string name="character_backup_invalid_revision">Invalid reply candidate or selection in backup</string>
+  <string name="character_backup_invalid_rewrite_target">Invalid regeneration target in backup</string>
+
+  <string name="character_memory_invalid_id">Invalid character memory ID</string>
+</resources>

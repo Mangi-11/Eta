@@ -1,0 +1,797 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AgentTraceFormatter: argument labels & actions -->
+    <string name="trace_arg_web_search">Search the web</string>
+    <string name="trace_arg_run_command_android">Run command · Android</string>
+    <string name="trace_arg_write_file">Write file</string>
+    <string name="trace_arg_read_file">Read file</string>
+    <string name="trace_arg_list_directory">List directory</string>
+    <string name="trace_arg_edit_file">Edit file</string>
+    <string name="trace_arg_stat_file">Inspect file info</string>
+    <string name="trace_arg_glob_files">Find files by path</string>
+    <string name="trace_arg_grep_files">Search file contents</string>
+    <string name="trace_arg_inspect_app">Inspect app</string>
+    <string name="trace_arg_input_text">Input text</string>
+    <string name="trace_arg_append_text">Append text</string>
+    <string name="trace_arg_replace_text">Replace text</string>
+    <string name="trace_arg_paste_text">Paste text</string>
+    <string name="trace_arg_clear_text">Clear text</string>
+    <string name="trace_arg_submit">Submit</string>
+    <string name="trace_arg_get_clipboard">Read clipboard</string>
+    <string name="trace_arg_search_apps">Search apps</string>
+    <string name="trace_arg_launch_app">Open app</string>
+    <string name="trace_arg_present_to_user">Present to main screen</string>
+    <string name="trace_arg_get_current_context">Read time &amp; location</string>
+    <string name="trace_arg_observe_screen">Observe screen</string>
+    <string name="trace_arg_with_screenshot">With screenshot</string>
+    <string name="trace_arg_with_ui_tree">With UI tree</string>
+    <string name="trace_arg_tap">Tap screen</string>
+    <string name="trace_arg_long_press">Long-press screen</string>
+    <string name="trace_arg_tap_area">Tap area</string>
+    <string name="trace_arg_tap_element">Tap element</string>
+    <string name="trace_arg_long_press_element">Long-press element</string>
+    <string name="trace_arg_swipe">Swipe screen</string>
+    <string name="trace_arg_scroll">Scroll screen</string>
+    <string name="trace_arg_scroll_element">Scroll element</string>
+    <string name="trace_arg_press_key">Press key</string>
+    <string name="trace_arg_wait">Wait</string>
+    <string name="trace_arg_wait_for_text">Wait for text</string>
+    <string name="trace_arg_wait_for_package">Wait for app</string>
+    <string name="trace_arg_open_system_panel">Open system panel</string>
+    <string name="trace_arg_read_image">View image</string>
+    <string name="trace_arg_edit_image">Edit image</string>
+    <string name="trace_arg_generate_image">Generate image</string>
+    <string name="trace_arg_image_count">%1$s · %2$d images</string>
+    <string name="trace_arg_open_uri">Open in external app</string>
+    <string name="trace_arg_browser_action">Browser action</string>
+    <string name="trace_arg_fetch_url">Read webpage</string>
+    <string name="trace_arg_fetch_continue">Continue reading webpage</string>
+    <string name="trace_arg_terminal_async">Background</string>
+    <string name="trace_arg_read_history">Read conversation history</string>
+    <string name="trace_arg_memory_fallback">Memory</string>
+    <string name="trace_arg_skills_list">List skills</string>
+    <string name="trace_arg_skills_read">Read skill</string>
+    <string name="trace_arg_skills_read_resource">Read skill resource</string>
+    <string name="trace_arg_skills_list_curated">Browse curated skills</string>
+    <string name="trace_arg_skills_inspect_github">Inspect skill details</string>
+    <string name="trace_arg_skills_install_from_github">Install skill</string>
+    <string name="trace_arg_search_notes">Search notes</string>
+    <string name="trace_arg_search_system_memories">Search system memories</string>
+    <string name="trace_arg_read_personal_item">Read item details</string>
+    <string name="trace_arg_summarize_bills">Summarize bills</string>
+    <string name="trace_arg_preparing">Preparing</string>
+    <string name="trace_arg_subagent_save">Save subagent</string>
+    <string name="trace_arg_subagent_delete">Delete subagent</string>
+    <string name="trace_arg_subagent_get">Read subagent</string>
+    <string name="trace_arg_subagent_list">List subagents</string>
+    <string name="trace_arg_subagent_manage">Manage subagent</string>
+
+    <plurals name="trace_arg_char_count">
+        <item quantity="one">%1$d char</item>
+        <item quantity="other">%1$d chars</item>
+    </plurals>
+    <string name="trace_unit_seconds_text">%1$s s</string>
+    <string name="trace_unit_ms">%1$d ms</string>
+    <string name="trace_redacted">&lt;redacted&gt;</string>
+
+    <!-- AgentTraceFormatter: device action labels -->
+    <string name="trace_act_set_alarm">Set alarm</string>
+    <string name="trace_act_set_timer">Set timer</string>
+    <string name="trace_act_device_status">Check device status</string>
+    <string name="trace_act_network_info">Check network info</string>
+    <string name="trace_act_top_memory_apps">Check top memory apps</string>
+    <string name="trace_act_top_storage_apps">Check top storage apps</string>
+    <string name="trace_act_media_control">Control media playback</string>
+    <string name="trace_act_set_volume">Adjust volume</string>
+    <string name="trace_act_get_setting">Read system setting</string>
+    <string name="trace_act_wifi_credentials">Read Wi-Fi passwords</string>
+    <string name="trace_act_recent_notifications">Read recent notifications</string>
+    <string name="trace_act_search_notification_history">Search notification history</string>
+    <string name="trace_act_recent_app_activity">Check recent app activity</string>
+    <string name="trace_act_app_usage_summary">Check app usage summary</string>
+    <string name="trace_act_get_current_location">Get current location</string>
+    <string name="trace_act_get_device_environment">Check device environment</string>
+    <string name="trace_act_list_alarms">List alarms</string>
+    <string name="trace_act_list_active_timers">Check active timers</string>
+    <string name="trace_act_search_clipboard_history">Search clipboard history</string>
+    <string name="trace_act_get_health_summary">Check health summary</string>
+    <string name="trace_act_read_sms_code">Read SMS verification code</string>
+    <string name="trace_act_get_logcat">Read system logs</string>
+    <string name="trace_act_search_media">Search media files</string>
+    <string name="trace_act_search_audio">Search audio</string>
+    <string name="trace_act_search_recordings">Search recordings</string>
+    <string name="trace_act_search_files">Search files</string>
+    <string name="trace_act_search_calendar_events">Search calendar events</string>
+    <string name="trace_act_search_contacts">Search contacts</string>
+    <string name="trace_act_search_call_history">Search call history</string>
+    <string name="trace_act_search_messages">Search messages</string>
+    <string name="trace_act_search_downloads">Search downloads</string>
+    <string name="trace_act_search_coloros_notes">Search notes</string>
+    <string name="trace_act_search_coloros_recordings">Search recorder</string>
+    <string name="trace_act_search_recording_summaries">Search recording summaries</string>
+    <string name="trace_act_search_coloros_memories">Search Breeno memories</string>
+    <string name="trace_act_search_saved_places">Search saved places</string>
+    <string name="trace_act_search_personal_orders">Search personal orders</string>
+    <string name="trace_act_search_qq_chat_images">Search QQ chat images</string>
+    <string name="trace_act_search_wechat_chat_images">Search WeChat chat images</string>
+    <string name="trace_act_set_setting">Modify system setting</string>
+    <string name="trace_act_set_device_state">Change device state</string>
+    <string name="trace_act_app_state_control">Manage app state</string>
+
+    <!-- AgentTraceFormatter: browser, directions, keys, terminal -->
+    <string name="trace_browser_act_navigate">Open webpage</string>
+    <string name="trace_browser_act_get_readable">Extract article</string>
+    <string name="trace_browser_act_get_text">Read text</string>
+    <string name="trace_browser_act_find_elements">Find elements</string>
+    <string name="trace_browser_act_click">Click webpage</string>
+    <string name="trace_browser_act_type">Enter content</string>
+    <string name="trace_browser_act_scroll">Scroll webpage</string>
+    <string name="trace_browser_act_screenshot">Take webpage screenshot</string>
+    <string name="trace_browser_act_get_page_info">Inspect webpage info</string>
+    <string name="trace_browser_act_go_back">Go back</string>
+    <string name="trace_browser_act_go_forward">Go forward</string>
+    <string name="trace_browser_act_reload">Reload webpage</string>
+    <string name="trace_browser_act_wait_for_selector">Wait for webpage element</string>
+
+    <string name="trace_browser_res_navigate">Opened</string>
+    <string name="trace_browser_res_get_readable">Article extracted</string>
+    <string name="trace_browser_res_get_text">Text read</string>
+    <string name="trace_browser_res_find_elements">Elements found</string>
+    <string name="trace_browser_res_click">Webpage clicked</string>
+    <string name="trace_browser_res_type">Content entered</string>
+    <string name="trace_browser_res_scroll">Webpage scrolled</string>
+    <string name="trace_browser_res_screenshot">Screenshot captured</string>
+    <string name="trace_browser_res_get_page_info">Page info read</string>
+    <string name="trace_browser_res_go_back">Went back</string>
+    <string name="trace_browser_res_go_forward">Went forward</string>
+    <string name="trace_browser_res_reload">Reloaded</string>
+    <string name="trace_browser_res_wait_for_selector">Target element appeared</string>
+
+    <string name="trace_browser_title">\"%1$s\"</string>
+    <string name="trace_browser_approx_chars">~%1$s</string>
+    <plurals name="trace_browser_elements">
+        <item quantity="one">%1$d element</item>
+        <item quantity="other">%1$d elements</item>
+    </plurals>
+
+    <string name="trace_dir_up">Up</string>
+    <string name="trace_dir_down">Down</string>
+    <string name="trace_dir_left">Left</string>
+    <string name="trace_dir_right">Right</string>
+
+    <string name="trace_key_back">Back</string>
+    <string name="trace_key_home">Home</string>
+    <string name="trace_key_recents">Recents</string>
+    <string name="trace_key_notifications">Notifications</string>
+    <string name="trace_key_quick_settings">Quick settings</string>
+    <string name="trace_key_power">Power</string>
+    <string name="trace_key_volume_up">Volume up</string>
+    <string name="trace_key_volume_down">Volume down</string>
+    <string name="trace_key_mute">Mute</string>
+
+    <string name="trace_terminal_default">Terminal</string>
+    <string name="trace_terminal_job">Async command</string>
+    <string name="trace_terminal_daemon">Background service</string>
+    <string name="trace_terminal_job_start">Start command</string>
+    <string name="trace_terminal_job_list">Job list</string>
+    <string name="trace_terminal_job_read">Read output</string>
+    <string name="trace_terminal_job_wait">Wait to finish</string>
+    <string name="trace_terminal_job_stop">Stop command</string>
+    <string name="trace_terminal_job_other">Job action</string>
+    <string name="trace_terminal_daemon_start">Start service</string>
+    <string name="trace_terminal_daemon_list">Service list</string>
+    <string name="trace_terminal_daemon_logs">View logs</string>
+    <string name="trace_terminal_daemon_stop">Stop service</string>
+    <string name="trace_terminal_daemon_other">Service action</string>
+    <string name="trace_terminal_act_check_root">Check root access</string>
+    <string name="trace_terminal_act_open">Create session</string>
+    <string name="trace_terminal_act_exec">Run command</string>
+    <string name="trace_terminal_act_open_and_exec">One-shot run</string>
+    <string name="trace_terminal_act_read_async">Read background output</string>
+    <string name="trace_terminal_act_close">Close terminal</string>
+    <string name="trace_terminal_act_daemon_start">Start daemon</string>
+    <string name="trace_terminal_act_daemon_list">Daemon list</string>
+    <string name="trace_terminal_act_daemon_logs">View daemon logs</string>
+    <string name="trace_terminal_act_daemon_stop">Stop daemon</string>
+    <string name="trace_terminal_act_other">Terminal action</string>
+
+    <!-- AgentTraceFormatter: result summaries -->
+    <string name="trace_res_unconfirmed">Action submitted; result unconfirmed</string>
+    <string name="trace_res_browser_done">Browser action completed</string>
+    <plurals name="trace_res_images_generated">
+        <item quantity="one">Generated %1$d image</item>
+        <item quantity="other">Generated %1$d images</item>
+    </plurals>
+    <string name="trace_res_image_gen_done">Image generation completed</string>
+    <string name="trace_res_done">Done</string>
+    <string name="trace_res_failed">Failed</string>
+    <string name="trace_res_saved">Saved</string>
+    <string name="trace_res_deleted">Deleted</string>
+    <string name="trace_res_opened">Opened</string>
+    <string name="trace_res_presented">Presented to main screen</string>
+    <string name="trace_res_history_read">History page read</string>
+    <string name="trace_res_screen_captured">Screen captured</string>
+    <string name="trace_res_ui_captured">Current screen inspected</string>
+    <string name="trace_res_tapped">Tapped</string>
+    <string name="trace_res_long_pressed">Long-pressed</string>
+    <string name="trace_res_swiped">Swiped</string>
+    <string name="trace_res_scrolled">Scrolled</string>
+    <string name="trace_res_text_entered">Text entered</string>
+    <string name="trace_res_text_cleared">Text cleared</string>
+    <string name="trace_res_key_pressed">Key pressed</string>
+    <string name="trace_res_wait_done">Wait completed</string>
+    <string name="trace_res_text_appeared">Target text appeared</string>
+    <string name="trace_res_app_ready">App is ready</string>
+    <string name="trace_res_app_inspected">App info retrieved</string>
+    <string name="trace_res_clipboard_read">Clipboard read</string>
+    <string name="trace_res_clipboard_copied">Copied to clipboard</string>
+    <string name="trace_res_web_search_failed">Web search failed</string>
+    <string name="trace_res_web_fetch_failed">Webpage fetch failed</string>
+    <string name="trace_res_no_results">No relevant results found</string>
+    <plurals name="trace_res_web_search_found">
+        <item quantity="one">Found %1$d search result</item>
+        <item quantity="other">Found %1$d search results</item>
+    </plurals>
+    <string name="trace_res_read_prefix">Read first %1$s</string>
+    <string name="trace_res_read_amount">Read %1$s</string>
+    <plurals name="trace_res_subagent_tool_calls">
+        <item quantity="one">Done · %1$d tool call</item>
+        <item quantity="other">Done · %1$d tool calls</item>
+    </plurals>
+    <plurals name="trace_res_subagent_count">
+        <item quantity="one">%1$d subagent</item>
+        <item quantity="other">%1$d subagents</item>
+    </plurals>
+    <plurals name="trace_res_skills_installed">
+        <item quantity="one">Installed %1$d skill</item>
+        <item quantity="other">Installed %1$d skills</item>
+    </plurals>
+    <string name="trace_res_available_next_turn">Available next turn</string>
+    <plurals name="trace_res_skills_found">
+        <item quantity="one">Found %1$d skill</item>
+        <item quantity="other">Found %1$d skills</item>
+    </plurals>
+    <plurals name="trace_res_skills_already_installed">
+        <item quantity="one">%1$d installed</item>
+        <item quantity="other">%1$d installed</item>
+    </plurals>
+    <string name="trace_res_executed_unconfirmed">Executed; result unconfirmed</string>
+    <plurals name="trace_res_found_results">
+        <item quantity="one">Found %1$d result</item>
+        <item quantity="other">Found %1$d results</item>
+    </plurals>
+    <string name="trace_res_no_matches">No matches found</string>
+    <plurals name="trace_res_found_matches">
+        <item quantity="one">Found %1$d match</item>
+        <item quantity="other">Found %1$d matches</item>
+    </plurals>
+    <string name="trace_res_no_entries">No items</string>
+    <plurals name="trace_res_fetched_entries">
+        <item quantity="one">Retrieved %1$d item</item>
+        <item quantity="other">Retrieved %1$d items</item>
+    </plurals>
+    <string name="trace_res_no_matching_apps">No matching apps found</string>
+    <plurals name="trace_res_found_apps">
+        <item quantity="one">Found %1$d app</item>
+        <item quantity="other">Found %1$d apps</item>
+    </plurals>
+    <plurals name="trace_res_search_apps_found">
+        <item quantity="one">Found %1$d app</item>
+        <item quantity="other">Found %1$d apps</item>
+    </plurals>
+    <plurals name="trace_res_candidates">
+        <item quantity="one">%1$d candidate</item>
+        <item quantity="other">%1$d candidates</item>
+    </plurals>
+    <plurals name="trace_res_bytes_read">
+        <item quantity="one">Read %1$d byte</item>
+        <item quantity="other">Read %1$d bytes</item>
+    </plurals>
+    <plurals name="trace_res_replacements">
+        <item quantity="one">Replaced %1$d occurrence</item>
+        <item quantity="other">Replaced %1$d occurrences</item>
+    </plurals>
+    <plurals name="trace_res_image_count">
+        <item quantity="one">%1$d image</item>
+        <item quantity="other">%1$d images</item>
+    </plurals>
+    <string name="trace_res_has_more">More available</string>
+    <string name="trace_res_partial_scope">Limited scope</string>
+    <string name="trace_res_truncated">Truncated</string>
+    <string name="trace_res_launch_unconfirmed">Launch requested; unconfirmed</string>
+    <string name="trace_res_virtual_display">Virtual display</string>
+    <string name="trace_res_terminal_timeout">Failed · Timed out</string>
+    <string name="trace_res_terminal_done">Completed</string>
+    <string name="trace_res_terminal_exit_code">Failed · Exit code %1$d</string>
+    <string name="trace_list_separator">, </string>
+    <string name="trace_list_with_more">%1$s, etc.</string>
+    <string name="trace_char_count_large_unit">k</string>
+    <string name="trace_char_count_thousands">%1$sk chars</string>
+    <string name="trace_char_count_ten_thousands">%1$s0k chars</string>
+    <plurals name="trace_char_count">
+        <item quantity="one">%1$d char</item>
+        <item quantity="other">%1$d chars</item>
+    </plurals>
+
+    <!-- AgentDeviceResultFormatter -->
+    <string name="trace_dev_env_read">Device environment read</string>
+    <string name="trace_dev_usage_read">App usage summary read</string>
+    <string name="trace_dev_activity_read">Recent app activity read</string>
+    <string name="trace_dev_flashlight">Flashlight</string>
+    <string name="trace_dev_hotspot">Personal hotspot</string>
+    <string name="trace_dev_sound_mode">Sound mode</string>
+    <string name="trace_dev_dnd">Do Not Disturb</string>
+    <string name="trace_dev_brightness">Brightness</string>
+    <string name="trace_dev_screen_timeout">Screen timeout</string>
+    <string name="trace_dev_kv">%1$s: %2$s</string>
+    <string name="trace_dev_loc_perm">Location permission required</string>
+    <string name="trace_dev_loc_bg_perm">Background location permission required</string>
+    <string name="trace_dev_loc_disabled">System location is off</string>
+    <string name="trace_dev_loc_none">No recent location</string>
+    <string name="trace_dev_loc_unavailable">Location unavailable</string>
+    <plurals name="trace_dev_age_seconds">
+        <item quantity="one">%1$d s ago</item>
+        <item quantity="other">%1$d s ago</item>
+    </plurals>
+    <plurals name="trace_dev_age_minutes">
+        <item quantity="one">%1$d min ago</item>
+        <item quantity="other">%1$d min ago</item>
+    </plurals>
+    <plurals name="trace_dev_age_hours">
+        <item quantity="one">%1$d hr ago</item>
+        <item quantity="other">%1$d hrs ago</item>
+    </plurals>
+    <plurals name="trace_dev_age_days">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <string name="trace_dev_recent_location">Recent location: %1$s, %2$s</string>
+    <string name="trace_dev_recent_location_age">Recent location: %1$s, %2$s (%3$s)</string>
+    <string name="trace_dev_vol_media">Media volume</string>
+    <string name="trace_dev_vol_alarm">Alarm volume</string>
+    <string name="trace_dev_vol_ring">Ring volume</string>
+    <string name="trace_dev_vol_notification">Notification volume</string>
+    <string name="trace_dev_vol_call">Call volume</string>
+    <string name="trace_dev_vol_system">System volume</string>
+    <string name="trace_dev_vol_level">Level %1$d</string>
+    <string name="trace_dev_unit_min">%1$s min</string>
+    <string name="trace_dev_unit_sec">%1$s s</string>
+    <string name="trace_dev_app_kept_stopped">App: Already stopped</string>
+    <string name="trace_dev_app_kept_stopped_pkg">App %1$s: Already stopped</string>
+    <string name="trace_dev_app_stopped">Stopped app</string>
+    <string name="trace_dev_app_stopped_pkg">Stopped app %1$s</string>
+    <string name="trace_dev_app_not_stopped">App: Not stopped</string>
+    <string name="trace_dev_app_not_stopped_pkg">App %1$s: Not stopped</string>
+    <string name="trace_dev_app_kept_frozen">App: Already frozen</string>
+    <string name="trace_dev_app_kept_frozen_pkg">App %1$s: Already frozen</string>
+    <string name="trace_dev_app_frozen">Froze app</string>
+    <string name="trace_dev_app_frozen_pkg">Froze app %1$s</string>
+    <string name="trace_dev_app_kept_enabled">App: Remained enabled</string>
+    <string name="trace_dev_app_kept_enabled_pkg">App %1$s: Remained enabled</string>
+    <string name="trace_dev_app_unfrozen">Unfroze app</string>
+    <string name="trace_dev_app_unfrozen_pkg">Unfroze app %1$s</string>
+    <string name="trace_dev_setting_unchanged">System setting unchanged</string>
+    <string name="trace_dev_setting_changed">System setting updated</string>
+    <string name="trace_dev_media_play">Sent play command</string>
+    <string name="trace_dev_media_pause">Sent pause command</string>
+    <string name="trace_dev_media_play_pause">Sent play/pause toggle</string>
+    <string name="trace_dev_media_next">Sent next track command</string>
+    <string name="trace_dev_media_previous">Sent previous track command</string>
+    <string name="trace_dev_media_stop">Sent stop playback command</string>
+    <string name="trace_dev_net_cellular">Cellular</string>
+    <string name="trace_dev_net_ethernet">Ethernet</string>
+    <string name="trace_dev_net_generic">Network</string>
+    <string name="trace_dev_net_disconnected">Network: Disconnected</string>
+    <string name="trace_dev_net_connected">%1$s: Connected to internet</string>
+    <string name="trace_dev_net_unvalidated">%1$s: Connected (internet unvalidated)</string>
+    <string name="trace_dev_battery_charging">Battery %1$d%% · Charging</string>
+    <string name="trace_dev_battery_discharging">Battery %1$d%% · Not charging</string>
+    <string name="trace_dev_change_arrow">%1$s: %2$s → %3$s</string>
+    <string name="trace_dev_change_kept">%1$s: Unchanged (%2$s)</string>
+    <string name="trace_dev_change_kept_num">%1$s: Unchanged (%2$s)</string>
+    <string name="trace_dev_change_bool_set">%1$s: %2$s</string>
+    <string name="trace_dev_change_set">%1$s: Set to %2$s</string>
+    <string name="trace_dev_change_set_num">%1$s: Set to %2$s</string>
+    <string name="trace_dev_state_on">On</string>
+    <string name="trace_dev_state_off">Off</string>
+    <string name="trace_dev_label_bluetooth">Bluetooth</string>
+    <string name="trace_dev_label_mobile_data">Mobile data</string>
+    <string name="trace_dev_label_airplane_mode">Airplane mode</string>
+    <string name="trace_dev_label_location">Location</string>
+    <string name="trace_dev_label_battery_saver">Battery saver</string>
+    <string name="trace_dev_label_auto_rotate">Auto-rotate</string>
+    <string name="trace_dev_label_auto_brightness">Auto-brightness</string>
+    <string name="trace_dev_label_dark_mode">Dark mode</string>
+    <string name="trace_dev_label_night_light">Night light</string>
+    <string name="trace_dev_sound_silent">Silent</string>
+    <string name="trace_dev_sound_vibrate">Vibrate</string>
+    <string name="trace_dev_sound_normal">Normal</string>
+    <string name="trace_dev_dnd_priority">Priority only</string>
+    <string name="trace_dev_dnd_silent">Total silence</string>
+    <string name="trace_dev_dnd_alarms">Alarms only</string>
+
+    <!-- AgentFileResultFormatter -->
+    <string name="trace_file_dir_empty">Directory is empty</string>
+    <plurals name="trace_file_dir_listed">
+        <item quantity="one">Listed %1$d item</item>
+        <item quantity="other">Listed %1$d items</item>
+    </plurals>
+    <string name="trace_file_no_files">No matching files found</string>
+    <plurals name="trace_file_found_files">
+        <item quantity="one">Found %1$d file</item>
+        <item quantity="other">Found %1$d files</item>
+    </plurals>
+    <string name="trace_file_appended">Appended %1$s</string>
+    <string name="trace_file_written">Wrote %1$s</string>
+    <string name="trace_file_line_not_reached_more">Target line not reached yet · Can continue reading</string>
+    <string name="trace_file_line_not_reached_eof">Target line not reached · End of file</string>
+    <string name="trace_file_line_not_reached">Target line not reached yet</string>
+    <string name="trace_file_read">Read %1$s</string>
+    <string name="trace_file_kind_file_size">File · %1$s</string>
+    <string name="trace_file_kind_dir">Directory</string>
+    <string name="trace_file_kind_symlink">Symbolic link</string>
+    <string name="trace_file_kind_other">Other file type</string>
+    <string name="trace_file_scan_limited">Scan scope limited</string>
+    <plurals name="trace_unit_bytes">
+        <item quantity="one">%1$d byte</item>
+        <item quantity="other">%1$d bytes</item>
+    </plurals>
+
+    <!-- AgentPersonalResultFormatter -->
+    <string name="trace_personal_arg_search_memory">Search memory</string>
+    <string name="trace_personal_arg_read_memory">Read memory</string>
+    <string name="trace_personal_arg_append_memory">Append memory</string>
+    <string name="trace_personal_arg_clear_memory">Clear memory</string>
+    <string name="trace_personal_arg_update_memory">Update memory</string>
+    <string name="trace_personal_arg_search_story_memory">Search story memory</string>
+    <string name="trace_personal_arg_read_story_memory">Read story memory</string>
+    <string name="trace_personal_arg_append_story_memory">Append story memory</string>
+    <string name="trace_personal_arg_clear_story_memory">Clear story memory</string>
+    <string name="trace_personal_arg_update_story_memory">Update story memory</string>
+    <string name="trace_personal_sms_code_read">Verification code read</string>
+    <string name="trace_personal_sms_code_empty">No recent verification code found</string>
+    <string name="trace_personal_item_read">Details read</string>
+    <string name="trace_personal_bills_summarized">Bills summarized</string>
+    <plurals name="trace_personal_memory_found">
+        <item quantity="one">Found %1$d related memory</item>
+        <item quantity="other">Found %1$d related memories</item>
+    </plurals>
+    <string name="trace_personal_memory_empty">No related memories found</string>
+    <string name="trace_personal_memory_read_prefix">Read first part of memory</string>
+    <string name="trace_personal_memory_read">Memory read</string>
+    <plurals name="trace_personal_story_found">
+        <item quantity="one">Found %1$d related story entry</item>
+        <item quantity="other">Found %1$d related story entries</item>
+    </plurals>
+    <string name="trace_personal_story_empty">No related story memories found</string>
+    <string name="trace_personal_story_read_prefix">Read first part of story memory</string>
+    <string name="trace_personal_story_read">Story memory read</string>
+    <string name="trace_personal_memory_cleared">Memory cleared</string>
+    <string name="trace_personal_memory_saved">Memory saved</string>
+    <string name="trace_personal_memory_updated">Memory updated</string>
+    <string name="trace_personal_story_cleared">Story memory cleared</string>
+    <string name="trace_personal_story_saved">Story memory saved</string>
+    <string name="trace_personal_story_updated">Story memory updated</string>
+
+    <plurals name="trace_personal_found_system_memories">
+        <item quantity="one">Found %1$d system memory</item>
+        <item quantity="other">Found %1$d system memories</item>
+    </plurals>
+    <string name="trace_personal_empty_system_memories">No related system memories found</string>
+    <plurals name="trace_personal_found_notes">
+        <item quantity="one">Found %1$d note</item>
+        <item quantity="other">Found %1$d notes</item>
+    </plurals>
+    <string name="trace_personal_empty_notes">No related notes found</string>
+    <plurals name="trace_personal_found_calendar_events">
+        <item quantity="one">Found %1$d calendar event</item>
+        <item quantity="other">Found %1$d calendar events</item>
+    </plurals>
+    <string name="trace_personal_empty_calendar_events">No related calendar events found</string>
+    <plurals name="trace_personal_found_contacts">
+        <item quantity="one">Found %1$d contact</item>
+        <item quantity="other">Found %1$d contacts</item>
+    </plurals>
+    <string name="trace_personal_empty_contacts">No matching contacts found</string>
+    <plurals name="trace_personal_found_messages">
+        <item quantity="one">Found %1$d message</item>
+        <item quantity="other">Found %1$d messages</item>
+    </plurals>
+    <string name="trace_personal_empty_messages">No related messages found</string>
+    <plurals name="trace_personal_found_call_history">
+        <item quantity="one">Found %1$d call record</item>
+        <item quantity="other">Found %1$d call records</item>
+    </plurals>
+    <string name="trace_personal_empty_call_history">No call records found</string>
+    <plurals name="trace_personal_found_saved_places">
+        <item quantity="one">Found %1$d place</item>
+        <item quantity="other">Found %1$d places</item>
+    </plurals>
+    <string name="trace_personal_empty_saved_places">No related places found</string>
+    <plurals name="trace_personal_found_personal_orders">
+        <item quantity="one">Found %1$d order</item>
+        <item quantity="other">Found %1$d orders</item>
+    </plurals>
+    <string name="trace_personal_empty_personal_orders">No related orders found</string>
+    <plurals name="trace_personal_found_bills">
+        <item quantity="one">Found %1$d bill</item>
+        <item quantity="other">Found %1$d bills</item>
+    </plurals>
+    <string name="trace_personal_empty_bills">No bill records found</string>
+    <plurals name="trace_personal_found_todos">
+        <item quantity="one">Found %1$d to-do</item>
+        <item quantity="other">Found %1$d to-dos</item>
+    </plurals>
+    <string name="trace_personal_empty_todos">No to-dos found</string>
+    <plurals name="trace_personal_found_flights">
+        <item quantity="one">Found %1$d flight</item>
+        <item quantity="other">Found %1$d flights</item>
+    </plurals>
+    <string name="trace_personal_empty_flights">No flight itineraries found</string>
+    <plurals name="trace_personal_found_hotels">
+        <item quantity="one">Found %1$d hotel booking</item>
+        <item quantity="other">Found %1$d hotel bookings</item>
+    </plurals>
+    <string name="trace_personal_empty_hotels">No booking records found</string>
+    <plurals name="trace_personal_found_trains">
+        <item quantity="one">Found %1$d train trip</item>
+        <item quantity="other">Found %1$d train trips</item>
+    </plurals>
+    <string name="trace_personal_empty_trains">No train itineraries found</string>
+    <plurals name="trace_personal_found_daily_events">
+        <item quantity="one">Found %1$d life event</item>
+        <item quantity="other">Found %1$d life events</item>
+    </plurals>
+    <string name="trace_personal_empty_daily_events">No life events found</string>
+    <plurals name="trace_personal_found_memory_collections">
+        <item quantity="one">Found %1$d memory collection</item>
+        <item quantity="other">Found %1$d memory collections</item>
+    </plurals>
+    <string name="trace_personal_empty_memory_collections">No memory collections found</string>
+    <plurals name="trace_personal_found_recordings">
+        <item quantity="one">Found %1$d recording</item>
+        <item quantity="other">Found %1$d recordings</item>
+    </plurals>
+    <string name="trace_personal_empty_recordings">No recordings found</string>
+    <plurals name="trace_personal_found_recording_summaries">
+        <item quantity="one">Found %1$d recording summary</item>
+        <item quantity="other">Found %1$d recording summaries</item>
+    </plurals>
+    <string name="trace_personal_empty_recording_summaries">No recording summaries found</string>
+    <plurals name="trace_personal_found_notifications">
+        <item quantity="one">Found %1$d notification</item>
+        <item quantity="other">Found %1$d notifications</item>
+    </plurals>
+    <string name="trace_personal_empty_notifications">No notifications found</string>
+    <plurals name="trace_personal_found_clipboard">
+        <item quantity="one">Found %1$d clipboard entry</item>
+        <item quantity="other">Found %1$d clipboard entries</item>
+    </plurals>
+    <string name="trace_personal_empty_clipboard">No clipboard entries found</string>
+    <plurals name="trace_personal_found_downloads">
+        <item quantity="one">Found %1$d download</item>
+        <item quantity="other">Found %1$d downloads</item>
+    </plurals>
+    <string name="trace_personal_empty_downloads">No downloads found</string>
+    <plurals name="trace_personal_found_media">
+        <item quantity="one">Found %1$d media file</item>
+        <item quantity="other">Found %1$d media files</item>
+    </plurals>
+    <string name="trace_personal_empty_media">No related media files found</string>
+    <plurals name="trace_personal_found_audio">
+        <item quantity="one">Found %1$d audio file</item>
+        <item quantity="other">Found %1$d audio files</item>
+    </plurals>
+    <string name="trace_personal_empty_audio">No related audio files found</string>
+    <plurals name="trace_personal_found_files">
+        <item quantity="one">Found %1$d file</item>
+        <item quantity="other">Found %1$d files</item>
+    </plurals>
+    <string name="trace_personal_empty_files">No related files found</string>
+    <plurals name="trace_personal_found_chat_images">
+        <item quantity="one">Found %1$d chat image</item>
+        <item quantity="other">Found %1$d chat images</item>
+    </plurals>
+    <string name="trace_personal_empty_chat_images">No chat images found</string>
+
+    <!-- AgentPhoneResultFormatter -->
+    <string name="trace_phone_note_read">Note read</string>
+    <string name="trace_phone_event_read">Calendar event read</string>
+    <string name="trace_phone_alarm_submitted">Alarm request submitted</string>
+    <string name="trace_phone_timer_submitted">Timer request submitted</string>
+    <string name="trace_phone_alarm_created">Alarm created</string>
+    <string name="trace_phone_timer_set">Timer set</string>
+    <string name="trace_phone_alarm_deleted">Alarm deleted</string>
+    <plurals name="trace_phone_events_created">
+        <item quantity="one">Created %1$d calendar event</item>
+        <item quantity="other">Created %1$d calendar events</item>
+    </plurals>
+    <string name="trace_phone_event_created">Calendar event created</string>
+    <string name="trace_phone_event_deleted">Calendar event deleted</string>
+    <string name="trace_phone_note_created">Note created</string>
+    <string name="trace_phone_note_recycled">Note moved to trash</string>
+    <string name="trace_phone_calendars_empty">No writable calendars found</string>
+    <plurals name="trace_phone_calendars_found">
+        <item quantity="one">Found %1$d writable calendar</item>
+        <item quantity="other">Found %1$d writable calendars</item>
+    </plurals>
+    <string name="trace_phone_alarms_empty">No alarms</string>
+    <plurals name="trace_phone_alarms_found">
+        <item quantity="one">Found %1$d alarm</item>
+        <item quantity="other">Found %1$d alarms</item>
+    </plurals>
+    <string name="trace_phone_timers_empty">No active timers</string>
+    <plurals name="trace_phone_timers_found">
+        <item quantity="one">Found %1$d timer</item>
+        <item quantity="other">Found %1$d timers</item>
+    </plurals>
+    <plurals name="trace_phone_dur_hours">
+        <item quantity="one">%1$d hr</item>
+        <item quantity="other">%1$d hrs</item>
+    </plurals>
+    <plurals name="trace_phone_dur_minutes">
+        <item quantity="one">%1$d min</item>
+        <item quantity="other">%1$d min</item>
+    </plurals>
+    <plurals name="trace_phone_dur_seconds">
+        <item quantity="one">%1$d s</item>
+        <item quantity="other">%1$d s</item>
+    </plurals>
+    <string name="trace_phone_alarm_unchanged">Alarm time unchanged · %1$s</string>
+    <string name="trace_phone_alarm_changed">Alarm time: %1$s → %2$s</string>
+    <string name="trace_phone_alarm_updated">Alarm time updated</string>
+    <string name="trace_phone_alarm_disabled_suffix">Disabled</string>
+    <string name="trace_phone_alarm_kept_on">Alarm remained on</string>
+    <string name="trace_phone_alarm_kept_off">Alarm remained off</string>
+    <string name="trace_phone_alarm_turned_on">Alarm turned on</string>
+    <string name="trace_phone_alarm_turned_off">Alarm turned off</string>
+    <string name="trace_phone_event_updated">Calendar event updated</string>
+    <string name="trace_phone_event_unchanged">Calendar event unchanged</string>
+    <string name="trace_phone_field_title">Title</string>
+    <string name="trace_phone_field_time">Time</string>
+    <string name="trace_phone_field_location">Location</string>
+    <string name="trace_phone_field_description">Description</string>
+    <string name="trace_phone_field_reminders">Reminders</string>
+
+    <!-- AgentPhoneToolCatalog & PersonalSearchTools -->
+    <string name="tool_cat_get_flashlight_title">Flashlight status</string>
+    <string name="tool_cat_get_flashlight_desc">Check the current flashlight state and whether the camera is using it.</string>
+    <string name="tool_cat_set_flashlight_title">Set flashlight</string>
+    <string name="tool_cat_set_flashlight_desc">Turn the flashlight on or off and verify via system callback; skips toggling if already in the target state.</string>
+    <string name="tool_cat_get_device_state_title">Query system toggle</string>
+    <string name="tool_cat_get_device_state_desc">Query a specified system toggle without using the GUI.</string>
+    <string name="tool_cat_get_display_state_title">Display status</string>
+    <string name="tool_cat_get_display_state_desc">Query brightness, auto-brightness, rotation, and screen timeout.</string>
+    <string name="tool_cat_set_brightness_title">Set brightness</string>
+    <string name="tool_cat_set_brightness_desc">Set brightness by system slider percentage and verify by readback; fails clearly if no reliable percentage API is available.</string>
+    <string name="tool_cat_set_screen_timeout_title">Set screen timeout</string>
+    <string name="tool_cat_set_screen_timeout_desc">Set the auto screen-off timeout in seconds and verify by readback.</string>
+    <string name="tool_cat_get_sound_state_title">Sound status</string>
+    <string name="tool_cat_get_sound_state_desc">Read volume levels, ringer mode, and Do Not Disturb status.</string>
+    <string name="tool_cat_set_sound_mode_title">Set sound mode</string>
+    <string name="tool_cat_set_sound_mode_desc">Set normal, silent, or vibrate mode and verify; non-root usage may require Do Not Disturb access.</string>
+    <string name="tool_cat_set_do_not_disturb_title">Set Do Not Disturb</string>
+    <string name="tool_cat_set_do_not_disturb_desc">Set the Do Not Disturb policy directly and verify by readback.</string>
+    <string name="tool_cat_get_hotspot_title">Hotspot status</string>
+    <string name="tool_cat_get_hotspot_desc">Check whether the personal hotspot is enabled; requires a compatible system API.</string>
+    <string name="tool_cat_set_hotspot_title">Set personal hotspot</string>
+    <string name="tool_cat_set_hotspot_desc">Turn tethering on or off using the existing hotspot configuration without changing its name or password.</string>
+    <string name="tool_cat_list_calendars_title">Writable calendars</string>
+    <string name="tool_cat_list_calendars_desc">List writable calendar IDs and names for the current user.</string>
+    <string name="tool_cat_read_calendar_event_title">Calendar event details</string>
+    <string name="tool_cat_read_calendar_event_desc">Read live calendar event details and reminders by original event_id.</string>
+    <string name="tool_cat_create_calendar_event_title">Create calendar event</string>
+    <string name="tool_cat_create_calendar_event_desc">Create a calendar event with reminders directly and verify by readback.</string>
+    <string name="tool_cat_create_calendar_events_title">Batch create events</string>
+    <string name="tool_cat_create_calendar_events_desc">Create up to 30 calendar events and reminders in the same calendar in one transaction and verify each.</string>
+    <string name="tool_cat_update_calendar_event_title">Update calendar event</string>
+    <string name="tool_cat_update_calendar_event_desc">Modify calendar event fields and reminders by original event_id and verify by readback.</string>
+    <string name="tool_cat_delete_calendar_event_title">Delete calendar event</string>
+    <string name="tool_cat_delete_calendar_event_desc">Delete an event by exact original event_id.</string>
+    <string name="tool_cat_update_alarm_time_title">Update alarm time</string>
+    <string name="tool_cat_update_alarm_time_desc">Update an alarm\'s hour and minute by alarm_id while preserving its enabled state, then verify.</string>
+    <string name="tool_cat_set_alarm_enabled_title">Toggle alarm</string>
+    <string name="tool_cat_set_alarm_enabled_desc">Enable or disable an exact alarm_id and verify by readback.</string>
+    <string name="tool_cat_delete_alarm_title">Delete alarm</string>
+    <string name="tool_cat_delete_alarm_desc">Delete an exact alarm_id and verify.</string>
+    <string name="tool_cat_create_note_title">Create note</string>
+    <string name="tool_cat_create_note_desc">Create a system note directly, resolve its UUID, and verify by readback.</string>
+    <string name="tool_cat_read_note_title">Note details</string>
+    <string name="tool_cat_read_note_desc">Read note content by original note_id UUID.</string>
+    <string name="tool_cat_delete_note_title">Recycle note</string>
+    <string name="tool_cat_delete_note_desc">Move a note to the trash by original note_id UUID and verify, without permanent deletion.</string>
+
+    <string name="tool_cat_search_bills_title">Search bills</string>
+    <string name="tool_cat_search_bills_desc">Find bill records by merchant, content, and time.</string>
+    <string name="tool_cat_search_todos_title">Search to-do leads</string>
+    <string name="tool_cat_search_todos_desc">Search system-extracted to-do leads from personal data; undated entries cannot match time filters.</string>
+    <string name="tool_cat_search_calendar_todos_title">Search calendar to-dos</string>
+    <string name="tool_cat_search_calendar_todos_desc">Search calendar to-dos and their scheduled times.</string>
+    <string name="tool_cat_search_memory_collections_title">Search memory collections</string>
+    <string name="tool_cat_search_memory_collections_desc">Find saved memory collections (does not support time filtering).</string>
+    <string name="tool_cat_search_daily_events_title">Search life events</string>
+    <string name="tool_cat_search_daily_events_desc">Find system-recorded or inferred life events without treating inferences as confirmed facts.</string>
+    <string name="tool_cat_search_flights_title">Search flights</string>
+    <string name="tool_cat_search_flights_desc">Search flight itineraries by flight number, airport, and scheduled departure time.</string>
+    <string name="tool_cat_search_hotels_title">Search hotel bookings</string>
+    <string name="tool_cat_search_hotels_desc">Search bookings by hotel, address, order, and check-in time.</string>
+    <string name="tool_cat_search_trains_title">Search train trips</string>
+    <string name="tool_cat_search_trains_desc">Search train itineraries by train number, station, and departure time.</string>
+
+    <!-- AgentLoop errors -->
+    <string name="loop_err_reply_rewrite_tool_call">The model requested a tool while rewriting the reply. Stopped; the original reply is unchanged.</string>
+    <string name="loop_err_reply_rewrite_incomplete">The model did not return a complete rewritten reply; the original reply is unchanged.</string>
+    <string name="loop_err_empty_response">Model API returned an empty response on round %1$d</string>
+    <string name="loop_err_empty_response_reason">Model API returned an empty response on round %1$d: %2$s</string>
+    <string name="loop_err_content_filter">The model provider blocked this reply and discarded incomplete output. Edit or delete the triggering request and retry, or switch models.</string>
+    <string name="loop_err_content_filter_detail">The model provider blocked this reply and discarded incomplete output. Provider note: %1$s Edit or delete the triggering request and retry, or switch models.</string>
+    <string name="loop_err_output_limit">Model output limit was exhausted without generating text. Check the output limit or lower reasoning effort.</string>
+    <string name="loop_err_empty_model_response">The model returned neither text nor tool calls. Check the provider status.</string>
+
+    <!-- AgentModelClient & AgentModelFailure errors -->
+    <string name="model_err_base_url_required">Please configure an API URL first</string>
+    <string name="model_err_api_key_required">Please configure an API key first</string>
+    <string name="model_err_oauth_provider_required">Account sign-in is missing a provider ID; please select a provider again</string>
+    <string name="model_err_oauth_api_key_forbidden">Account sign-in configuration cannot include an API key</string>
+    <string name="model_err_auth_mode_unsupported">Unsupported provider authentication mode</string>
+    <string name="model_err_model_required">Please configure a model name first</string>
+    <string name="model_err_mandatory_thinking">This model requires reasoning; Off or disabling reasoning is not allowed</string>
+    <string name="model_err_extra_body_invalid">Invalid extra request body JSON: %1$s</string>
+
+    <string name="model_err_context_overflow">Model context exceeded the capacity limit.</string>
+    <string name="model_err_http_400_details">Invalid model request parameters (HTTP 400; %1$s). Check the model configuration.</string>
+    <string name="model_err_http_quota">Model API quota or billing limit reached (HTTP %1$d). Check your provider account.</string>
+    <string name="model_err_http_400">Invalid model request parameters (HTTP 400). Check the model configuration.</string>
+    <string name="model_err_http_401">Model API authentication failed (HTTP 401). Check your API key.</string>
+    <string name="model_err_http_403">Model API access denied (HTTP 403). Check your account and model permissions.</string>
+    <string name="model_err_http_404">Model API endpoint or model not found (HTTP 404). Check the API URL and model name.</string>
+    <string name="model_err_http_429">Model API is temporarily rate-limited (HTTP 429).</string>
+    <string name="model_err_http_other">Model API returned HTTP %1$d</string>
+    <string name="model_err_timeout">Model request timed out (connection/write timeout, or response wait exceeded %1$d min).</string>
+    <string name="model_err_connection_failed">Model connection was interrupted or could not be established. Check your network and provider status.</string>
+    <string name="model_err_auth_failed">Model API authentication failed. Check your API key.</string>
+
+    <!-- AgentContextCompactor & AgentContextSummarizer errors -->
+    <string name="compactor_err_no_complete_batch">No complete history batch is available to compact safely.</string>
+    <string name="compactor_err_no_history">No history content is available to compact.</string>
+    <string name="compactor_err_no_reduction">The summary did not reduce context size; the original context was kept.</string>
+    <string name="summarizer_err_invalid_summary">The model did not return a complete, bounded summary; the original context was kept.</string>
+    <string name="summarizer_err_tool_call">The model attempted to call a tool while summarizing; the original context was kept.</string>
+
+    <!-- AgentRuntime errors & details -->
+    <string name="runtime_err_stopped">Stopped</string>
+    <string name="runtime_err_service_stopped">Agent Runtime service has stopped</string>
+    <string name="runtime_err_missing_body">Agent Runtime request is missing its payload</string>
+    <string name="runtime_err_invalid_format">Invalid Agent Runtime request format</string>
+    <string name="runtime_err_missing_input">Agent Runtime request is missing runId or user input</string>
+    <string name="runtime_err_full_result_unavailable">Full run result is unavailable</string>
+    <string name="runtime_err_read_image_failed">Agent Runtime could not read the image</string>
+    <string name="runtime_err_no_model_configured">Please configure an available model in Eta first</string>
+    <string name="runtime_err_prepare_failed">Agent Runtime could not prepare the request</string>
+    <string name="runtime_err_finished_recover">Task has finished; please restore the full result</string>
+    <string name="runtime_err_fgs_start_failed">Unable to start the background execution service; return to Eta and try again</string>
+    <string name="runtime_err_result_transfer_failed">Failed to transfer the full result. Saved history was not deleted; reopen the conversation to restore.</string>
+    <string name="runtime_detail_gui_paused">Device control paused</string>
+    <string name="runtime_err_rewrite_roleplay_only">Only character conversations can rewrite character replies</string>
+    <string name="runtime_err_rewrite_target_missing">Missing a valid target reply to rewrite</string>
+    <string name="runtime_err_rewrite_target_not_found">The target reply does not exist or does not belong to the current conversation</string>
+    <string name="runtime_err_bind_failed">Failed to bind to Agent Runtime service</string>
+    <string name="runtime_err_disconnected">Connection to Agent Runtime service was lost</string>
+    <string name="runtime_err_no_result">Agent Runtime did not return a result</string>
+    <string name="runtime_err_wait_interrupted">Waiting for Agent Runtime was interrupted</string>
+    <string name="runtime_err_send_failed">Failed to send request to Agent Runtime (%1$s)</string>
+    <string name="runtime_err_image_max_count">Up to %1$d images are supported at once</string>
+    <string name="runtime_err_image_cache_create">Unable to create image transfer cache</string>
+    <string name="runtime_err_image_remote_url_long">Remote image URL is too long</string>
+    <string name="runtime_err_image_single_too_large">A single image cannot exceed %1$d MiB</string>
+    <string name="runtime_err_image_empty">Image content is empty</string>
+    <string name="runtime_err_image_total_too_large">Total image size cannot exceed %1$d MiB</string>
+    <string name="runtime_err_image_read_outgoing">Unable to read the image to send</string>
+    <string name="runtime_err_image_fd_invalid_size">Image file descriptor has no valid size</string>
+    <string name="runtime_err_image_incomplete">Image transfer was incomplete</string>
+    <string name="runtime_err_image_inline_too_large">Inline image data is too large</string>
+    <string name="runtime_err_image_legacy_unreadable">Unable to read image from legacy protocol</string>
+    <string name="runtime_err_image_open_local">Unable to open local image</string>
+    <string name="runtime_err_image_ref_unreadable">Image reference is unreadable</string>
+    <string name="runtime_err_image_inline_unsupported">Unsupported inline image format</string>
+</resources>

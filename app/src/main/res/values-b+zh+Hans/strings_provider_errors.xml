@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="provider_url_vertex_invalid">Vertex AI 接口地址无效。</string>
+    <string name="provider_url_vertex_https">Vertex AI 接口必须使用 HTTPS，本机调试地址除外。</string>
+    <string name="provider_url_vertex_clean">Vertex AI 接口地址不能包含查询参数、片段或凭据。</string>
+    <string name="provider_url_vertex_project_invalid">Vertex AI Project ID 或项目编号无效。</string>
+    <string name="provider_url_vertex_location_invalid">Vertex AI Location 无效。</string>
+    <string name="provider_url_vertex_official_path">Vertex AI 官方地址应填写 API 根地址或项目与地域路径。</string>
+    <string name="provider_url_vertex_project_required">Gemini 4 需要标准 Vertex AI 项目，请填写 Project ID 或项目编号。</string>
+    <string name="provider_url_vertex_mismatch">Vertex AI 接口地址中的项目和地域必须与配置一致。</string>
+    <string name="provider_url_vertex_gemini4_only">Vertex AI 对话仅支持 Gemini 4 系列模型。</string>
+
+    <string name="provider_err_vertex_thinking_unsupported">当前 Vertex AI 模型不支持所选思考档位，请使用 Default 或模型支持的档位。</string>
+    <string name="provider_err_vertex_tool_call_id_missing">Vertex AI 工具调用缺少 Eta 调用标识。</string>
+    <string name="provider_err_vertex_input_type_unsupported">Vertex AI Gemini 不支持该输入内容类型。</string>
+    <string name="provider_err_gemini_image_source">Gemini 图片输入必须为 Base64 图片或可访问的图片地址。</string>
+    <string name="provider_err_gemini_image_http_source">Gemini 图片输入必须为 Base64 图片或 HTTP 地址。</string>
+    <string name="provider_err_gemini_image_url_invalid">Gemini 图片输入地址无效。</string>
+    <string name="provider_err_gemini_image_mime_unknown">无法识别 Gemini 图片地址的媒体类型。</string>
+    <string name="provider_err_gemini_input_type_unsupported">Gemini 不支持该输入内容类型。</string>
+    <string name="provider_err_vertex_stream_failed">Vertex AI Gemini 流式响应失败。</string>
+    <string name="provider_err_vertex_blocked">Vertex AI 拦截了本次请求或回复。</string>
+    <string name="provider_err_vertex_output_limit">Vertex AI 达到单次输出上限，回复未完成。请缩小任务范围或降低思考档位后重试。</string>
+    <string name="provider_err_vertex_incomplete">Vertex AI 响应提前结束，未收到完整终态。</string>
+    <string name="provider_err_vertex_invalid_tool_call">Vertex AI 返回的工具调用不完整或无效。</string>
+    <string name="provider_err_vertex_stream_invalid">Vertex AI 流式响应格式无效或超过容量限制。</string>
+
+    <string name="provider_err_gemini_thinking_off_unsupported">当前 Gemini 模型不支持关闭思考，请选择 Default 或支持的思考档位。</string>
+    <string name="provider_err_gemini_interactions_effort_unsupported">Gemini Interactions 协议不支持所选思考档位。</string>
+    <string name="provider_err_gemini_incomplete">Gemini 响应提前结束，未收到完整终态。</string>
+    <string name="provider_err_gemini_missing_completed">Gemini 响应缺少完成事件。</string>
+    <string name="provider_err_gemini_stream_failed">Gemini 流式响应失败。</string>
+    <string name="provider_err_gemini_request_failed">Gemini 请求未成功完成。</string>
+    <string name="provider_err_gemini_output_limit">Gemini 输出未完整生成，可能已达到输出或执行预算；请调整输出上限或思考档位后重试。</string>
+    <string name="provider_err_gemini_step_incomplete">Gemini 输出步骤未完整结束。</string>
+    <string name="provider_err_gemini_tool_call_incomplete">Gemini 工具调用缺少可执行的完整终态。</string>
+    <string name="provider_err_gemini_search_incomplete">Gemini 搜索步骤未完整结束。</string>
+    <string name="provider_err_gemini_unsupported_output">Gemini 返回了当前不支持的输出类型。</string>
+    <string name="provider_err_gemini_search_suggestions_limit">Gemini 搜索建议超过展示容量限制。</string>
+    <string name="provider_err_gemini_stream_invalid">Gemini 流式响应格式无效或超过容量限制。</string>
+
+    <string name="provider_err_not_responses_api">当前 Provider 未配置为 Responses API</string>
+    <string name="provider_err_not_chat_completions_api">当前 Provider 未配置为 Chat Completions API</string>
+    <string name="provider_err_no_response_stream">模型接口未返回响应流</string>
+    <string name="provider_err_codex_terminal_status">Codex 终止事件缺少有效状态</string>
+    <string name="provider_err_no_sse_chunk">模型接口未返回 SSE data chunk</string>
+    <string name="provider_err_responses_no_terminal">模型接口 Responses SSE 流缺少合法终止事件</string>
+    <string name="provider_err_sse_ended_error">模型接口 SSE 以 error 结束</string>
+    <string name="provider_err_sse_not_ended">模型接口 SSE 流未正常结束</string>
+    <string name="provider_err_no_error_message">未提供错误信息</string>
+    <string name="provider_err_sse_error_detail">模型接口 SSE 返回错误%1$s：%2$s</string>
+    <string name="provider_err_responses_failed">模型接口 Responses 请求失败：%1$s</string>
+
+    <string name="provider_hosted_tool_web_search">网页搜索</string>
+    <string name="provider_hosted_tool_file_search">文件搜索</string>
+    <string name="provider_hosted_tool_code_interpreter">代码执行</string>
+    <string name="provider_hosted_tool_computer">计算机操作</string>
+    <string name="provider_hosted_tool_image_generation">图像生成</string>
+    <string name="provider_hosted_tool_mcp">MCP 工具</string>
+
+    <string name="provider_err_anthropic_stream_not_ended">Anthropic SSE 流未正常结束</string>
+    <string name="provider_err_anthropic_block_not_ended">Anthropic SSE 内容块未正常结束</string>
+    <string name="provider_err_anthropic_missing_signature">Anthropic SSE 工具回合缺少思考签名</string>
+    <string name="provider_err_anthropic_sse_error">Anthropic SSE 返回错误</string>
+
+    <string name="provider_param_field">字段 %1$s</string>
+    <string name="provider_param_custom_field">&lt;自定义字段&gt;</string>
+    <string name="provider_param_separator">；</string>
+</resources>

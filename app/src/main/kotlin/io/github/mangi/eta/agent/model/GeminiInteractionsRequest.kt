@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.model
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.ReasoningEffort
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -69,9 +71,17 @@ internal object GeminiInteractionsRequest {
         }
         val effort = config.effectiveReasoningEffort
         if (effort != ReasoningEffort.DEFAULT) {
-            require(effort != ReasoningEffort.OFF) { "当前 Gemini 模型不支持关闭思考，请选择 Default 或支持的思考档位。" }
+            require(effort != ReasoningEffort.OFF) {
+                AppStrings.get(
+                    R.string.provider_err_gemini_thinking_off_unsupported,
+                    "当前 Gemini 模型不支持关闭思考，请选择 Default 或支持的思考档位。",
+                )
+            }
             require(effort.wireValue in setOf("minimal", "low", "medium", "high", "xhigh")) {
-                "Gemini Interactions 协议不支持所选思考档位。"
+                AppStrings.get(
+                    R.string.provider_err_gemini_interactions_effort_unsupported,
+                    "Gemini Interactions 协议不支持所选思考档位。",
+                )
             }
             generation.put("thinking_level", effort.wireValue)
         }
@@ -173,19 +183,21 @@ internal object GeminiInteractionHistory {
                     if (url.startsWith("data:image/", ignoreCase = true)) {
                         val comma = url.indexOf(',')
                         require(comma > 0 && url.substring(0, comma).endsWith(";base64", ignoreCase = true)) {
-                            "Gemini 图片输入必须为 Base64 图片或 HTTP 地址。"
+                            AppStrings.get(R.string.provider_err_gemini_image_http_source, "Gemini 图片输入必须为 Base64 图片或 HTTP 地址。")
                         }
                         image.put("mime_type", url.substring(5, comma).substringBefore(';'))
                             .put("data", url.substring(comma + 1))
                     } else {
                         require(url.startsWith("https://") || url.startsWith("http://")) {
-                            "Gemini 图片输入地址无效。"
+                            AppStrings.get(R.string.provider_err_gemini_image_url_invalid, "Gemini 图片输入地址无效。")
                         }
                         image.put("uri", url)
                     }
                     converted.put(image)
                 }
-                else -> throw IllegalArgumentException("Gemini 不支持该输入内容类型。")
+                else -> throw IllegalArgumentException(
+                    AppStrings.get(R.string.provider_err_gemini_input_type_unsupported, "Gemini 不支持该输入内容类型。"),
+                )
             }
         }
         return converted

@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.model
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.provider.GeminiModelCapabilities
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -65,26 +67,34 @@ internal object ProviderUrls {
     ): String = "${vertexChatModelBaseUrl(baseUrl, model, project, location)}:countTokens"
 
     fun validateVertexChatEndpoint(baseUrl: String, project: String, location: String) {
-        val url = requireNotNull(normalizeBaseUrl(baseUrl).toHttpUrlOrNull()) { "Vertex AI 接口地址无效。" }
+        val url = requireNotNull(normalizeBaseUrl(baseUrl).toHttpUrlOrNull()) {
+            AppStrings.get(R.string.provider_url_vertex_invalid, "Vertex AI 接口地址无效。")
+        }
         require(url.isHttps || url.host in setOf("localhost", "127.0.0.1", "::1")) {
-            "Vertex AI 接口必须使用 HTTPS，本机调试地址除外。"
+            AppStrings.get(R.string.provider_url_vertex_https, "Vertex AI 接口必须使用 HTTPS，本机调试地址除外。")
         }
         require(url.query == null && url.fragment == null && url.username.isEmpty() && url.password.isEmpty()) {
-            "Vertex AI 接口地址不能包含查询参数、片段或凭据。"
+            AppStrings.get(R.string.provider_url_vertex_clean, "Vertex AI 接口地址不能包含查询参数、片段或凭据。")
         }
         val projectId = project.trim()
-        require(projectId.isEmpty() || vertexResourceId.matches(projectId)) { "Vertex AI Project ID 或项目编号无效。" }
+        require(projectId.isEmpty() || vertexResourceId.matches(projectId)) {
+            AppStrings.get(R.string.provider_url_vertex_project_invalid, "Vertex AI Project ID 或项目编号无效。")
+        }
         val region = location.trim().lowercase().ifEmpty { "global" }
-        require(vertexLocationId.matches(region)) { "Vertex AI Location 无效。" }
+        require(vertexLocationId.matches(region)) {
+            AppStrings.get(R.string.provider_url_vertex_location_invalid, "Vertex AI Location 无效。")
+        }
         if (isOfficialVertexHost(url.host)) {
             val scoped = vertexProjectPath.matchEntire(url.encodedPath)
             require(scoped != null || url.encodedPath in setOf("/", "/v1", "/v1beta1")) {
-                "Vertex AI 官方地址应填写 API 根地址或项目与地域路径。"
+                AppStrings.get(R.string.provider_url_vertex_official_path, "Vertex AI 官方地址应填写 API 根地址或项目与地域路径。")
             }
-            require(projectId.isNotEmpty() || scoped != null) { "Gemini 4 需要标准 Vertex AI 项目，请填写 Project ID 或项目编号。" }
+            require(projectId.isNotEmpty() || scoped != null) {
+                AppStrings.get(R.string.provider_url_vertex_project_required, "Gemini 4 需要标准 Vertex AI 项目，请填写 Project ID 或项目编号。")
+            }
             require(scoped == null || projectId.isEmpty() ||
                 (projectId == scoped.groupValues[1] && region == scoped.groupValues[2])) {
-                "Vertex AI 接口地址中的项目和地域必须与配置一致。"
+                AppStrings.get(R.string.provider_url_vertex_mismatch, "Vertex AI 接口地址中的项目和地域必须与配置一致。")
             }
         }
     }
@@ -100,7 +110,9 @@ internal object ProviderUrls {
 
     private fun vertexChatModelBaseUrl(baseUrl: String, model: String, project: String, location: String): String {
         validateVertexChatEndpoint(baseUrl, project, location)
-        require(GeminiModelCapabilities.isGemini4(model)) { "Vertex AI 对话仅支持 Gemini 4 系列模型。" }
+        require(GeminiModelCapabilities.isGemini4(model)) {
+            AppStrings.get(R.string.provider_url_vertex_gemini4_only, "Vertex AI 对话仅支持 Gemini 4 系列模型。")
+        }
         val apiBase = if (isOfficialVertexBaseUrl(baseUrl) &&
             normalizeBaseUrl(baseUrl).toHttpUrlOrNull()?.encodedPath == "/"
         ) {

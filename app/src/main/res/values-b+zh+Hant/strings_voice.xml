@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Assistant foreground service & overlay suggestions -->
+    <string name="voice_i18n_fg_listening">Eta 正在聆聽</string>
+    <string name="voice_i18n_fg_speaking">Eta 正在朗讀</string>
+    <string name="voice_i18n_fg_channel_name">助手語音</string>
+    <string name="voice_i18n_fg_content_text">僅在助手浮窗可見時執行</string>
+    <string name="voice_i18n_fg_action_stop">停止</string>
+    <string name="voice_i18n_fg_permission_denied">系統不允許目前浮窗使用音訊，請檢查麥克風權限與預設數位助理設定</string>
+    <string name="voice_i18n_suggestion_summarize_screen">總結螢幕內容</string>
+    <string name="voice_i18n_suggestion_explain_page">解釋目前頁面</string>
+    <string name="voice_i18n_suggestion_extract_key_info">擷取關鍵資訊</string>
+
+    <!-- Speech input & recognition progress -->
+    <string name="voice_i18n_progress_connecting">正在連線</string>
+    <string name="voice_i18n_progress_hold_to_talk">放開傳送，移出取消</string>
+    <string name="voice_i18n_progress_listening_tap_done">正在聆聽，點按完成結束</string>
+    <string name="voice_i18n_progress_recognizing">正在識別</string>
+    <string name="voice_i18n_progress_recognizing_and_sending">正在識別並傳送</string>
+    <string name="voice_i18n_progress_refining">正在校對</string>
+    <string name="voice_i18n_progress_uploading_audio">正在上傳錄音</string>
+    <string name="voice_i18n_progress_waiting_file_transcription">正在等待檔案轉寫，可隨時取消</string>
+
+    <!-- Speech text readable formatting -->
+    <string name="voice_i18n_speech_text_ordered_item">第 %1$d 項：</string>
+    <string name="voice_i18n_speech_text_task_done">已完成：</string>
+    <string name="voice_i18n_speech_text_task_todo">未完成：</string>
+
+    <!-- General speech errors, permissions, audio & network -->
+    <string name="voice_i18n_credentials_decrypt_failed">語音憑據無法解密，請重新填寫並儲存</string>
+    <string name="voice_i18n_mic_permission_required">請允許 Eta 使用麥克風</string>
+    <string name="voice_i18n_service_timeout">語音服務回應逾時，請重試</string>
+    <string name="voice_i18n_network_unavailable">無法連線語音服務，請檢查網路</string>
+    <string name="voice_i18n_service_unreadable_data">語音服務傳回了無法處理的資料</string>
+    <string name="voice_i18n_http_response_too_large">語音服務回應過大</string>
+    <string name="voice_i18n_http_auth_failed">語音服務驗證失敗，請檢查憑據與服務權限</string>
+    <string name="voice_i18n_http_rate_limited">語音服務請求過於頻繁，請稍後重試</string>
+    <string name="voice_i18n_http_request_failed">語音服務請求失敗（HTTP %1$d）</string>
+    <string name="voice_i18n_audio_focus_unavailable">目前無法取得音訊焦點，請稍後重試</string>
+    <string name="voice_i18n_audio_playback_failed">音訊播放失敗</string>
+    <string name="voice_i18n_audio_format_or_length_invalid">語音音訊格式或長度無效</string>
+    <string name="voice_i18n_audio_incomplete">語音音訊不完整，請重試</string>
+    <string name="voice_i18n_audio_chunk_too_large">語音音訊區塊過大</string>
+    <string name="voice_i18n_socket_receive_backpressure">語音資料處理不及時，請重試</string>
+    <string name="voice_i18n_socket_send_backpressure">網路上傳不及時，請檢查網路後重試</string>
+    <string name="voice_i18n_upload_backpressure">網路上傳不及時，請重試</string>
+
+    <!-- Recording & playback validation -->
+    <string name="voice_i18n_recorder_format_unsupported">裝置不支援語音錄音格式</string>
+    <string name="voice_i18n_recorder_init_failed">無法初始化麥克風</string>
+    <string name="voice_i18n_recorder_mic_busy">麥克風無法使用，可能正被其他應用程式佔用</string>
+    <string name="voice_i18n_recorder_read_failed">麥克風讀取失敗</string>
+    <string name="voice_i18n_recording_too_long">錄音超過長度限制</string>
+    <string name="voice_i18n_no_audio_recorded">沒有錄到語音，請重試</string>
+    <string name="voice_i18n_no_speech_recognized">沒有識別到語音，請重試</string>
+    <string name="voice_i18n_playback_no_readable_text">這則訊息沒有可朗讀的內文</string>
+    <string name="voice_i18n_playback_text_too_long">內文過長，請選擇較短的回答朗讀</string>
+
+    <!-- Configuration & OSS validation -->
+    <string name="voice_i18n_config_required_field">請先設定%1$s</string>
+    <string name="voice_i18n_config_tts_required">請先在設定中設定語音播報</string>
+    <string name="voice_i18n_tts_provider_not_selected">請先選擇語音播報服務</string>
+    <string name="voice_i18n_tts_uses_segmented_streaming">目前語音服務使用逐段串流合成</string>
+    <string name="voice_i18n_asr_requires_streaming">目前語音服務需要串流識別</string>
+    <string name="voice_i18n_config_style_too_long">朗讀風格請控制在 500 字以內</string>
+    <string name="voice_i18n_config_minimax_speed_range">MiniMax 語速須介於 0.5～2 倍之間</string>
+    <string name="voice_i18n_config_oss_bucket_prefix_invalid">請檢查 OSS Bucket 與目錄前綴</string>
+    <string name="voice_i18n_config_base_url_invalid">服務地址須為不含驗證資訊與查詢參數的 HTTPS 位址</string>
+    <string name="voice_i18n_oss_endpoint_invalid">OSS Endpoint 須為標準地域網域，不包含路徑或連接埠</string>
+    <string name="voice_i18n_oss_pending_cleanup_limit">待清理錄音較多，請檢查 OSS 刪除權限後重新啟動 Eta</string>
+    <string name="voice_i18n_oss_cleanup_record_failed">無法記錄錄音清理資訊</string>
+
+    <!-- Configuration field labels -->
+    <string name="voice_i18n_field_voice">音色</string>
+    <string name="voice_i18n_field_qwen_tts_api_key">千問播報 API Key</string>
+    <string name="voice_i18n_field_doubao_tts_credentials">豆包播報憑據</string>
+    <string name="voice_i18n_field_doubao_app_id">豆包 App ID</string>
+    <string name="voice_i18n_field_gemini_tts_api_key">Gemini 播報 API Key</string>
+    <string name="voice_i18n_field_minimax_tts_api_key">MiniMax 播報 API Key</string>
+    <string name="voice_i18n_field_mimo_tts_api_key">MiMo 播報 API Key</string>
+    <string name="voice_i18n_field_deepseek_tts_api_key">DeepSeek 播報 API Key</string>
+    <string name="voice_i18n_field_mimo_asr_api_key">MiMo 識別 API Key</string>
+    <string name="voice_i18n_field_deepseek_asr_api_key">DeepSeek 識別 API Key</string>
+    <string name="voice_i18n_field_doubao_asr_credentials">豆包識別憑據</string>
+    <string name="voice_i18n_field_qwen_asr_api_key">千問識別 API Key</string>
+    <string name="voice_i18n_field_oss_bucket">OSS Bucket</string>
+    <string name="voice_i18n_field_oss_region">OSS 地域</string>
+    <string name="voice_i18n_field_oss_access_key_id">OSS AccessKey ID</string>
+    <string name="voice_i18n_field_oss_access_key_secret">OSS AccessKey Secret</string>
+
+    <!-- Transcript refiner errors -->
+    <string name="voice_i18n_refiner_chat_model_required">請先設定對話模型</string>
+    <string name="voice_i18n_refiner_returned_tool_call">糾錯模型傳回了工具呼叫</string>
+    <string name="voice_i18n_refiner_incomplete_response">糾錯模型未完整傳回</string>
+
+    <!-- Qwen ASR & TTS -->
+    <string name="voice_i18n_qwen_asr_failed">千問識別失敗，請檢查模型權限與設定</string>
+    <string name="voice_i18n_qwen_asr_connection_ended_early">千問識別連線提前結束</string>
+    <string name="voice_i18n_file_transcription_invalid_task_id">檔案轉寫任務編號無效</string>
+    <string name="voice_i18n_qwen_file_transcription_failed">千問檔案轉寫失敗，請檢查服務權限</string>
+    <string name="voice_i18n_file_transcription_unknown_status">檔案轉寫傳回未知任務狀態</string>
+    <string name="voice_i18n_qwen_tts_failed">千問語音合成失敗，請檢查設定</string>
+    <string name="voice_i18n_qwen_tts_stream_failed">千問語音合成失敗，請檢查模型權限與設定</string>
+    <string name="voice_i18n_qwen_tts_connection_ended_early">千問語音合成連線提前結束</string>
+
+    <!-- Doubao ASR & TTS -->
+    <string name="voice_i18n_doubao_asr_invalid_frame">豆包識別傳回了無效音訊協定訊框</string>
+    <string name="voice_i18n_doubao_asr_failed_code">豆包識別失敗（%1$d）</string>
+    <string name="voice_i18n_doubao_asr_connection_ended_early">豆包識別連線提前結束</string>
+    <string name="voice_i18n_doubao_tts_invalid_frame">豆包語音合成傳回了無效協定訊框</string>
+    <string name="voice_i18n_doubao_tts_failed_code">豆包語音合成失敗（%1$d）</string>
+    <string name="voice_i18n_doubao_tts_stream_failed">豆包語音合成失敗，請檢查音色與服務設定</string>
+    <string name="voice_i18n_doubao_tts_connection_ended_early">豆包語音合成連線提前結束</string>
+
+    <!-- DeepSeek ASR & TTS -->
+    <string name="voice_i18n_deepseek_asr_size_limit">錄音超過 DeepSeek 識別介面 8 MiB 限制</string>
+    <string name="voice_i18n_deepseek_asr_failed">DeepSeek 語音識別失敗，請檢查服務權限與設定</string>
+    <string name="voice_i18n_deepseek_asr_invalid_result">DeepSeek 未傳回有效的識別結果</string>
+    <string name="voice_i18n_deepseek_tts_stream_char_limit">內文超過 DeepSeek 串流工作階段字元上限</string>
+    <string name="voice_i18n_deepseek_tts_content_filter">DeepSeek 未能合成這段文字，請調整後重試</string>
+    <string name="voice_i18n_deepseek_tts_invalid_input">DeepSeek 語音合成參數或文字無效</string>
+    <string name="voice_i18n_deepseek_tts_failed_code">DeepSeek 語音合成失敗（%1$s）</string>
+    <string name="voice_i18n_deepseek_tts_connection_ended_early">DeepSeek 語音合成連線提前結束</string>
+
+    <!-- Gemini TTS -->
+    <string name="voice_i18n_gemini_tts_unsupported_audio_format">Gemini 傳回了不支援的音訊格式</string>
+    <string name="voice_i18n_gemini_tts_incomplete">Gemini 未完成朗讀，請縮短文字或調整朗讀風格後重試</string>
+    <string name="voice_i18n_gemini_tts_auth_failed">Gemini 驗證失敗，請檢查 API Key、地區與模型權限</string>
+    <string name="voice_i18n_gemini_tts_rate_limited">Gemini 額度不足或請求過於頻繁，請稍後重試</string>
+    <string name="voice_i18n_gemini_tts_failed">Gemini 語音合成失敗，請檢查模型權限與設定</string>
+
+    <!-- MiMo ASR & TTS -->
+    <string name="voice_i18n_mimo_asr_size_limit">錄音超過 MiMo 識別介面的大小限制</string>
+    <string name="voice_i18n_mimo_asr_failed">MiMo 語音識別失敗，請檢查服務權限與設定</string>
+    <string name="voice_i18n_mimo_asr_no_result">MiMo 未傳回識別結果</string>
+    <string name="voice_i18n_mimo_asr_incomplete">MiMo 識別結果不完整，請縮短錄音後重試</string>
+    <string name="voice_i18n_mimo_asr_content_filter">MiMo 未能處理這段錄音，請重試</string>
+    <string name="voice_i18n_mimo_asr_abnormal_finish">MiMo 未正常完成語音識別</string>
+    <string name="voice_i18n_mimo_asr_invalid_result">MiMo 傳回了無效的識別結果</string>
+    <string name="voice_i18n_mimo_tts_failed">MiMo 語音合成失敗，請檢查服務權限與設定</string>
+    <string name="voice_i18n_mimo_tts_no_audio_data">MiMo 未傳回語音資料</string>
+    <string name="voice_i18n_mimo_tts_invalid_audio_data">MiMo 傳回了無效的語音資料</string>
+    <string name="voice_i18n_mimo_tts_incomplete">MiMo 語音合成不完整，請縮短文字後重試</string>
+    <string name="voice_i18n_mimo_tts_content_filter">MiMo 未能合成這段文字，請調整後重試</string>
+    <string name="voice_i18n_mimo_tts_unknown_status">MiMo 傳回了未知的語音狀態</string>
+    <string name="voice_i18n_mimo_tts_invalid_encoding">MiMo 音訊編碼無效</string>
+
+    <!-- MiniMax TTS -->
+    <string name="voice_i18n_minimax_tts_invalid_status">MiniMax 傳回了無效的音訊狀態</string>
+    <string name="voice_i18n_minimax_tts_encoding_incomplete">MiniMax 音訊編碼不完整</string>
+    <string name="voice_i18n_minimax_tts_encoding_invalid">MiniMax 音訊編碼無效</string>
+    <string name="voice_i18n_minimax_tts_timeout">MiniMax 語音合成逾時，請重試</string>
+    <string name="voice_i18n_minimax_tts_rate_limited">MiniMax 請求過於頻繁，請稍後重試</string>
+    <string name="voice_i18n_minimax_tts_auth_failed">MiniMax 驗證失敗，請檢查 API Key</string>
+    <string name="voice_i18n_minimax_tts_invalid_config">MiniMax 無法處理目前文字或音色，請檢查設定</string>
+    <string name="voice_i18n_minimax_tts_failed_code">MiniMax 語音合成失敗（%1$d）</string>
+</resources>

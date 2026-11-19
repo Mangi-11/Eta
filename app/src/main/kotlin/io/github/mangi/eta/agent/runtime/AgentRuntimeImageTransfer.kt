@@ -6,9 +6,11 @@ import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.util.Base64
 import android.util.Base64InputStream
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.media.AgentImageCodec
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.core.AndroidAgentLogger
+import io.github.mangi.eta.core.AppStrings
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
@@ -56,12 +58,20 @@ internal object AgentRuntimeImageTransfer {
         images: List<AgentModelClient.ModelImage>,
     ): PreparedImages {
         if (images.size > MAX_IMAGE_COUNT) {
-            throw ImageTransferException("一次最多支持 $MAX_IMAGE_COUNT 张图片")
+            throw ImageTransferException(
+                AppStrings.get(
+                    R.string.runtime_err_image_max_count,
+                    "一次最多支持 %1\$d 张图片",
+                    MAX_IMAGE_COUNT,
+                )
+            )
         }
 
         val cacheDirectory = File(context.cacheDir, CACHE_DIRECTORY)
         if (!cacheDirectory.isDirectory && !cacheDirectory.mkdirs()) {
-            throw ImageTransferException("无法创建图片传输缓存")
+            throw ImageTransferException(
+                AppStrings.get(R.string.runtime_err_image_cache_create, "无法创建图片传输缓存")
+            )
         }
         cleanupStaleFiles(cacheDirectory)
 
@@ -72,7 +82,9 @@ internal object AgentRuntimeImageTransfer {
             images.forEach { image ->
                 if (image.reference.isRemoteUrl()) {
                     if (image.reference.length > MAX_REMOTE_URL_CHARS) {
-                        throw ImageTransferException("远程图片链接过长")
+                        throw ImageTransferException(
+                            AppStrings.get(R.string.runtime_err_image_remote_url_long, "远程图片链接过长")
+                        )
                     }
                     wireImages += image.toWireImage(remoteUrl = image.reference)
                     return@forEach
@@ -82,7 +94,13 @@ internal object AgentRuntimeImageTransfer {
                 val directSize = directDescriptor?.statSize ?: -1L
                 if (directSize > MAX_IMAGE_BYTES) {
                     directDescriptor?.close()
-                    throw ImageTransferException("单张图片不能超过 ${MAX_IMAGE_BYTES / 1024 / 1024} MiB")
+                    throw ImageTransferException(
+                        AppStrings.get(
+                            R.string.runtime_err_image_single_too_large,
+                            "单张图片不能超过 %1\$d MiB",
+                            MAX_IMAGE_BYTES / 1024 / 1024,
+                        )
+                    )
                 }
                 val descriptor: ParcelFileDescriptor
                 val imageBytes: Long
@@ -105,16 +123,30 @@ internal object AgentRuntimeImageTransfer {
                 }
                 if (imageBytes <= 0L) {
                     descriptor.close()
-                    throw ImageTransferException("图片内容为空")
+                    throw ImageTransferException(
+                        AppStrings.get(R.string.runtime_err_image_empty, "图片内容为空")
+                    )
                 }
                 if (imageBytes > MAX_IMAGE_BYTES) {
                     descriptor.close()
-                    throw ImageTransferException("单张图片不能超过 ${MAX_IMAGE_BYTES / 1024 / 1024} MiB")
+                    throw ImageTransferException(
+                        AppStrings.get(
+                            R.string.runtime_err_image_single_too_large,
+                            "单张图片不能超过 %1\$d MiB",
+                            MAX_IMAGE_BYTES / 1024 / 1024,
+                        )
+                    )
                 }
                 totalBytes += imageBytes
                 if (totalBytes > MAX_TOTAL_IMAGE_BYTES) {
                     descriptor.close()
-                    throw ImageTransferException("图片总大小不能超过 ${MAX_TOTAL_IMAGE_BYTES / 1024 / 1024} MiB")
+                    throw ImageTransferException(
+                        AppStrings.get(
+                            R.string.runtime_err_image_total_too_large,
+                            "图片总大小不能超过 %1\$d MiB",
+                            MAX_TOTAL_IMAGE_BYTES / 1024 / 1024,
+                        )
+                    )
                 }
                 wireImages += image.toWireImage(
                     fileDescriptor = descriptor,
@@ -125,7 +157,10 @@ internal object AgentRuntimeImageTransfer {
         } catch (throwable: Throwable) {
             PreparedImages(wireImages, files).close()
             if (throwable is ImageTransferException) throw throwable
-            throw ImageTransferException("无法读取待发送图片", throwable)
+            throw ImageTransferException(
+                AppStrings.get(R.string.runtime_err_image_read_outgoing, "无法读取待发送图片"),
+                throwable,
+            )
         }
     }
 
@@ -134,7 +169,13 @@ internal object AgentRuntimeImageTransfer {
         incoming: AgentRuntimeWire.IncomingRunRequest,
     ): AgentRuntimeWire.RunRequest = incoming.use { request ->
         if (request.images.size > MAX_IMAGE_COUNT) {
-            throw ImageTransferException("一次最多支持 $MAX_IMAGE_COUNT 张图片")
+            throw ImageTransferException(
+                AppStrings.get(
+                    R.string.runtime_err_image_max_count,
+                    "一次最多支持 %1\$d 张图片",
+                    MAX_IMAGE_COUNT,
+                )
+            )
         }
 
         var totalBytes = 0L
@@ -143,20 +184,39 @@ internal object AgentRuntimeImageTransfer {
                 val startedAt = SystemClock.elapsedRealtime()
                 val statSize = descriptor.statSize
                 if (statSize <= 0L) {
-                    throw ImageTransferException("图片文件描述符无有效大小")
+                    throw ImageTransferException(
+                        AppStrings.get(
+                            R.string.runtime_err_image_fd_invalid_size,
+                            "图片文件描述符无有效大小",
+                        )
+                    )
                 }
                 if (statSize > MAX_IMAGE_BYTES) {
-                    throw ImageTransferException("单张图片不能超过 ${MAX_IMAGE_BYTES / 1024 / 1024} MiB")
+                    throw ImageTransferException(
+                        AppStrings.get(
+                            R.string.runtime_err_image_single_too_large,
+                            "单张图片不能超过 %1\$d MiB",
+                            MAX_IMAGE_BYTES / 1024 / 1024,
+                        )
+                    )
                 }
                 val bytes = ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { input ->
                     input.readBytesLimited(MAX_IMAGE_BYTES)
                 }
                 if (bytes.size.toLong() != statSize) {
-                    throw ImageTransferException("图片传输不完整")
+                    throw ImageTransferException(
+                        AppStrings.get(R.string.runtime_err_image_incomplete, "图片传输不完整")
+                    )
                 }
                 totalBytes += bytes.size
                 if (totalBytes > MAX_TOTAL_IMAGE_BYTES) {
-                    throw ImageTransferException("图片总大小不能超过 ${MAX_TOTAL_IMAGE_BYTES / 1024 / 1024} MiB")
+                    throw ImageTransferException(
+                        AppStrings.get(
+                            R.string.runtime_err_image_total_too_large,
+                            "图片总大小不能超过 %1\$d MiB",
+                            MAX_TOTAL_IMAGE_BYTES / 1024 / 1024,
+                        )
+                    )
                 }
                 val materialized = if (image.preserveOriginal) {
                     AgentImageCodec.fromScreenBytes(bytes, image.source, image.mimeType)
@@ -176,7 +236,9 @@ internal object AgentRuntimeImageTransfer {
             val reference = image.remoteUrl.orEmpty()
             if (reference.isRemoteUrl()) {
                 if (reference.length > MAX_REMOTE_URL_CHARS) {
-                    throw ImageTransferException("远程图片链接过长")
+                    throw ImageTransferException(
+                        AppStrings.get(R.string.runtime_err_image_remote_url_long, "远程图片链接过长")
+                    )
                 }
                 return@mapIndexed AgentModelClient.ModelImage(
                     reference = reference,
@@ -189,14 +251,18 @@ internal object AgentRuntimeImageTransfer {
                 )
             }
             if (reference.length > MAX_ENCODED_IMAGE_CHARS) {
-                throw ImageTransferException("内联图片数据过大")
+                throw ImageTransferException(
+                    AppStrings.get(R.string.runtime_err_image_inline_too_large, "内联图片数据过大")
+                )
             }
             AgentImageCodec.fromReference(
                 context = null,
                 value = reference,
                 source = image.source,
                 preserveOriginal = image.preserveOriginal,
-            ) ?: throw ImageTransferException("无法读取旧协议中的图片")
+            ) ?: throw ImageTransferException(
+                AppStrings.get(R.string.runtime_err_image_legacy_unreadable, "无法读取旧协议中的图片")
+            )
         }
         request.materializeText().copy(images = images)
     }
@@ -227,11 +293,17 @@ internal object AgentRuntimeImageTransfer {
 
             Uri.parse(reference).scheme in setOf("content", "file") ->
                 context.contentResolver.openInputStream(Uri.parse(reference))
-                    ?: throw ImageTransferException("无法打开本地图片")
+                    ?: throw ImageTransferException(
+                        AppStrings.get(R.string.runtime_err_image_open_local, "无法打开本地图片")
+                    )
 
             else -> {
                 val file = File(reference)
-                if (!file.isFile) throw ImageTransferException("图片引用不可读")
+                if (!file.isFile) {
+                    throw ImageTransferException(
+                        AppStrings.get(R.string.runtime_err_image_ref_unreadable, "图片引用不可读")
+                    )
+                }
                 file.inputStream()
             }
         }
@@ -267,11 +339,15 @@ internal object AgentRuntimeImageTransfer {
     private fun String.openDataUrlStream(): InputStream {
         val separator = indexOf(',')
         if (separator <= 0 || !substring(0, separator).endsWith(";base64", ignoreCase = true)) {
-            throw ImageTransferException("不支持的内联图片格式")
+            throw ImageTransferException(
+                AppStrings.get(R.string.runtime_err_image_inline_unsupported, "不支持的内联图片格式")
+            )
         }
         val encoded = substring(separator + 1)
         if (encoded.length > MAX_ENCODED_IMAGE_CHARS) {
-            throw ImageTransferException("内联图片数据过大")
+            throw ImageTransferException(
+                AppStrings.get(R.string.runtime_err_image_inline_too_large, "内联图片数据过大")
+            )
         }
         return Base64InputStream(
             ByteArrayInputStream(encoded.toByteArray(Charsets.US_ASCII)),
@@ -290,7 +366,13 @@ internal object AgentRuntimeImageTransfer {
             if (read < 0) return
             total += read
             if (total > maxBytes) {
-                throw ImageTransferException("单张图片不能超过 ${maxBytes / 1024 / 1024} MiB")
+                throw ImageTransferException(
+                    AppStrings.get(
+                        R.string.runtime_err_image_single_too_large,
+                        "单张图片不能超过 %1\$d MiB",
+                        maxBytes / 1024 / 1024,
+                    )
+                )
             }
             output.write(buffer, 0, read)
         }
@@ -305,7 +387,13 @@ internal object AgentRuntimeImageTransfer {
             if (read < 0) return output.toByteArray()
             total += read
             if (total > maxBytes) {
-                throw ImageTransferException("单张图片不能超过 ${maxBytes / 1024 / 1024} MiB")
+                throw ImageTransferException(
+                    AppStrings.get(
+                        R.string.runtime_err_image_single_too_large,
+                        "单张图片不能超过 %1\$d MiB",
+                        maxBytes / 1024 / 1024,
+                    )
+                )
             }
             output.write(buffer, 0, read)
         }

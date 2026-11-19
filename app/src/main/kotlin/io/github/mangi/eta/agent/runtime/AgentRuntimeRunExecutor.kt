@@ -1,6 +1,7 @@
 package io.github.mangi.eta.agent.runtime
 
 import android.content.Context
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityKeeper
 import io.github.mangi.eta.agent.browser.BrowserSessionRegistry
 import io.github.mangi.eta.agent.model.AgentConversationCodec
@@ -39,6 +40,7 @@ import io.github.mangi.eta.agent.tool.ToolExecutionDecision
 import io.github.mangi.eta.agent.voice.EtaAssistantOverlayService
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.core.AndroidAgentLogger
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.data.repository.AgentMemoryRepository
 import io.github.mangi.eta.data.repository.ImageGenSettingsRepository
@@ -130,12 +132,21 @@ internal class AgentRuntimeRunExecutor(
                 runBlocking { RoleplayRunContext.resolve(appContext, id, contextWindow, memoryEnabled) }
             }
             if (request.operation == AgentRuntimeWire.OP_REWRITE_REPLY) {
-                require(roleplayContext != null) { "只有角色会话可以改写角色回复" }
+                require(roleplayContext != null) {
+                    AppStrings.get(R.string.runtime_err_rewrite_roleplay_only, "只有角色会话可以改写角色回复")
+                }
                 val target = request.rewriteTargetMessageId?.takeIf { it.isNotBlank() && it.length <= 256 }
-                    ?: throw IllegalArgumentException("缺少有效的角色回复目标")
+                    ?: throw IllegalArgumentException(
+                        AppStrings.get(R.string.runtime_err_rewrite_target_missing, "缺少有效的角色回复目标")
+                    )
                 require(runBlocking {
                     EtaDatabase.get(appContext).conversationDao().hasAssistantMessage(conversationId, target)
-                }) { "角色回复目标不存在或不属于当前会话" }
+                }) {
+                    AppStrings.get(
+                        R.string.runtime_err_rewrite_target_not_found,
+                        "角色回复目标不存在或不属于当前会话",
+                    )
+                }
             }
             val characterMemoryTools = roleplayContext?.let { roleplay ->
                 CharacterMemoryTools(appContext, roleplay.characterId) {
@@ -478,7 +489,7 @@ internal class AgentRuntimeRunExecutor(
             cancelled = runController.isCancelled || throwable is AgentRunCancelledException
             val modelFailure = throwable as? AgentModelExecutionException
             val message = if (cancelled) {
-                "已停止"
+                AppStrings.get(R.string.runtime_err_stopped, "已停止")
             } else {
                 throwable.message ?: throwable.javaClass.simpleName
             }

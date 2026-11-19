@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -126,15 +127,18 @@ internal fun ImageGenSettingsScreen(
             add(ImageGenSettings.STANDALONE_LINK_ID)
         }
     }
-    val linkChoiceLabels = remember(linkedOptions, backend) {
-        buildList {
-            if (backend != ImageGenBackend.DOUBAO) add("自动匹配已有服务商")
-            linkedOptions.forEach { opt ->
-                val suffix = if (opt.hasApiKey) "" else "（未填 Key）"
-                add("${opt.name}$suffix")
-            }
-            add("独立填写 API Key")
+    val linkChoiceLabels = buildList {
+        if (backend != ImageGenBackend.DOUBAO) add(stringResource(R.string.imagegen_link_auto_match))
+        linkedOptions.forEach { opt ->
+            add(
+                if (opt.hasApiKey) {
+                    opt.name
+                } else {
+                    stringResource(R.string.imagegen_link_provider_no_key, opt.name)
+                },
+            )
         }
+        add(stringResource(R.string.imagegen_link_standalone))
     }
     val selectedLinkIndex = linkChoiceIds.indexOf(currentLinkId).let { if (it >= 0) it else 0 }
 
@@ -182,17 +186,17 @@ internal fun ImageGenSettingsScreen(
     }
     val supportedResolutions = capability.supportedResolutions
     val effectiveResolution = capability.clampResolution(settings.defaultResolution)
-    val resolutionOptionLabels = remember(supportedResolutions, capability.resolutionIsQualityTier) {
-        if (capability.resolutionIsQualityTier) {
-            supportedResolutions.map { res ->
-                when (res) {
-                    io.github.mangi.eta.data.model.ImageGenResolution.R_1K -> "标准画质（自动）"
-                    else -> "高清画质（High）"
-                }
+    val resolutionOptionLabels = if (capability.resolutionIsQualityTier) {
+        supportedResolutions.map { res ->
+            when (res) {
+                io.github.mangi.eta.data.model.ImageGenResolution.R_1K ->
+                    stringResource(R.string.imagegen_quality_standard_auto)
+                else ->
+                    stringResource(R.string.imagegen_quality_high)
             }
-        } else {
-            supportedResolutions.map { it.displayLabel }
         }
+    } else {
+        supportedResolutions.map { stringResource(it.displayLabelRes) }
     }
 
     val onModelChange: (String) -> Unit = { value ->
@@ -223,7 +227,10 @@ internal fun ImageGenSettingsScreen(
         )
     }
 
-    val presetLabels = remember(presets) { presets.map { "${it.label} (${it.id})" } + "自定义模型 ID" }
+    val presetLabels = presets.map { preset ->
+        val label = preset.labelRes?.let { stringResource(it) } ?: preset.rawLabel
+        "$label (${preset.id})"
+    } + stringResource(R.string.imagegen_preset_custom_model)
     val selectedPresetIndex = remember(presets, currentModel) {
         presets.indexOfFirst { it.id == currentModel.trim() }.let { if (it >= 0) it else presets.size }
     }
@@ -232,9 +239,14 @@ internal fun ImageGenSettingsScreen(
     }
 
     val gallerySummary = if (store.galleryCount > 0) {
-        "${store.galleryCount} 张 · ${formatImageStorageSize(store.galleryBytes)}"
+        pluralStringResource(
+            R.plurals.imagegen_gallery_summary_count,
+            store.galleryCount,
+            store.galleryCount,
+            formatImageStorageSize(store.galleryBytes),
+        )
     } else {
-        "暂无本地图片"
+        stringResource(R.string.imagegen_gallery_summary_empty)
     }
 
     when (LocalUiStyle.current) {
@@ -260,16 +272,16 @@ internal fun ImageGenSettingsScreen(
 
                 Group {
                     CouiSwitchPreference(
-                        title = "启用 AI 生图",
-                        summary = "开启后任何对话模型都能自动调用生图与改图工具，生成的图片直接显示在聊天流中",
+                        title = stringResource(R.string.imagegen_enable_title),
+                        summary = stringResource(R.string.imagegen_enable_summary),
                         checked = settings.enabled,
                         onCheckedChange = { store.edit(settings.copy(enabled = it)) },
                     )
                 }
 
-                Group(title = "生图服务") {
+                Group(title = stringResource(R.string.imagegen_section_service)) {
                     CouiDropdownPreference(
-                        title = "服务商渠道",
+                        title = stringResource(R.string.imagegen_provider_channel),
                         items = backendList.map { it.displayName() },
                         selectedIndex = backendList.indexOf(backend).coerceAtLeast(0),
                         onSelectedIndexChange = { idx ->
@@ -293,14 +305,14 @@ internal fun ImageGenSettingsScreen(
                     )
                     Divider()
                     CouiDropdownPreference(
-                        title = "凭据来源",
+                        title = stringResource(R.string.imagegen_credential_source),
                         items = linkChoiceLabels,
                         selectedIndex = selectedLinkIndex,
                         onSelectedIndexChange = onSelectLink,
                     )
                     Divider()
                     CouiDropdownPreference(
-                        title = "常用模型预设",
+                        title = stringResource(R.string.imagegen_model_presets),
                         items = presetLabels,
                         selectedIndex = selectedPresetIndex,
                         onSelectedIndexChange = onSelectPreset,
@@ -309,7 +321,11 @@ internal fun ImageGenSettingsScreen(
 
                 if (usingLinkedProvider) {
                     Footer(
-                        text = "当前完整复用「${resolvedLink.name}」的 API Key 与连接地址（${resolvedLink.baseUrl.ifBlank { "官方默认" }}）。如需指定其他地址或地域，请将「凭据来源」切换为「独立填写 API Key」。",
+                        text = stringResource(
+                            R.string.imagegen_linked_provider_footer_with_url,
+                            resolvedLink.name,
+                            resolvedLink.baseUrl.ifBlank { stringResource(R.string.imagegen_official_default) },
+                        ),
                     )
                 }
 
@@ -326,7 +342,7 @@ internal fun ImageGenSettingsScreen(
                     }
                 }
 
-                Group(title = "连接与模型参数") {
+                Group(title = stringResource(R.string.imagegen_section_connection)) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -336,7 +352,13 @@ internal fun ImageGenSettingsScreen(
                         CouiTextField(
                             value = currentModel,
                             onValueChange = onModelChange,
-                            label = if (backend == ImageGenBackend.DOUBAO) "模型 ID 或 Endpoint ID" else "模型 ID",
+                            label = stringResource(
+                                if (backend == ImageGenBackend.DOUBAO) {
+                                    R.string.imagegen_field_model_or_endpoint_id
+                                } else {
+                                    R.string.imagegen_field_model_id
+                                },
+                            ),
                             placeholder = presets.firstOrNull()?.id.orEmpty(),
                             singleLine = true,
                         )
@@ -346,9 +368,12 @@ internal fun ImageGenSettingsScreen(
                             when (backend) {
                                 ImageGenBackend.GEMINI -> {
                                     val endpointModes = listOf(GeminiEndpointMode.AI_STUDIO, GeminiEndpointMode.VERTEX_AI)
-                                    val endpointLabels = listOf("Google AI Studio（Interactions API）", "Google Cloud Vertex AI")
+                                    val endpointLabels = listOf(
+                                        stringResource(R.string.imagegen_gemini_endpoint_ai_studio),
+                                        stringResource(R.string.imagegen_gemini_endpoint_vertex),
+                                    )
                                     CouiDropdownPreference(
-                                        title = "接入平台",
+                                        title = stringResource(R.string.imagegen_gemini_platform),
                                         items = endpointLabels,
                                         selectedIndex = endpointModes.indexOf(
                                             GeminiEndpointMode.normalize(settings.gemini.endpointMode),
@@ -360,7 +385,7 @@ internal fun ImageGenSettingsScreen(
                                     CouiTextField(
                                         value = settings.gemini.baseUrl,
                                         onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(baseUrl = it))) },
-                                        label = "接口地址（留空使用官方默认）",
+                                        label = stringResource(R.string.imagegen_field_base_url_optional),
                                         placeholder = if (GeminiEndpointMode.normalize(settings.gemini.endpointMode) == GeminiEndpointMode.VERTEX_AI) {
                                             GeminiProviderSetting.DEFAULT_VERTEX_BASE_URL
                                         } else {
@@ -372,14 +397,14 @@ internal fun ImageGenSettingsScreen(
                                         CouiTextField(
                                             value = settings.gemini.vertexProject,
                                             onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(vertexProject = it))) },
-                                            label = "Vertex Project（Express 模式留空）",
-                                            placeholder = "留空走官方 global Express 端点",
+                                            label = stringResource(R.string.imagegen_field_vertex_project),
+                                            placeholder = stringResource(R.string.imagegen_field_vertex_project_placeholder),
                                             singleLine = true,
                                         )
                                         CouiTextField(
                                             value = settings.gemini.vertexLocation,
                                             onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(vertexLocation = it))) },
-                                            label = "Vertex Location",
+                                            label = stringResource(R.string.imagegen_field_vertex_location),
                                             placeholder = "global",
                                             singleLine = true,
                                         )
@@ -390,7 +415,7 @@ internal fun ImageGenSettingsScreen(
                                     CouiTextField(
                                         value = settings.openAi.baseUrl,
                                         onValueChange = { store.edit(settings.copy(openAi = settings.openAi.copy(baseUrl = it))) },
-                                        label = "接口 Base URL（OpenAI 或兼容中转）",
+                                        label = stringResource(R.string.imagegen_field_openai_base_url),
                                         placeholder = OpenAiImageConfig.DEFAULT_BASE_URL,
                                         singleLine = true,
                                     )
@@ -400,7 +425,7 @@ internal fun ImageGenSettingsScreen(
                                     CouiTextField(
                                         value = settings.xai.baseUrl,
                                         onValueChange = { store.edit(settings.copy(xai = settings.xai.copy(baseUrl = it))) },
-                                        label = "xAI Base URL",
+                                        label = stringResource(R.string.imagegen_field_xai_base_url),
                                         placeholder = XaiImageConfig.DEFAULT_BASE_URL,
                                         singleLine = true,
                                     )
@@ -410,7 +435,7 @@ internal fun ImageGenSettingsScreen(
                                     CouiTextField(
                                         value = settings.doubao.baseUrl,
                                         onValueChange = { store.edit(settings.copy(doubao = settings.doubao.copy(baseUrl = it))) },
-                                        label = "火山方舟 Base URL",
+                                        label = stringResource(R.string.imagegen_field_doubao_base_url),
                                         placeholder = DoubaoImageConfig.DEFAULT_BASE_URL,
                                         singleLine = true,
                                     )
@@ -418,9 +443,12 @@ internal fun ImageGenSettingsScreen(
 
                                 ImageGenBackend.QWEN -> {
                                     val regions = listOf(SpeechRegion.BEIJING, SpeechRegion.SINGAPORE)
-                                    val regionLabels = listOf("华北2（北京）", "新加坡（国际站）")
+                                    val regionLabels = listOf(
+                                        stringResource(R.string.imagegen_qwen_region_beijing),
+                                        stringResource(R.string.imagegen_qwen_region_singapore),
+                                    )
                                     CouiDropdownPreference(
-                                        title = "百炼地域",
+                                        title = stringResource(R.string.imagegen_qwen_region),
                                         items = regionLabels,
                                         selectedIndex = regions.indexOf(settings.qwen.region).coerceAtLeast(0),
                                         onSelectedIndexChange = { idx ->
@@ -430,7 +458,7 @@ internal fun ImageGenSettingsScreen(
                                     CouiTextField(
                                         value = settings.qwen.baseUrl,
                                         onValueChange = { store.edit(settings.copy(qwen = settings.qwen.copy(baseUrl = it))) },
-                                        label = "专属业务空间域名（可选，留空走所选地域官方域名）",
+                                        label = stringResource(R.string.imagegen_field_qwen_base_url),
                                         placeholder = settings.qwen.defaultEndpoint(),
                                         singleLine = true,
                                     )
@@ -440,7 +468,7 @@ internal fun ImageGenSettingsScreen(
                                     CouiTextField(
                                         value = settings.siliconFlow.baseUrl,
                                         onValueChange = { store.edit(settings.copy(siliconFlow = settings.siliconFlow.copy(baseUrl = it))) },
-                                        label = "硅基流动 Base URL",
+                                        label = stringResource(R.string.imagegen_field_siliconflow_base_url),
                                         placeholder = SiliconFlowImageConfig.DEFAULT_BASE_URL,
                                         singleLine = true,
                                     )
@@ -450,7 +478,7 @@ internal fun ImageGenSettingsScreen(
                             CouiTextField(
                                 value = currentApiKey,
                                 onValueChange = onApiKeyChange,
-                                label = "API Key",
+                                label = stringResource(R.string.imagegen_field_api_key),
                                 placeholder = "sk-... / AIza...",
                                 singleLine = true,
                                 visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -463,7 +491,7 @@ internal fun ImageGenSettingsScreen(
                                     ) {
                                         CouiIcon(
                                             imageVector = if (apiKeyVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                            contentDescription = "切换 API Key 可见性",
+                                            contentDescription = stringResource(R.string.imagegen_toggle_api_key_visibility),
                                             tint = pageColors.summary,
                                         )
                                     }
@@ -473,10 +501,10 @@ internal fun ImageGenSettingsScreen(
                     }
                 }
 
-                Group(title = "生成默认偏好") {
+                Group(title = stringResource(R.string.imagegen_section_defaults)) {
                     CouiDropdownPreference(
-                        title = "默认画面比例",
-                        items = ratioList.map { it.displayLabel },
+                        title = stringResource(R.string.imagegen_default_aspect_ratio),
+                        items = ratioList.map { stringResource(it.displayLabelRes) },
                         selectedIndex = ratioList.indexOf(settings.defaultAspectRatio).coerceAtLeast(0),
                         onSelectedIndexChange = { idx ->
                             store.edit(settings.copy(defaultAspectRatio = ratioList[idx]))
@@ -485,7 +513,13 @@ internal fun ImageGenSettingsScreen(
                     if (supportedResolutions.size > 1) {
                         Divider()
                         CouiDropdownPreference(
-                            title = if (capability.resolutionIsQualityTier) "默认画质档位" else "默认清晰度",
+                            title = stringResource(
+                                if (capability.resolutionIsQualityTier) {
+                                    R.string.imagegen_default_quality_tier
+                                } else {
+                                    R.string.imagegen_default_resolution
+                                },
+                            ),
                             items = resolutionOptionLabels,
                             selectedIndex = supportedResolutions.indexOf(effectiveResolution).coerceAtLeast(0),
                             onSelectedIndexChange = { idx ->
@@ -495,16 +529,19 @@ internal fun ImageGenSettingsScreen(
                     } else {
                         Divider()
                         CouiPreference(
-                            title = "默认清晰度",
-                            value = "${resolutionOptionLabels.first()}（当前模型固定）",
+                            title = stringResource(R.string.imagegen_default_resolution),
+                            value = stringResource(
+                                R.string.imagegen_resolution_fixed_by_model,
+                                resolutionOptionLabels.first(),
+                            ),
                             showChevron = false,
                         )
                     }
                     if (backend == ImageGenBackend.DOUBAO) {
                         Divider()
                         CouiSwitchPreference(
-                            title = "添加 AI 生成水印",
-                            summary = "默认关闭，开启后在图片右下角显示火山方舟水印",
+                            title = stringResource(R.string.imagegen_doubao_watermark_title),
+                            summary = stringResource(R.string.imagegen_doubao_watermark_summary),
                             checked = settings.doubao.watermark,
                             onCheckedChange = {
                                 store.edit(settings.copy(doubao = settings.doubao.copy(watermark = it)))
@@ -514,8 +551,8 @@ internal fun ImageGenSettingsScreen(
                     if (backend == ImageGenBackend.QWEN) {
                         Divider()
                         CouiSwitchPreference(
-                            title = "提示词智能润色",
-                            summary = "开启后由千问模型自动补充画面细节（推荐开启）",
+                            title = stringResource(R.string.imagegen_qwen_prompt_extend_title),
+                            summary = stringResource(R.string.imagegen_qwen_prompt_extend_summary),
                             checked = settings.qwen.promptExtend,
                             onCheckedChange = {
                                 store.edit(settings.copy(qwen = settings.qwen.copy(promptExtend = it)))
@@ -523,8 +560,8 @@ internal fun ImageGenSettingsScreen(
                         )
                         Divider()
                         CouiSwitchPreference(
-                            title = "添加 Qwen-Image 水印",
-                            summary = "默认关闭",
+                            title = stringResource(R.string.imagegen_qwen_watermark_title),
+                            summary = stringResource(R.string.imagegen_default_off),
                             checked = settings.qwen.watermark,
                             onCheckedChange = {
                                 store.edit(settings.copy(qwen = settings.qwen.copy(watermark = it)))
@@ -546,14 +583,18 @@ internal fun ImageGenSettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     CouiButton(
-                        text = if (store.testing) "试画中…" else "试画测试",
+                        text = stringResource(
+                            if (store.testing) R.string.imagegen_action_testing else R.string.imagegen_action_test,
+                        ),
                         onClick = store::testGenerate,
                         enabled = !store.testing && !store.saving,
                         role = CouiButtonRole.Secondary,
                         modifier = Modifier.weight(1f),
                     )
                     CouiButton(
-                        text = if (store.saving) "保存中…" else "保存配置",
+                        text = stringResource(
+                            if (store.saving) R.string.imagegen_action_saving else R.string.imagegen_action_save_config,
+                        ),
                         onClick = store::save,
                         enabled = !store.saving && !store.testing,
                         role = CouiButtonRole.Primary,
@@ -561,9 +602,9 @@ internal fun ImageGenSettingsScreen(
                     )
                 }
 
-                Group(title = "本地图片") {
+                Group(title = stringResource(R.string.imagegen_section_local_images)) {
                     CouiPreference(
-                        title = "已生成图片画廊",
+                        title = stringResource(R.string.imagegen_open_gallery),
                         value = gallerySummary,
                         icon = { CouiSettingsIcon(Icons.Rounded.PhotoLibrary, pageColors.accent) },
                         onClick = onOpenGallery,
@@ -601,8 +642,8 @@ internal fun ImageGenSettingsScreen(
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                     ) {
                         SwitchPreference(
-                            title = "启用 AI 生图",
-                            summary = "开启后任何对话模型都能自动调用生图与改图工具，成图直接显示在聊天流中",
+                            title = stringResource(R.string.imagegen_enable_title),
+                            summary = stringResource(R.string.imagegen_enable_summary),
                             checked = settings.enabled,
                             onCheckedChange = { store.edit(settings.copy(enabled = it)) },
                         )
@@ -610,14 +651,14 @@ internal fun ImageGenSettingsScreen(
                 }
 
                 item(key = "backend_section") {
-                    SmallTitle(text = "生图服务")
+                    SmallTitle(text = stringResource(R.string.imagegen_section_service))
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                     ) {
                         GlassDropdownPreference(
-                            title = "服务商渠道",
+                            title = stringResource(R.string.imagegen_provider_channel),
                             items = backendList.map { it.displayName() },
                             selectedIndex = backendList.indexOf(backend).coerceAtLeast(0),
                             onSelectedIndexChange = { idx ->
@@ -641,14 +682,14 @@ internal fun ImageGenSettingsScreen(
                             backdrop = currentGlassOverlayBackdrop(),
                         )
                         GlassDropdownPreference(
-                            title = "凭据来源",
+                            title = stringResource(R.string.imagegen_credential_source),
                             items = linkChoiceLabels,
                             selectedIndex = selectedLinkIndex,
                             onSelectedIndexChange = onSelectLink,
                             backdrop = currentGlassOverlayBackdrop(),
                         )
                         GlassDropdownPreference(
-                            title = "常用模型预设",
+                            title = stringResource(R.string.imagegen_model_presets),
                             items = presetLabels,
                             selectedIndex = selectedPresetIndex,
                             onSelectedIndexChange = onSelectPreset,
@@ -657,7 +698,7 @@ internal fun ImageGenSettingsScreen(
                     }
                     if (usingLinkedProvider) {
                         Text(
-                            text = "当前完整复用「${resolvedLink.name}」的 API Key 与连接地址。如需指定其他地址或地域，请将「凭据来源」切为「独立填写 API Key」。",
+                            text = stringResource(R.string.imagegen_linked_provider_footer, resolvedLink.name),
                             fontSize = 12.sp,
                             color = StatusSuccess,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -674,7 +715,7 @@ internal fun ImageGenSettingsScreen(
                 }
 
                 item(key = "connection_section") {
-                    SmallTitle(text = "连接与模型参数")
+                    SmallTitle(text = stringResource(R.string.imagegen_section_connection))
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -689,7 +730,13 @@ internal fun ImageGenSettingsScreen(
                             TextField(
                                 value = currentModel,
                                 onValueChange = onModelChange,
-                                label = if (backend == ImageGenBackend.DOUBAO) "模型 ID 或 Endpoint ID" else "模型 ID",
+                                label = stringResource(
+                                    if (backend == ImageGenBackend.DOUBAO) {
+                                        R.string.imagegen_field_model_or_endpoint_id
+                                    } else {
+                                        R.string.imagegen_field_model_id
+                                    },
+                                ),
                                 singleLine = true,
                             )
 
@@ -697,9 +744,12 @@ internal fun ImageGenSettingsScreen(
                                 when (backend) {
                                     ImageGenBackend.GEMINI -> {
                                         val endpointModes = listOf(GeminiEndpointMode.AI_STUDIO, GeminiEndpointMode.VERTEX_AI)
-                                        val endpointLabels = listOf("Google AI Studio（Interactions API）", "Google Cloud Vertex AI")
+                                        val endpointLabels = listOf(
+                                            stringResource(R.string.imagegen_gemini_endpoint_ai_studio),
+                                            stringResource(R.string.imagegen_gemini_endpoint_vertex),
+                                        )
                                         GlassDropdownPreference(
-                                            title = "接入平台",
+                                            title = stringResource(R.string.imagegen_gemini_platform),
                                             items = endpointLabels,
                                             selectedIndex = endpointModes.indexOf(
                                                 GeminiEndpointMode.normalize(settings.gemini.endpointMode),
@@ -712,20 +762,20 @@ internal fun ImageGenSettingsScreen(
                                         TextField(
                                             value = settings.gemini.baseUrl,
                                             onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(baseUrl = it))) },
-                                            label = "接口地址（留空使用官方默认）",
+                                            label = stringResource(R.string.imagegen_field_base_url_optional),
                                             singleLine = true,
                                         )
                                         if (GeminiEndpointMode.normalize(settings.gemini.endpointMode) == GeminiEndpointMode.VERTEX_AI) {
                                             TextField(
                                                 value = settings.gemini.vertexProject,
                                                 onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(vertexProject = it))) },
-                                                label = "Vertex Project（Express 留空）",
+                                                label = stringResource(R.string.imagegen_field_vertex_project),
                                                 singleLine = true,
                                             )
                                             TextField(
                                                 value = settings.gemini.vertexLocation,
                                                 onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(vertexLocation = it))) },
-                                                label = "Vertex Location（默认 global）",
+                                                label = stringResource(R.string.imagegen_field_vertex_location_default),
                                                 singleLine = true,
                                             )
                                         }
@@ -735,7 +785,7 @@ internal fun ImageGenSettingsScreen(
                                         TextField(
                                             value = settings.openAi.baseUrl,
                                             onValueChange = { store.edit(settings.copy(openAi = settings.openAi.copy(baseUrl = it))) },
-                                            label = "接口 Base URL（OpenAI 或兼容中转）",
+                                            label = stringResource(R.string.imagegen_field_openai_base_url),
                                             singleLine = true,
                                         )
                                     }
@@ -744,7 +794,7 @@ internal fun ImageGenSettingsScreen(
                                         TextField(
                                             value = settings.xai.baseUrl,
                                             onValueChange = { store.edit(settings.copy(xai = settings.xai.copy(baseUrl = it))) },
-                                            label = "xAI Base URL",
+                                            label = stringResource(R.string.imagegen_field_xai_base_url),
                                             singleLine = true,
                                         )
                                     }
@@ -753,16 +803,19 @@ internal fun ImageGenSettingsScreen(
                                         TextField(
                                             value = settings.doubao.baseUrl,
                                             onValueChange = { store.edit(settings.copy(doubao = settings.doubao.copy(baseUrl = it))) },
-                                            label = "火山方舟 Base URL",
+                                            label = stringResource(R.string.imagegen_field_doubao_base_url),
                                             singleLine = true,
                                         )
                                     }
 
                                     ImageGenBackend.QWEN -> {
                                         val regions = listOf(SpeechRegion.BEIJING, SpeechRegion.SINGAPORE)
-                                        val regionLabels = listOf("华北2（北京）", "新加坡（国际站）")
+                                        val regionLabels = listOf(
+                                            stringResource(R.string.imagegen_qwen_region_beijing),
+                                            stringResource(R.string.imagegen_qwen_region_singapore),
+                                        )
                                         GlassDropdownPreference(
-                                            title = "百炼地域",
+                                            title = stringResource(R.string.imagegen_qwen_region),
                                             items = regionLabels,
                                             selectedIndex = regions.indexOf(settings.qwen.region).coerceAtLeast(0),
                                             onSelectedIndexChange = { idx ->
@@ -773,7 +826,7 @@ internal fun ImageGenSettingsScreen(
                                         TextField(
                                             value = settings.qwen.baseUrl,
                                             onValueChange = { store.edit(settings.copy(qwen = settings.qwen.copy(baseUrl = it))) },
-                                            label = "专属业务空间域名（可选，留空走所选地域官方域名）",
+                                            label = stringResource(R.string.imagegen_field_qwen_base_url),
                                             singleLine = true,
                                         )
                                     }
@@ -782,7 +835,7 @@ internal fun ImageGenSettingsScreen(
                                         TextField(
                                             value = settings.siliconFlow.baseUrl,
                                             onValueChange = { store.edit(settings.copy(siliconFlow = settings.siliconFlow.copy(baseUrl = it))) },
-                                            label = "硅基流动 Base URL",
+                                            label = stringResource(R.string.imagegen_field_siliconflow_base_url),
                                             singleLine = true,
                                         )
                                     }
@@ -791,14 +844,14 @@ internal fun ImageGenSettingsScreen(
                                 TextField(
                                     value = currentApiKey,
                                     onValueChange = onApiKeyChange,
-                                    label = "API Key",
+                                    label = stringResource(R.string.imagegen_field_api_key),
                                     singleLine = true,
                                     visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
                                     trailingIcon = {
                                         IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
                                             Icon(
                                                 imageVector = if (apiKeyVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                                contentDescription = "切换 API Key 可见性",
+                                                contentDescription = stringResource(R.string.imagegen_toggle_api_key_visibility),
                                             )
                                         }
                                     },
@@ -809,15 +862,15 @@ internal fun ImageGenSettingsScreen(
                 }
 
                 item(key = "defaults_section") {
-                    SmallTitle(text = "生成默认偏好")
+                    SmallTitle(text = stringResource(R.string.imagegen_section_defaults))
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                     ) {
                         GlassDropdownPreference(
-                            title = "默认画面比例",
-                            items = ratioList.map { it.displayLabel },
+                            title = stringResource(R.string.imagegen_default_aspect_ratio),
+                            items = ratioList.map { stringResource(it.displayLabelRes) },
                             selectedIndex = ratioList.indexOf(settings.defaultAspectRatio).coerceAtLeast(0),
                             onSelectedIndexChange = { idx ->
                                 store.edit(settings.copy(defaultAspectRatio = ratioList[idx]))
@@ -826,7 +879,13 @@ internal fun ImageGenSettingsScreen(
                         )
                         if (supportedResolutions.size > 1) {
                             GlassDropdownPreference(
-                                title = if (capability.resolutionIsQualityTier) "默认画质档位" else "默认清晰度",
+                                title = stringResource(
+                                    if (capability.resolutionIsQualityTier) {
+                                        R.string.imagegen_default_quality_tier
+                                    } else {
+                                        R.string.imagegen_default_resolution
+                                    },
+                                ),
                                 items = resolutionOptionLabels,
                                 selectedIndex = supportedResolutions.indexOf(effectiveResolution).coerceAtLeast(0),
                                 onSelectedIndexChange = { idx ->
@@ -837,8 +896,8 @@ internal fun ImageGenSettingsScreen(
                         }
                         if (backend == ImageGenBackend.DOUBAO) {
                             SwitchPreference(
-                                title = "添加 AI 生成水印",
-                                summary = "默认关闭，开启后在图片右下角显示水印",
+                                title = stringResource(R.string.imagegen_doubao_watermark_title),
+                                summary = stringResource(R.string.imagegen_doubao_watermark_summary),
                                 checked = settings.doubao.watermark,
                                 onCheckedChange = {
                                     store.edit(settings.copy(doubao = settings.doubao.copy(watermark = it)))
@@ -847,16 +906,16 @@ internal fun ImageGenSettingsScreen(
                         }
                         if (backend == ImageGenBackend.QWEN) {
                             SwitchPreference(
-                                title = "提示词智能润色",
-                                summary = "开启后由千问模型自动补充画面细节",
+                                title = stringResource(R.string.imagegen_qwen_prompt_extend_title),
+                                summary = stringResource(R.string.imagegen_qwen_prompt_extend_summary),
                                 checked = settings.qwen.promptExtend,
                                 onCheckedChange = {
                                     store.edit(settings.copy(qwen = settings.qwen.copy(promptExtend = it)))
                                 },
                             )
                             SwitchPreference(
-                                title = "添加 Qwen-Image 水印",
-                                summary = "默认关闭",
+                                title = stringResource(R.string.imagegen_qwen_watermark_title),
+                                summary = stringResource(R.string.imagegen_default_off),
                                 checked = settings.qwen.watermark,
                                 onCheckedChange = {
                                     store.edit(settings.copy(qwen = settings.qwen.copy(watermark = it)))
@@ -879,13 +938,17 @@ internal fun ImageGenSettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         TextButton(
-                            text = if (store.testing) "试画中…" else "试画测试",
+                            text = stringResource(
+                                if (store.testing) R.string.imagegen_action_testing else R.string.imagegen_action_test,
+                            ),
                             onClick = store::testGenerate,
                             enabled = !store.testing && !store.saving,
                             modifier = Modifier.weight(1f),
                         )
                         TextButton(
-                            text = if (store.saving) "保存中…" else "保存配置",
+                            text = stringResource(
+                                if (store.saving) R.string.imagegen_action_saving else R.string.imagegen_action_save_config,
+                            ),
                             onClick = store::save,
                             enabled = !store.saving && !store.testing,
                             colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -895,14 +958,14 @@ internal fun ImageGenSettingsScreen(
                 }
 
                 item(key = "gallery_section") {
-                    SmallTitle(text = "本地图片")
+                    SmallTitle(text = stringResource(R.string.imagegen_section_local_images))
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                     ) {
                         ArrowPreference(
-                            title = "已生成图片画廊",
+                            title = stringResource(R.string.imagegen_open_gallery),
                             summary = gallerySummary,
                             onClick = onOpenGallery,
                         )
@@ -984,7 +1047,7 @@ private fun ImageGenFeedbackBlock(
                     if (bitmap != null) {
                         Image(
                             bitmap = bitmap,
-                            contentDescription = "试画预览",
+                            contentDescription = stringResource(R.string.imagegen_test_preview_desc),
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize(),
                         )
@@ -998,7 +1061,7 @@ private fun ImageGenFeedbackBlock(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
-                        text = "试画成功，点击查看大图",
+                        text = stringResource(R.string.imagegen_test_preview_title),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = previewTitleColor,

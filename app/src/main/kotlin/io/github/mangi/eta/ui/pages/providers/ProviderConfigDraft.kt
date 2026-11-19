@@ -254,7 +254,7 @@ internal fun validateProviderDraft(context: android.content.Context, draft: Prov
         try {
             ProviderUrls.validateVertexChatEndpoint(draft.baseUrl, draft.vertexProject, draft.vertexLocation)
         } catch (failure: IllegalArgumentException) {
-            return failure.message ?: "Vertex AI 连接配置无效。"
+            return failure.message ?: context.getString(R.string.provider_i18n_vertex_config_invalid)
         }
     }
     return CustomHeaderFilter.validationError(draft.headers.map { it.header })

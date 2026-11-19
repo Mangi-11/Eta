@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.model
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.provider.GeminiModelCapabilities
 import kotlinx.serialization.json.Json
@@ -86,7 +88,10 @@ internal object VertexGenerateContentRequest {
         val thinking = JSONObject().put("includeThoughts", true)
         if (effort != ReasoningEffort.DEFAULT) {
             require(effort in GeminiModelCapabilities.reasoningCapabilities(config.model)?.supportedEfforts.orEmpty()) {
-                "当前 Vertex AI 模型不支持所选思考档位，请使用 Default 或模型支持的档位。"
+                AppStrings.get(
+                    R.string.provider_err_vertex_thinking_unsupported,
+                    "当前 Vertex AI 模型不支持所选思考档位，请使用 Default 或模型支持的档位。",
+                )
             }
             thinking.put("thinkingLevel", effort.wireValue.uppercase())
         }
@@ -163,7 +168,9 @@ internal object VertexContentHistory {
                         if (fn != null) {
                             val originalId = fn.optString("id").takeIf(String::isNotBlank)
                             val mappedId = requireNotNull(toolCalls?.optJSONObject(callCursor)?.optString("id")
-                                ?.takeIf(String::isNotBlank)) { "Vertex AI 工具调用缺少 Eta 调用标识。" }
+                                ?.takeIf(String::isNotBlank)) {
+                                AppStrings.get(R.string.provider_err_vertex_tool_call_id_missing, "Vertex AI 工具调用缺少 Eta 调用标识。")
+                            }
                             liveCalls[mappedId] = LiveCall(fn.getString("name"), originalId)
                             callCursor += 1
                         }
@@ -224,7 +231,9 @@ internal object VertexContentHistory {
                     val url = item.optJSONObject("image_url")?.optString("url").orEmpty()
                     converted.put(imagePart(url))
                 }
-                else -> throw IllegalArgumentException("Vertex AI Gemini 不支持该输入内容类型。")
+                else -> throw IllegalArgumentException(
+                    AppStrings.get(R.string.provider_err_vertex_input_type_unsupported, "Vertex AI Gemini 不支持该输入内容类型。"),
+                )
             }
         }
         return converted
@@ -234,7 +243,7 @@ internal object VertexContentHistory {
         if (url.startsWith("data:image/", ignoreCase = true)) {
             val comma = url.indexOf(',')
             require(comma > 0 && url.substring(0, comma).endsWith(";base64", ignoreCase = true)) {
-                "Gemini 图片输入必须为 Base64 图片或可访问的图片地址。"
+                AppStrings.get(R.string.provider_err_gemini_image_source, "Gemini 图片输入必须为 Base64 图片或可访问的图片地址。")
             }
             return JSONObject().put(
                 "inlineData",
@@ -243,10 +252,10 @@ internal object VertexContentHistory {
             )
         }
         require(url.startsWith("https://", true) || url.startsWith("http://", true) || url.startsWith("gs://")) {
-            "Gemini 图片输入地址无效。"
+            AppStrings.get(R.string.provider_err_gemini_image_url_invalid, "Gemini 图片输入地址无效。")
         }
         val resolvedMimeType = requireNotNull(mimeType?.takeIf { it.startsWith("image/") } ?: inferImageMimeType(url)) {
-            "无法识别 Gemini 图片地址的媒体类型。"
+            AppStrings.get(R.string.provider_err_gemini_image_mime_unknown, "无法识别 Gemini 图片地址的媒体类型。")
         }
         return JSONObject().put("fileData", JSONObject().put("fileUri", url).put("mimeType", resolvedMimeType))
     }

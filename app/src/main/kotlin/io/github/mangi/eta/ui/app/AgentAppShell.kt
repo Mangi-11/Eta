@@ -676,14 +676,14 @@ private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.ScheduledTaskEditor -> stringResource(
         if (route.taskId.isNullOrBlank()) R.string.route_scheduled_task_new else R.string.route_scheduled_task_edit,
     )
-    is AppRoute.Subagents -> "Subagent"
+    is AppRoute.Subagents -> stringResource(R.string.ui_misc_route_subagents)
     is AppRoute.ConversationTitleSettings -> stringResource(R.string.conversation_title_settings_title)
     is AppRoute.AssistantOverlaySettings -> stringResource(R.string.assistant_overlay_settings_title)
-    is AppRoute.Characters -> "角色"
-    is AppRoute.CharacterDetail -> "角色详情"
-    is AppRoute.CharacterEditor -> "编辑角色"
-    is AppRoute.CharacterPersona -> "我的人设"
-    is AppRoute.CharacterMemory -> "剧情记忆"
+    is AppRoute.Characters -> stringResource(R.string.conversation_dock_characters)
+    is AppRoute.CharacterDetail -> stringResource(R.string.ui_misc_route_character_detail)
+    is AppRoute.CharacterEditor -> stringResource(R.string.ui_misc_route_character_editor)
+    is AppRoute.CharacterPersona -> stringResource(R.string.ui_misc_route_character_persona)
+    is AppRoute.CharacterMemory -> stringResource(R.string.ui_misc_route_character_memory)
     is AppRoute.Permissions -> stringResource(R.string.route_permissions)
     is AppRoute.SystemEnhance -> stringResource(R.string.route_system_enhancements)
     is AppRoute.Settings -> stringResource(R.string.route_settings)
@@ -699,8 +699,8 @@ private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.SharedFolders -> stringResource(R.string.route_shared_folders)
     is AppRoute.LinuxFiles -> stringResource(R.string.route_linux_files)
     is AppRoute.ModelProviders -> stringResource(R.string.route_model_providers)
-    is AppRoute.CommunityCatalog -> "从 models.dev 添加"
-    is AppRoute.CommunityCatalogProvider -> "选择模型"
+    is AppRoute.CommunityCatalog -> stringResource(R.string.catalog_i18n_title)
+    is AppRoute.CommunityCatalogProvider -> stringResource(R.string.catalog_i18n_select_models)
     is AppRoute.McpServers -> stringResource(R.string.route_mcp_servers)
     is AppRoute.McpServerDetail -> stringResource(R.string.route_mcp_server_detail)
     is AppRoute.ModelProviderDetail -> stringResource(R.string.route_provider_details)

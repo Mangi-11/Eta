@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.mangi.eta.R
 import io.github.mangi.eta.data.provider.CommunityCatalog
 import io.github.mangi.eta.data.provider.CommunityCatalogProvider
 import io.github.mangi.eta.data.provider.CommunityCatalogSource
@@ -92,7 +93,7 @@ internal class CommunityCatalogStore(
     }
 
     suspend fun importProvider(provider: CommunityCatalogProvider, modelIds: Set<String>): String {
-        check(!importing) { "目录导入正在进行" }
+        check(!importing) { applicationContext.getString(R.string.catalog_i18n_import_in_progress) }
         importing = true
         try {
             val added = ProviderRepository.addProvider(
@@ -139,15 +140,18 @@ internal class CommunityCatalogStore(
             .matchEntire(message.orEmpty())
             ?.groupValues
             ?.get(1)
+            ?: Regex("HTTP ([0-9]{3})").find(message.orEmpty())?.groupValues?.get(1)
         return when {
-            status != null -> "目录服务返回 HTTP $status"
-            this is SocketTimeoutException -> "连接目录服务超时"
-            this is UnknownHostException -> "无法解析目录服务地址"
-            this is SSLException -> "目录服务安全连接失败"
-            message == "模型目录超出大小限制" -> "目录文件超出大小限制"
-            this is org.json.JSONException || this is IllegalArgumentException -> "目录格式无效"
-            this is IOException -> "网络连接或本地缓存写入失败"
-            else -> "更新失败，请稍后重试"
+            status != null -> applicationContext.getString(R.string.catalog_i18n_error_http, status)
+            this is SocketTimeoutException -> applicationContext.getString(R.string.catalog_i18n_error_timeout)
+            this is UnknownHostException -> applicationContext.getString(R.string.catalog_i18n_error_host)
+            this is SSLException -> applicationContext.getString(R.string.catalog_i18n_error_ssl)
+            message == "模型目录超出大小限制" ||
+                message == applicationContext.getString(R.string.repo_err_catalog_size_limit) ->
+                applicationContext.getString(R.string.catalog_i18n_error_too_large)
+            this is org.json.JSONException || this is IllegalArgumentException -> applicationContext.getString(R.string.catalog_i18n_error_invalid_format)
+            this is IOException -> applicationContext.getString(R.string.catalog_i18n_error_io)
+            else -> applicationContext.getString(R.string.catalog_i18n_error_generic)
         }
     }
 }

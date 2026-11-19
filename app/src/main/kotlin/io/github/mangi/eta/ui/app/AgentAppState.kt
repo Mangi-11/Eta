@@ -326,7 +326,7 @@ internal class AgentAppState(
             branchingConversationId != null || runStore.hasActiveRuns || conversationsById.values.any { it.isStreaming }
         }
         if (locallyBusy) {
-            throw IllegalStateException("请先停止正在运行的 Agent 任务")
+            throw IllegalStateException(appContext.getString(R.string.ui_misc_backup_stop_active_runs))
         }
 
         val activeRunQuery = withContext(Dispatchers.IO) {
@@ -335,16 +335,18 @@ internal class AgentAppState(
         when (val active = activeRunQuery) {
             is AgentRuntimeClient.ActiveRunsQuery.Known -> {
                 if (active.runIds.isNotEmpty()) {
-                    throw IllegalStateException("请先停止正在运行的 Agent 任务")
+                    throw IllegalStateException(appContext.getString(R.string.ui_misc_backup_stop_active_runs))
                 }
             }
             AgentRuntimeClient.ActiveRunsQuery.Unavailable -> {
-                throw IllegalStateException("无法确认 Agent Runtime 状态，请稍后重试")
+                throw IllegalStateException(appContext.getString(R.string.ui_misc_backup_runtime_unavailable))
             }
         }
 
         val pendingPersistence = synchronized(persistenceLock) {
-            check(!persistencePaused && branchingConversationId == null) { "请等待会话保存完成" }
+            check(!persistencePaused && branchingConversationId == null) {
+                appContext.getString(R.string.ui_misc_backup_wait_persistence)
+            }
             persistencePaused = true
             persistenceJob
         }
@@ -543,7 +545,7 @@ internal class AgentAppState(
                 orphanRewrites.forEach { (conversationId, runId) ->
                     conversationsById[conversationId]?.let { state ->
                         updateConversation(conversationId, RoleplayConversationReducer.applyRewrite(state, runId,
-                            AgentRuntimeWire.RunResult(runId, false, "", "重新生成已中断，原回复已保留。",
+                            AgentRuntimeWire.RunResult(runId, false, "", appContext.getString(R.string.ui_misc_rewrite_interrupted),
                                 operation = AgentRuntimeWire.OP_REWRITE_REPLY)))
                         stateChanged = true
                     }
@@ -606,7 +608,7 @@ internal class AgentAppState(
         if (checkpoint.operation == AgentRuntimeWire.OP_REWRITE_REPLY) {
             val restored = RoleplayConversationReducer.restorePendingRewrite(existing, runId, checkpoint.rewriteTargetMessageId)
             if (interrupted) updateConversation(conversationId, RoleplayConversationReducer.applyRewrite(
-                restored, runId, AgentRuntimeWire.RunResult(runId, false, "", "重新生成已中断，原回复已保留。",
+                restored, runId, AgentRuntimeWire.RunResult(runId, false, "", appContext.getString(R.string.ui_misc_rewrite_interrupted),
                     operation = AgentRuntimeWire.OP_REWRITE_REPLY, rewriteTargetMessageId = checkpoint.rewriteTargetMessageId),
             )) else updateConversation(conversationId, restored)
             return interrupted || restored != existing
@@ -622,7 +624,11 @@ internal class AgentAppState(
             if (interrupted) {
                 val interruptedTools = runMessageProjector.interruptRunningTools(
                     reason = appContext.getString(R.string.system_notice_interrupted),
-                    messages = runMessageProjector.finishContextCompaction(runId, finalizedText, "上下文压缩已中断"),
+                    messages = runMessageProjector.finishContextCompaction(
+                        runId,
+                        finalizedText,
+                        appContext.getString(R.string.ui_misc_compaction_interrupted),
+                    ),
                 )
                 val noticeId = "interrupted-$runId"
                 if (interruptedTools.any { it.id == noticeId }) {
@@ -794,7 +800,9 @@ internal class AgentAppState(
                 val effort = defaultReasoningEffort(null)
                 val existing = conversationsById[conversationId] ?: emptyChatState(effort)
                 if (conversationTitles[conversationId].isNullOrBlank()) {
-                    conversationTitles = conversationTitles + (conversationId to taskTitle.ifBlank { "定时任务" })
+                    conversationTitles = conversationTitles + (conversationId to taskTitle.ifBlank {
+                        appContext.getString(R.string.ui_misc_scheduled_task_default_title)
+                    })
                 }
                 val alreadyHasRun = AgentRuntimeHistoryReducer.wasApplied(existing, runId) ||
                     runStore.activeRunId(conversationId) == runId ||
@@ -1997,7 +2005,7 @@ internal class AgentAppState(
                             }
                             persistConversations()
                         }.await()
-                        check(saved) { "无法保存角色会话设定" }
+                        check(saved) { appContext.getString(R.string.ui_misc_character_save_failed) }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -2006,7 +2014,7 @@ internal class AgentAppState(
                         "Character preparation failed: type=${failure.safeLogType()}"
                     }
                     withContext(Dispatchers.Main) {
-                        applyRunResult(runId, AgentRuntimeWire.RunResult(runId, false, "", "无法读取或保存角色设定，请重试。",
+                        applyRunResult(runId, AgentRuntimeWire.RunResult(runId, false, "", appContext.getString(R.string.ui_misc_character_prepare_failed),
                             operation = operation, rewriteTargetMessageId = rewriteTargetMessageId))
                     }
                     return@launch
@@ -2550,10 +2558,19 @@ internal class AgentAppState(
                 explicitlyStoppedByUser, resumeQueue = false)
             return
         }
+        val compactionErrorDetail = if (isStoppedResultError(result.error)) {
+            appContext.getString(R.string.ui_misc_compaction_stopped)
+        } else {
+            result.error
+        }
         updateRunTrace(runId) { messages ->
             runMessageProjector.finishContextCompaction(runId,
                 runMessageProjector.finalizeRun(runId, messages),
-                if (result.ok) "上下文压缩完成" else result.error ?: "上下文压缩已停止")
+                if (result.ok) {
+                    appContext.getString(R.string.ui_misc_compaction_completed)
+                } else {
+                    compactionErrorDetail ?: appContext.getString(R.string.ui_misc_compaction_stopped)
+                })
         }
         if (result.contextSnapshotRef.isBlank()) {
             applyConversationHistoryResult(runId, result.transcript, result.contextSnapshot, !result.ok || result.contextSnapshot != null)
@@ -2565,14 +2582,18 @@ internal class AgentAppState(
                         runId = runId,
                         messages = messages,
                         ok = result.ok,
-                        detail = if (result.ok) "上下文压缩完成" else result.error ?: "上下文压缩失败",
+                        detail = if (result.ok) {
+                            appContext.getString(R.string.ui_misc_compaction_completed)
+                        } else {
+                            compactionErrorDetail ?: appContext.getString(R.string.ui_misc_compaction_failed)
+                        },
                     )
                 }
             else -> {
                 val notice = when {
                     result.ok && result.content.isNotBlank() -> null
                     result.ok -> SystemNoticeCode.EmptyResult
-                    result.error == LEGACY_STOPPED_ERROR || result.error == SYNTHETIC_STATUS_STOPPED ->
+                    isStoppedResultError(result.error) ->
                         SystemNoticeCode.Stopped
                     else -> SystemNoticeCode.RuntimeFailed
                 }
@@ -2591,6 +2612,14 @@ internal class AgentAppState(
         refreshConversationSummaries()
         persistRunResult(runId, completedConversationId, result, acknowledgeRuntimeResult,
             explicitlyStoppedByUser, resumeQueue = true)
+    }
+
+    private fun isStoppedResultError(error: String?): Boolean {
+        if (error.isNullOrBlank()) return false
+        return error == LEGACY_STOPPED_ERROR ||
+            error == SYNTHETIC_STATUS_STOPPED ||
+            error == "Stopped" ||
+            error == appContext.getString(R.string.runtime_err_stopped)
     }
 
     private fun persistRunResult(
@@ -2634,7 +2663,7 @@ internal class AgentAppState(
             val finishedState = conversationsById[conversationId]
             if (finishedState != null && finishedState.queuedMessages.isNotEmpty()) {
                 val stoppedByUser = explicitlyStoppedByUser || stoppedDuringSettlement ||
-                    (!result.ok && (result.error == LEGACY_STOPPED_ERROR || result.error == SYNTHETIC_STATUS_STOPPED))
+                    (!result.ok && isStoppedResultError(result.error))
                 val (afterPopState, nextQueued) = AgentMessageQueueReducer.pollNextToSendAfterRun(
                     state = finishedState,
                     stoppedByUser = stoppedByUser,

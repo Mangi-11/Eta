@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- List screen & health banner -->
+    <string name="scheduled_section_quick_start">Quick start</string>
+    <string name="scheduled_empty_hint">Scheduled tasks run silently in the background and only notify you when there is something worth your attention. You can also tell Eta directly in chat, e.g. \"Summarize today\'s important notifications every night at 10 PM.\"</string>
+    <string name="scheduled_section_all_tasks">All tasks · %1$d/%2$d enabled</string>
+    <string name="scheduled_unnamed_task">Untitled task</string>
+    <string name="scheduled_meta_next_run">Next %1$s</string>
+    <string name="scheduled_status_running_background">Running in background…</string>
+    <string name="scheduled_status_awaiting_first_run">Waiting for first run</string>
+    <string name="scheduled_status_paused">Paused</string>
+    <string name="scheduled_status_currently_paused">Currently paused</string>
+    <string name="scheduled_toast_toggle_failed">Failed to update scheduled task switch</string>
+
+    <string name="scheduled_health_battery_title">Allow unrestricted background battery</string>
+    <string name="scheduled_health_battery_summary">Android Doze cuts off background network access after 10 seconds for restricted apps. Enabling unrestricted battery helps scheduled reasoning and web checks finish reliably.</string>
+    <string name="scheduled_health_battery_action">Open settings</string>
+    <string name="scheduled_health_exact_alarm_title">Exact alarm permission not granted</string>
+    <string name="scheduled_health_exact_alarm_summary">Without exact alarm permission, scheduled tasks may trigger several minutes late. Grant it for on-time wake-ups.</string>
+    <string name="scheduled_health_exact_alarm_action">Allow exact alarms</string>
+    <string name="scheduled_health_notification_title">Notifications are turned off</string>
+    <string name="scheduled_health_notification_summary">Scheduled tasks will still run in the background, but result summaries and failure alerts cannot be delivered.</string>
+    <string name="scheduled_health_notification_action">Enable notifications</string>
+
+    <!-- Detail screen -->
+    <string name="scheduled_detail_missing">This scheduled task no longer exists or has been deleted.</string>
+    <string name="scheduled_detail_section_config">Prompt &amp; configuration</string>
+    <string name="scheduled_field_model">Model</string>
+    <string name="scheduled_model_follow_default">Follow global default model</string>
+    <string name="scheduled_model_unavailable_fallback">Model unavailable (falling back to default)</string>
+    <string name="scheduled_model_current_default">Current default: %1$s</string>
+    <string name="scheduled_model_use_global_default">Use the default model from global settings</string>
+    <string name="scheduled_model_follow_default_named">Follow default (%1$s)</string>
+    <string name="scheduled_detail_field_notify_session">Notifications &amp; session</string>
+    <string name="scheduled_progress_badge_show">Show progress</string>
+    <string name="scheduled_progress_badge_show_full">Show run progress</string>
+    <string name="scheduled_progress_badge_silent">Silent run</string>
+    <string name="scheduled_session_badge_dedicated">Dedicated channel</string>
+    <string name="scheduled_session_badge_isolated">Isolated archive</string>
+    <string name="scheduled_detail_field_capabilities">Capabilities</string>
+    <string name="scheduled_detail_miuix_model_meta">Model: %1$s · %2$s · %3$s</string>
+    <string name="scheduled_detail_miuix_capabilities_meta">Capabilities: %1$s</string>
+    <string name="scheduled_detail_memo_title">Task memo</string>
+    <string name="scheduled_detail_memo_title_with_hint">Task memo (used for next-run comparison)</string>
+    <string name="scheduled_action_clear_memo">Clear memo</string>
+    <string name="scheduled_action_clear">Clear</string>
+    <string name="scheduled_detail_section_timeline">Run timeline</string>
+    <string name="scheduled_detail_timeline_empty">No runs yet. Tap \"Run now\" above to test this task.</string>
+    <string name="scheduled_action_delete_task">Delete scheduled task</string>
+    <string name="scheduled_delete_dialog_message">Delete \"%1$s\"? Future schedules will be cancelled and its run timeline cleared. Conversations already imported into main chat will be kept.</string>
+    <string name="scheduled_clear_memo_dialog_title">Clear task memo</string>
+    <string name="scheduled_clear_memo_dialog_message">After clearing, the next scheduled run will no longer reference the previously recorded state or cursor.</string>
+    <string name="scheduled_next_run_prefix">Next run: %1$s</string>
+    <string name="scheduled_detail_enable_schedule_title">Enable schedule</string>
+    <string name="scheduled_detail_enable_schedule_on_summary">Automatically wakes and runs in the background on the schedule above</string>
+    <string name="scheduled_detail_enable_schedule_off_summary">Automatic triggers paused; you can still run manually anytime</string>
+    <string name="scheduled_timeline_tap_live">Tap to watch live progress</string>
+    <string name="scheduled_timeline_tap_conversation">Tap to view full conversation and follow up</string>
+    <string name="scheduled_toast_stopping">Stopping current run…</string>
+    <string name="scheduled_toast_manual_started">Started background test run</string>
+    <string name="scheduled_toast_already_running">This task is already running</string>
+    <string name="scheduled_toast_task_not_found">Task not found</string>
+    <string name="scheduled_toast_memo_cleared">Task memo cleared</string>
+    <string name="scheduled_toast_save_failed">Failed to save scheduled task</string>
+
+    <!-- Capabilities -->
+    <string name="scheduled_cap_none">Chat reasoning only</string>
+    <string name="scheduled_cap_short_browser">Web &amp; browser</string>
+    <string name="scheduled_cap_short_terminal">Terminal &amp; files</string>
+    <string name="scheduled_cap_short_gui">App UI control</string>
+    <string name="scheduled_cap_browser_title">Web search &amp; built-in browser</string>
+    <string name="scheduled_cap_browser_summary">Fetch web pages with the shared logged-in WebView even while locked</string>
+    <string name="scheduled_cap_device_read_title">Device info reading</string>
+    <string name="scheduled_cap_device_read_summary">Notification history, calendar, app usage, system status, and personal records</string>
+    <string name="scheduled_cap_device_action_title">Device controls</string>
+    <string name="scheduled_cap_device_action_summary">Allow write actions such as system settings, volume, and alarms</string>
+    <string name="scheduled_cap_terminal_title">Terminal, files &amp; Linux</string>
+    <string name="scheduled_cap_terminal_summary">Run Android/Linux commands and read or write workspace files</string>
+    <string name="scheduled_cap_mcp_title">MCP remote tools</string>
+    <string name="scheduled_cap_mcp_summary">Call MCP server tools enabled in Eta</string>
+    <string name="scheduled_cap_gui_title">App UI automation (GUI)</string>
+    <string name="scheduled_cap_gui_summary">Off by default; runs silently on a virtual display when supported, otherwise sends a reminder to run after unlock</string>
+
+    <!-- Editor screen -->
+    <string name="scheduled_editor_section_content">Task content</string>
+    <string name="scheduled_editor_name_label">Task name</string>
+    <string name="scheduled_editor_name_placeholder">e.g. Daily evening briefing</string>
+    <string name="scheduled_editor_name_label_with_example">Task name (e.g. Daily evening briefing)</string>
+    <string name="scheduled_editor_prompt_label">What should Eta do</string>
+    <string name="scheduled_editor_prompt_placeholder">Describe the goal, data sources, and expected output format in natural language</string>
+    <string name="scheduled_editor_section_schedule">Schedule</string>
+    <string name="scheduled_editor_trigger_time">Trigger time</string>
+    <string name="scheduled_editor_interval_label">Repeat interval</string>
+    <string name="scheduled_editor_once_delay_label">Delay from now</string>
+    <string name="scheduled_editor_cron_label">5-field Cron expression (min hr dom mon dow)</string>
+    <string name="scheduled_editor_schedule_preview">Schedule preview</string>
+    <string name="scheduled_editor_section_delivery">Notifications</string>
+    <string name="scheduled_editor_result_notification">Result notifications</string>
+    <string name="scheduled_editor_show_progress_title">Show progress notification while running</string>
+    <string name="scheduled_editor_show_progress_summary">When off, runs silently in the background without a status bar capsule and only delivers the result upon completion</string>
+    <string name="scheduled_editor_advanced_collapse">Hide advanced settings</string>
+    <string name="scheduled_editor_advanced_expand">Advanced settings (model, permissions, session &amp; quiet hours)</string>
+    <string name="scheduled_editor_advanced_summary">Defaults are optimized for silent background execution while locked</string>
+    <string name="scheduled_editor_section_model">Model &amp; reasoning</string>
+    <string name="scheduled_editor_reasoning_effort">Reasoning effort</string>
+    <string name="scheduled_effort_follow_default">Follow global default</string>
+    <string name="scheduled_effort_model_default">Model default</string>
+    <string name="scheduled_editor_section_capabilities">Per-task capabilities</string>
+    <string name="scheduled_editor_section_session_policy">Session &amp; safeguards</string>
+    <string name="scheduled_editor_session_mode">Result destination</string>
+    <string name="scheduled_editor_misfire_policy">When missed</string>
+    <string name="scheduled_editor_quiet_hours_title">Quiet hours (23:00 – 07:30)</string>
+    <string name="scheduled_editor_quiet_hours_summary">Recurring triggers falling within quiet hours are skipped automatically</string>
+    <string name="scheduled_editor_timeout">Max duration per run</string>
+
+    <string name="scheduled_trigger_daily">Daily</string>
+    <string name="scheduled_trigger_weekdays">Weekdays</string>
+    <string name="scheduled_trigger_weekly">Weekly</string>
+    <string name="scheduled_trigger_interval">Interval</string>
+    <string name="scheduled_trigger_once">One-time</string>
+    <string name="scheduled_trigger_cron">Cron</string>
+
+    <string name="scheduled_delivery_option_always">Notify after every run</string>
+    <string name="scheduled_delivery_option_on_change">Notify only when changes are found</string>
+    <string name="scheduled_delivery_option_silent">Archive silently without notifications</string>
+
+    <string name="scheduled_session_option_isolated">Isolated archive each run (keep main chat clean)</string>
+    <string name="scheduled_session_option_dedicated">Dedicated channel (append chronologically)</string>
+
+    <string name="scheduled_misfire_option_catchup">Catch up once within 3 hours</string>
+    <string name="scheduled_misfire_option_skip">Skip if missed</string>
+
+    <string name="scheduled_timeout_2m">2 minutes</string>
+    <string name="scheduled_timeout_5m_recommended">5 minutes (Recommended)</string>
+    <string name="scheduled_timeout_10m">10 minutes</string>
+    <string name="scheduled_timeout_15m">15 minutes</string>
+
+    <plurals name="scheduled_delay_days">
+        <item quantity="one">In %1$d day</item>
+        <item quantity="other">In %1$d days</item>
+    </plurals>
+    <plurals name="scheduled_delay_hours">
+        <item quantity="one">In %1$d hour</item>
+        <item quantity="other">In %1$d hours</item>
+    </plurals>
+    <plurals name="scheduled_delay_minutes">
+        <item quantity="one">In %1$d min</item>
+        <item quantity="other">In %1$d mins</item>
+    </plurals>
+
+    <string name="scheduled_weekday_narrow_mon">Mo</string>
+    <string name="scheduled_weekday_narrow_tue">Tu</string>
+    <string name="scheduled_weekday_narrow_wed">We</string>
+    <string name="scheduled_weekday_narrow_thu">Th</string>
+    <string name="scheduled_weekday_narrow_fri">Fr</string>
+    <string name="scheduled_weekday_narrow_sat">Sa</string>
+    <string name="scheduled_weekday_narrow_sun">Su</string>
+
+    <!-- UI Formatting -->
+    <string name="scheduled_delivery_badge_always">Notify every run</string>
+    <string name="scheduled_delivery_badge_on_change">On change only</string>
+    <string name="scheduled_delivery_badge_silent">Silent archive</string>
+    <string name="scheduled_session_mode_isolated_label">Isolated archive each run (off main chat)</string>
+    <string name="scheduled_session_mode_dedicated_label">Dedicated conversation channel</string>
+
+    <string name="scheduled_status_running">Running</string>
+    <string name="scheduled_status_delivered">Delivered</string>
+    <string name="scheduled_status_no_change">No change</string>
+    <string name="scheduled_status_skipped">Skipped</string>
+    <string name="scheduled_status_failed">Failed</string>
+    <string name="scheduled_status_timeout">Timed out</string>
+    <string name="scheduled_status_cancelled">Stopped</string>
+    <string name="scheduled_status_never_run">Not run yet</string>
+
+    <string name="scheduled_trigger_source_schedule">Scheduled</string>
+    <string name="scheduled_trigger_source_manual">Manual run</string>
+    <string name="scheduled_trigger_source_misfire_catchup">Catch-up</string>
+
+    <string name="scheduled_timestamp_today">Today %1$s</string>
+    <string name="scheduled_timestamp_yesterday">Yesterday %1$s</string>
+    <string name="scheduled_date_time_short">%1$d/%2$d %3$s</string>
+    <string name="scheduled_duration_under_1s">&lt;1s</string>
+    <string name="scheduled_duration_seconds">%1$ds</string>
+    <string name="scheduled_duration_minutes_seconds">%1$dm %2$ds</string>
+
+    <!-- Schedule calculator -->
+    <string name="scheduled_error_invalid_timezone">Invalid timezone ID: %1$s</string>
+    <string name="scheduled_error_once_time_required">Please set a trigger time for the one-time task</string>
+    <string name="scheduled_error_once_time_in_past">One-time trigger time must be in the future</string>
+    <string name="scheduled_error_time_out_of_range">Time is out of valid range</string>
+    <string name="scheduled_error_weekly_days_required">Please select at least one day of the week</string>
+    <string name="scheduled_error_interval_out_of_range">Fixed interval must be between %1$d minutes and 7 days</string>
+    <string name="scheduled_error_cron_invalid">Invalid Cron expression. Use 5 fields (min hr dom mon dow), e.g. 0 9 * * 1-5</string>
+    <string name="scheduled_error_cron_no_future_run">This Cron expression has no matching run time within the next 4 years</string>
+
+    <string name="scheduled_skip_quiet_hours">Skipped during quiet hours</string>
+    <string name="scheduled_skip_misfire_policy">Missed scheduled time; skipped per policy</string>
+    <string name="scheduled_skip_misfire_window_expired">Missed scheduled time past the catch-up window; skipped</string>
+
+    <string name="scheduled_schedule_once_unset">One-time task</string>
+    <string name="scheduled_schedule_daily">Daily at %1$s</string>
+    <string name="scheduled_schedule_weekdays">Weekdays at %1$s</string>
+    <string name="scheduled_schedule_weekends">Weekends at %1$s</string>
+    <string name="scheduled_schedule_weekly_generic">Weekly at %1$s</string>
+    <string name="scheduled_schedule_weekly_days">Every %1$s at %2$s</string>
+    <string name="scheduled_day_list_separator">", "</string>
+    <string name="scheduled_schedule_cron">Cron · %1$s</string>
+    <string name="scheduled_cron_unset">Not configured</string>
+
+    <string name="scheduled_weekday_short_mon">Mon</string>
+    <string name="scheduled_weekday_short_tue">Tue</string>
+    <string name="scheduled_weekday_short_wed">Wed</string>
+    <string name="scheduled_weekday_short_thu">Thu</string>
+    <string name="scheduled_weekday_short_fri">Fri</string>
+    <string name="scheduled_weekday_short_sat">Sat</string>
+    <string name="scheduled_weekday_short_sun">Sun</string>
+
+    <string name="scheduled_next_run_unscheduled">Not scheduled</string>
+    <string name="scheduled_next_run_soon">Starting soon</string>
+    <plurals name="scheduled_next_run_in_minutes">
+        <item quantity="one">In %1$d min (%2$s)</item>
+        <item quantity="other">In %1$d mins (%2$s)</item>
+    </plurals>
+    <string name="scheduled_next_run_today">Today %1$s</string>
+    <string name="scheduled_next_run_tomorrow">Tomorrow %1$s</string>
+    <string name="scheduled_next_run_day_after_tomorrow">In 2 days, %1$s</string>
+
+    <plurals name="scheduled_interval_days">
+        <item quantity="one">Every %1$d day</item>
+        <item quantity="other">Every %1$d days</item>
+    </plurals>
+    <plurals name="scheduled_interval_hours">
+        <item quantity="one">Every %1$d hour</item>
+        <item quantity="other">Every %1$d hours</item>
+    </plurals>
+    <string name="scheduled_interval_hours_minutes">Every %1$dh %2$dm</string>
+    <plurals name="scheduled_interval_minutes">
+        <item quantity="one">Every %1$d min</item>
+        <item quantity="other">Every %1$d mins</item>
+    </plurals>
+
+    <!-- Repository & runner runtime messages -->
+    <plurals name="scheduled_auto_disabled_consecutive_failures">
+        <item quantity="one">Failed %1$d time in a row; automatically paused to avoid repeated retries and battery drain</item>
+        <item quantity="other">Failed %1$d times in a row; automatically paused to avoid repeated retries and battery drain</item>
+    </plurals>
+    <string name="scheduled_run_interrupted_process_exit">App process exited during execution; task interrupted</string>
+    <string name="scheduled_skip_overlap_running">Previous run is still in progress; skipped overlapping trigger</string>
+    <string name="scheduled_skip_locked_gui_deferred">Device is locked without a background virtual display; sent a reminder so you can tap to run after unlocking</string>
+    <string name="scheduled_skip_fgs_denied">System blocked starting the foreground service in the background. Please check exact alarm and unrestricted battery permissions</string>
+    <string name="scheduled_error_no_model_configured">No usable model configured. Please set up a model in Model Providers and try again</string>
+    <string name="scheduled_run_timeout_summary">Exceeded the %1$d-second limit; stopped automatically</string>
+    <string name="scheduled_run_cancelled_summary">Stopped manually</string>
+    <string name="scheduled_run_no_change_summary">Checked, no notable changes</string>
+    <string name="scheduled_run_completed_summary">Execution completed</string>
+
+    <!-- Presets -->
+    <string name="scheduled_preset_evening_briefing_title">Daily evening briefing</string>
+    <string name="scheduled_preset_evening_briefing_subtitle">Summarize missed important notifications, app usage, and tomorrow\'s schedule</string>
+    <string name="scheduled_preset_evening_briefing_name">Daily evening briefing</string>
+    <string name="scheduled_preset_evening_briefing_prompt">Prepare a concise evening briefing for today:\n1. Review today\'s important notifications and highlight items I may have missed that need follow-up (ignore ads and routine system prompts).\n2. Check tomorrow\'s calendar for key times and anything that needs preparation in advance.\n3. Briefly summarize today\'s app usage distribution (if permission is available).\nKeep the output concise enough to read on one screen, with key points first.</string>
+
+    <string name="scheduled_preset_morning_digest_title">Weekday morning digest</string>
+    <string name="scheduled_preset_morning_digest_subtitle">Morning highlights combining today\'s schedule, local weather, and tracked topics</string>
+    <string name="scheduled_preset_morning_digest_name">Weekday morning digest</string>
+    <string name="scheduled_preset_morning_digest_prompt">Prepare today\'s morning digest for me:\n1. Check today\'s calendar events and reminders.\n2. Look up today\'s weather for my current location or usual city, with clothing and commute tips.\n3. If my long-term memory lists ongoing projects or topics I\'m tracking, remind me of key updates.\nKeep the tone natural and concise, getting straight to the point.</string>
+
+    <string name="scheduled_preset_web_watcher_title">Web change radar</string>
+    <string name="scheduled_preset_web_watcher_subtitle">Check a web page on schedule; notify immediately on changes, stay silent otherwise</string>
+    <string name="scheduled_preset_web_watcher_name">Web change radar</string>
+    <string name="scheduled_preset_web_watcher_prompt">Monitor the latest updates on my target web page (replace this with the URL or topic you want to watch):\n- Read the current page content and compare it against the previous state saved in the task memo.\n- If there are no meaningful updates, call scheduled_task_report with no_change to stay silent.\n- If you spot new announcements, price changes, or status updates, update the memo and briefly report what changed.</string>
+
+    <string name="scheduled_preset_weekly_review_title">Weekly phone &amp; habit review</string>
+    <string name="scheduled_preset_weekly_review_subtitle">Sunday evening summary of weekly app time, storage usage, and memory cleanup</string>
+    <string name="scheduled_preset_weekly_review_name">Weekly phone review</string>
+    <string name="scheduled_preset_weekly_review_prompt">Create a lightweight weekly review for me:\n1. Summarize this week\'s app usage changes and top time-consuming apps.\n2. Check device storage space and notable large files or unusual usage (if permissions allow).\n3. Suggest 3 concrete, actionable improvements for next week.\nStick strictly to observed facts without speculation.</string>
+</resources>

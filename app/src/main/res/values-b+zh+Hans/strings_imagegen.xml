@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <!-- Backends -->
+    <string name="imagegen_backend_gemini">Google Gemini（Nano Banana）</string>
+    <string name="imagegen_backend_openai">OpenAI 及兼容接口</string>
+    <string name="imagegen_backend_xai">xAI（Grok Imagine）</string>
+    <string name="imagegen_backend_doubao">豆包（火山方舟 Seedream）</string>
+    <string name="imagegen_backend_qwen">千问（阿里云百炼 Qwen-Image）</string>
+    <string name="imagegen_backend_siliconflow">硅基流动（SiliconFlow）</string>
+
+    <string name="imagegen_backend_short_gemini">Gemini</string>
+    <string name="imagegen_backend_short_openai">OpenAI 兼容</string>
+    <string name="imagegen_backend_short_xai">xAI Grok</string>
+    <string name="imagegen_backend_short_doubao">豆包 Seedream</string>
+    <string name="imagegen_backend_short_qwen">千问 Qwen-Image</string>
+    <string name="imagegen_backend_short_siliconflow">硅基流动</string>
+
+    <!-- Aspect ratios -->
+    <string name="imagegen_aspect_ratio_auto">自动</string>
+    <string name="imagegen_aspect_ratio_1_1">1:1 正方形</string>
+    <string name="imagegen_aspect_ratio_16_9">16:9 横屏</string>
+    <string name="imagegen_aspect_ratio_9_16">9:16 竖屏</string>
+    <string name="imagegen_aspect_ratio_4_3">4:3 横图</string>
+    <string name="imagegen_aspect_ratio_3_4">3:4 竖图</string>
+    <string name="imagegen_aspect_ratio_3_2">3:2 相机横图</string>
+    <string name="imagegen_aspect_ratio_2_3">2:3 海报竖图</string>
+
+    <!-- Resolutions -->
+    <string name="imagegen_resolution_1k">1K 标准</string>
+    <string name="imagegen_resolution_2k">2K 高清</string>
+    <string name="imagegen_resolution_4k">4K 超清</string>
+
+    <!-- Model presets -->
+    <string name="imagegen_preset_custom_model">自定义模型 ID</string>
+    <string name="imagegen_preset_label_kolors">可图 Kolors</string>
+    <string name="imagegen_preset_note_gemini_nano_banana_2_1">主力推荐 · 1K/2K/4K 与多图一致</string>
+    <string name="imagegen_preset_note_gemini_3_1_flash_lite">极速低价 · 仅 1K 分辨率</string>
+    <string name="imagegen_preset_note_gemini_3_1_flash">支持 1K~4K 与多参考图</string>
+    <string name="imagegen_preset_note_gemini_3_pro">专业排版与复杂指令推理</string>
+    <string name="imagegen_preset_note_gemini_2_5_flash">固定分辨率经典模型</string>
+    <string name="imagegen_preset_note_gpt_2_6_flare">OpenAI 快速高质量出图</string>
+    <string name="imagegen_preset_note_gpt_2_6_sunburst">OpenAI 精细编辑与高保真</string>
+    <string name="imagegen_preset_note_gpt_2_5_flare">OpenAI 2.5 快速主力</string>
+    <string name="imagegen_preset_note_gpt_2_5_sunburst">OpenAI 2.5 精细编辑</string>
+    <string name="imagegen_preset_note_gpt_1_5">广泛兼容版本</string>
+    <string name="imagegen_preset_note_xai_grok_2_0">xAI 生图与最多 5 张参考图编辑</string>
+    <string name="imagegen_preset_note_doubao_5_5">最新主力 · 1K/2K 写实与原生透明底</string>
+    <string name="imagegen_preset_note_doubao_5_0_pro">1K/2K 精准编辑与高细节</string>
+    <string name="imagegen_preset_note_doubao_5_0_flash">1K/2K 响应迅速</string>
+    <string name="imagegen_preset_note_doubao_5_0_lite">支持 2K/4K 与高分辨率出图</string>
+    <string name="imagegen_preset_note_doubao_4_5">经典 2K/4K 高质</string>
+    <string name="imagegen_preset_note_qwen_2_0_pro">主力推荐 · 中文排版与写实极强</string>
+    <string name="imagegen_preset_note_qwen_2_0">加速版 · 速度与效果均衡</string>
+    <string name="imagegen_preset_note_sf_qwen_image">硅基流动 · 综合与中文表现优秀</string>
+    <string name="imagegen_preset_note_sf_qwen_edit">硅基流动 · 支持图生图编辑</string>
+    <string name="imagegen_preset_note_sf_kolors">硅基流动 · 高性价比文生图</string>
+    <string name="imagegen_preset_note_sf_flux_schnell">硅基流动 · 极速文生图</string>
+
+    <!-- Settings screen -->
+    <string name="imagegen_enable_title">启用 AI 生图</string>
+    <string name="imagegen_enable_summary">开启后任何对话模型都能自动调用生图与改图工具，生成的图片直接显示在聊天流中</string>
+    <string name="imagegen_section_service">生图服务</string>
+    <string name="imagegen_provider_channel">服务商渠道</string>
+    <string name="imagegen_credential_source">凭据来源</string>
+    <string name="imagegen_link_auto_match">自动匹配已有服务商</string>
+    <string name="imagegen_link_provider_no_key">%1$s（未填 Key）</string>
+    <string name="imagegen_link_standalone">独立填写 API Key</string>
+    <string name="imagegen_model_presets">常用模型预设</string>
+    <string name="imagegen_official_default">官方默认</string>
+    <string name="imagegen_linked_provider_footer_with_url">当前完整复用「%1$s」的 API Key 与连接地址（%2$s）。如需指定其他地址或地域，请将「凭据来源」切换为「独立填写 API Key」。</string>
+    <string name="imagegen_linked_provider_footer">当前完整复用「%1$s」的 API Key 与连接地址。如需指定其他地址或地域，请将「凭据来源」切换为「独立填写 API Key」。</string>
+    <string name="imagegen_section_connection">连接与模型参数</string>
+    <string name="imagegen_field_model_id">模型 ID</string>
+    <string name="imagegen_field_model_or_endpoint_id">模型 ID 或 Endpoint ID</string>
+    <string name="imagegen_gemini_platform">接入平台</string>
+    <string name="imagegen_gemini_endpoint_ai_studio">Google AI Studio（Interactions API）</string>
+    <string name="imagegen_gemini_endpoint_vertex">Google Cloud Vertex AI</string>
+    <string name="imagegen_field_base_url_optional">接口地址（留空使用官方默认）</string>
+    <string name="imagegen_field_vertex_project">Vertex Project（Express 模式留空）</string>
+    <string name="imagegen_field_vertex_project_placeholder">留空走官方 global Express 端点</string>
+    <string name="imagegen_field_vertex_location">Vertex Location</string>
+    <string name="imagegen_field_vertex_location_default">Vertex Location（默认 global）</string>
+    <string name="imagegen_field_openai_base_url">接口 Base URL（OpenAI 或兼容中转）</string>
+    <string name="imagegen_field_xai_base_url">xAI Base URL</string>
+    <string name="imagegen_field_doubao_base_url">火山方舟 Base URL</string>
+    <string name="imagegen_qwen_region">百炼地域</string>
+    <string name="imagegen_qwen_region_beijing">华北2（北京）</string>
+    <string name="imagegen_qwen_region_singapore">新加坡（国际站）</string>
+    <string name="imagegen_field_qwen_base_url">专属业务空间域名（可选，留空走所选地域官方域名）</string>
+    <string name="imagegen_field_siliconflow_base_url">硅基流动 Base URL</string>
+    <string name="imagegen_field_api_key">API Key</string>
+    <string name="imagegen_toggle_api_key_visibility">切换 API Key 可见性</string>
+    <string name="imagegen_section_defaults">生成默认偏好</string>
+    <string name="imagegen_default_aspect_ratio">默认画面比例</string>
+    <string name="imagegen_default_quality_tier">默认画质档位</string>
+    <string name="imagegen_default_resolution">默认清晰度</string>
+    <string name="imagegen_quality_standard_auto">标准画质（自动）</string>
+    <string name="imagegen_quality_high">高清画质（High）</string>
+    <string name="imagegen_resolution_fixed_by_model">%1$s（当前模型固定）</string>
+    <string name="imagegen_doubao_watermark_title">添加 AI 生成水印</string>
+    <string name="imagegen_doubao_watermark_summary">默认关闭，开启后在图片右下角显示火山方舟水印</string>
+    <string name="imagegen_qwen_prompt_extend_title">提示词智能润色</string>
+    <string name="imagegen_qwen_prompt_extend_summary">开启后由千问模型自动补充画面细节（推荐开启）</string>
+    <string name="imagegen_qwen_watermark_title">添加 Qwen-Image 水印</string>
+    <string name="imagegen_default_off">默认关闭</string>
+    <string name="imagegen_action_test">试画测试</string>
+    <string name="imagegen_action_testing">试画中…</string>
+    <string name="imagegen_action_save_config">保存配置</string>
+    <string name="imagegen_action_saving">保存中…</string>
+    <string name="imagegen_section_local_images">本地图片</string>
+    <string name="imagegen_open_gallery">已生成图片画廊</string>
+    <string name="imagegen_gallery_summary_empty">暂无本地图片</string>
+    <plurals name="imagegen_gallery_summary_count">
+        <item quantity="other">%1$d 张 · %2$s</item>
+    </plurals>
+    <string name="imagegen_test_preview_desc">试画预览</string>
+    <string name="imagegen_test_preview_title">试画成功，点击查看大图</string>
+    <string name="imagegen_test_saved_prompt">连通性测试 · 戴蓝色围巾的橘猫</string>
+
+    <!-- Settings store status & errors -->
+    <string name="imagegen_status_saved_enabled">已保存并启用 AI 生图</string>
+    <string name="imagegen_status_saved">配置已保存</string>
+    <string name="imagegen_status_test_success">试画成功（%1$d×%2$d）</string>
+    <string name="imagegen_error_decrypt_failed">历史独立 API Key 解密失败，如需独立配置请重新输入并保存</string>
+    <string name="imagegen_error_enable_requires_api_key">开启 AI 生图前，请填写 API Key 或关联已配置 Key 的模型服务商</string>
+    <string name="imagegen_error_model_id_empty">模型 ID 不能为空</string>
+    <string name="imagegen_error_save_failed">保存失败</string>
+    <string name="imagegen_error_test_requires_api_key">请先填写 API Key 或关联已配置 Key 的服务商后再试画</string>
+    <string name="imagegen_error_test_failed">试画失败：%1$s</string>
+
+    <!-- Gallery screen -->
+    <string name="imagegen_action_clear">清空</string>
+    <string name="imagegen_gallery_clear_all_desc">清空全部</string>
+    <string name="imagegen_gallery_clear_title">清空已生成图片</string>
+    <plurals name="imagegen_gallery_clear_message">
+        <item quantity="other">将删除本地缓存的 %1$d 张图片（约 %2$s），已保存到系统相册的图片不受影响。</item>
+    </plurals>
+    <string name="imagegen_gallery_delete_title">删除这张图片</string>
+    <string name="imagegen_gallery_delete_message">删除后将无法在聊天历史中再次加载这张本地原图。</string>
+    <string name="imagegen_gallery_deleted">已删除</string>
+    <string name="imagegen_gallery_delete_failed">删除失败，请重试</string>
+    <plurals name="imagegen_gallery_cleared">
+        <item quantity="other">已清理 %1$d 张本地图片</item>
+    </plurals>
+    <string name="imagegen_gallery_nothing_to_clear">没有可清理的图片</string>
+    <string name="imagegen_gallery_empty_title">还没有生成的图片</string>
+    <string name="imagegen_gallery_empty_summary">开启 AI 生图后，在聊天里让 Eta 画图即可自动保存到这里</string>
+    <plurals name="imagegen_gallery_header_summary">
+        <item quantity="other">共 %1$d 张 · 占用 %2$s（点击大图可保存或分享）</item>
+    </plurals>
+    <string name="imagegen_generated_image_desc">AI 生成的图片</string>
+    <string name="imagegen_gallery_delete_image_desc">删除图片</string>
+    <string name="imagegen_gallery_no_prompt">未记录提示词</string>
+
+    <!-- Chat message card -->
+    <string name="imagegen_card_completed">图片生成完成</string>
+    <string name="imagegen_card_failed">图片生成失败</string>
+    <string name="imagegen_card_generating">正在绘制图片</string>
+    <string name="imagegen_card_generating_multiple">正在绘制图片（%1$d 张）</string>
+    <string name="imagegen_card_editing">正在编辑图片</string>
+    <string name="imagegen_card_editing_multiple">正在编辑图片（%1$d 张）</string>
+    <string name="imagegen_card_elapsed_seconds">已用时 %1$ds</string>
+    <string name="imagegen_card_please_wait">请稍候…</string>
+    <string name="imagegen_card_saving">保存中</string>
+    <string name="imagegen_card_save_all">全部保存</string>
+    <string name="imagegen_card_saved_single">已保存到相册 Pictures/Eta</string>
+    <string name="imagegen_card_saved_multiple">已保存 %1$d 张图片到相册</string>
+    <string name="imagegen_card_save_failed">保存失败，请重试</string>
+    <string name="imagegen_card_action_share">分享</string>
+    <string name="imagegen_card_share_failed">分享失败</string>
+    <string name="imagegen_card_action_edit">改图</string>
+    <string name="imagegen_card_edit_loaded_hint">已载入输入框，可直接描述修改要求</string>
+    <string name="imagegen_card_prompt_label">提示词</string>
+    <string name="imagegen_card_image_missing">本地图片已被清理</string>
+
+    <!-- Repository & storage errors -->
+    <string name="imagegen_error_credentials_unavailable">AI 生图凭据暂时不可用，请重新填写并保存</string>
+    <string name="imagegen_error_credentials_save_failed">AI 生图凭据保存失败</string>
+    <string name="imagegen_error_url_empty">接口地址不能为空</string>
+    <string name="imagegen_error_url_invalid">接口地址格式无效</string>
+    <string name="imagegen_error_url_missing_scheme">接口地址缺少协议头（https://）</string>
+    <string name="imagegen_error_url_missing_host">接口地址缺少有效主机名</string>
+    <string name="imagegen_error_url_https_required">携带 API Key 的公网接口必须使用 HTTPS 协议</string>
+    <string name="imagegen_store_error_publish_failed">无法原子发布生成图片：%1$s</string>
+    <string name="imagegen_store_error_save_local_failed">保存生成图片到本地失败</string>
+    <string name="imagegen_store_error_read_image_failed">无法读取图片数据</string>
+    <string name="imagegen_store_error_gallery_write_failed">无法写入系统相册</string>
+    <string name="imagegen_store_error_gallery_stream_failed">无法打开相册输出流</string>
+    <string name="imagegen_store_error_gallery_publish_failed">相册发布状态更新失败</string>
+    <string name="imagegen_store_error_share_prepare_failed">无法准备待分享图片</string>
+    <string name="imagegen_share_chooser_title">分享图片</string>
+
+    <!-- Client labels & errors -->
+    <string name="imagegen_client_label_openai">OpenAI 生图</string>
+    <string name="imagegen_client_label_siliconflow">硅基流动生图</string>
+    <string name="imagegen_client_label_doubao">豆包 Seedream</string>
+    <string name="imagegen_client_label_qwen">千问 Qwen-Image</string>
+    <string name="imagegen_error_missing_api_key">未配置 AI 生图 API Key，请前往「设置 → AI 生图」填写或关联已有服务商</string>
+    <string name="imagegen_error_missing_model">未配置生图模型 ID，请前往「设置 → AI 生图」检查模型设置</string>
+    <string name="imagegen_error_empty_prompt">生图提示词不能为空</string>
+    <string name="imagegen_error_edit_unsupported">当前生图模型（%1$s）不支持图生图编辑，请切换支持图像编辑的模型</string>
+    <string name="imagegen_error_too_many_reference_images">当前模型（%1$s）最多支持 %2$d 张参考图，本次传入了 %3$d 张</string>
+    <string name="imagegen_error_gemini_empty_output">Gemini 未返回图像数据，请检查模型是否支持生图或调整提示词</string>
+    <string name="imagegen_error_missing_image_array">接口未返回图像数组（data / images）</string>
+    <string name="imagegen_error_empty_output">生图接口未返回有效图片</string>
+    <string name="imagegen_error_qwen_failed">千问生图失败（%1$s）</string>
+    <string name="imagegen_error_qwen_missing_choices">千问接口未返回 output.choices</string>
+    <string name="imagegen_error_qwen_missing_image_url">千问接口未返回有效图片 URL</string>
+    <string name="imagegen_error_redirect_blocked">%1$s 接口返回重定向（HTTP %2$d），出于凭据安全已拦截，请检查 Base URL 是否准确</string>
+    <string name="imagegen_error_empty_body">%1$s 返回了空响应</string>
+    <string name="imagegen_error_network">%1$s 请求失败：网络连接异常或超时</string>
+    <string name="imagegen_error_download_http">下载生成图片失败（HTTP %1$d）</string>
+    <string name="imagegen_error_image_too_large">生成的图片体积过大，超过本地缓存限制</string>
+    <string name="imagegen_error_download_empty">下载的图片内容为空</string>
+    <string name="imagegen_error_download_network">下载生成图片时发生网络错误</string>
+    <string name="imagegen_error_invalid_reference_image">参考文件不是有效的图片格式，已拒绝上传</string>
+    <string name="imagegen_error_reference_decode_failed">参考图片解码失败，无法用于图生图编辑</string>
+    <string name="imagegen_error_response_too_large">服务端返回数据过大，超出本地安全限制</string>
+    <string name="imagegen_error_batch_too_large">本次生成的图片总体积超出安全内存预算，请减少单次生成张数或降低分辨率</string>
+    <string name="imagegen_http_error_bad_request">请求参数、模型规格或提示词内容不受支持</string>
+    <string name="imagegen_http_error_unauthorized">API Key 无效或未授权</string>
+    <string name="imagegen_http_error_forbidden">无权访问该生图模型或账号权限不足</string>
+    <string name="imagegen_http_error_not_found">模型 ID 或接口路径不存在</string>
+    <string name="imagegen_http_error_rate_limit">请求过于频繁或额度已用尽，请稍后重试</string>
+    <string name="imagegen_http_error_server">上游生图服务暂时异常，请稍后重试</string>
+    <string name="imagegen_http_error_generic">服务返回错误</string>
+    <string name="imagegen_http_error_summary">%1$s请求失败（HTTP %2$d）：%3$s</string>
+    <string name="imagegen_http_error_summary_with_code">%1$s请求失败（HTTP %2$d / %3$s）：%4$s</string>
+    <string name="imagegen_deprecation_gpt_image_1">OpenAI 官方已下线 gpt-image-1，请改用 gpt-image-2.6-flare / gpt-image-2.5-flare 或 gpt-image-1.5</string>
+</resources>

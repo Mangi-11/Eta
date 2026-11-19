@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.scheduler
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.ScheduledTask
 import io.github.mangi.eta.data.model.ScheduledTaskMisfirePolicy
 import io.github.mangi.eta.data.model.ScheduledTaskQuietHours
@@ -117,46 +119,70 @@ internal object ScheduledTaskScheduleCalculator {
         }
     }
 
-    /** 校验排期配置是否有效，返回面向用户的简体中文错误提示或 null。 */
+    /** 校验排期配置是否有效，返回面向用户的本地化错误提示或 null。 */
     fun validateSchedule(
         schedule: ScheduledTaskSchedule,
         nowMs: Long,
         defaultZone: ZoneId = ZoneId.systemDefault(),
     ): String? {
         if (schedule.timezoneId.isNotBlank() && runCatching { ZoneId.of(schedule.timezoneId.trim()) }.isFailure) {
-            return "时区标识无效：${schedule.timezoneId}"
+            return AppStrings.get(
+                R.string.scheduled_error_invalid_timezone,
+                "时区标识无效：%1\$s",
+                schedule.timezoneId,
+            )
         }
         return when (schedule.kind) {
             ScheduledTaskTriggerKind.ONCE -> {
                 val target = schedule.triggerAtEpochMs
                 when {
-                    target == null -> "请设置一次性任务的触发时间"
-                    target <= nowMs -> "一次性任务的触发时间必须晚于当前时间"
+                    target == null -> AppStrings.get(
+                        R.string.scheduled_error_once_time_required,
+                        "请设置一次性任务的触发时间",
+                    )
+                    target <= nowMs -> AppStrings.get(
+                        R.string.scheduled_error_once_time_in_past,
+                        "一次性任务的触发时间必须晚于当前时间",
+                    )
                     else -> null
                 }
             }
             ScheduledTaskTriggerKind.DAILY,
             ScheduledTaskTriggerKind.WEEKDAYS -> {
-                if (schedule.hour !in 0..23 || schedule.minute !in 0..59) "时间超出有效范围" else null
+                if (schedule.hour !in 0..23 || schedule.minute !in 0..59) {
+                    AppStrings.get(R.string.scheduled_error_time_out_of_range, "时间超出有效范围")
+                } else null
             }
             ScheduledTaskTriggerKind.WEEKLY -> {
                 when {
-                    schedule.hour !in 0..23 || schedule.minute !in 0..59 -> "时间超出有效范围"
-                    schedule.daysOfWeek.none { it in 1..7 } -> "请至少选择一个重复星期"
+                    schedule.hour !in 0..23 || schedule.minute !in 0..59 ->
+                        AppStrings.get(R.string.scheduled_error_time_out_of_range, "时间超出有效范围")
+                    schedule.daysOfWeek.none { it in 1..7 } ->
+                        AppStrings.get(R.string.scheduled_error_weekly_days_required, "请至少选择一个重复星期")
                     else -> null
                 }
             }
             ScheduledTaskTriggerKind.INTERVAL -> {
                 if (schedule.intervalMinutes !in MIN_INTERVAL_MINUTES..MAX_INTERVAL_MINUTES) {
-                    "固定间隔需在 $MIN_INTERVAL_MINUTES 分钟到 7 天之间"
+                    AppStrings.get(
+                        R.string.scheduled_error_interval_out_of_range,
+                        "固定间隔需在 %1\$d 分钟到 7 天之间",
+                        MIN_INTERVAL_MINUTES,
+                    )
                 } else null
             }
             ScheduledTaskTriggerKind.CRON -> {
                 val parsed = parseCron(schedule.cronExpression)
                 when {
-                    parsed == null -> "Cron 表达式无效，需为 5 段格式（分 时 日 月 周），例如 0 9 * * 1-5"
+                    parsed == null -> AppStrings.get(
+                        R.string.scheduled_error_cron_invalid,
+                        "Cron 表达式无效，需为 5 段格式（分 时 日 月 周），例如 0 9 * * 1-5",
+                    )
                     findNextCronOccurrence(parsed, nowMs, resolveZone(schedule, defaultZone)) == null ->
-                        "该 Cron 表达式在未来 4 年内没有可触发的时间"
+                        AppStrings.get(
+                            R.string.scheduled_error_cron_no_future_run,
+                            "该 Cron 表达式在未来 4 年内没有可触发的时间",
+                        )
                     else -> null
                 }
             }
@@ -174,19 +200,28 @@ internal object ScheduledTaskScheduleCalculator {
         if (task.schedule.kind != ScheduledTaskTriggerKind.ONCE &&
             isInQuietHours(nowMs, task.quietHours, zone)
         ) {
-            return MisfireDecision.Skip("当前处于免打扰时段，已跳过本次执行")
+            return MisfireDecision.Skip(
+                AppStrings.get(R.string.scheduled_skip_quiet_hours, "当前处于免打扰时段，已跳过本次执行"),
+            )
         }
         val delayMs = (nowMs - scheduledForAt).coerceAtLeast(0L)
         // 2 分钟以内视为正常系统抖动（Android Doze / 精确闹钟唤醒耗时），按准点执行处理。
         if (delayMs <= 2 * 60_000L) return MisfireDecision.RunNow
         return when (task.misfirePolicy) {
-            ScheduledTaskMisfirePolicy.SKIP -> MisfireDecision.Skip("已错过预定触发时间，按策略跳过")
+            ScheduledTaskMisfirePolicy.SKIP -> MisfireDecision.Skip(
+                AppStrings.get(R.string.scheduled_skip_misfire_policy, "已错过预定触发时间，按策略跳过"),
+            )
             ScheduledTaskMisfirePolicy.RUN_ONCE_WITHIN_WINDOW -> {
                 val windowMs = task.misfireWindowMinutes.coerceIn(5, 24 * 60) * 60_000L
                 if (delayMs <= windowMs) {
                     MisfireDecision.RunCatchUp
                 } else {
-                    MisfireDecision.Skip("错过触发时间超过补跑窗口，已跳过")
+                    MisfireDecision.Skip(
+                        AppStrings.get(
+                            R.string.scheduled_skip_misfire_window_expired,
+                            "错过触发时间超过补跑窗口，已跳过",
+                        ),
+                    )
                 }
             }
         }
@@ -232,7 +267,7 @@ internal object ScheduledTaskScheduleCalculator {
         )
     }
 
-    /** 生成简洁的简体中文排期摘要，供卡片、确认话术和通知展示。 */
+    /** 生成简洁的排期摘要，供卡片、确认话术和通知展示。 */
     fun describeSchedule(
         schedule: ScheduledTaskSchedule,
         defaultZone: ZoneId = ZoneId.systemDefault(),
@@ -242,39 +277,54 @@ internal object ScheduledTaskScheduleCalculator {
             ScheduledTaskTriggerKind.ONCE -> {
                 val target = schedule.triggerAtEpochMs
                 if (target == null) {
-                    "一次性任务"
+                    AppStrings.get(R.string.scheduled_schedule_once_unset, "一次性任务")
                 } else {
                     val zone = resolveZone(schedule, defaultZone)
                     val zdt = Instant.ofEpochMilli(target).atZone(zone)
-                    zdt.format(ONCE_FORMATTER)
+                    formatMonthDayTime(zdt)
                 }
             }
-            ScheduledTaskTriggerKind.DAILY -> "每天 $timeText"
-            ScheduledTaskTriggerKind.WEEKDAYS -> "工作日 $timeText"
+            ScheduledTaskTriggerKind.DAILY ->
+                AppStrings.get(R.string.scheduled_schedule_daily, "每天 %1\$s", timeText)
+            ScheduledTaskTriggerKind.WEEKDAYS ->
+                AppStrings.get(R.string.scheduled_schedule_weekdays, "工作日 %1\$s", timeText)
             ScheduledTaskTriggerKind.WEEKLY -> {
                 val days = schedule.daysOfWeek.filter { it in 1..7 }.sorted()
                 when {
-                    days.size == 7 -> "每天 $timeText"
-                    days == listOf(1, 2, 3, 4, 5) -> "工作日 $timeText"
-                    days == listOf(6, 7) -> "周末 $timeText"
-                    days.isEmpty() -> "每周 $timeText"
-                    else -> "每${days.joinToString("、", transform = ::shortDayName)} $timeText"
+                    days.size == 7 -> AppStrings.get(R.string.scheduled_schedule_daily, "每天 %1\$s", timeText)
+                    days == listOf(1, 2, 3, 4, 5) -> AppStrings.get(R.string.scheduled_schedule_weekdays, "工作日 %1\$s", timeText)
+                    days == listOf(6, 7) -> AppStrings.get(R.string.scheduled_schedule_weekends, "周末 %1\$s", timeText)
+                    days.isEmpty() -> AppStrings.get(R.string.scheduled_schedule_weekly_generic, "每周 %1\$s", timeText)
+                    else -> {
+                        val separator = AppStrings.get(R.string.scheduled_day_list_separator, "、")
+                        val dayList = days.joinToString(separator, transform = ::shortDayName)
+                        AppStrings.get(R.string.scheduled_schedule_weekly_days, "每%1\$s %2\$s", dayList, timeText)
+                    }
                 }
             }
             ScheduledTaskTriggerKind.INTERVAL -> formatInterval(schedule.intervalMinutes)
-            ScheduledTaskTriggerKind.CRON -> "Cron · ${schedule.cronExpression.trim().ifBlank { "未配置" }}"
+            ScheduledTaskTriggerKind.CRON -> {
+                val expr = schedule.cronExpression.trim().ifBlank {
+                    AppStrings.get(R.string.scheduled_cron_unset, "未配置")
+                }
+                AppStrings.get(R.string.scheduled_schedule_cron, "Cron · %1\$s", expr)
+            }
         }
     }
 
-    /** 将下一次执行时间格式化为易读的相对+绝对文本，如 “今天 22:00” / “明天 08:00” / “3 小时后”。 */
+    /** 将下一次执行时间格式化为易读的相对+绝对文本，如 “今天 22:00” / “明天 08:00” / “30 分钟后”。 */
     fun formatNextRunLabel(
         nextRunAt: Long?,
         nowMs: Long,
         defaultZone: ZoneId = ZoneId.systemDefault(),
     ): String {
-        if (nextRunAt == null) return "未排期"
+        if (nextRunAt == null) {
+            return AppStrings.get(R.string.scheduled_next_run_unscheduled, "未排期")
+        }
         val diffMs = nextRunAt - nowMs
-        if (diffMs <= 60_000L) return "即将运行"
+        if (diffMs <= 60_000L) {
+            return AppStrings.get(R.string.scheduled_next_run_soon, "即将运行")
+        }
         val nowZdt = Instant.ofEpochMilli(nowMs).atZone(defaultZone)
         val targetZdt = Instant.ofEpochMilli(nextRunAt).atZone(defaultZone)
         val hhmm = targetZdt.format(HH_MM_FORMATTER)
@@ -282,11 +332,22 @@ internal object ScheduledTaskScheduleCalculator {
         return when (dayDiff) {
             0L -> {
                 val minutes = diffMs / 60_000L
-                if (minutes < 60L) "${minutes} 分钟后（$hhmm）" else "今天 $hhmm"
+                if (minutes < 60L) {
+                    AppStrings.quantity(
+                        R.plurals.scheduled_next_run_in_minutes,
+                        minutes.toInt(),
+                        "%1\$d 分钟后（%2\$s）",
+                        "%1\$d 分钟后（%2\$s）",
+                        minutes,
+                        hhmm,
+                    )
+                } else {
+                    AppStrings.get(R.string.scheduled_next_run_today, "今天 %1\$s", hhmm)
+                }
             }
-            1L -> "明天 $hhmm"
-            2L -> "后天 $hhmm"
-            else -> targetZdt.format(DATE_TIME_SHORT_FORMATTER)
+            1L -> AppStrings.get(R.string.scheduled_next_run_tomorrow, "明天 %1\$s", hhmm)
+            2L -> AppStrings.get(R.string.scheduled_next_run_day_after_tomorrow, "后天 %1\$s", hhmm)
+            else -> formatMonthDayTime(targetZdt)
         }
     }
 
@@ -296,23 +357,61 @@ internal object ScheduledTaskScheduleCalculator {
     fun formatInterval(minutes: Int): String {
         val clamped = minutes.coerceAtLeast(1)
         return when {
-            clamped % (24 * 60) == 0 -> "每 ${clamped / (24 * 60)} 天"
-            clamped % 60 == 0 -> "每 ${clamped / 60} 小时"
-            clamped > 60 -> "每 ${clamped / 60} 小时 ${clamped % 60} 分钟"
-            else -> "每 $clamped 分钟"
+            clamped % (24 * 60) == 0 -> {
+                val days = clamped / (24 * 60)
+                AppStrings.quantity(
+                    R.plurals.scheduled_interval_days,
+                    days,
+                    "每 %1\$d 天",
+                    "每 %1\$d 天",
+                    days,
+                )
+            }
+            clamped % 60 == 0 -> {
+                val hours = clamped / 60
+                AppStrings.quantity(
+                    R.plurals.scheduled_interval_hours,
+                    hours,
+                    "每 %1\$d 小时",
+                    "每 %1\$d 小时",
+                    hours,
+                )
+            }
+            clamped > 60 -> AppStrings.get(
+                R.string.scheduled_interval_hours_minutes,
+                "每 %1\$d 小时 %2\$d 分钟",
+                clamped / 60,
+                clamped % 60,
+            )
+            else -> AppStrings.quantity(
+                R.plurals.scheduled_interval_minutes,
+                clamped,
+                "每 %1\$d 分钟",
+                "每 %1\$d 分钟",
+                clamped,
+            )
         }
     }
 
     private fun shortDayName(isoDay: Int): String = when (isoDay) {
-        1 -> "周一"
-        2 -> "周二"
-        3 -> "周三"
-        4 -> "周四"
-        5 -> "周五"
-        6 -> "周六"
-        7 -> "周日"
+        1 -> AppStrings.get(R.string.scheduled_weekday_short_mon, "周一")
+        2 -> AppStrings.get(R.string.scheduled_weekday_short_tue, "周二")
+        3 -> AppStrings.get(R.string.scheduled_weekday_short_wed, "周三")
+        4 -> AppStrings.get(R.string.scheduled_weekday_short_thu, "周四")
+        5 -> AppStrings.get(R.string.scheduled_weekday_short_fri, "周五")
+        6 -> AppStrings.get(R.string.scheduled_weekday_short_sat, "周六")
+        7 -> AppStrings.get(R.string.scheduled_weekday_short_sun, "周日")
         else -> ""
     }
+
+    private fun formatMonthDayTime(zdt: ZonedDateTime): String =
+        AppStrings.get(
+            R.string.scheduled_date_time_short,
+            "%1\$d月%2\$d日 %3\$s",
+            zdt.monthValue,
+            zdt.dayOfMonth,
+            zdt.format(HH_MM_FORMATTER),
+        )
 
     private fun findNextCalendarOccurrence(
         afterMs: Long,
@@ -435,8 +534,6 @@ internal object ScheduledTaskScheduleCalculator {
     }
 
     private val HH_MM_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
-    private val DATE_TIME_SHORT_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日 HH:mm", Locale.SIMPLIFIED_CHINESE)
-    private val ONCE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日 HH:mm", Locale.SIMPLIFIED_CHINESE)
 
     /** 将 ISO-8601 或本地 `yyyy-MM-dd HH:mm` 解析为 epochMs，供模型工具使用。 */
     fun parseIsoOrLocalDateTime(raw: String, defaultZone: ZoneId = ZoneId.systemDefault()): Long? {

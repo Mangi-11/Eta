@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="provider_url_vertex_invalid">Invalid Vertex AI endpoint URL.</string>
+    <string name="provider_url_vertex_https">Vertex AI endpoint must use HTTPS, except for local debug addresses.</string>
+    <string name="provider_url_vertex_clean">Vertex AI endpoint URL cannot contain query parameters, fragments, or credentials.</string>
+    <string name="provider_url_vertex_project_invalid">Invalid Vertex AI Project ID or project number.</string>
+    <string name="provider_url_vertex_location_invalid">Invalid Vertex AI Location.</string>
+    <string name="provider_url_vertex_official_path">Official Vertex AI endpoint must be the API root URL or a project and location path.</string>
+    <string name="provider_url_vertex_project_required">Gemini 4 requires a standard Vertex AI project. Enter a Project ID or project number.</string>
+    <string name="provider_url_vertex_mismatch">Project and location in the Vertex AI endpoint URL must match the configuration.</string>
+    <string name="provider_url_vertex_gemini4_only">Vertex AI chat only supports Gemini 4 series models.</string>
+
+    <string name="provider_err_vertex_thinking_unsupported">The current Vertex AI model does not support the selected reasoning effort. Choose Default or a supported effort.</string>
+    <string name="provider_err_vertex_tool_call_id_missing">Vertex AI tool call is missing an Eta call ID.</string>
+    <string name="provider_err_vertex_input_type_unsupported">Vertex AI Gemini does not support this input content type.</string>
+    <string name="provider_err_gemini_image_source">Gemini image input must be a Base64 image or an accessible image URL.</string>
+    <string name="provider_err_gemini_image_http_source">Gemini image input must be a Base64 image or an HTTP URL.</string>
+    <string name="provider_err_gemini_image_url_invalid">Invalid Gemini image input URL.</string>
+    <string name="provider_err_gemini_image_mime_unknown">Unable to identify the media type of the Gemini image URL.</string>
+    <string name="provider_err_gemini_input_type_unsupported">Gemini does not support this input content type.</string>
+    <string name="provider_err_vertex_stream_failed">Vertex AI Gemini streaming response failed.</string>
+    <string name="provider_err_vertex_blocked">Vertex AI blocked this request or reply.</string>
+    <string name="provider_err_vertex_output_limit">Vertex AI reached the single-response output limit before finishing. Narrow the task or lower reasoning effort and retry.</string>
+    <string name="provider_err_vertex_incomplete">Vertex AI response ended early without a complete terminal state.</string>
+    <string name="provider_err_vertex_invalid_tool_call">Vertex AI returned an incomplete or invalid tool call.</string>
+    <string name="provider_err_vertex_stream_invalid">Vertex AI streaming response format is invalid or exceeds capacity limit.</string>
+
+    <string name="provider_err_gemini_thinking_off_unsupported">The current Gemini model does not support disabling reasoning. Choose Default or a supported effort.</string>
+    <string name="provider_err_gemini_interactions_effort_unsupported">Gemini Interactions protocol does not support the selected reasoning effort.</string>
+    <string name="provider_err_gemini_incomplete">Gemini response ended early without a complete terminal state.</string>
+    <string name="provider_err_gemini_missing_completed">Gemini response is missing the completion event.</string>
+    <string name="provider_err_gemini_stream_failed">Gemini streaming response failed.</string>
+    <string name="provider_err_gemini_request_failed">Gemini request did not complete successfully.</string>
+    <string name="provider_err_gemini_output_limit">Gemini output was incomplete, likely reaching the output or execution budget. Adjust the output limit or reasoning effort and retry.</string>
+    <string name="provider_err_gemini_step_incomplete">Gemini output steps did not finish completely.</string>
+    <string name="provider_err_gemini_tool_call_incomplete">Gemini tool call is missing an executable terminal state.</string>
+    <string name="provider_err_gemini_search_incomplete">Gemini search step did not finish completely.</string>
+    <string name="provider_err_gemini_unsupported_output">Gemini returned an unsupported output type.</string>
+    <string name="provider_err_gemini_search_suggestions_limit">Gemini search suggestions exceeded the display capacity limit.</string>
+    <string name="provider_err_gemini_stream_invalid">Gemini streaming response format is invalid or exceeds capacity limit.</string>
+
+    <string name="provider_err_not_responses_api">Current provider is not configured for the Responses API.</string>
+    <string name="provider_err_not_chat_completions_api">Current provider is not configured for the Chat Completions API.</string>
+    <string name="provider_err_no_response_stream">Model API did not return a response stream.</string>
+    <string name="provider_err_codex_terminal_status">Codex terminal event is missing a valid status.</string>
+    <string name="provider_err_no_sse_chunk">Model API did not return any SSE data chunks.</string>
+    <string name="provider_err_responses_no_terminal">Responses SSE stream is missing a valid terminal event.</string>
+    <string name="provider_err_sse_ended_error">Model API SSE ended with an error.</string>
+    <string name="provider_err_sse_not_ended">Model API SSE stream did not end normally.</string>
+    <string name="provider_err_no_error_message">No error message provided</string>
+    <string name="provider_err_sse_error_detail">Model API SSE error%1$s: %2$s</string>
+    <string name="provider_err_responses_failed">Responses API request failed: %1$s</string>
+
+    <string name="provider_hosted_tool_web_search">Web search</string>
+    <string name="provider_hosted_tool_file_search">File search</string>
+    <string name="provider_hosted_tool_code_interpreter">Code execution</string>
+    <string name="provider_hosted_tool_computer">Computer use</string>
+    <string name="provider_hosted_tool_image_generation">Image generation</string>
+    <string name="provider_hosted_tool_mcp">MCP tool</string>
+
+    <string name="provider_err_anthropic_stream_not_ended">Anthropic SSE stream did not end normally.</string>
+    <string name="provider_err_anthropic_block_not_ended">Anthropic SSE content block did not end normally.</string>
+    <string name="provider_err_anthropic_missing_signature">Anthropic SSE tool turn is missing a thinking signature.</string>
+    <string name="provider_err_anthropic_sse_error">Anthropic SSE returned an error.</string>
+
+    <string name="provider_param_field">field %1$s</string>
+    <string name="provider_param_custom_field">&lt;custom field&gt;</string>
+    <string name="provider_param_separator">; </string>
+</resources>

@@ -1,6 +1,8 @@
 package io.github.mangi.eta.ui.components
 
 import androidx.compose.runtime.Immutable
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
@@ -83,26 +85,55 @@ internal fun ToolActivityMessageUi.outcomeLine(): String? {
         ToolActivityStatusUi.Running -> null
         ToolActivityStatusUi.Failed, ToolActivityStatusUi.Unknown -> {
             val detail = lines.drop(1).lastOrNull { it != TRUNCATION_MARK }
-            head.removePrefix(FAILURE_PREFIX)
+            stripAnyPrefix(head, failurePrefixes())
                 .substringBefore(FAILURE_CODE_SEPARATOR)
-                .takeIf { it.isNotBlank() && it != FAILURE_LABEL }
+                .takeIf { it.isNotBlank() && it !in failureLabels() }
                 ?: detail
         }
         ToolActivityStatusUi.Success -> {
             val output = lines.drop(1).lastOrNull { it != TRUNCATION_MARK }
             when {
                 output != null -> output
-                head in TRIVIAL_SUCCESS -> null
-                else -> head.removePrefix(SUCCESS_PREFIX).takeIf { it.isNotBlank() }
+                head in trivialSuccessLabels() -> null
+                else -> stripAnyPrefix(head, successPrefixes()).takeIf { it.isNotBlank() }
             }
         }
     }
 }
 
-// 与 Runtime 侧结果摘要的固定格式对应。
-private const val FAILURE_LABEL = "失败"
-private const val FAILURE_PREFIX = "失败 · "
+private fun stripAnyPrefix(text: String, prefixes: List<String>): String {
+    for (prefix in prefixes) {
+        if (text.startsWith(prefix)) return text.removePrefix(prefix)
+    }
+    return text
+}
+
+private fun failureLabels(): Set<String> = setOf(
+    "失败",
+    "失敗",
+    "Failed",
+    AppStrings.get(R.string.workstep_failure_label, "失败"),
+)
+
+private fun failurePrefixes(): List<String> = failureLabels().map { "$it · " }
+
+private fun trivialSuccessLabels(): Set<String> = setOf(
+    "完成",
+    "执行完成",
+    "執行完成",
+    "Done",
+    "Completed",
+    AppStrings.get(R.string.workstep_success_label, "完成"),
+    AppStrings.get(R.string.workstep_exec_done_label, "执行完成"),
+)
+
+private fun successPrefixes(): List<String> = listOf(
+    "完成 · ",
+    "Done · ",
+    "Completed · ",
+    "${AppStrings.get(R.string.workstep_success_label, "完成")} · ",
+).distinct()
+
+// 与 Runtime 侧结果摘要的固定格式对应，同时兼容历史多语言持久化记录。
 private const val FAILURE_CODE_SEPARATOR = " · code="
-private const val SUCCESS_PREFIX = "完成 · "
 private const val TRUNCATION_MARK = "…"
-private val TRIVIAL_SUCCESS = setOf("完成", "执行完成")

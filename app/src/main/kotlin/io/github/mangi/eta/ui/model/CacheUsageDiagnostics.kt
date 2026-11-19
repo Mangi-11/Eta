@@ -1,5 +1,7 @@
 package io.github.mangi.eta.ui.model
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -94,8 +96,7 @@ internal object CacheUsageDiagnostics {
             when (message) {
                 is SystemNoticeMessageUi -> {
                     if (message.code == SystemNoticeCode.ContextCompaction && !message.running) {
-                        val isFailure = message.detail?.contains("失败") == true ||
-                            message.detail?.contains("中断") == true
+                        val isFailure = isCompactionFailureDetail(message.detail)
                         if (!isFailure && (message.usage != null || message.archiveId.isNotBlank())) {
                             val breakdown = message.usage?.let(::resolvePromptBreakdown)
                             currentCompaction = ActiveCompaction(
@@ -228,5 +229,18 @@ internal object CacheUsageDiagnostics {
             ),
             lastCompactionPayback = lastPayback,
         )
+    }
+
+    private fun isCompactionFailureDetail(detail: String?): Boolean {
+        if (detail.isNullOrBlank()) return false
+        return detail.contains("失败") ||
+            detail.contains("失敗") ||
+            detail.contains("中断") ||
+            detail.contains("中斷") ||
+            detail.contains("fail", ignoreCase = true) ||
+            detail.contains("interrupt", ignoreCase = true) ||
+            detail == AppStrings.get(R.string.ui_misc_compaction_failed, "上下文压缩失败") ||
+            detail == AppStrings.get(R.string.ui_misc_compaction_interrupted, "上下文压缩已中断") ||
+            detail == AppStrings.get(R.string.ui_misc_compaction_stopped, "上下文压缩已停止")
     }
 }

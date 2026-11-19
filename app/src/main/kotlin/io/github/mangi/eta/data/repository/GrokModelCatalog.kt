@@ -1,5 +1,7 @@
 package io.github.mangi.eta.data.repository
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ReasoningEffort
@@ -22,7 +24,12 @@ internal object GrokModelCatalog {
         var unsupported = 0
         var visible = 0
         val models = entries.mapIndexedNotNull { index, element ->
-            val item = element.jsonObjectOrNull() ?: error("Grok 模型目录包含无效模型项")
+            val item = element.jsonObjectOrNull() ?: error(
+                AppStrings.get(
+                    R.string.repo_err_grok_catalog_invalid_entry,
+                    "Grok 模型目录包含无效模型项",
+                ),
+            )
             val meta = item["_meta"]?.jsonObjectOrNull()
             if ((item.boolean("hidden") ?: meta?.boolean("hidden")) == true) return@mapIndexedNotNull null
             visible++
@@ -35,7 +42,12 @@ internal object GrokModelCatalog {
             }
             val id = item.nonBlankString("model", "modelId", "id")
                 ?: meta?.nonBlankString("model", "modelId")
-                ?: error("Grok 模型目录缺少模型标识")
+                ?: error(
+                    AppStrings.get(
+                        R.string.repo_err_grok_catalog_missing_model_id,
+                        "Grok 模型目录缺少模型标识",
+                    ),
+                )
             val normalized = JsonObject(item + ("id" to JsonPrimitive(id)))
             val base = decode(normalized)
             val reasoning = item.grokReasoningCapabilities(meta)
@@ -50,7 +62,10 @@ internal object GrokModelCatalog {
         }
         if (unsupported > 0) onUnsupportedProtocols(unsupported)
         require(visible == 0 || unsupported != visible) {
-            "当前订阅连接不使用目录指定的模型协议，无法导入这些模型"
+            AppStrings.get(
+                R.string.repo_err_grok_catalog_unsupported_protocol,
+                "当前订阅连接不使用目录指定的模型协议，无法导入这些模型",
+            )
         }
         return models
     }

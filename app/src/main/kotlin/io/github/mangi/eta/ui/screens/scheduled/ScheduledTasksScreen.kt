@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -96,6 +97,7 @@ internal fun ScheduledTasksScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val tasks by remember(context) { ScheduledTaskRepository.observeTasks(context) }
         .collectAsState(initial = emptyList())
@@ -122,7 +124,11 @@ internal fun ScheduledTasksScreen(
                     ScheduledTaskRepository.setEnabled(task.id, enabled, context = context)
                 }
             }.onFailure {
-                Toast.makeText(context, "更新定时任务开关失败", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    resources.getString(R.string.scheduled_toast_toggle_failed),
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
         }
     }
@@ -158,7 +164,7 @@ internal fun ScheduledTasksScreen(
                 }
                 if (tasks.isEmpty()) {
                     item(key = "presets_group") {
-                        Group(title = "快速开始") {
+                        Group(title = stringResource(R.string.scheduled_section_quick_start)) {
                             ScheduledTaskPresets.all.forEachIndexed { index, preset ->
                                 if (index > 0) Divider()
                                 CouiPresetRow(
@@ -170,13 +176,13 @@ internal fun ScheduledTasksScreen(
                     }
                     item(key = "empty_hint") {
                         Footer(
-                            text = "定时任务会在后台静默运行，只在有需要你关注的结果时通知；你也可以直接在聊天中对 Eta 说「每天晚上十点帮我总结今天的重要通知」。",
+                            text = stringResource(R.string.scheduled_empty_hint),
                         )
                     }
                 } else {
                     item(key = "tasks_header") {
                         val enabledCount = tasks.count { it.enabled }
-                        CouiSectionTitle("全部任务 · $enabledCount/${tasks.size} 已开启")
+                        CouiSectionTitle(stringResource(R.string.scheduled_section_all_tasks, enabledCount, tasks.size))
                     }
                     itemsIndexed(
                         items = tasks,
@@ -219,11 +225,11 @@ internal fun ScheduledTasksScreen(
                 }
                 if (tasks.isEmpty()) {
                     item(key = "empty_intro") {
-                        SmallTitle(text = "快速开始")
+                        SmallTitle(text = stringResource(R.string.scheduled_section_quick_start))
                     }
                     item(key = "empty_hint") {
                         Text(
-                            text = "定时任务会在后台静默运行，只在有需要你关注的结果时通知；也可以直接在聊天里对 Eta 说「每天晚上十点帮我总结今天的重要通知」。",
+                            text = stringResource(R.string.scheduled_empty_hint),
                             fontSize = 13.sp,
                             lineHeight = 19.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -238,8 +244,8 @@ internal fun ScheduledTasksScreen(
                         ) {
                             ScheduledTaskPresets.all.forEach { preset ->
                                 ArrowPreference(
-                                    title = preset.title,
-                                    summary = "${ScheduledTaskScheduleCalculator.describeSchedule(preset.schedule)} · ${preset.subtitle}",
+                                    title = stringResource(preset.titleRes),
+                                    summary = "${ScheduledTaskScheduleCalculator.describeSchedule(preset.schedule)} · ${stringResource(preset.subtitleRes)}",
                                     onClick = { onNavigate(AppRoute.ScheduledTaskEditor(presetId = preset.id)) },
                                 )
                             }
@@ -248,7 +254,7 @@ internal fun ScheduledTasksScreen(
                 } else {
                     item(key = "tasks_header") {
                         val enabledCount = tasks.count { it.enabled }
-                        SmallTitle(text = "全部任务 · $enabledCount/${tasks.size} 已开启")
+                        SmallTitle(text = stringResource(R.string.scheduled_section_all_tasks, enabledCount, tasks.size))
                     }
                     itemsIndexed(
                         items = tasks,
@@ -345,8 +351,8 @@ private fun CouiPresetRow(
 ) {
     val scheduleText = ScheduledTaskScheduleCalculator.describeSchedule(preset.schedule)
     CouiPreference(
-        title = preset.title,
-        summary = "$scheduleText · ${preset.subtitle}",
+        title = stringResource(preset.titleRes),
+        summary = "$scheduleText · ${stringResource(preset.subtitleRes)}",
         onClick = onClick,
     )
 }
@@ -385,7 +391,7 @@ private fun CouiScheduledTaskCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 CouiText(
-                    text = task.name.ifBlank { "未命名任务" },
+                    text = task.name.ifBlank { stringResource(R.string.scheduled_unnamed_task) },
                     kind = CouiTextKind.ItemTitle,
                     color = if (task.enabled) colors.title else colors.summary,
                     maxLines = 1,
@@ -453,7 +459,7 @@ private fun MiuixScheduledTaskCard(
     ) {
         BasicComponent(
             onClick = onClick,
-            title = task.name.ifBlank { "未命名任务" },
+            title = task.name.ifBlank { stringResource(R.string.scheduled_unnamed_task) },
             summary = scheduleLine,
             bottomAction = {
                 Row(
@@ -486,20 +492,27 @@ private fun MiuixScheduledTaskCard(
     }
 }
 
+@Composable
 private fun buildScheduleMetaLine(task: ScheduledTask, nowMs: Long): String {
     val scheduleText = ScheduledTaskScheduleCalculator.describeSchedule(task.schedule)
     val deliveryText = ScheduledTaskUiFormatting.deliveryBadge(task.deliveryMode)
     val nextText = if (task.enabled && task.nextRunAt != null) {
-        " · 下次 ${ScheduledTaskScheduleCalculator.formatNextRunLabel(task.nextRunAt, nowMs)}"
+        " · " + stringResource(
+            R.string.scheduled_meta_next_run,
+            ScheduledTaskScheduleCalculator.formatNextRunLabel(task.nextRunAt, nowMs),
+        )
     } else ""
     return "$scheduleText · $deliveryText$nextText"
 }
 
+@Composable
 private fun buildStatusMetaLine(task: ScheduledTask, isRunning: Boolean, nowMs: Long): String {
-    if (isRunning) return "正在后台运行…"
+    if (isRunning) return stringResource(R.string.scheduled_status_running_background)
     if (!task.autoDisabledReason.isNullOrBlank()) return task.autoDisabledReason
     if (task.lastStatus == null) {
-        return if (task.enabled) "等待首次触发" else "已暂停"
+        return stringResource(
+            if (task.enabled) R.string.scheduled_status_awaiting_first_run else R.string.scheduled_status_paused,
+        )
     }
     val statusText = ScheduledTaskUiFormatting.statusLabel(task.lastStatus, runningNow = false)
     val timeText = ScheduledTaskUiFormatting.formatTimestamp(task.lastRunAt, nowMs)
@@ -511,21 +524,22 @@ private fun buildStatusMetaLine(task: ScheduledTask, isRunning: Boolean, nowMs: 
     }
 }
 
+@Composable
 private fun healthGuidance(health: ScheduledTaskHealthSnapshot): Triple<String, String, String> = when {
     !health.ignoringBatteryOptimizations -> Triple(
-        "建议允许后台无限制耗电",
-        "Android 深度休眠时会对受限应用在 10 秒后切断后台网络，开启「电池无限制」可确保定时推理与网页巡检稳定完成。",
-        "前往开启",
+        stringResource(R.string.scheduled_health_battery_title),
+        stringResource(R.string.scheduled_health_battery_summary),
+        stringResource(R.string.scheduled_health_battery_action),
     )
     !health.canScheduleExactAlarms -> Triple(
-        "精确闹钟权限未开启",
-        "未开启精确闹钟时，定时任务可能延迟数分钟触发；开启后可准点唤醒执行。",
-        "授权精确闹钟",
+        stringResource(R.string.scheduled_health_exact_alarm_title),
+        stringResource(R.string.scheduled_health_exact_alarm_summary),
+        stringResource(R.string.scheduled_health_exact_alarm_action),
     )
     else -> Triple(
-        "系统通知未开启",
-        "定时任务仍会在后台执行，但无法推送结果摘要和失败告警通知。",
-        "开启通知",
+        stringResource(R.string.scheduled_health_notification_title),
+        stringResource(R.string.scheduled_health_notification_summary),
+        stringResource(R.string.scheduled_health_notification_action),
     )
 }
 

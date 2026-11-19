@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import java.io.Closeable
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
@@ -53,7 +55,10 @@ internal class SpeechSocket(
             messages.trySend(bytes).isSuccess
         }
         if (bytes.size > SpeechHttp.MAX_JSON_BYTES || !accepted) {
-            val failure = SpeechFailure(SpeechErrorCode.BACKPRESSURE, "语音数据处理不及时，请重试")
+            val failure = SpeechFailure(
+                SpeechErrorCode.BACKPRESSURE,
+                AppStrings.get(R.string.voice_i18n_socket_receive_backpressure, "语音数据处理不及时，请重试"),
+            )
             messages.close(failure)
             frames.close(failure)
             socket.cancel()
@@ -65,7 +70,10 @@ internal class SpeechSocket(
     fun binary(value: ByteArray) = sent(socket.send(value.toByteString()))
     private fun sent(accepted: Boolean) {
         if (!accepted || socket.queueSize() > 256 * 1024) {
-            throw SpeechFailure(SpeechErrorCode.BACKPRESSURE, "网络上传不及时，请检查网络后重试")
+            throw SpeechFailure(
+                SpeechErrorCode.BACKPRESSURE,
+                AppStrings.get(R.string.voice_i18n_socket_send_backpressure, "网络上传不及时，请检查网络后重试"),
+            )
         }
     }
     override fun close() {

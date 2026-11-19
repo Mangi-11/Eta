@@ -1,6 +1,8 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentHttpClient
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.DoubaoSpeechConfig
 import java.io.IOException
 import java.util.UUID
@@ -27,7 +29,12 @@ internal object SpeechHttp {
 
     suspend fun json(request: Request): JSONObject = read(request) { response ->
         val source = response.body.source()
-        if (source.request(MAX_JSON_BYTES + 1)) throw SpeechFailure(SpeechErrorCode.PROTOCOL, "语音服务响应过大")
+        if (source.request(MAX_JSON_BYTES + 1)) {
+            throw SpeechFailure(
+                SpeechErrorCode.PROTOCOL,
+                AppStrings.get(R.string.voice_i18n_http_response_too_large, "语音服务响应过大"),
+            )
+        }
         JSONObject(source.readUtf8())
     }
 
@@ -58,9 +65,18 @@ internal object SpeechHttp {
     fun checkStatus(status: Int) {
         if (status in 200..299) return
         throw when (status) {
-            401, 403 -> SpeechFailure(SpeechErrorCode.AUTHENTICATION, "语音服务认证失败，请检查凭据和服务权限")
-            429 -> SpeechFailure(SpeechErrorCode.RATE_LIMITED, "语音服务请求过于频繁，请稍后重试")
-            else -> SpeechFailure(SpeechErrorCode.SERVER, "语音服务请求失败（HTTP $status）")
+            401, 403 -> SpeechFailure(
+                SpeechErrorCode.AUTHENTICATION,
+                AppStrings.get(R.string.voice_i18n_http_auth_failed, "语音服务认证失败，请检查凭据和服务权限"),
+            )
+            429 -> SpeechFailure(
+                SpeechErrorCode.RATE_LIMITED,
+                AppStrings.get(R.string.voice_i18n_http_rate_limited, "语音服务请求过于频繁，请稍后重试"),
+            )
+            else -> SpeechFailure(
+                SpeechErrorCode.SERVER,
+                AppStrings.get(R.string.voice_i18n_http_request_failed, "语音服务请求失败（HTTP %1\$d）", status),
+            )
         }
     }
 

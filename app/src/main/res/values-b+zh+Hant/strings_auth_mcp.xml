@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="auth_err_codex_callback_start">無法啟動 Codex 登入回呼，請結束其他登入後重試</string>
+    <string name="auth_err_code_expired">驗證碼已過期，請重新登入</string>
+    <string name="auth_err_access_denied">登入未獲授權</string>
+    <string name="auth_err_account_mismatch">登入帳號與原帳號不一致，請新建服務商連線</string>
+    <string name="auth_err_account_context_mismatch">重新整理後的帳號上下文不一致，請重新登入</string>
+    <string name="auth_err_session_expired">登入已失效，請重新登入</string>
+    <string name="auth_err_client_rejected">授權服務未接受此用戶端</string>
+    <string name="auth_err_request_failed">授權請求失敗（HTTP %1$d），請稍後重試</string>
+    <string name="auth_err_incomplete_response">授權服務回傳的資料不完整</string>
+    <string name="auth_err_invalid_response">授權服務回傳的資料無效</string>
+    <string name="auth_err_login_required">請先登入此服務商帳號</string>
+    <string name="auth_err_plan_permission_required">帳號憑證無法用於目前訂閱連線，請重新登入</string>
+    <string name="auth_err_provider_missing">服務商連線不存在</string>
+    <string name="auth_err_session_changed">登入狀態已變更，請重試</string>
+    <string name="auth_err_unsupported_auth_mode">目前連線不支援帳號登入</string>
+    <string name="auth_err_response_too_large">授權服務回傳的資料過大</string>
+    <string name="auth_err_invalid_http_response">授權服務回傳了無效回應（HTTP %1$d）</string>
+    <string name="auth_err_network">無法連線至授權服務，請檢查網路後重試</string>
+    <string name="auth_err_codex_account_missing">Codex 憑證缺少工作區資訊，請重新登入</string>
+    <string name="auth_err_key_unavailable">登入憑證的金鑰無法使用，請登出後重新登入</string>
+    <string name="auth_err_storage_failed">無法讀寫登入憑證，請登出後重新登入</string>
+    <string name="auth_callback_success_html">授權已回傳，請回到 Eta 完成登入。</string>
+    <string name="auth_callback_failed_html">授權未完成，請回到 Eta 重試。</string>
+    <string name="auth_err_login_timeout">登入已逾時，請重試</string>
+    <string name="auth_err_callback_unavailable">無法接收登入回呼，請重試</string>
+    <string name="auth_err_callback_invalid">登入回呼無效</string>
+    <string name="auth_err_oidc_keys_unavailable">暫時無法驗證帳號身分，請稍後重試</string>
+    <string name="auth_err_oidc_invalid_keys">授權服務的身分驗證金鑰無效</string>
+    <string name="auth_err_oidc_identity_invalid">無法驗證登入帳號，請重新登入</string>
+    <string name="auth_err_oidc_token_invalid">授權服務回傳了無效的身分憑證</string>
+
+    <string name="mcp_err_server_not_found">MCP 伺服器不存在</string>
+    <string name="mcp_err_tool_empty">MCP 工具回傳為空</string>
+    <string name="mcp_err_init_empty">MCP initialize 回傳為空</string>
+    <string name="mcp_err_unsupported_protocol">MCP 伺服器回傳了不支援的協定版本</string>
+    <string name="mcp_err_client_closed">MCP 用戶端已關閉</string>
+    <string name="mcp_err_tools_list_empty">MCP tools/list 回傳為空</string>
+    <string name="mcp_err_tools_list_legacy">MCP tools/list 回傳了舊協定結果</string>
+    <string name="mcp_err_tools_list_unsupported">MCP tools/list 回傳了不支援的結果類型</string>
+    <string name="mcp_err_client_busy">MCP 用戶端正在執行其他請求</string>
+    <string name="mcp_err_body_empty">MCP 回應正文為空</string>
+    <string name="mcp_err_id_mismatch">MCP 回應 id 不符</string>
+    <string name="mcp_err_missing_result">MCP 回應缺少 result</string>
+    <string name="mcp_err_response_too_large">MCP 回應超過大小限制</string>
+    <string name="mcp_err_http_status">MCP 請求失敗：HTTP %1$d %2$s</string>
+    <string name="mcp_err_protocol_code">MCP 協定錯誤：code=%1$d %2$s</string>
+    <string name="mcp_err_invalid_url">MCP 位址無效</string>
+</resources>

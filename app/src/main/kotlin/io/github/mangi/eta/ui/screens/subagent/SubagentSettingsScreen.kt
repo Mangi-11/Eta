@@ -49,6 +49,7 @@ import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.SubagentSettings
 import io.github.mangi.eta.data.model.enabledModel
+import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.app.LocalUiStyle
@@ -142,7 +143,13 @@ internal fun SubagentSettingsScreen(
     }
     val primaryModelName = pickerState.selectedModel?.displayName
     val secondarySummary = when {
-        resolvedSecondary != null -> "${resolvedSecondary.provider.name} / ${resolvedSecondary.model.displayName}"
+        resolvedSecondary != null -> {
+            val providerDisplayName = BuiltinProviders.defaultNameRes(
+                resolvedSecondary.provider.id,
+                resolvedSecondary.provider.name,
+            )?.let { stringResource(it) } ?: resolvedSecondary.provider.name
+            "$providerDisplayName / ${resolvedSecondary.model.displayName}"
+        }
         !primaryModelName.isNullOrBlank() -> stringResource(R.string.subagent_settings_follow_primary_named, primaryModelName)
         else -> stringResource(R.string.subagent_settings_follow_primary)
     }
@@ -158,11 +165,12 @@ internal fun SubagentSettingsScreen(
         listOf<ReasoningEffort?>(null) + efforts
     }
     val followDefaultEffortLabel = stringResource(R.string.subagent_settings_reasoning_follow_default)
-    val effortLabels = remember(effortOptions, followDefaultEffortLabel) {
+    val autoEffortLabel = stringResource(R.string.subagent_i18n_reasoning_auto)
+    val effortLabels = remember(effortOptions, followDefaultEffortLabel, autoEffortLabel) {
         effortOptions.map { effort ->
             when (effort) {
                 null -> followDefaultEffortLabel
-                ReasoningEffort.DEFAULT -> "Auto"
+                ReasoningEffort.DEFAULT -> autoEffortLabel
                 else -> effort.displayName
             }
         }
@@ -312,7 +320,7 @@ internal fun SubagentSettingsScreen(
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
             CouiScaffoldPage(
-                title = "Subagent",
+                title = stringResource(R.string.ui_misc_route_subagents),
                 onBack = onBack,
                 actions = {
                     CouiTopAppBarIconButton(
@@ -486,7 +494,7 @@ internal fun SubagentSettingsScreen(
                     SubagentProfile.BUILTIN_PROFILES.forEachIndexed { index, profile ->
                         CouiPreference(
                             title = profile.name,
-                            summary = profile.summary,
+                            summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
                             onClick = { inspectedProfile = profile },
                         )
                         if (index < SubagentProfile.BUILTIN_PROFILES.lastIndex) {
@@ -516,7 +524,7 @@ internal fun SubagentSettingsScreen(
                         customProfiles.forEachIndexed { index, profile ->
                             CouiPreference(
                                 title = profile.name,
-                                summary = profile.summary,
+                                summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
                                 onClick = { inspectedProfile = profile },
                             )
                             if (index < customProfiles.lastIndex) {
@@ -532,7 +540,7 @@ internal fun SubagentSettingsScreen(
 
         AppearanceUiStyle.MIUIX -> {
             MiuixScaffoldPage(
-                title = "Subagent",
+                title = stringResource(R.string.ui_misc_route_subagents),
                 onBack = onBack,
                 actions = {
                     MiuixTopBarActionButton(
@@ -741,7 +749,7 @@ internal fun SubagentSettingsScreen(
                         SubagentProfile.BUILTIN_PROFILES.forEach { profile ->
                             ArrowPreference(
                                 title = profile.name,
-                                summary = profile.summary,
+                                summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
                                 onClick = { inspectedProfile = profile },
                             )
                         }
@@ -774,7 +782,7 @@ internal fun SubagentSettingsScreen(
                             customProfiles.forEach { profile ->
                                 ArrowPreference(
                                     title = profile.name,
-                                    summary = profile.summary,
+                                    summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
                                     onClick = { inspectedProfile = profile },
                                 )
                             }
@@ -810,7 +818,7 @@ private fun SubagentProfileDetailContent(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(
-            text = profile.summary,
+            text = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
             style = MiuixTheme.textStyles.body1,
             fontWeight = FontWeight.Medium,
             color = MiuixTheme.colorScheme.onSurface,

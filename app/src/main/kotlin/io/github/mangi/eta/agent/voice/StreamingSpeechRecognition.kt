@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.AsrProvider
 import io.github.mangi.eta.data.model.SpeechCredentials
 import io.github.mangi.eta.data.model.SpeechSettings
@@ -76,10 +78,16 @@ private suspend fun recognizeQwen(
                     }
                     "session.finished" -> return@coroutineScope transcript.result()
                     "error", "conversation.item.input_audio_transcription.failed" ->
-                        throw SpeechFailure(SpeechErrorCode.SERVER, "千问识别失败，请检查模型权限和配置")
+                        throw SpeechFailure(
+                            SpeechErrorCode.SERVER,
+                            AppStrings.get(R.string.voice_i18n_qwen_asr_failed, "千问识别失败，请检查模型权限和配置"),
+                        )
                 }
             }
-            throw SpeechFailure(SpeechErrorCode.PROTOCOL, "千问识别连接提前结束")
+            throw SpeechFailure(
+                SpeechErrorCode.PROTOCOL,
+                AppStrings.get(R.string.voice_i18n_qwen_asr_connection_ended_early, "千问识别连接提前结束"),
+            )
         } finally { sender?.cancel() }
     }
 }
@@ -125,7 +133,10 @@ private suspend fun recognizeDoubao(
                 }
                 if (message.final) return@coroutineScope text.trim()
             }
-            throw SpeechFailure(SpeechErrorCode.PROTOCOL, "豆包识别连接提前结束")
+            throw SpeechFailure(
+                SpeechErrorCode.PROTOCOL,
+                AppStrings.get(R.string.voice_i18n_doubao_asr_connection_ended_early, "豆包识别连接提前结束"),
+            )
         } finally { sender.cancel() }
     }
 }
