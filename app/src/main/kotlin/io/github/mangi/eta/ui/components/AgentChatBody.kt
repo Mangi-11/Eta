@@ -1239,22 +1239,33 @@ private fun EmptyChatState(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (character != null) {
+                val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
                 CharacterAvatar(
                     name = character.characterName,
                     avatarPath = character.avatarPath,
-                    size = 88.dp,
+                    size = 68.dp,
                     shape = CircleShape,
+                    borderWidth = 0.5.dp,
+                    borderColor = if (isDark) {
+                        Color.White.copy(alpha = 0.14f)
+                    } else {
+                        Color.Black.copy(alpha = 0.08f)
+                    },
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 Text(
                     text = character.characterName,
-                    style = MiuixTheme.textStyles.title2,
+                    style = MiuixTheme.textStyles.title2.copy(
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-0.2).sp,
+                    ),
                     color = MiuixTheme.colorScheme.onSurface,
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = stringResource(R.string.chat_character_story_start),
-                    style = MiuixTheme.textStyles.body2,
+                    style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
             } else {
@@ -1267,9 +1278,8 @@ private fun EmptyChatState(
                     ),
                     color = MiuixTheme.colorScheme.onSurface,
                 )
+                Spacer(modifier = Modifier.height(26.dp))
             }
-
-            Spacer(modifier = Modifier.height(26.dp))
 
             AnimatedVisibility(
                 visible = showSuggestions && !isCharacterConversation,

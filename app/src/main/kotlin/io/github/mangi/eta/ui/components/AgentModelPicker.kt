@@ -172,23 +172,45 @@ internal fun AgentTopBarChatHeader(
     Box(modifier = modifier) {
         when {
             character != null -> {
+                val avatarInteractionSource = remember { MutableInteractionSource() }
+                val avatarBorderColor = if (isDark) {
+                    Color.White.copy(alpha = 0.14f)
+                } else {
+                    Color.Black.copy(alpha = 0.08f)
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .clip(CircleShape)
-                            .clickable(onClick = onOpenCharacter)
+                            .then(
+                                if (isCoui) {
+                                    Modifier.couiButtonFeedback(isDark, avatarInteractionSource, enabled = true)
+                                } else {
+                                    Modifier.glassPress(avatarInteractionSource, enabled = true)
+                                },
+                            )
+                            .clickable(
+                                interactionSource = avatarInteractionSource,
+                                indication = null,
+                                role = Role.Button,
+                                onClick = onOpenCharacter,
+                            )
+                            .semantics { contentDescription = character.characterName }
                             .padding(2.dp),
                     ) {
                         CharacterAvatar(
                             name = character.characterName,
                             avatarPath = character.avatarPath,
-                            size = 30.dp,
+                            size = 28.dp,
                             shape = CircleShape,
+                            borderWidth = 0.5.dp,
+                            borderColor = avatarBorderColor,
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Column(
                         modifier = Modifier
+                            .weight(1f, fill = false)
                             .onGloballyPositioned { headerAnchorBounds = it.boundsInWindow() }
                             .couiMenuAnchor(anchor)
                             .clip(RoundedCornerShape(10.dp))
@@ -211,9 +233,9 @@ internal fun AgentTopBarChatHeader(
                     ) {
                         Text(
                             text = character.characterName,
-                            style = MiuixTheme.textStyles.body2.copy(
-                                fontSize = 15.sp,
-                                lineHeight = 18.sp,
+                            style = MiuixTheme.textStyles.body1.copy(
+                                fontSize = 15.5.sp,
+                                lineHeight = 19.sp,
                                 fontWeight = FontWeight.SemiBold,
                             ),
                             color = MiuixTheme.colorScheme.onSurface,

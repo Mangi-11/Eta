@@ -357,6 +357,104 @@ class ConversationPanePanelTest {
         }
     }
 
+    @Test
+    fun roleplayConversationRowRendersNonZeroAvatarInSelectedAndUnselectedStates() {
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
+        val activity = controller.get()
+        val frameClock = BroadcastFrameClock()
+        val recomposeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + frameClock)
+        val recomposer = Recomposer(recomposeScope.coroutineContext)
+        var style by mutableStateOf(AppearanceUiStyle.COUI)
+        var selectedId by mutableStateOf<String?>("conv-other")
+        val conversations = listOf(
+            ConversationSummaryUi(
+                id = "conv-other",
+                title = "普通会话",
+                preview = "你好",
+                timeLabel = "今天",
+                updatedAtMillis = System.currentTimeMillis(),
+                mode = ConversationModeUi.Chat,
+            ),
+            ConversationSummaryUi(
+                id = "conv-role",
+                title = "清晨咖啡馆",
+                preview = "早安",
+                timeLabel = "今天",
+                updatedAtMillis = System.currentTimeMillis() - 1_000L,
+                mode = ConversationModeUi.Chat,
+                characterName = "林岚",
+            ),
+        )
+
+        try {
+            mountWithDeterministicRecomposer(activity, recomposeScope, recomposer) {
+                AgentAppTheme(
+                    appearance = AppearanceSettings(
+                        uiStyle = style,
+                        themeMode = AppearanceThemeMode.LIGHT,
+                    ),
+                    applyInterfaceScale = true,
+                ) {
+                    ConversationSidePaneScaffold(
+                        state = ConversationPaneUiState(
+                            conversations = conversations,
+                            selectedConversationId = selectedId,
+                            searchQuery = "",
+                        ),
+                        visible = true,
+                        backHandlerEnabled = true,
+                        onOpen = {},
+                        onDismiss = {},
+                        onSearchChange = {},
+                        onNewConversation = {},
+                        onConversationSelected = {},
+                        onConversationTogglePin = {},
+                        onConversationRename = {},
+                        onConversationExport = {},
+                        onConversationDelete = {},
+                        onOpenSettings = {},
+                        onOpenModelProviders = {},
+                        onOpenTools = {},
+                        onOpenSkills = {},
+                        onOpenCharacters = {},
+                        onOpenPermissions = {},
+                    ) {
+                        Box(Modifier.fillMaxSize())
+                    }
+                }
+            }
+
+            for (uiStyle in listOf(AppearanceUiStyle.COUI, AppearanceUiStyle.MIUIX)) {
+                style = uiStyle
+                for (selection in listOf("conv-other", "conv-role")) {
+                    selectedId = selection
+                    pumpFrames(activity, frameClock)
+                    val avatarNode = collectSemanticsNodes(activity.window.decorView, unmerged = true)
+                        .firstOrNull { node ->
+                            node.config.getOrNull(SemanticsProperties.Text)
+                                .orEmpty()
+                                .any { it.text == "林" }
+                        }
+                    assertTrue(
+                        "Expected monogram avatar node for $uiStyle selection=$selection",
+                        avatarNode != null,
+                    )
+                    val bounds = avatarNode!!.boundsInWindow
+                    assertTrue(
+                        "Expected non-zero avatar bounds for $uiStyle selection=$selection, got $bounds",
+                        bounds.width > 0f && bounds.height > 0f,
+                    )
+                }
+            }
+        } finally {
+            recomposer.cancel()
+            recomposeScope.cancel()
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
+            controller.pause().stop().destroy()
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
+        }
+    }
+
     private fun mountWithDeterministicRecomposer(
         activity: ComponentActivity,
         scope: CoroutineScope,
@@ -419,7 +517,7 @@ class ConversationPanePanelTest {
         }
     }
 
-    private fun collectSemanticsNodes(root: View): List<SemanticsNode> {
+    private fun collectSemanticsNodes(root: View, unmerged: Boolean = false): List<SemanticsNode> {
         val result = mutableListOf<SemanticsNode>()
         fun visitView(view: View) {
             if (view is AbstractComposeView) {
@@ -428,14 +526,15 @@ class ConversationPanePanelTest {
                     runCatching {
                         val ownerField = child.javaClass.getMethod("getSemanticsOwner")
                         val semanticsOwner = ownerField.invoke(child)
-                        val mergedRoot = semanticsOwner.javaClass
-                            .getMethod("getRootSemanticsNode")
+                        val rootMethod = if (unmerged) "getUnmergedRootSemanticsNode" else "getRootSemanticsNode"
+                        val rootNode = semanticsOwner.javaClass
+                            .getMethod(rootMethod)
                             .invoke(semanticsOwner) as SemanticsNode
                         fun collect(node: SemanticsNode) {
                             result.add(node)
                             node.children.forEach(::collect)
                         }
-                        collect(mergedRoot)
+                        collect(rootNode)
                     }
                 }
             }

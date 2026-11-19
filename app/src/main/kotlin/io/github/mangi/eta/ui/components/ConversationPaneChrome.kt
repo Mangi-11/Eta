@@ -193,6 +193,8 @@ internal object ConversationPanelMetrics {
     val RowCornerRadius = 14.dp
     val RowHorizontalPadding = 14.dp
     val RowVerticalPadding = 10.dp
+    val CharacterAvatarSize = 24.dp
+    val CharacterAvatarGap = 10.dp
     val ActiveDotSize = 6.dp
     val ActiveDotGap = 8.dp
     val ActionIconSize = 20.dp

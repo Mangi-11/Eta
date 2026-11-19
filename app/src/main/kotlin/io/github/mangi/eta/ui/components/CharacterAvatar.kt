@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -23,6 +24,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -89,12 +91,24 @@ internal fun CharacterAvatar(
     avatarPath: String?,
     size: Dp,
     shape: Shape,
-    modifier: Modifier = Modifier.size(size),
+    modifier: Modifier = Modifier,
+    borderWidth: Dp = 0.dp,
+    borderColor: Color = Color.Unspecified,
     image: ImageBitmap? = rememberCharacterImage(avatarPath, size),
 ) {
-    // size 决定解码分辨率；布局尺寸由 modifier 决定，默认即正方形 size，调用方可改为竖版或铺满。
+    // size 决定解码分辨率与默认正方形尺寸；调用方传 fillMaxSize/matchParentSize/明确宽高时遵循外层约束，
+    // 仅附加非尺寸修饰符时仍稳定兜底为 size，避免内部 matchParentSize 把容器压成 0x0。
     Box(
-        modifier = modifier.clip(shape),
+        modifier = modifier
+            .size(size)
+            .clip(shape)
+            .then(
+                if (borderWidth > 0.dp && borderColor != Color.Unspecified) {
+                    Modifier.border(borderWidth, borderColor, shape)
+                } else {
+                    Modifier
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         if (image != null) {

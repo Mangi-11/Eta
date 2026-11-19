@@ -650,6 +650,11 @@ private fun ConversationHistoryRow(
     } else {
         miuixColors.primary
     }
+    val avatarBorderColor = if (if (isCoui) couiDark else miuixDark) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.Black.copy(alpha = 0.08f)
+    }
 
     Box(
         modifier = Modifier
@@ -683,15 +688,12 @@ private fun ConversationHistoryRow(
                 CharacterAvatar(
                     name = conversation.characterName,
                     avatarPath = conversation.characterAvatarPath,
-                    size = 30.dp,
+                    size = ConversationPanelMetrics.CharacterAvatarSize,
                     shape = CircleShape,
-                    modifier = if (selected) {
-                        Modifier.border(1.5.dp, accentColor.copy(alpha = 0.75f), CircleShape)
-                    } else {
-                        Modifier
-                    },
+                    borderWidth = 0.5.dp,
+                    borderColor = avatarBorderColor,
                 )
-                Spacer(Modifier.width(11.dp))
+                Spacer(Modifier.width(ConversationPanelMetrics.CharacterAvatarGap))
             }
 
             Column(modifier = Modifier.weight(1f)) {
@@ -773,8 +775,8 @@ private fun ConversationHistoryRow(
             }
         }
 
-        // 将选中指示条放在左内边距留白区，保证选中行与普通行标题严格处于同一条左对齐基线。
-        if (selected && conversation.characterName == null) {
+        // 将选中指示条放在左内边距留白区，普通与角色会话共用同一套选中反馈语言与左对齐节奏。
+        if (selected) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
