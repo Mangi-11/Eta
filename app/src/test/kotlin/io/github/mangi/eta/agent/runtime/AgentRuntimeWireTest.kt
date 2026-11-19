@@ -624,7 +624,7 @@ class AgentRuntimeWireTest {
             """{"action":"type","url":"https://user:password@example.com/private?q=token#fragment","text":"secret input"}"""
         )
 
-        assertEquals("输入内容 · example.com", summary)
+        assertEquals("Enter content · example.com", summary)
     }
 
     @Test
@@ -635,13 +635,13 @@ class AgentRuntimeWireTest {
             toolName = "browser_use",
             result = AgentModelClient.ToolResult(content = content.format("false")),
         )
-        assertEquals("失败", failure)
+        assertEquals("Failed", failure)
 
         val success = AgentModelClient.summarizeToolResult(
             toolName = "browser_use",
             result = AgentModelClient.ToolResult(content = content.format("true")),
         )
-        assertEquals("已提取正文 · example.com · 《Example》 · 约 11 字 · 2 个元素 · 已截断", success)
+        assertEquals("Article extracted · example.com · \"Example\" · ~11 chars · 2 elements · Truncated", success)
 
         listOf("user:password", "secret body", "private", "token", "ok=").forEach { leaked ->
             assertTrue("$leaked leaked: $success", !success.contains(leaked))
@@ -655,7 +655,7 @@ class AgentRuntimeWireTest {
             """{"uri":"https://user:password@example.com/private/access_token/value?q=secret#fragment"}"""
         )
 
-        assertEquals("交给外部应用 · https · example.com", summary)
+        assertEquals("Open in external app · https · example.com", summary)
     }
 
     @Test

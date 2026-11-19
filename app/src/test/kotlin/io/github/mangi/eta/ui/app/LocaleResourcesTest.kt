@@ -3,7 +3,11 @@ package io.github.mangi.eta.ui.app
 import android.content.Context
 import android.content.res.Configuration
 import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.subagent.SubagentProfile
+import io.github.mangi.eta.core.AppStrings
+import io.github.mangi.eta.data.provider.BuiltinProviders
 import java.util.Locale
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -15,6 +19,11 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class LocaleResourcesTest {
     private val context: Context = RuntimeEnvironment.getApplication()
+
+    @After
+    fun tearDown() {
+        AppStrings.resetForTest()
+    }
 
     @Test
     fun supportedLocalesSelectExpectedResourcesAndOthersFallBackToEnglish() {
@@ -79,23 +88,74 @@ class LocaleResourcesTest {
         }
     }
 
-    @Suppress("DEPRECATION")
-    private fun localizedString(languageTag: String, resourceId: Int): String {
-        val resources = context.resources
-        val configuration = Configuration(resources.configuration).apply {
-            setLocale(Locale.forLanguageTag(languageTag))
-        }
-        resources.updateConfiguration(configuration, resources.displayMetrics)
-        return resources.getString(resourceId)
+    @Test
+    fun externalizedModuleResourcesAndDynamicResolversFollowLocale() {
+        AppStrings.init(context)
+
+        assertEquals("Quick start", localizedString("en-US", R.string.scheduled_section_quick_start))
+        assertEquals("快速开始", localizedString("zh-CN", R.string.scheduled_section_quick_start))
+        assertEquals("快速開始", localizedString("zh-TW", R.string.scheduled_section_quick_start))
+
+        assertEquals("Characters", localizedString("en-US", R.string.character_library_title))
+        assertEquals("角色", localizedString("zh-CN", R.string.character_library_title))
+        assertEquals("角色", localizedString("zh-TW", R.string.character_library_title))
+
+        assertEquals("Add from models.dev", localizedString("en-US", R.string.catalog_i18n_title))
+        assertEquals("从 models.dev 添加", localizedString("zh-CN", R.string.catalog_i18n_title))
+        assertEquals("從 models.dev 新增", localizedString("zh-TW", R.string.catalog_i18n_title))
+
+        assertEquals("Search the web", localizedString("en-US", R.string.trace_arg_web_search))
+        assertEquals("搜索网页", localizedString("zh-CN", R.string.trace_arg_web_search))
+        assertEquals("搜尋網頁", localizedString("zh-TW", R.string.trace_arg_web_search))
+
+        assertEquals("Eta is listening", localizedString("en-US", R.string.voice_i18n_fg_listening))
+        assertEquals("Eta 正在聆听", localizedString("zh-CN", R.string.voice_i18n_fg_listening))
+        assertEquals("Eta 正在聆聽", localizedString("zh-TW", R.string.voice_i18n_fg_listening))
+
+        assertEquals("Background command completed", localizedString("en-US", R.string.execution_bg_cmd_completed))
+        assertEquals("后台命令已完成", localizedString("zh-CN", R.string.execution_bg_cmd_completed))
+        assertEquals("背景指令已完成", localizedString("zh-TW", R.string.execution_bg_cmd_completed))
+
+        // 验证动态解析器随语言切换实时更新，不在伴生对象或默认列表中静态固化。
+        applyLocale("en-US")
+        assertEquals(
+            context.getString(R.string.subagent_i18n_explore_summary),
+            SubagentProfile.EXPLORE.localizedSummary(),
+        )
+        assertEquals("Alibaba Bailian", BuiltinProviders.localizedDisplayName(BuiltinProviders.BAILIAN_ID, "阿里百炼"))
+        assertEquals("Custom Bailian", BuiltinProviders.localizedDisplayName(BuiltinProviders.BAILIAN_ID, "Custom Bailian"))
+
+        applyLocale("zh-CN")
+        assertEquals("只读探索与多源信息检索", SubagentProfile.EXPLORE.localizedSummary())
+        assertEquals("阿里百炼", BuiltinProviders.localizedDisplayName(BuiltinProviders.BAILIAN_ID, "阿里百炼"))
+
+        applyLocale("zh-TW")
+        assertEquals(
+            context.getString(R.string.subagent_i18n_explore_summary),
+            SubagentProfile.EXPLORE.localizedSummary(),
+        )
+        assertEquals(
+            context.getString(R.string.provider_i18n_builtin_bailian),
+            BuiltinProviders.localizedDisplayName(BuiltinProviders.BAILIAN_ID, "阿里百炼"),
+        )
     }
 
     @Suppress("DEPRECATION")
-    private fun localizedQuantity(languageTag: String, resourceId: Int, quantity: Int): String {
+    private fun applyLocale(languageTag: String) {
         val resources = context.resources
         val configuration = Configuration(resources.configuration).apply {
             setLocale(Locale.forLanguageTag(languageTag))
         }
         resources.updateConfiguration(configuration, resources.displayMetrics)
-        return resources.getQuantityString(resourceId, quantity, quantity)
+    }
+
+    private fun localizedString(languageTag: String, resourceId: Int): String {
+        applyLocale(languageTag)
+        return context.resources.getString(resourceId)
+    }
+
+    private fun localizedQuantity(languageTag: String, resourceId: Int, quantity: Int): String {
+        applyLocale(languageTag)
+        return context.resources.getQuantityString(resourceId, quantity, quantity)
     }
 }

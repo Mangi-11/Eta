@@ -146,8 +146,10 @@ class EtaBackupRepositoryTest {
 
         assertTrue(committed)
         assertTrue(failure is IllegalStateException)
-        assertTrue(failure?.message.orEmpty().contains("数据已导入"))
-        assertTrue(failure?.message.orEmpty().contains("保持停用"))
+        assertEquals(
+            context.getString(io.github.mangi.eta.R.string.backup_err_import_oauth_cleanup_incomplete),
+            failure?.message,
+        )
         val restored = requireNotNull(dao.providerById(provider.id)).provider
         assertEquals("导入连接", restored.name)
         assertEquals(ProviderAuthModes.API_KEY, restored.authMode)
