@@ -32,6 +32,10 @@ internal object AgentHttpClient {
     fun modelClient(purpose: ProviderRequestPurpose): OkHttpClient =
         if (purpose == ProviderRequestPurpose.COMPACTION) compactionClient else modelClient
 
+    fun vertexClient(client: OkHttpClient): OkHttpClient = client.newBuilder()
+        .followRedirects(false)
+        .build()
+
     val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)

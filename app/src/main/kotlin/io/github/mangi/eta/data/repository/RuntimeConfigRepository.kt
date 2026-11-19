@@ -333,6 +333,7 @@ internal object RuntimeConfigRepository {
 
     fun reasoningCapabilities(provider: ProviderSetting, model: Model): ModelReasoningCapabilities? {
         if (provider is GeminiProviderSetting) {
+            if (provider.isVertexAi) return GeminiModelCapabilities.resolveVertexReasoning(model)
             return GeminiModelCapabilities.resolveReasoning(model)
         }
         val sourceType = ProviderSourceRegistry.resolve(provider)

@@ -51,13 +51,14 @@ internal object RemoteModelFetcher {
     suspend fun testVertexConnection(
         provider: GeminiProviderSetting,
         client: OkHttpClient = AgentHttpClient.client,
-    ): Result<VertexConnectionTestResult> = withContext(Dispatchers.IO) {
+        preferredModelId: String? = null,
+    ): Result<String> = withContext(Dispatchers.IO) {
         suspendCancellableCoroutine { continuation ->
             val controller = AgentRunController()
             continuation.invokeOnCancellation { controller.cancel() }
             try {
                 controller.throwIfCancelled()
-                val result = GeminiModelCatalog.testVertexConnection(provider, client, controller)
+                val result = GeminiModelCatalog.testVertexConnection(provider, client, controller, preferredModelId)
                 controller.throwIfCancelled()
                 continuation.resume(Result.success(result))
             } catch (cancelled: CancellationException) {

@@ -2,6 +2,7 @@ package io.github.mangi.eta.data.repository
 
 import com.sun.net.httpserver.HttpServer
 import io.github.mangi.eta.agent.auth.ProviderCredentialBinding
+import io.github.mangi.eta.agent.model.AgentModelFailure
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.data.model.CustomHeader
 import io.github.mangi.eta.data.model.GeminiEndpointMode
@@ -69,10 +70,9 @@ class GeminiModelCatalogHttpTest {
     }
 
     @Test
-    fun vertexModeExplainsNoRemoteListAndTestsConnectionViaCountTokensWithGlobalFallback() = runBlocking {
+    fun vertexModeProbesTheSelectedModelAndReports404WithoutRetry() = runBlocking {
         val requestedPaths = mutableListOf<String>()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        server.executor = java.util.concurrent.Executors.newSingleThreadExecutor()
         server.createContext("/") { exchange ->
             requestedPaths += exchange.requestURI.rawPath
             if (requestedPaths.size == 1) {
@@ -96,22 +96,23 @@ class GeminiModelCatalogHttpTest {
                 baseUrl = "http://127.0.0.1:${server.address.port}/v1beta1",
                 apiKey = "AQ.fixture-key",
                 endpointMode = GeminiEndpointMode.VERTEX_AI,
-                models = listOf(Model(id = "c", modelId = "gemini-4-carbon", displayName = "Gemini 4 Carbon")),
+                models = listOf(
+                    Model(id = "h", modelId = "gemini-4-hydrogen", displayName = "Gemini 4 Hydrogen"),
+                    Model(id = "c", modelId = "gemini-4-carbon", displayName = "Gemini 4 Carbon"),
+                ),
             )
             val fetchFailure = RemoteModelFetcher.fetchCatalog(vertexProvider, OkHttpClient(), noOAuth).exceptionOrNull()
             assertTrue(fetchFailure?.message.orEmpty().contains("Vertex AI"))
             assertTrue(requestedPaths.isEmpty())
 
-            val probe = RemoteModelFetcher.testVertexConnection(vertexProvider, OkHttpClient()).getOrThrow()
-            assertEquals("gemini-4-carbon", probe.modelId)
-            assertTrue(probe.usedGlobalFallback)
-            assertEquals(
-                listOf(
-                    "/v1beta1/publishers/google/models/gemini-4-carbon:countTokens",
-                    "/v1beta1/projects/11223344/locations/global/publishers/google/models/gemini-4-carbon:countTokens",
-                ),
-                requestedPaths,
-            )
+            val client = OkHttpClient()
+            val failed = RemoteModelFetcher.testVertexConnection(vertexProvider, client, preferredModelId = "c")
+            assertEquals("HTTP_404", (failed.exceptionOrNull() as AgentModelFailure).code)
+            val path = "/v1beta1/publishers/google/models/gemini-4-carbon:countTokens"
+            assertEquals(listOf(path), requestedPaths)
+            val probe = RemoteModelFetcher.testVertexConnection(vertexProvider, client, preferredModelId = "c").getOrThrow()
+            assertEquals("gemini-4-carbon", probe)
+            assertEquals(listOf(path, path), requestedPaths)
         } finally {
             server.stop(0)
         }

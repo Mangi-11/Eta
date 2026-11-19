@@ -3,6 +3,7 @@ package io.github.mangi.eta.ui.pages.providers
 import androidx.compose.runtime.saveable.mapSaver
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.CustomHeaderFilter
+import io.github.mangi.eta.agent.model.ProviderUrls
 import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
@@ -248,6 +249,13 @@ internal fun validateProviderDraft(context: android.content.Context, draft: Prov
     val uri = runCatching { java.net.URI(draft.baseUrl.trim()) }.getOrNull()
     if (uri == null || uri.scheme !in setOf("http", "https") || uri.host.isNullOrBlank()) {
         return context.getString(R.string.page_base_url_must_be_a_valid_http_s_address_0e7d58)
+    }
+    if (draft.endpointMode == GeminiEndpointMode.VERTEX_AI) {
+        try {
+            ProviderUrls.validateVertexChatEndpoint(draft.baseUrl, draft.vertexProject, draft.vertexLocation)
+        } catch (failure: IllegalArgumentException) {
+            return failure.message ?: "Vertex AI 连接配置无效。"
+        }
     }
     return CustomHeaderFilter.validationError(draft.headers.map { it.header })
 }

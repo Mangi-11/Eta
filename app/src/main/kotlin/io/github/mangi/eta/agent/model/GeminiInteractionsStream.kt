@@ -39,7 +39,7 @@ internal class GeminiInteractionsStream(
     private var receivedChars = 0L
 
     fun read(stream: InputStream, controller: AgentRunController): JSONObject {
-        readProviderSse(stream, controller, ::accept)
+        readProviderSse(stream, controller, onEvent = ::accept)
         return assistant ?: throw AgentModelFailure.incompleteStream("Gemini 响应提前结束，未收到完整终态。")
     }
 

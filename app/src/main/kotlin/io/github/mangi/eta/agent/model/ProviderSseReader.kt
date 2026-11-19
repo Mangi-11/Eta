@@ -9,6 +9,7 @@ import java.io.InputStreamReader
 internal fun readProviderSse(
     stream: InputStream,
     runController: AgentRunController,
+    dispatchPartialFrameAtEof: Boolean = true,
     onEvent: (event: String, data: String) -> Boolean,
 ) {
     var event = ""
@@ -29,7 +30,7 @@ internal fun readProviderSse(
             runController.throwIfCancelled()
             val line = reader.readLine()
             if (line == null) {
-                dispatch()
+                if (dispatchPartialFrameAtEof) dispatch()
                 break
             }
             when {

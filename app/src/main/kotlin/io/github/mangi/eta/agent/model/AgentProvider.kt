@@ -47,6 +47,7 @@ internal data class ProviderRequest(
     val tools: JSONArray,
     val sessionId: String = java.util.UUID.randomUUID().toString(),
     val purpose: ProviderRequestPurpose = ProviderRequestPurpose.CHAT,
+    val toolResultImages: Map<String, List<AgentModelClient.ModelImage>> = emptyMap(),
 ) {
     val effectiveConfig: AgentModelClient.ModelConfig get() {
         val connected = ProviderConnectionProfile.forAuthMode(config.authMode)?.let { profile ->

@@ -1,8 +1,10 @@
 package io.github.mangi.eta.data.provider
 
+import io.github.mangi.eta.agent.model.ProviderUrls
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.CustomProviderSetting
+import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderSetting
@@ -414,6 +416,19 @@ internal object OfficialModelCatalog {
 
     fun modelsForProvider(provider: ProviderSetting): List<Model> =
         modelsForCatalogId(catalogIdFor(provider))
+            .let { models ->
+                if (provider is GeminiProviderSetting && provider.isVertexAi) {
+                    val location = ProviderUrls.vertexConfiguredLocation(provider.baseUrl, provider.vertexLocation)
+                    val official = ProviderUrls.isOfficialVertexBaseUrl(provider.baseUrl)
+                    models.filter { model ->
+                        GeminiModelCapabilities.isGemini4(model.modelId) && when {
+                            !official || location in setOf("global", "us", "eu") -> true
+                            location in setOf("europe-west2", "asia-southeast1") -> model.modelId == "gemini-4-argon"
+                            else -> false
+                        }
+                    }
+                } else models
+            }
             .map { it.withCatalogReasoningCapabilities(catalogIdFor(provider)) }
             .withStableSortOrder()
 

@@ -69,7 +69,7 @@ internal fun ProviderConnectionFields(
     val isGeminiVertex = provider is GeminiProviderSetting &&
         GeminiEndpointMode.normalize(draft.endpointMode) == GeminiEndpointMode.VERTEX_AI
     val showWebSearchSwitch =
-        provider is GeminiProviderSetting ||
+        (provider is GeminiProviderSetting && !isGeminiVertex) ||
             (draft.endpointMode == OpenAiEndpointMode.RESPONSES && provider !is AnthropicProviderSetting)
 
     when (LocalUiStyle.current) {
@@ -96,7 +96,7 @@ internal fun ProviderConnectionFields(
                     selectedIndex = if (isGeminiVertex) 1 else 0,
                     enabled = enabled,
                     summary = if (isGeminiVertex) {
-                        "streamGenerateContent 端点（Vertex AI API Key）"
+                        "标准 Vertex AI 接入（Gemini 4）"
                     } else {
                         "原生 Interactions API（AI Studio API Key）"
                     },
@@ -180,8 +180,8 @@ internal fun ProviderConnectionFields(
                         CouiTextField(
                             value = draft.vertexProject,
                             onValueChange = { onDraftChange(draft.copy(vertexProject = it)) },
-                            label = "Project ID / Number（选填）",
-                            placeholder = "留空使用 Express 端点",
+                            label = "Project ID / Number",
+                            placeholder = "官方端点需要 Google Cloud 项目",
                             singleLine = true,
                             enabled = enabled,
                         )
@@ -267,7 +267,7 @@ internal fun ProviderConnectionFields(
                     selectedIndex = if (isGeminiVertex) 1 else 0,
                     enabled = enabled,
                     summary = if (isGeminiVertex) {
-                        "streamGenerateContent 端点（Vertex AI API Key）"
+                        "标准 Vertex AI 接入（Gemini 4）"
                     } else {
                         "原生 Interactions API（AI Studio API Key）"
                     },
@@ -336,7 +336,7 @@ internal fun ProviderConnectionFields(
                         TextField(
                             value = draft.vertexProject,
                             onValueChange = { onDraftChange(draft.copy(vertexProject = it)) },
-                            label = "Project ID / Number（选填）",
+                            label = "Project ID / Number",
                             singleLine = true,
                             enabled = enabled,
                             modifier = Modifier.fillMaxWidth(),

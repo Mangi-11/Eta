@@ -1,6 +1,7 @@
 package io.github.mangi.eta.agent.model
 
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.provider.GeminiModelCapabilities
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import org.json.JSONArray
@@ -9,15 +10,16 @@ import org.json.JSONObject
 internal object VertexGenerateContentRequest {
     private val protectedFields = setOf(
         "contents", "systemInstruction", "system_instruction", "tools", "toolConfig", "tool_config",
+        "continuationToken", "continuation_token",
     )
     private val COMPACTION_EXTRA_BLOCKED_FIELDS = setOf("messages", "instructions", "system", "tool_choice")
-    private val ALLOWED_THINKING_LEVELS = setOf("minimal", "low", "medium", "high", "xhigh")
 
     fun build(
         config: AgentModelClient.ModelConfig,
         messages: JSONArray,
         tools: JSONArray,
         purpose: ProviderRequestPurpose = ProviderRequestPurpose.CHAT,
+        toolResultImages: Map<String, List<AgentModelClient.ModelImage>> = emptyMap(),
     ): JSONObject {
         val body = JSONObject()
         if (config.extraBodyJson.isNotBlank()) {
@@ -35,7 +37,7 @@ internal object VertexGenerateContentRequest {
             },
         )
 
-        body.put("contents", VertexContentHistory.contents(messages))
+        body.put("contents", VertexContentHistory.contents(messages, toolResultImages))
 
         val system = (0 until messages.length()).mapNotNull { index ->
             messages.optJSONObject(index)?.takeIf { it.optString("role") == "system" }
@@ -61,15 +63,8 @@ internal object VertexGenerateContentRequest {
                     .put("parametersJsonSchema", projected),
             )
         }
-        val toolEntries = JSONArray()
         if (declarations.length() > 0) {
-            toolEntries.put(JSONObject().put("functionDeclarations", declarations))
-        }
-        if (config.usesHostedWebSearch) {
-            toolEntries.put(JSONObject().put("googleSearch", JSONObject()))
-        }
-        if (toolEntries.length() > 0) {
-            body.put("tools", toolEntries)
+            body.put("tools", JSONArray().put(JSONObject().put("functionDeclarations", declarations)))
         }
         if (purpose == ProviderRequestPurpose.COMPACTION && declarations.length() > 0) {
             body.put(
@@ -88,29 +83,15 @@ internal object VertexGenerateContentRequest {
         generation.remove("thinkingConfig")
         generation.remove("thinking_config")
         val effort = config.effectiveReasoningEffort
-        val expectsThinking = effort != ReasoningEffort.DEFAULT ||
-            config.reasoningCapabilities?.supportedEfforts?.isNotEmpty() == true ||
-            config.thinkingEnabled
+        val thinking = JSONObject().put("includeThoughts", true)
         if (effort != ReasoningEffort.DEFAULT) {
-            require(effort != ReasoningEffort.OFF) { "当前 Gemini 模型不支持关闭思考，请选择 Default 或支持的思考档位。" }
-            require(effort.wireValue in ALLOWED_THINKING_LEVELS) {
-                "Vertex AI Gemini 协议不支持所选思考档位。"
+            require(effort in GeminiModelCapabilities.reasoningCapabilities(config.model)?.supportedEfforts.orEmpty()) {
+                "当前 Vertex AI 模型不支持所选思考档位，请使用 Default 或模型支持的档位。"
             }
-            generation.put(
-                "thinkingConfig",
-                JSONObject()
-                    .put("includeThoughts", true)
-                    .put("thinkingLevel", effort.wireValue.uppercase()),
-            )
-        } else if (expectsThinking) {
-            generation.put(
-                "thinkingConfig",
-                JSONObject().put("includeThoughts", true),
-            )
+            thinking.put("thinkingLevel", effort.wireValue.uppercase())
         }
-        if (generation.length() > 0) {
-            body.put("generationConfig", generation)
-        }
+        generation.put("thinkingConfig", thinking)
+        body.put("generationConfig", generation)
         return body
     }
 }
@@ -122,7 +103,10 @@ internal object VertexContentHistory {
         val originalId: String?,
     )
 
-    fun contents(messages: JSONArray): JSONArray {
+    fun contents(
+        messages: JSONArray,
+        toolResultImages: Map<String, List<AgentModelClient.ModelImage>> = emptyMap(),
+    ): JSONArray {
         val start = (0 until messages.length()).firstOrNull {
             messages.optJSONObject(it)?.let(GeminiEphemeralState::isRunStart) == true
         } ?: (messages.length() - 1 downTo 0).firstOrNull {
@@ -178,9 +162,8 @@ internal object VertexContentHistory {
                         val fn = part.optJSONObject("functionCall")
                         if (fn != null) {
                             val originalId = fn.optString("id").takeIf(String::isNotBlank)
-                            val mappedId = originalId
-                                ?: toolCalls?.optJSONObject(callCursor)?.optString("id")?.takeIf(String::isNotBlank)
-                                ?: "vertex-call-$callCursor"
+                            val mappedId = requireNotNull(toolCalls?.optJSONObject(callCursor)?.optString("id")
+                                ?.takeIf(String::isNotBlank)) { "Vertex AI 工具调用缺少 Eta 调用标识。" }
                             liveCalls[mappedId] = LiveCall(fn.getString("name"), originalId)
                             callCursor += 1
                         }
@@ -196,6 +179,11 @@ internal object VertexContentHistory {
                         .put("name", call.name)
                         .put("response", responsePayload)
                     call.originalId?.let { functionResponse.put("id", it) }
+                    toolResultImages[callId]?.takeIf { it.isNotEmpty() }?.let { images ->
+                        val parts = JSONArray()
+                        for (image in images) parts.put(imagePart(image.reference, image.mimeType))
+                        functionResponse.put("parts", parts)
+                    }
                     appendTurn("user", JSONArray().put(JSONObject().put("functionResponse", functionResponse)))
                 }
             }
@@ -234,32 +222,33 @@ internal object VertexContentHistory {
                 "text", "input_text" -> converted.put(JSONObject().put("text", item.optString("text")))
                 "image_url" -> {
                     val url = item.optJSONObject("image_url")?.optString("url").orEmpty()
-                    if (url.startsWith("data:image/", ignoreCase = true)) {
-                        val comma = url.indexOf(',')
-                        require(comma > 0 && url.substring(0, comma).endsWith(";base64", ignoreCase = true)) {
-                            "Gemini 图片输入必须为 Base64 图片或 HTTP 地址。"
-                        }
-                        converted.put(
-                            JSONObject().put(
-                                "inlineData",
-                                JSONObject()
-                                    .put("mimeType", url.substring(5, comma).substringBefore(';'))
-                                    .put("data", url.substring(comma + 1)),
-                            ),
-                        )
-                    } else {
-                        require(url.startsWith("https://") || url.startsWith("http://") || url.startsWith("gs://")) {
-                            "Gemini 图片输入地址无效。"
-                        }
-                        val fileData = JSONObject().put("fileUri", url)
-                        inferImageMimeType(url)?.let { fileData.put("mimeType", it) }
-                        converted.put(JSONObject().put("fileData", fileData))
-                    }
+                    converted.put(imagePart(url))
                 }
                 else -> throw IllegalArgumentException("Vertex AI Gemini 不支持该输入内容类型。")
             }
         }
         return converted
+    }
+
+    private fun imagePart(url: String, mimeType: String? = null): JSONObject {
+        if (url.startsWith("data:image/", ignoreCase = true)) {
+            val comma = url.indexOf(',')
+            require(comma > 0 && url.substring(0, comma).endsWith(";base64", ignoreCase = true)) {
+                "Gemini 图片输入必须为 Base64 图片或可访问的图片地址。"
+            }
+            return JSONObject().put(
+                "inlineData",
+                JSONObject().put("mimeType", url.substring(5, comma).substringBefore(';'))
+                    .put("data", url.substring(comma + 1)),
+            )
+        }
+        require(url.startsWith("https://", true) || url.startsWith("http://", true) || url.startsWith("gs://")) {
+            "Gemini 图片输入地址无效。"
+        }
+        val resolvedMimeType = requireNotNull(mimeType?.takeIf { it.startsWith("image/") } ?: inferImageMimeType(url)) {
+            "无法识别 Gemini 图片地址的媒体类型。"
+        }
+        return JSONObject().put("fileData", JSONObject().put("fileUri", url).put("mimeType", resolvedMimeType))
     }
 
     private fun inferImageMimeType(url: String): String? {
