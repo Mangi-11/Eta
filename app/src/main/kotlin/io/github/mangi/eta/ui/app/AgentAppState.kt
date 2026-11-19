@@ -1111,16 +1111,19 @@ internal class AgentAppState(
         historyPageJob = scope.launch {
             try {
                 conversationLoadMutex.withLock {
+                    if (historyPageVersion != pageVersion) return@withLock
                     // 翻页或释放旧页都先提交当前窗口，避免覆盖编辑结果或丢弃未保存的记录。
                     val state = conversationsById[conversationId] ?: return@withLock
                     val title = conversationTitles[conversationId].orEmpty()
                     val updatedAt = conversationUpdatedAt[conversationId] ?: 0L
                     check(persistConversations().await()) { "Conversation persistence failed" }
+                    if (historyPageVersion != pageVersion) return@withLock
                     val page = if (loadEarlier) {
                         AgentConversationStore.loadEarlierMessages(appContext, conversationId, state.messageStartIndex)
                     } else {
                         AgentConversationStore.loadRecentMessages(appContext, conversationId)
                     }
+                    if (historyPageVersion != pageVersion) return@withLock
                     val current = conversationsById[conversationId] ?: return@withLock
                     if (!current.canReplaceMessageWindowOf(state)) return@withLock
                     var window = RoleplayConversationReducer.decorate(state.copy(
@@ -1131,12 +1134,14 @@ internal class AgentAppState(
                     window = window.copy(roleplayOriginalContents = AgentConversationStore.loadRoleplayMessageContents(
                         appContext, conversationId, RoleplayConversationReducer.requiredOriginalContentIds(window),
                     ))
+                    // 取消发生在最后一个挂起点之后时，不再提交已作废的旧窗口，避免回滚刚发起的下一次翻页。
+                    if (historyPageVersion != pageVersion) return@withLock
                     conversationPersistence.adoptConversation(
                         conversationId, window, title, updatedAt,
                         conversationId in conversationPinnedIds,
                     )
                     val latest = conversationsById[conversationId] ?: return@withLock
-                    if (!latest.canReplaceMessageWindowOf(state)) return@withLock
+                    if (historyPageVersion != pageVersion || !latest.canReplaceMessageWindowOf(state)) return@withLock
                     updateConversation(conversationId, latest.copy(
                         messages = window.messages,
                         messageStartIndex = window.messageStartIndex,
