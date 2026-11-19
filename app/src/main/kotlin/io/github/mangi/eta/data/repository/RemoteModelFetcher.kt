@@ -48,6 +48,28 @@ internal object RemoteModelFetcher {
     suspend fun fetchCatalog(provider: ProviderSetting): Result<RemoteModelCatalog> =
         fetchCatalog(provider, AgentHttpClient.client, StoredCredentials)
 
+    suspend fun testVertexConnection(
+        provider: GeminiProviderSetting,
+        client: OkHttpClient = AgentHttpClient.client,
+    ): Result<VertexConnectionTestResult> = withContext(Dispatchers.IO) {
+        suspendCancellableCoroutine { continuation ->
+            val controller = AgentRunController()
+            continuation.invokeOnCancellation { controller.cancel() }
+            try {
+                controller.throwIfCancelled()
+                val result = GeminiModelCatalog.testVertexConnection(provider, client, controller)
+                controller.throwIfCancelled()
+                continuation.resume(Result.success(result))
+            } catch (cancelled: CancellationException) {
+                continuation.cancel(cancelled)
+            } catch (cancelled: AgentRunCancelledException) {
+                continuation.cancel(CancellationException("连接测试已取消", cancelled))
+            } catch (failure: Exception) {
+                continuation.resume(Result.failure(failure))
+            }
+        }
+    }
+
     internal suspend fun fetchCatalog(
         provider: ProviderSetting,
         client: OkHttpClient,

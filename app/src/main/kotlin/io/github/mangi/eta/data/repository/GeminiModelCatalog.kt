@@ -1,5 +1,6 @@
 package io.github.mangi.eta.data.repository
 
+import io.github.mangi.eta.agent.model.AgentModelFailure
 import io.github.mangi.eta.agent.model.ProviderRequestHeaders
 import io.github.mangi.eta.agent.model.ProviderUrls
 import io.github.mangi.eta.agent.runtime.AgentRunController
@@ -19,10 +20,21 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+
+internal data class VertexConnectionTestResult(
+    val modelId: String,
+    val usedGlobalFallback: Boolean = false,
+)
 
 internal object GeminiModelCatalog {
     private val json = Json { ignoreUnknownKeys = true }
+    private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+    private const val DEFAULT_VERTEX_PROBE_MODEL = "gemini-4-hydrogen"
+    private const val VERTEX_PROBE_BODY = """{"contents":[{"role":"user","parts":[{"text":"ping"}]}]}"""
 
     data class Page(val models: List<Model>, val nextPageToken: String?)
 
@@ -72,6 +84,9 @@ internal object GeminiModelCatalog {
         maxBytes: Long,
         execute: (Request, Long) -> String,
     ): List<Model> {
+        if (provider.isVertexAi) {
+            throw IllegalStateException("Vertex AI API Key 不支持拉取远端模型列表，请使用内置预设或手动添加模型。")
+        }
         val models = linkedMapOf<String, Model>()
         val seenTokens = mutableSetOf<String>()
         var nextPageToken: String? = null
@@ -104,6 +119,76 @@ internal object GeminiModelCatalog {
         } while (nextPageToken != null)
         return OfficialModelCatalog.enrich(provider, models.values.toList()).map { model ->
             model.copy(contextWindowOverride = model.contextWindow)
+        }
+    }
+
+    fun testVertexConnection(
+        provider: GeminiProviderSetting,
+        client: OkHttpClient,
+        controller: AgentRunController,
+    ): VertexConnectionTestResult {
+        require(provider.apiKey.isNotBlank()) { "请先填写 API Key" }
+        val probeModel = provider.models.firstOrNull { it.isEnabled }?.modelId?.trim()?.takeIf(String::isNotBlank)
+            ?: provider.models.firstOrNull()?.modelId?.trim()?.takeIf(String::isNotBlank)
+            ?: DEFAULT_VERTEX_PROBE_MODEL
+        val initialUrl = ProviderUrls.vertexCountTokensUrl(
+            baseUrl = provider.baseUrl,
+            model = probeModel,
+            project = provider.vertexProject,
+            location = provider.vertexLocation,
+        )
+        val allowFallback = provider.vertexProject.isBlank() &&
+            !provider.baseUrl.contains("/projects/", ignoreCase = true)
+        val fallbackProject = executeVertexProbe(provider, client, controller, initialUrl, allowFallback)
+        if (fallbackProject != null) {
+            val fallbackUrl = ProviderUrls.vertexGlobalProjectFallbackUrl(
+                baseUrl = provider.baseUrl,
+                model = probeModel,
+                project = fallbackProject,
+                suffix = ":countTokens",
+            )
+            executeVertexProbe(provider, client, controller, fallbackUrl, allowFallback = false)
+            return VertexConnectionTestResult(modelId = probeModel, usedGlobalFallback = true)
+        }
+        return VertexConnectionTestResult(modelId = probeModel, usedGlobalFallback = false)
+    }
+
+    private fun executeVertexProbe(
+        provider: GeminiProviderSetting,
+        client: OkHttpClient,
+        controller: AgentRunController,
+        url: String,
+        allowFallback: Boolean,
+    ): String? {
+        controller.throwIfCancelled()
+        val request = Request.Builder()
+            .url(url)
+            .headers(
+                okhttp3.Headers.Builder()
+                    .add("Accept", "application/json")
+                    .add("Content-Type", "application/json; charset=utf-8")
+                    .apply {
+                        if (provider.apiKey.isNotBlank()) add("x-goog-api-key", provider.apiKey.trim())
+                        ProviderRequestHeaders.mergeInto(this, provider.baseUrl, provider.customHeaders)
+                    }
+                    .build(),
+            )
+            .post(VERTEX_PROBE_BODY.toRequestBody(jsonMediaType))
+            .build()
+        val call = client.newCall(request)
+        val binding = controller.register { call.cancel() }
+        try {
+            call.execute().use { response ->
+                controller.throwIfCancelled()
+                if (response.isSuccessful) return null
+                val errorBody = response.peekBody(16_384).string()
+                if (allowFallback && response.code == 404) {
+                    ProviderUrls.extractVertexGlobalFallbackProject(errorBody)?.let { return it }
+                }
+                throw AgentModelFailure.http(response.code, errorBody, includeParameterDetails = true)
+            }
+        } finally {
+            binding.close()
         }
     }
 

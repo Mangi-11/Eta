@@ -48,10 +48,13 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.CustomProviderSetting
+import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.withId
+import io.github.mangi.eta.data.model.withModels
+import io.github.mangi.eta.data.provider.OfficialModelCatalog
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
@@ -127,6 +130,8 @@ internal fun ModelProviderDetailScreen(
             NewProviderType.Gemini -> GeminiProviderSetting(
                 id = "",
                 name = "",
+                endpointMode = GeminiEndpointMode.AI_STUDIO,
+                baseUrl = GeminiProviderSetting.DEFAULT_BASE_URL,
             )
             null -> null
         }
@@ -416,8 +421,16 @@ private fun ProviderConfigTab(
                 val built = draft.toProvider(provider)
                 try {
                     if (isNew) {
+                        val seeded = if (built is GeminiProviderSetting && built.isVertexAi && built.models.isEmpty()) {
+                            val presets = OfficialModelCatalog.modelsForProvider(built).map { model ->
+                                model.copy(id = ProviderRepository.newId(), isBuiltIn = false)
+                            }
+                            built.withModels(presets)
+                        } else {
+                            built
+                        }
                         val added = ProviderRepository.addProvider(
-                            built.withId(ProviderRepository.newId()),
+                            seeded.withId(ProviderRepository.newId()),
                         )
                         if (added.isEnabled) {
                             RuntimeConfigRepository.setSelectedProviderId(added.id)
@@ -769,8 +782,24 @@ private fun ProviderConfigTab(
 private suspend fun testConnection(
     context: android.content.Context,
     provider: ProviderSetting,
-): String =
-    RemoteModelFetcher.fetch(provider)
+): String {
+    if (provider is GeminiProviderSetting && provider.isVertexAi) {
+        return RemoteModelFetcher.testVertexConnection(provider)
+            .map { result ->
+                if (result.usedGlobalFallback) {
+                    "连接成功（已自动回退至 global 端点，验证模型：${result.modelId}）"
+                } else {
+                    "连接成功（已验证模型：${result.modelId}）"
+                }
+            }
+            .getOrElse { throwable ->
+                context.getString(
+                    R.string.provider_error,
+                    throwable.message ?: throwable.javaClass.simpleName,
+                )
+            }
+    }
+    return RemoteModelFetcher.fetch(provider)
         .map { context.resources.getQuantityString(R.plurals.provider_models_fetched, it.size, it.size) }
         .getOrElse { throwable ->
             context.getString(
@@ -778,3 +807,4 @@ private suspend fun testConnection(
                 throwable.message ?: throwable.javaClass.simpleName,
             )
         }
+}

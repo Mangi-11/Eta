@@ -4,7 +4,9 @@ import com.sun.net.httpserver.HttpServer
 import io.github.mangi.eta.agent.auth.ProviderCredentialBinding
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.data.model.CustomHeader
+import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
+import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.provider.GeminiModelCapabilities
 import java.net.InetSocketAddress
@@ -63,6 +65,55 @@ class GeminiModelCatalogHttpTest {
                 capabilities.supportedEfforts,
             )
             assertEquals(ReasoningEffort.HIGH, capabilities.defaultEffort)
+        }
+    }
+
+    @Test
+    fun vertexModeExplainsNoRemoteListAndTestsConnectionViaCountTokensWithGlobalFallback() = runBlocking {
+        val requestedPaths = mutableListOf<String>()
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        server.createContext("/") { exchange ->
+            requestedPaths += exchange.requestURI.rawPath
+            if (requestedPaths.size == 1) {
+                val body = """{"error":{"code":404,"message":"Publisher Model `projects/11223344/locations/asia-southeast1/publishers/google/models/gemini-4-carbon` was not found"}}"""
+                    .toByteArray(Charsets.UTF_8)
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(404, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            } else {
+                val body = """{"totalTokens":2}""".toByteArray(Charsets.UTF_8)
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+        }
+        server.start()
+        try {
+            val vertexProvider = GeminiProviderSetting(
+                id = "vertex",
+                name = "Vertex AI",
+                baseUrl = "http://127.0.0.1:${server.address.port}/v1beta1",
+                apiKey = "AQ.fixture-key",
+                endpointMode = GeminiEndpointMode.VERTEX_AI,
+                models = listOf(Model(id = "c", modelId = "gemini-4-carbon", displayName = "Gemini 4 Carbon")),
+            )
+            val fetchFailure = RemoteModelFetcher.fetchCatalog(vertexProvider, OkHttpClient(), noOAuth).exceptionOrNull()
+            assertTrue(fetchFailure?.message.orEmpty().contains("Vertex AI"))
+            assertTrue(requestedPaths.isEmpty())
+
+            val probe = RemoteModelFetcher.testVertexConnection(vertexProvider, OkHttpClient()).getOrThrow()
+            assertEquals("gemini-4-carbon", probe.modelId)
+            assertTrue(probe.usedGlobalFallback)
+            assertEquals(
+                listOf(
+                    "/v1beta1/publishers/google/models/gemini-4-carbon:countTokens",
+                    "/v1beta1/projects/11223344/locations/global/publishers/google/models/gemini-4-carbon:countTokens",
+                ),
+                requestedPaths,
+            )
+        } finally {
+            server.stop(0)
         }
     }
 

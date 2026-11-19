@@ -6,6 +6,7 @@ import org.json.JSONObject
 /** 签名与搜索步骤只属于当前 run；稳定会话 codec 不读取这些字段。 */
 internal object GeminiEphemeralState {
     private const val STEPS = "_eta_gemini_steps"
+    private const val VERTEX_PARTS = "_eta_vertex_parts"
     private const val RUN_START = "_eta_gemini_run_start"
     private const val PENDING_SUGGESTIONS = "_eta_gemini_pending_suggestions"
 
@@ -15,8 +16,15 @@ internal object GeminiEphemeralState {
         message.put(STEPS, JSONArray(steps.toString()))
     }
 
+    fun vertexParts(message: JSONObject): JSONArray? = message.optJSONArray(VERTEX_PARTS)
+
+    fun attachVertexParts(message: JSONObject, parts: JSONArray) {
+        message.put(VERTEX_PARTS, JSONArray(parts.toString()))
+    }
+
     fun copyAssistantState(source: JSONObject, target: JSONObject) {
         steps(source)?.let { attachSteps(target, it) }
+        vertexParts(source)?.let { attachVertexParts(target, it) }
         attachPendingSuggestions(target, pendingSuggestions(source))
     }
 
@@ -37,9 +45,15 @@ internal object GeminiEphemeralState {
         for (index in messages.length() - 1 downTo 0) {
             val message = messages.optJSONObject(index) ?: continue
             if (message.optString("role") == "assistant") {
-                val steps = steps(message) ?: return false
-                return (0 until steps.length()).any {
-                    steps.optJSONObject(it)?.optString("type") == "function_call"
+                val steps = steps(message)
+                if (steps != null) {
+                    return (0 until steps.length()).any {
+                        steps.optJSONObject(it)?.optString("type") == "function_call"
+                    }
+                }
+                val parts = vertexParts(message) ?: return false
+                return (0 until parts.length()).any {
+                    parts.optJSONObject(it)?.optJSONObject("functionCall") != null
                 }
             }
         }
@@ -47,9 +61,14 @@ internal object GeminiEphemeralState {
     }
 
     fun withoutState(message: JSONObject): JSONObject =
-        if (!message.has(STEPS) && !message.has(RUN_START) && !message.has(PENDING_SUGGESTIONS)) message else JSONObject(message.toString()).apply {
-            remove(STEPS)
-            remove(RUN_START)
-            remove(PENDING_SUGGESTIONS)
+        if (!message.has(STEPS) && !message.has(VERTEX_PARTS) && !message.has(RUN_START) && !message.has(PENDING_SUGGESTIONS)) {
+            message
+        } else {
+            JSONObject(message.toString()).apply {
+                remove(STEPS)
+                remove(VERTEX_PARTS)
+                remove(RUN_START)
+                remove(PENDING_SUGGESTIONS)
+            }
         }
 }

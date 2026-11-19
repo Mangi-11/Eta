@@ -15,6 +15,16 @@ internal object OpenAiEndpointMode {
     const val RESPONSES = "responses"
 }
 
+internal object GeminiEndpointMode {
+    const val AI_STUDIO = "ai_studio"
+    const val VERTEX_AI = "vertex_ai"
+
+    fun normalize(value: String?): String = when (value?.trim()?.lowercase()) {
+        VERTEX_AI -> VERTEX_AI
+        else -> AI_STUDIO
+    }
+}
+
 internal object ProviderAuthModes {
     const val API_KEY = "api_key"
     const val OPENAI_CHATGPT = "openai_chatgpt"
@@ -121,11 +131,19 @@ data class GeminiProviderSetting(
     override val customBody: List<CustomBody> = emptyList(),
     override val createdAt: Long = System.currentTimeMillis(),
     override val hostedWebSearchEnabled: Boolean = false,
+    val endpointMode: String = GeminiEndpointMode.AI_STUDIO,
+    val vertexProject: String = "",
+    val vertexLocation: String = DEFAULT_VERTEX_LOCATION,
 ) : ProviderSetting {
     override val authMode: String get() = ProviderAuthModes.API_KEY
 
+    val isVertexAi: Boolean
+        get() = GeminiEndpointMode.normalize(endpointMode) == GeminiEndpointMode.VERTEX_AI
+
     companion object {
         const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+        const val DEFAULT_VERTEX_BASE_URL = "https://aiplatform.googleapis.com/v1beta1"
+        const val DEFAULT_VERTEX_LOCATION = "global"
     }
 }
 
@@ -161,7 +179,7 @@ internal val ProviderSetting.runtimeProviderType: String
 internal val ProviderSetting.typeLabel: String
     get() = when (this) {
         is AnthropicProviderSetting -> "Anthropic Messages"
-        is GeminiProviderSetting -> "Gemini Interactions"
+        is GeminiProviderSetting -> if (isVertexAi) "Vertex AI" else "Gemini Interactions"
         is OpenAiCompatibleProviderSetting -> "OpenAI-compatible"
         is CustomProviderSetting -> "Custom OpenAI-compatible"
     }

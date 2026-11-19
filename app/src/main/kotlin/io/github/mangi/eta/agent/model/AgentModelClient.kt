@@ -11,6 +11,8 @@ import io.github.mangi.eta.agent.tool.AgentToolRequirements
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.CustomBody
 import io.github.mangi.eta.data.model.CustomHeader
+import io.github.mangi.eta.data.model.GeminiEndpointMode
+import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ProviderAuthModes
@@ -319,6 +321,9 @@ internal object AgentModelClient {
         val systemPrompt: String,
         val anthropicVersion: String = AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION,
         val openAiEndpointMode: String = OpenAiEndpointMode.CHAT_COMPLETIONS,
+        val geminiEndpointMode: String = GeminiEndpointMode.AI_STUDIO,
+        val vertexProject: String = "",
+        val vertexLocation: String = GeminiProviderSetting.DEFAULT_VERTEX_LOCATION,
         val hostedWebSearchEnabled: Boolean = false,
         val supportsSearchSuggestions: Boolean = false,
         val terminalTools: Boolean = false,

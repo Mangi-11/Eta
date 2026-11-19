@@ -31,6 +31,7 @@ import com.itos.coui.layout.Divider
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderAuthModes
@@ -65,6 +66,8 @@ internal fun ProviderConnectionFields(
     var apiKeyVisible by remember { mutableStateOf(false) }
     val oauth = ProviderAuthModes.isOAuth(draft.authMode)
     val accountMode = providerAccountAuthMode(provider)
+    val isGeminiVertex = provider is GeminiProviderSetting &&
+        GeminiEndpointMode.normalize(draft.endpointMode) == GeminiEndpointMode.VERTEX_AI
     val showWebSearchSwitch =
         provider is GeminiProviderSetting ||
             (draft.endpointMode == OpenAiEndpointMode.RESPONSES && provider !is AnthropicProviderSetting)
@@ -83,6 +86,27 @@ internal fun ProviderConnectionFields(
                     label = stringResource(R.string.ui_name_1be7ae),
                     singleLine = true,
                     enabled = enabled,
+                )
+            }
+            if (provider is GeminiProviderSetting) {
+                Divider()
+                CouiDropdownPreference(
+                    title = "接入平台",
+                    items = listOf("Google AI Studio", "Google Cloud Vertex AI"),
+                    selectedIndex = if (isGeminiVertex) 1 else 0,
+                    enabled = enabled,
+                    summary = if (isGeminiVertex) {
+                        "streamGenerateContent 端点（Vertex AI API Key）"
+                    } else {
+                        "原生 Interactions API（AI Studio API Key）"
+                    },
+                    onSelectedIndexChange = { index ->
+                        onDraftChange(
+                            draft.withGeminiEndpointMode(
+                                if (index == 1) GeminiEndpointMode.VERTEX_AI else GeminiEndpointMode.AI_STUDIO,
+                            ),
+                        )
+                    },
                 )
             }
             if (accountMode != null) {
@@ -151,6 +175,26 @@ internal fun ProviderConnectionFields(
                             }
                         },
                     )
+                    if (isGeminiVertex) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CouiTextField(
+                            value = draft.vertexProject,
+                            onValueChange = { onDraftChange(draft.copy(vertexProject = it)) },
+                            label = "Project ID / Number（选填）",
+                            placeholder = "留空使用 Express 端点",
+                            singleLine = true,
+                            enabled = enabled,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CouiTextField(
+                            value = draft.vertexLocation,
+                            onValueChange = { onDraftChange(draft.copy(vertexLocation = it)) },
+                            label = "Location",
+                            placeholder = GeminiProviderSetting.DEFAULT_VERTEX_LOCATION,
+                            singleLine = true,
+                            enabled = enabled,
+                        )
+                    }
                     if (provider is AnthropicProviderSetting) {
                         Spacer(modifier = Modifier.height(12.dp))
                         CouiTextField(
@@ -213,6 +257,29 @@ internal fun ProviderConnectionFields(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            if (provider is GeminiProviderSetting) {
+                EtaGlassSpinnerPreference(
+                    title = "接入平台",
+                    items = listOf(
+                        DropdownItem(text = "Google AI Studio"),
+                        DropdownItem(text = "Google Cloud Vertex AI"),
+                    ),
+                    selectedIndex = if (isGeminiVertex) 1 else 0,
+                    enabled = enabled,
+                    summary = if (isGeminiVertex) {
+                        "streamGenerateContent 端点（Vertex AI API Key）"
+                    } else {
+                        "原生 Interactions API（AI Studio API Key）"
+                    },
+                    onSelectedIndexChange = { index ->
+                        onDraftChange(
+                            draft.withGeminiEndpointMode(
+                                if (index == 1) GeminiEndpointMode.VERTEX_AI else GeminiEndpointMode.AI_STUDIO,
+                            ),
+                        )
+                    },
+                )
+            }
             if (accountMode != null) {
                 EtaGlassSpinnerPreference(
                     title = "认证方式",
@@ -264,6 +331,26 @@ internal fun ProviderConnectionFields(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    if (isGeminiVertex) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TextField(
+                            value = draft.vertexProject,
+                            onValueChange = { onDraftChange(draft.copy(vertexProject = it)) },
+                            label = "Project ID / Number（选填）",
+                            singleLine = true,
+                            enabled = enabled,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TextField(
+                            value = draft.vertexLocation,
+                            onValueChange = { onDraftChange(draft.copy(vertexLocation = it)) },
+                            label = "Location",
+                            singleLine = true,
+                            enabled = enabled,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                     if (provider is AnthropicProviderSetting) {
                         Spacer(modifier = Modifier.height(12.dp))
                         TextField(

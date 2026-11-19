@@ -26,7 +26,7 @@ import androidx.room.migration.Migration
         CharacterEntity::class,
         UserPersonaEntity::class,
     ],
-    version = 27,
+    version = 28,
     exportSchema = false,
 )
 internal abstract class EtaDatabase : RoomDatabase() {
@@ -70,6 +70,7 @@ internal abstract class EtaDatabase : RoomDatabase() {
                         MIGRATION_24_25,
                         MIGRATION_25_26,
                         MIGRATION_26_27,
+                        MIGRATION_27_28,
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
@@ -143,6 +144,11 @@ internal abstract class EtaDatabase : RoomDatabase() {
 
         internal val MIGRATION_26_27 = Migration(26, 27) { database ->
             database.execSQL("ALTER TABLE mcp_servers ADD COLUMN tools_truncation_reason TEXT")
+        }
+
+        internal val MIGRATION_27_28 = Migration(27, 28) { database ->
+            database.execSQL("ALTER TABLE model_providers ADD COLUMN vertex_project TEXT NOT NULL DEFAULT ''")
+            database.execSQL("ALTER TABLE model_providers ADD COLUMN vertex_location TEXT NOT NULL DEFAULT 'global'")
         }
 
         private fun createTextChunkCleanup(database: androidx.sqlite.db.SupportSQLiteDatabase) {

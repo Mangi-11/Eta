@@ -32,6 +32,7 @@ internal enum class EndpointKind {
     RESPONSES,
     ANTHROPIC_MESSAGES,
     GEMINI_INTERACTIONS,
+    VERTEX_GENERATE_CONTENT,
 }
 
 internal enum class ProviderRequestPurpose {

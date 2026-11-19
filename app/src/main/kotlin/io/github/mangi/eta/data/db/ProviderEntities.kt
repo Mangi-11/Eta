@@ -7,6 +7,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
+import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.CustomBody
@@ -48,6 +49,10 @@ internal data class ProviderEntity(
     @ColumnInfo(name = "anthropic_version") val anthropicVersion: String,
     @ColumnInfo(name = "auth_mode", defaultValue = "'api_key'")
     val authMode: String = ProviderAuthModes.API_KEY,
+    @ColumnInfo(name = "vertex_project", defaultValue = "''")
+    val vertexProject: String = "",
+    @ColumnInfo(name = "vertex_location", defaultValue = "'global'")
+    val vertexLocation: String = GeminiProviderSetting.DEFAULT_VERTEX_LOCATION,
 )
 
 @Serializable
@@ -123,13 +128,18 @@ internal fun ProviderSetting.toEntity(): ProviderEntity =
             is OpenAiCompatibleProviderSetting -> endpointMode
             is CustomProviderSetting -> endpointMode
             is AnthropicProviderSetting -> OpenAiEndpointMode.CHAT_COMPLETIONS
-            is GeminiProviderSetting -> ""
+            is GeminiProviderSetting -> GeminiEndpointMode.normalize(endpointMode)
         },
         hostedWebSearchEnabled = hostedWebSearchEnabled,
         anthropicVersion = when (this) {
             is AnthropicProviderSetting -> anthropicVersion
             else -> AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION
         },
+        vertexProject = (this as? GeminiProviderSetting)?.vertexProject.orEmpty(),
+        vertexLocation = (this as? GeminiProviderSetting)?.vertexLocation
+            ?.trim()
+            ?.ifBlank { GeminiProviderSetting.DEFAULT_VERTEX_LOCATION }
+            ?: GeminiProviderSetting.DEFAULT_VERTEX_LOCATION,
     )
 
 internal fun ProviderSetting.toModelEntities(): List<ProviderModelEntity> =
@@ -180,6 +190,9 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
             customBody = ProviderJson.decodeBody(provider.customBodyJson),
             createdAt = provider.createdAt,
             hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
+            endpointMode = GeminiEndpointMode.normalize(provider.endpointMode),
+            vertexProject = provider.vertexProject,
+            vertexLocation = provider.vertexLocation.ifBlank { GeminiProviderSetting.DEFAULT_VERTEX_LOCATION },
         )
 
         ProviderTypes.CUSTOM -> CustomProviderSetting(
