@@ -122,6 +122,7 @@ internal fun buildToolsState(context: Context): AgentToolsUiState =
                 title = context.getString(R.string.state_document_vision_6a65a7),
                 tools = listOf(
                     ToolItemUi("read_image", context.getString(R.string.tool_ui_read_pictures_ae993b), context.getString(R.string.tool_ui_read_pictures_of_known_paths_and_hand_them_over__7f9569)),
+                    ToolItemUi("generate_image", context.getString(R.string.tool_generate_image), context.getString(R.string.tool_generate_image_description)),
                 ),
             ),
             ToolGroupUi(

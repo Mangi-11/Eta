@@ -1302,6 +1302,11 @@
   <string name="chat_character_typing">%1$s 正在回覆…</string>
   <string name="web_tools_settings_title">網頁搜尋與讀取</string>
   <string name="web_tools_configure_action">設定服務</string>
+  <string name="image_gen_settings_title">AI 生圖</string>
+  <string name="image_gen_gallery_title">已生成圖片</string>
+  <string name="image_gen_configure_action">設定生圖</string>
+  <string name="tool_generate_image">AI 生圖</string>
+  <string name="tool_generate_image_description">使用已設定的生圖模型根據文字描述創作圖片，或依據參考圖進行圖像編輯與風格遷移。</string>
   <string name="web_tools_group_service">服務</string>
   <string name="web_tools_search_service">網頁搜尋</string>
   <string name="web_tools_fetch_service">網頁讀取</string>

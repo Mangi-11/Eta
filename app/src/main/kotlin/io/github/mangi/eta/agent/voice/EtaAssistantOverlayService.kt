@@ -534,6 +534,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                     config = config.copy(supportsSearchSuggestions = true),
                     images = runImages,
                     history = conversationHistory,
+                    modelSessionId = conversationKey,
                     handoff = AgentRuntimeWire.EntryHandoff(
                         id = "$conversationKey:$runId",
                         source = AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE,

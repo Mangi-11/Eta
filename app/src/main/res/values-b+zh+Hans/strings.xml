@@ -1406,6 +1406,11 @@
   <string name="speech_recognition_disabled_note">保存后隐藏聊天和助手浮窗中的麦克风入口。全局唤醒会在入场动画结束后打开文字输入和键盘，可使用输入法自带的语音输入。原服务配置会保留。</string>
   <string name="web_tools_settings_title">网页搜索与读取</string>
   <string name="web_tools_configure_action">配置服务</string>
+  <string name="image_gen_settings_title">AI 生图</string>
+  <string name="image_gen_gallery_title">已生成图片</string>
+  <string name="image_gen_configure_action">配置生图</string>
+  <string name="tool_generate_image">AI 生图</string>
+  <string name="tool_generate_image_description">使用已配置的生图模型根据文字描述创作图片，或基于参考图进行图像编辑与风格迁移。</string>
   <string name="web_tools_group_service">服务</string>
   <string name="web_tools_search_service">网页搜索</string>
   <string name="web_tools_fetch_service">网页读取</string>

@@ -84,6 +84,7 @@ internal fun toolDisplayNameResource(name: String): Int? = when (name) {
     "browser_use" -> R.string.tool_browser_use
     "web_search" -> R.string.tool_web_search
     "fetch_url" -> R.string.tool_fetch_url
+    "generate_image" -> R.string.tool_generate_image
     "terminal" -> R.string.tool_terminal
     "terminal_job" -> R.string.tool_terminal_job
     "terminal_daemon" -> R.string.tool_terminal_daemon

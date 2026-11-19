@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.model
 
+import io.github.mangi.eta.agent.imagegen.GeneratedImageActivityPayload
+import io.github.mangi.eta.agent.imagegen.ImageGenToolCatalog
 import io.github.mangi.eta.agent.subagent.AgentSubagentToolCatalog
 import io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot
 import io.github.mangi.eta.agent.subagent.SubagentProfile
@@ -52,6 +54,7 @@ internal class AgentTraceFormatter {
             "wait_for_package" -> "等待应用就绪"
             "open_system_panel" -> "打开系统面板"
             "read_image" -> "查看图片"
+            ImageGenToolCatalog.TOOL_NAME -> summarizeImageGenArguments(toolCall.argumentsJson)
             AgentSubagentToolCatalog.TOOL_NAME -> summarizeSubagentArguments(toolCall.argumentsJson)
             AgentSubagentToolCatalog.PROFILE_TOOL_NAME -> summarizeSubagentProfileArguments(toolCall.argumentsJson)
             AgentConversationToolCatalog.READ_HISTORY -> "读取当前会话历史"
@@ -81,6 +84,8 @@ internal class AgentTraceFormatter {
     fun displayCommand(toolCall: AgentModelClient.ToolCall): String? =
         if (toolCall.name == AgentSubagentToolCatalog.TOOL_NAME) {
             SubagentActivitySnapshot.initialFromArguments(toolCall.argumentsJson)?.encodeForWire()
+        } else if (toolCall.name == ImageGenToolCatalog.TOOL_NAME) {
+            GeneratedImageActivityPayload.initialFromArguments(toolCall.argumentsJson)?.encode()
         } else if (toolCall.name in AgentTerminalToolCatalog.names || toolCall.name == "run_command") {
             runCatching {
                 JSONObject(toolCall.argumentsJson)
@@ -105,6 +110,15 @@ internal class AgentTraceFormatter {
             }
 
     /** 外部 URI 摘要不记录 path、query、fragment 或用户信息。 */
+    private fun summarizeImageGenArguments(argumentsJson: String): String =
+        runCatching {
+            val args = JSONObject(argumentsJson)
+            val refs = args.optJSONArray("reference_images")?.length() ?: 0
+            val count = args.optInt("count", 1).coerceIn(1, 4)
+            val action = if (refs > 0) "编辑图片" else "生成图片"
+            if (count > 1) "$action · $count 张" else action
+        }.getOrDefault("生成图片")
+
     fun summarizeOpenUriArguments(argumentsJson: String): String =
         runCatching {
             val raw = JSONObject(argumentsJson).optString("uri").trim()
@@ -267,6 +281,10 @@ internal class AgentTraceFormatter {
         }
         return when (toolName) {
             BROWSER_TOOL_NAME -> json?.let(::summarizeBrowserResult) ?: "浏览器操作完成"
+            ImageGenToolCatalog.TOOL_NAME -> {
+                val count = json?.optInt("count", 0) ?: 0
+                if (count > 0) "已生成 $count 张图片" else "图片生成完成"
+            }
             AgentSubagentToolCatalog.TOOL_NAME -> json?.let(::summarizeSubagentResult) ?: "完成"
             AgentSubagentToolCatalog.PROFILE_TOOL_NAME -> json?.let(::summarizeSubagentProfileResult) ?: "完成"
             AgentConversationToolCatalog.READ_HISTORY -> "已读取历史分页"

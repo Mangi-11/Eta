@@ -25,6 +25,8 @@ class AppRouteSerializationTest {
             AppRoute.Terminal,
             AppRoute.Tools,
             AppRoute.WebToolsSettings,
+            AppRoute.ImageGenSettings,
+            AppRoute.ImageGenGallery,
             AppRoute.Skills,
             AppRoute.ScheduledTasks,
             AppRoute.ScheduledTaskDetail("task-1"),

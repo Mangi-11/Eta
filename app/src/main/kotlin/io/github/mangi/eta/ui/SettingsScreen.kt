@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.ImportContacts
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Inventory2
@@ -81,8 +82,10 @@ import io.github.mangi.eta.config.PowerAssistantTarget
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.core.ModuleConfig
 import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.data.model.ImageGenSettings
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.enabledModel
+import io.github.mangi.eta.data.repository.ImageGenSettingsRepository
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.data.update.AppLatestRelease
@@ -105,6 +108,7 @@ import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import io.github.mangi.eta.ui.navigation.AppRoute
+import io.github.mangi.eta.ui.screens.imagegen.shortName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -722,6 +726,20 @@ private fun SettingsPageContent(
                         onClick = { onNavigate(AppRoute.WebToolsSettings) },
                     )
                     CouiIconDivider()
+                    val imageGenSettings by remember { ImageGenSettingsRepository.settingsFlow() }
+                        .collectAsState(initial = ImageGenSettings())
+                    CouiPreference(
+                        title = stringResource(R.string.image_gen_settings_title),
+                        value = if (imageGenSettings.enabled) imageGenSettings.backend.shortName() else "未开启",
+                        icon = {
+                            CouiSettingsIcon(
+                                Icons.Rounded.Image,
+                                SettingsIconColors.Orange,
+                            )
+                        },
+                        onClick = { onNavigate(AppRoute.ImageGenSettings) },
+                    )
+                    CouiIconDivider()
                     SwitchPref(
                         context = context,
                         prefs = agentPrefs,
@@ -1122,6 +1140,14 @@ private fun SettingsPageContent(
                             title = stringResource(R.string.web_tools_settings_title),
                             startAction = { SettingsIcon(Icons.Rounded.TravelExplore) },
                             onClick = { onNavigate(AppRoute.WebToolsSettings) },
+                        )
+                        val imageGenSettings by remember { ImageGenSettingsRepository.settingsFlow() }
+                            .collectAsState(initial = ImageGenSettings())
+                        ArrowPreference(
+                            title = stringResource(R.string.image_gen_settings_title),
+                            summary = if (imageGenSettings.enabled) "已开启 · ${imageGenSettings.backend.shortName()}" else "未开启",
+                            startAction = { SettingsIcon(Icons.Rounded.Image) },
+                            onClick = { onNavigate(AppRoute.ImageGenSettings) },
                         )
                         SwitchPref(
                             context = context,

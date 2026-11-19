@@ -1,5 +1,6 @@
 package io.github.mangi.eta.agent.tool
 
+import io.github.mangi.eta.agent.imagegen.ImageGenToolCatalog
 import io.github.mangi.eta.agent.model.AgentToolCatalog
 import io.github.mangi.eta.agent.roleplay.CharacterMemoryTools
 import org.json.JSONArray
@@ -13,7 +14,9 @@ import org.junit.Test
 class AgentToolRequirementsTest {
     @Test
     fun everyRegisteredToolHasExactlyOneRequirement() {
-        val tools = catalog(root = true).also { CharacterMemoryTools.appendSchemas(it) }
+        val tools = catalog(root = true)
+            .also { CharacterMemoryTools.appendSchemas(it) }
+            .also { ImageGenToolCatalog.appendTo(it) }
         val executionOnly = setOf("input_text", "replace_text", "clear_text", "paste_text")
         assertEquals(AgentToolRequirements.toolNames - executionOnly, tools.names())
         executionOnly.forEach { name -> assertFalse("$name 仅保留执行兼容，不再向模型暴露", name in tools.names()) }
@@ -24,6 +27,7 @@ class AgentToolRequirementsTest {
     @Test
     fun ordinaryCatalogDoesNotExposeCharacterMemoryTools() {
         assertTrue(catalog(root = true).names().none { it in CharacterMemoryTools.NAMES })
+        assertTrue(catalog(root = true).names().none { it in ImageGenToolCatalog.names })
     }
 
     @Test

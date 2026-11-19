@@ -68,6 +68,22 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import io.github.mangi.eta.R
 import kotlin.math.abs
 import kotlinx.coroutines.launch
+import android.widget.Toast
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoFixHigh
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import io.github.mangi.eta.agent.imagegen.GeneratedImageStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -86,6 +102,7 @@ internal class ChatImagePreviewer {
         groupKey: Any? = null,
         sourceBoundsProvider: ((Int) -> Rect?)? = null,
         sourceCornerRadius: Dp = 16.dp,
+        onEditImage: ((String) -> Unit)? = null,
     ) {
         if (images.isEmpty()) return
         val safeIndex = initialIndex.coerceIn(0, images.lastIndex)
@@ -98,6 +115,7 @@ internal class ChatImagePreviewer {
             groupKey = groupKey,
             sourceBoundsProvider = sourceBoundsProvider,
             sourceCornerRadius = sourceCornerRadius,
+            onEditImage = onEditImage,
         )
         targetOpen = true
     }
@@ -126,6 +144,7 @@ internal class ChatImagePreviewRequest(
     val groupKey: Any?,
     val sourceBoundsProvider: ((Int) -> Rect?)?,
     val sourceCornerRadius: Dp,
+    val onEditImage: ((String) -> Unit)? = null,
 )
 
 internal val LocalChatImagePreviewer = compositionLocalOf<ChatImagePreviewer?> { null }
@@ -250,7 +269,7 @@ private fun ChatImageViewerOverlay(
                 userScrollEnabled = pagerScrollEnabled,
                 modifier = Modifier.fillMaxSize(),
             ) { page ->
-                val bitmap = rememberDataUrlBitmap(request.images[page])
+                val bitmap = rememberChatImageBitmap(request.images[page], maxDimensionPx = 2560)
                 val sourceRect = if (pagerState.currentPage == page) {
                     request.sourceBoundsProvider?.invoke(page)?.translate(
                         translateX = -hostWindowOffset.x,
@@ -301,6 +320,107 @@ private fun ChatImageViewerOverlay(
                 )
             }
         }
+
+        val currentSource = request.images.getOrNull(previewer.activePage)
+        if (!currentSource.isNullOrBlank()) {
+            val viewerContext = LocalContext.current
+            val viewerScope = rememberCoroutineScope()
+            val viewerHaptic = LocalHapticFeedback.current
+            var saving by remember { mutableStateOf(false) }
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .graphicsLayer {
+                        alpha = ((progress.value - 0.45f) / 0.55f).coerceIn(0f, 1f)
+                    }
+                    .navigationBarsPadding()
+                    .padding(bottom = 20.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.56f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ViewerActionPill(
+                    icon = Icons.Rounded.Download,
+                    label = if (saving) "保存中…" else "保存",
+                    enabled = !saving,
+                    onClick = {
+                        if (saving) return@ViewerActionPill
+                        saving = true
+                        viewerScope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                GeneratedImageStore.saveToSystemGallery(viewerContext, currentSource)
+                            }
+                            saving = false
+                            if (result.isSuccess) {
+                                viewerHaptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                Toast.makeText(viewerContext, "已保存到相册 Pictures/Eta", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(viewerContext, "保存失败，请重试", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                )
+                ViewerActionPill(
+                    icon = Icons.Rounded.Share,
+                    label = "分享",
+                    onClick = {
+                        viewerScope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                GeneratedImageStore.shareImage(viewerContext, currentSource)
+                            }
+                            if (result.isFailure) {
+                                Toast.makeText(viewerContext, "分享失败", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                )
+                request.onEditImage?.let { onEdit ->
+                    ViewerActionPill(
+                        icon = Icons.Rounded.AutoFixHigh,
+                        label = "继续编辑",
+                        onClick = {
+                            viewerHaptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            previewer.dismiss()
+                            onEdit(currentSource)
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ViewerActionPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = Color.White.copy(alpha = if (enabled) 0.94f else 0.45f),
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = label,
+            style = MiuixTheme.textStyles.footnote1.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+            color = Color.White.copy(alpha = if (enabled) 0.94f else 0.45f),
+        )
     }
 }
 

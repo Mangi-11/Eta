@@ -22,6 +22,12 @@ sealed interface AppRoute : NavKey {
     data object WebToolsSettings : AppRoute
 
     @Serializable
+    data object ImageGenSettings : AppRoute
+
+    @Serializable
+    data object ImageGenGallery : AppRoute
+
+    @Serializable
     data object Skills : AppRoute
 
     @Serializable
