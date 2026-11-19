@@ -228,6 +228,8 @@ internal fun ScheduledTaskDetailScreen(
                             CouiPreference(
                                 title = "通知与会话",
                                 value = "${ScheduledTaskUiFormatting.deliveryBadge(currentTask.deliveryMode)} · ${
+                                    if (currentTask.showRunningNotification) "显示进度" else "静默运行"
+                                } · ${
                                     if (currentTask.sessionMode.wireValue == "dedicated") "固定频道" else "独立归档"
                                 }",
                                 showChevron = false,
@@ -380,7 +382,9 @@ internal fun ScheduledTaskDetailScreen(
                                     color = MiuixTheme.colorScheme.onSurface,
                                 )
                                 Text(
-                                    text = "模型：$modelDisplay · ${ScheduledTaskUiFormatting.deliveryBadge(currentTask.deliveryMode)}",
+                                    text = "模型：$modelDisplay · ${ScheduledTaskUiFormatting.deliveryBadge(currentTask.deliveryMode)} · ${
+                                        if (currentTask.showRunningNotification) "显示运行进度" else "静默运行"
+                                    }",
                                     fontSize = 12.sp,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )

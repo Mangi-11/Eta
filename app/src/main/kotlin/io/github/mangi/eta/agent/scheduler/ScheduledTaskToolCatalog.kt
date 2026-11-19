@@ -128,6 +128,12 @@ internal object ScheduledTaskToolCatalog {
                     .put("description", "通知方式：always 每次完成后通知（早报/提醒）；on_change 仅发现变化时通知（监控/巡检）；silent 静默归档。"),
             )
             .put(
+                "show_running_notification",
+                JSONObject()
+                    .put("type", "boolean")
+                    .put("description", "任务运行期间是否显示前台进度通知与状态栏胶囊；默认 false（静默后台运行，仅在完成后按 delivery_mode 发送结果通知）。"),
+            )
+            .put(
                 "session_mode",
                 JSONObject()
                     .put("type", "string")

@@ -23,6 +23,7 @@ import io.github.mangi.eta.data.model.ScheduledTaskSessionMode
 import io.github.mangi.eta.data.model.ScheduledTaskTriggerSource
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.data.repository.ScheduledTaskRepository
+import io.github.mangi.eta.ui.MainActivity
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -186,26 +187,30 @@ internal object ScheduledTaskRunner {
             return false
         }
 
-        // 在 Doze 10 秒豁免窗内先抢占前台执行租约与有界 WakeLock，确保长推理与工具调用不断网。
+        // 未开启「运行时显示进度通知」且设备具备免 FGS 后台网络豁免（电池无限制 / Root / 前台）时，
+        // 跳过 AgentExecutionService，仅持有有界 WakeLock 与绑定服务，实现运行时 0 通知静默执行。
         val leaseId = "scheduled:$runId"
         val executionJobHolder = arrayOfNulls<ActiveExecution>(1)
         val allowBoundFallback = RootAccess.isGranted
-        val fgsAcquired = AgentExecutionService.acquire(
-            context = context,
-            id = leaseId,
-            allowBoundFallback = allowBoundFallback,
-        ) {
-            cancelRunningTask(context, task.id)
-        }
-        if (!fgsAcquired && !allowBoundFallback) {
-            recordSkippedAndAdvance(
+        val needForegroundLease = task.showRunningNotification || !canRunSilentlyWithoutForegroundService(context)
+        if (needForegroundLease) {
+            val fgsAcquired = AgentExecutionService.acquire(
                 context = context,
-                task = task,
-                triggerSource = triggerSource,
-                scheduledForAt = scheduledForAt,
-                reason = "系统拒绝在后台启动前台执行服务，请检查精确闹钟与电池无限制权限",
-            )
-            return false
+                id = leaseId,
+                allowBoundFallback = allowBoundFallback,
+            ) {
+                cancelRunningTask(context, task.id)
+            }
+            if (!fgsAcquired && !allowBoundFallback) {
+                recordSkippedAndAdvance(
+                    context = context,
+                    task = task,
+                    triggerSource = triggerSource,
+                    scheduledForAt = scheduledForAt,
+                    reason = "系统拒绝在后台启动前台执行服务，请检查精确闹钟与电池无限制权限",
+                )
+                return false
+            }
         }
 
         val timeoutMs = task.timeoutSeconds.coerceIn(
@@ -263,7 +268,7 @@ internal object ScheduledTaskRunner {
                 ScheduledTaskRunReportRegistry.clear(runId)
                 activeByTaskId.remove(task.id)
                 publishActiveTasks()
-                AgentExecutionService.release(leaseId)
+                if (needForegroundLease) AgentExecutionService.release(leaseId)
                 releaseWakeLockSafely(wakeLock)
             }
         }
@@ -272,7 +277,7 @@ internal object ScheduledTaskRunner {
         val previous = activeByTaskId.putIfAbsent(task.id, active)
         if (previous != null) {
             job.cancel()
-            AgentExecutionService.release(leaseId)
+            if (needForegroundLease) AgentExecutionService.release(leaseId)
             releaseWakeLockSafely(wakeLock)
             return false
         }
@@ -352,6 +357,7 @@ internal object ScheduledTaskRunner {
             runId = runId,
             triggerSource = triggerSource,
             deliveryMode = task.deliveryMode,
+            showRunningNotification = task.showRunningNotification,
             sessionMode = task.sessionMode,
             capabilities = task.capabilities,
             memo = task.memo,
@@ -576,6 +582,15 @@ internal object ScheduledTaskRunner {
             .trim()
         return normalized.take(220).ifBlank { "已完成执行" }
     }
+
+    /**
+     * 判断当前设备是否允许静默定时任务跳过前台执行服务：
+     * 处于前台、已授权 Root，或已加入电池优化白名单（Doze 不在 10 秒后切断后台网络）时安全放行。
+     */
+    internal fun canRunSilentlyWithoutForegroundService(context: Context): Boolean =
+        MainActivity.isInForeground ||
+            RootAccess.isGranted ||
+            ScheduledTaskHealthChecker.inspect(context).ignoringBatteryOptimizations
 
     private fun acquireBoundedWakeLock(context: Context, timeoutMs: Long): PowerManager.WakeLock? =
         runCatching {

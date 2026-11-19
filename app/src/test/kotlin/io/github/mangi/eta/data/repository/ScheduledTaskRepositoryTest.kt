@@ -62,7 +62,18 @@ class ScheduledTaskRepositoryTest {
             context = context,
         )
         assertTrue(created.enabled)
+        assertFalse(created.showRunningNotification)
         assertNotNull(created.nextRunAt)
+
+        val withProgress = ScheduledTaskRepository.saveTask(
+            task = created.copy(showRunningNotification = true),
+            nowMs = nowMs + 500,
+            defaultZone = zone,
+            rescheduleAlarm = false,
+            context = context,
+        )
+        assertTrue(withProgress.showRunningNotification)
+        assertTrue(ScheduledTaskRepository.getTask(created.id, context)?.showRunningNotification == true)
 
         assertTrue(ScheduledTaskRepository.updateMemo(created.id, "last_price=299", nowMs + 1000, context))
         assertEquals("last_price=299", ScheduledTaskRepository.getTask(created.id, context)?.memo)

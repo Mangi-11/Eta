@@ -23,6 +23,7 @@ internal data class ScheduledTaskEntity(
     @ColumnInfo(name = "misfire_window_minutes") val misfireWindowMinutes: Int,
     @ColumnInfo(name = "quiet_hours_json") val quietHoursJson: String,
     @ColumnInfo(name = "delivery_mode") val deliveryMode: String,
+    @ColumnInfo(name = "show_running_notification", defaultValue = "0") val showRunningNotification: Boolean = false,
     @ColumnInfo(name = "session_mode") val sessionMode: String,
     @ColumnInfo(name = "dedicated_conversation_key") val dedicatedConversationKey: String?,
     @ColumnInfo(name = "model_id") val modelId: String?,

@@ -139,6 +139,7 @@ internal class ScheduledTaskToolExecutor(
             ScheduledTaskSessionMode.ISOLATED
         }
         val allowGui = args.optBoolean("allow_gui", false)
+        val showRunningNotification = args.optBoolean("show_running_notification", false)
         val enabled = args.optBoolean("enabled", true)
         val timeoutSeconds = args.optInt("timeout_seconds", ScheduledTask.DEFAULT_TIMEOUT_SECONDS)
 
@@ -150,6 +151,7 @@ internal class ScheduledTaskToolExecutor(
                 enabled = enabled,
                 schedule = schedule,
                 deliveryMode = deliveryMode,
+                showRunningNotification = showRunningNotification,
                 sessionMode = sessionMode,
                 capabilities = ScheduledTaskCapabilities(guiTools = allowGui),
                 timeoutSeconds = timeoutSeconds,
@@ -197,6 +199,9 @@ internal class ScheduledTaskToolExecutor(
             deliveryMode = if (args.has("delivery_mode")) {
                 ScheduledTaskDeliveryMode.fromWireValue(args.optString("delivery_mode"))
             } else existing.deliveryMode,
+            showRunningNotification = if (args.has("show_running_notification")) {
+                args.optBoolean("show_running_notification")
+            } else existing.showRunningNotification,
             sessionMode = if (args.has("session_mode")) {
                 ScheduledTaskSessionMode.fromWireValue(args.optString("session_mode"))
             } else existing.sessionMode,
@@ -315,6 +320,7 @@ internal class ScheduledTaskToolExecutor(
         .put("schedule_text", ScheduledTaskScheduleCalculator.describeSchedule(task.schedule))
         .put("next_run_text", ScheduledTaskScheduleCalculator.formatNextRunLabel(task.nextRunAt, nowMs))
         .put("delivery_mode", task.deliveryMode.wireValue)
+        .put("show_running_notification", task.showRunningNotification)
         .put("session_mode", task.sessionMode.wireValue)
         .put("allow_gui", task.capabilities.guiTools)
         .put("last_status", task.lastStatus?.wireValue ?: "")

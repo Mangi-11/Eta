@@ -157,6 +157,8 @@ data class ScheduledTask(
     val misfireWindowMinutes: Int = DEFAULT_MISFIRE_WINDOW_MINUTES,
     val quietHours: ScheduledTaskQuietHours = ScheduledTaskQuietHours(),
     val deliveryMode: ScheduledTaskDeliveryMode = ScheduledTaskDeliveryMode.ALWAYS,
+    /** 执行期间是否展示前台运行进度通知与状态栏胶囊；关闭后具备后台豁免条件时静默运行，仅在完成时按 [deliveryMode] 推送结果。 */
+    val showRunningNotification: Boolean = false,
     val sessionMode: ScheduledTaskSessionMode = ScheduledTaskSessionMode.ISOLATED,
     val dedicatedConversationKey: String? = null,
     /** null 表示跟随全局默认模型。 */

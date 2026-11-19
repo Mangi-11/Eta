@@ -22,6 +22,7 @@ internal data class ScheduledTaskRunContext(
     val runId: String,
     val triggerSource: ScheduledTaskTriggerSource,
     val deliveryMode: ScheduledTaskDeliveryMode,
+    val showRunningNotification: Boolean = false,
     val sessionMode: ScheduledTaskSessionMode,
     val capabilities: ScheduledTaskCapabilities,
     val memo: String,
@@ -35,6 +36,7 @@ internal data class ScheduledTaskRunContext(
         .put(KEY_RUN_ID, runId)
         .put(KEY_TRIGGER_SOURCE, triggerSource.wireValue)
         .put(KEY_DELIVERY_MODE, deliveryMode.wireValue)
+        .put(KEY_SHOW_RUNNING_NOTIFICATION, showRunningNotification)
         .put(KEY_SESSION_MODE, sessionMode.wireValue)
         .put(KEY_CAP_BROWSER, capabilities.browserTools)
         .put(KEY_CAP_DEVICE_READ, capabilities.deviceReadTools)
@@ -96,6 +98,7 @@ internal data class ScheduledTaskRunContext(
         private const val KEY_RUN_ID = "run_id"
         private const val KEY_TRIGGER_SOURCE = "trigger_source"
         private const val KEY_DELIVERY_MODE = "delivery_mode"
+        private const val KEY_SHOW_RUNNING_NOTIFICATION = "show_running_notification"
         private const val KEY_SESSION_MODE = "session_mode"
         private const val KEY_CAP_BROWSER = "cap_browser"
         private const val KEY_CAP_DEVICE_READ = "cap_device_read"
@@ -121,6 +124,7 @@ internal data class ScheduledTaskRunContext(
                 runId = runId,
                 triggerSource = ScheduledTaskTriggerSource.fromWireValue(json.optString(KEY_TRIGGER_SOURCE)),
                 deliveryMode = ScheduledTaskDeliveryMode.fromWireValue(json.optString(KEY_DELIVERY_MODE)),
+                showRunningNotification = json.optBoolean(KEY_SHOW_RUNNING_NOTIFICATION, false),
                 sessionMode = ScheduledTaskSessionMode.fromWireValue(json.optString(KEY_SESSION_MODE)),
                 capabilities = ScheduledTaskCapabilities(
                     browserTools = json.optBoolean(KEY_CAP_BROWSER, true),

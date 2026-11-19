@@ -128,6 +128,7 @@ internal fun ScheduledTaskEditorScreen(
     var onceTriggerAtMs by remember { mutableLongStateOf(System.currentTimeMillis() + 60 * 60_000L) }
     var cronExpression by remember { mutableStateOf("0 9 * * 1-5") }
     var deliveryMode by remember { mutableStateOf(preset?.deliveryMode ?: ScheduledTaskDeliveryMode.ALWAYS) }
+    var showRunningNotification by remember { mutableStateOf(false) }
     var sessionMode by remember { mutableStateOf(preset?.sessionMode ?: ScheduledTaskSessionMode.ISOLATED) }
     var misfirePolicy by remember { mutableStateOf(ScheduledTaskMisfirePolicy.RUN_ONCE_WITHIN_WINDOW) }
     var quietHoursEnabled by remember { mutableStateOf(false) }
@@ -161,6 +162,7 @@ internal fun ScheduledTaskEditorScreen(
                 existing.schedule.triggerAtEpochMs?.let { onceTriggerAtMs = it }
                 cronExpression = existing.schedule.cronExpression.ifBlank { "0 9 * * 1-5" }
                 deliveryMode = existing.deliveryMode
+                showRunningNotification = existing.showRunningNotification
                 sessionMode = existing.sessionMode
                 misfirePolicy = existing.misfirePolicy
                 quietHoursEnabled = existing.quietHours.enabled
@@ -277,6 +279,7 @@ internal fun ScheduledTaskEditorScreen(
                     misfirePolicy = misfirePolicy,
                     quietHours = ScheduledTaskQuietHours(enabled = quietHoursEnabled),
                     deliveryMode = deliveryMode,
+                    showRunningNotification = showRunningNotification,
                     sessionMode = sessionMode,
                     modelId = selectedModelId,
                     reasoningEffort = selectedReasoningEffort,
@@ -510,6 +513,13 @@ internal fun ScheduledTaskEditorScreen(
                         items = deliveryOptions.map { it.second },
                         selectedIndex = deliveryOptions.indexOfFirst { it.first == deliveryMode }.coerceAtLeast(0),
                         onSelectedIndexChange = { idx -> deliveryMode = deliveryOptions[idx].first },
+                    )
+                    Divider()
+                    CouiSwitchPreference(
+                        title = "运行时显示进度通知",
+                        summary = "关闭后后台静默执行，不弹状态栏运行胶囊，仅在完成时按上方设置推送结果",
+                        checked = showRunningNotification,
+                        onCheckedChange = { showRunningNotification = it },
                     )
                 }
 
@@ -791,6 +801,12 @@ internal fun ScheduledTaskEditorScreen(
                             selectedIndex = deliveryOptions.indexOfFirst { it.first == deliveryMode }.coerceAtLeast(0),
                             onSelectedIndexChange = { idx -> deliveryMode = deliveryOptions[idx].first },
                             backdrop = currentGlassOverlayBackdrop(),
+                        )
+                        SwitchPreference(
+                            title = "运行时显示进度通知",
+                            summary = "关闭后后台静默执行，不弹状态栏运行胶囊，仅在完成时推送结果",
+                            checked = showRunningNotification,
+                            onCheckedChange = { showRunningNotification = it },
                         )
                     }
                 }

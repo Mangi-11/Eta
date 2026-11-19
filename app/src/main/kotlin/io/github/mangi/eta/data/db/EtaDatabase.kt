@@ -28,7 +28,7 @@ import androidx.room.migration.Migration
         ScheduledTaskEntity::class,
         ScheduledTaskRunEntity::class,
     ],
-    version = 29,
+    version = 30,
     exportSchema = false,
 )
 internal abstract class EtaDatabase : RoomDatabase() {
@@ -75,6 +75,7 @@ internal abstract class EtaDatabase : RoomDatabase() {
                         MIGRATION_26_27,
                         MIGRATION_27_28,
                         MIGRATION_28_29,
+                        MIGRATION_29_30,
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
@@ -211,6 +212,12 @@ internal abstract class EtaDatabase : RoomDatabase() {
             database.execSQL(
                 "CREATE INDEX IF NOT EXISTS index_scheduled_task_runs_status " +
                     "ON scheduled_task_runs (status)"
+            )
+        }
+
+        internal val MIGRATION_29_30 = Migration(29, 30) { database ->
+            database.execSQL(
+                "ALTER TABLE scheduled_tasks ADD COLUMN show_running_notification INTEGER NOT NULL DEFAULT 0"
             )
         }
 
