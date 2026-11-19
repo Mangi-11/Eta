@@ -75,6 +75,8 @@ class ToolCatalogUiTest {
         assertTrue(terminal.tools.map { it.id }.containsAll(listOf("terminal", "terminal_job", "terminal_daemon")))
         assertEquals(R.string.tool_terminal_job, toolDisplayNameResource("terminal_job"))
         assertEquals(R.string.tool_terminal_daemon, toolDisplayNameResource("terminal_daemon"))
+        assertEquals(R.string.tool_subagent, toolDisplayNameResource("subagent"))
+        assertEquals(R.string.tool_subagent_profile, toolDisplayNameResource("subagent_profile"))
     }
 
     @Test

@@ -65,4 +65,23 @@ class AgentOverlayStateTest {
         state = state.applyEvent(AgentEvent.AssistantBlockStart(2, AgentEvent.AssistantBlockKind.THINKING, 1))
         assertEquals("", state.thought)
     }
+
+    @Test
+    fun parallelToolsKeepRunningStatusUntilLastToolFinishes() {
+        var state = AgentOverlayState.Initial
+            .applyEvent(AgentEvent.ToolStarted(1, "call-1", "subagent", "explore · 检索日历"))
+            .applyEvent(AgentEvent.ToolStarted(1, "call-2", "subagent", "coder · 检查日志"))
+        assertEquals(AgentOverlayStatus.RunningTool("subagent"), state.status)
+        assertEquals("coder · 检查日志", state.thought)
+
+        // 第一个并发 Subagent 先结束，不应提前切回思考态。
+        state = state.applyEvent(AgentEvent.ToolFinished(1, "call-2", "subagent", "完成", 0, 0, success = true))
+        assertEquals(AgentOverlayStatus.RunningTool("subagent"), state.status)
+        assertEquals("explore · 检索日历", state.thought)
+
+        // 最后一个结束后切回思考态。
+        state = state.applyEvent(AgentEvent.ToolFinished(1, "call-1", "subagent", "完成", 0, 0, success = true))
+        assertEquals(AgentOverlayStatus.Reasoning, state.status)
+        assertEquals("", state.thought)
+    }
 }

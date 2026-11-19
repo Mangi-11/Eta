@@ -115,7 +115,8 @@ internal fun ToolActivityRow(
                 status = when (message.status) {
                     ToolActivityStatusUi.Running -> SubagentActivitySnapshot.STATUS_RUNNING
                     ToolActivityStatusUi.Failed -> SubagentActivitySnapshot.STATUS_FAILED
-                    else -> SubagentActivitySnapshot.STATUS_COMPLETED
+                    ToolActivityStatusUi.Unknown -> SubagentActivitySnapshot.STATUS_CANCELLED
+                    ToolActivityStatusUi.Success -> SubagentActivitySnapshot.STATUS_COMPLETED
                 },
                 output = message.resultSummary.orEmpty(),
             )

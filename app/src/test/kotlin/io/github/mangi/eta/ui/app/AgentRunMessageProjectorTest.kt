@@ -752,4 +752,94 @@ class AgentRunMessageProjectorTest {
         assertEquals(4, settled[0].elapsedSeconds)
         assertEquals(15, settled[1].elapsedSeconds)
     }
+
+    @Test
+    fun subagentProgressIgnoresCorruptDuplicateAndPostTerminalSnapshots() {
+        val projector = AgentRunMessageProjector(nowElapsedRealtime = { 1_000L })
+        val runId = "run-subagent"
+        val initial = io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot(
+            subagentId = "sub_1",
+            subagentType = "explore",
+            description = "查日志",
+            status = io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot.STATUS_RUNNING,
+            currentAction = "正在启动…",
+        ).encodeForWire()
+        val runningStep = io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot(
+            subagentId = "sub_1",
+            subagentType = "explore",
+            description = "查日志",
+            status = io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot.STATUS_RUNNING,
+            currentAction = "正在读取日志",
+            totalToolSteps = 3,
+        ).encodeForWire()
+        val completed = io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot(
+            subagentId = "sub_1",
+            subagentType = "explore",
+            description = "查日志",
+            status = io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot.STATUS_COMPLETED,
+            currentAction = "完成 · 3 次工具调用",
+            totalToolSteps = 3,
+            output = "已定位根因",
+        ).encodeForWire()
+
+        var messages: List<AgentChatMessageUi> = projector.startTool(
+            runId,
+            AgentEvent.ToolStarted(
+                round = 1,
+                toolCallId = "call_sub",
+                name = "subagent",
+                argsPreview = "explore · 查日志",
+                command = initial,
+            ),
+            listOf(UserMessageUi(id = "user-$runId", content = "帮我查日志")),
+        )
+
+        // 正常进度更新。
+        val progressEvent = AgentEvent.SubagentProgress(1, "call_sub", "sub_1", "explore", runningStep)
+        messages = projector.applyEvent(runId, progressEvent, messages)
+        assertEquals(runningStep, (messages.last() as ToolActivityMessageUi).command)
+
+        // 重复进度返回同一引用。
+        assertSame(messages, projector.applyEvent(runId, progressEvent, messages))
+
+        // 损坏快照被忽略，保留此前正常快照。
+        val corruptEvent = progressEvent.copy(snapshotJson = "{\"subagentId\":\"sub_1\",\"broken...")
+        assertSame(messages, projector.applyEvent(runId, corruptEvent, messages))
+        assertEquals(runningStep, (messages.last() as ToolActivityMessageUi).command)
+
+        // 损坏终态 command 不覆盖此前合法快照。
+        val finishedWithCorrupt = projector.finishTool(
+            runId,
+            AgentEvent.ToolFinished(
+                round = 1,
+                toolCallId = "call_sub",
+                name = "subagent",
+                resultSummary = "完成",
+                imageCount = 0,
+                imageBytes = 0,
+                success = true,
+                command = "{\"truncated",
+            ),
+            messages,
+        )
+        assertEquals(runningStep, (finishedWithCorrupt.last() as ToolActivityMessageUi).command)
+
+        // 合法终态更新后，迟到的中间进度不再回写覆盖。
+        val finishedValid = projector.finishTool(
+            runId,
+            AgentEvent.ToolFinished(
+                round = 1,
+                toolCallId = "call_sub",
+                name = "subagent",
+                resultSummary = "完成 · 3 次工具调用",
+                imageCount = 0,
+                imageBytes = 0,
+                success = true,
+                command = completed,
+            ),
+            messages,
+        )
+        assertEquals(completed, (finishedValid.last() as ToolActivityMessageUi).command)
+        assertSame(finishedValid, projector.applyEvent(runId, progressEvent, finishedValid))
+    }
 }
