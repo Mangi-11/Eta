@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger
 internal object SubagentSessionStore {
     private const val MAX_CONVERSATIONS = 16
     private const val MAX_AGENTS_PER_CONVERSATION = 16
+    private const val MAX_HISTORY_MESSAGES_PER_AGENT = 64
 
     class Entry(
         val subagentId: String,
@@ -50,9 +51,10 @@ internal object SubagentSessionStore {
         subagentId: String,
         updatedHistory: List<AgentModelClient.ConversationMessage>,
     ) {
+        val boundedHistory = boundHistory(updatedHistory)
         synchronized(lock) {
             val entry = buckets[conversationKey]?.entries?.get(subagentId) ?: return
-            entry.history = updatedHistory
+            entry.history = boundedHistory
             entry.running.set(false)
         }
     }
@@ -61,5 +63,24 @@ internal object SubagentSessionStore {
         synchronized(lock) {
             buckets[conversationKey]?.entries?.get(subagentId)?.running?.set(false)
         }
+    }
+
+    fun clearConversation(conversationKey: String) {
+        if (conversationKey.isBlank()) return
+        synchronized(lock) {
+            buckets.remove(conversationKey)
+        }
+    }
+
+    /** 保留最近窗口并从完整的 user 边界切齐，避免孤立 tool 消息破坏下次 resume 协议。 */
+    private fun boundHistory(
+        history: List<AgentModelClient.ConversationMessage>,
+    ): List<AgentModelClient.ConversationMessage> {
+        if (history.size <= MAX_HISTORY_MESSAGES_PER_AGENT) return history
+        val dropTarget = history.size - MAX_HISTORY_MESSAGES_PER_AGENT
+        val startIndex = (dropTarget until history.size)
+            .firstOrNull { history[it].role == "user" }
+            ?: dropTarget
+        return history.subList(startIndex, history.size).toList()
     }
 }

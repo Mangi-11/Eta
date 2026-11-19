@@ -34,6 +34,5 @@ internal data class AgentTokenUsage(
     companion object {
         const val REQUEST_KIND_CHAT = "chat"
         const val REQUEST_KIND_COMPACTION = "compaction"
-        const val REQUEST_KIND_SUBAGENT = "subagent"
     }
 }

@@ -10,6 +10,8 @@ import android.os.Parcel
 import android.os.ParcelFileDescriptor
 import io.github.mangi.eta.agent.model.AgentConversationCodec
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.subagent.AgentSubagentToolCatalog
+import io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.data.model.CustomBody
 import io.github.mangi.eta.data.model.CustomHeader
@@ -829,7 +831,14 @@ internal object AgentRuntimeWire {
                 putString("tool_call_id", event.toolCallId)
                 putString("name", event.name)
                 putString("args_preview", event.argsPreview)
-                event.command?.let { putString("command", it) }
+                event.command?.let { raw ->
+                    val safeCommand = if (event.name == AgentSubagentToolCatalog.TOOL_NAME) {
+                        SubagentActivitySnapshot.sanitizeForWire(raw, MAX_DRAIN_CONTENT_CHARS) ?: raw
+                    } else {
+                        raw
+                    }
+                    putString("command", safeCommand)
+                }
             }
 
             is AgentEvent.ToolFinished -> {
@@ -841,7 +850,15 @@ internal object AgentRuntimeWire {
                 putInt("image_count", event.imageCount)
                 putInt("image_bytes", event.imageBytes)
                 event.success?.let { putBoolean("success", it) }
-                event.command?.let { putString("command", it.boundedText(MAX_DRAIN_CONTENT_CHARS)) }
+                event.command?.let { raw ->
+                    val safeCommand = if (event.name == AgentSubagentToolCatalog.TOOL_NAME) {
+                        SubagentActivitySnapshot.sanitizeForWire(raw, MAX_DRAIN_CONTENT_CHARS)
+                            ?: raw.boundedText(MAX_DRAIN_CONTENT_CHARS)
+                    } else {
+                        raw.boundedText(MAX_DRAIN_CONTENT_CHARS)
+                    }
+                    putString("command", safeCommand)
+                }
             }
 
             is AgentEvent.SubagentProgress -> {
@@ -850,7 +867,11 @@ internal object AgentRuntimeWire {
                 putString("tool_call_id", event.toolCallId)
                 putString("subagent_id", event.subagentId)
                 putString("subagent_type", event.subagentType)
-                putString("snapshot_json", event.snapshotJson.boundedText(MAX_DRAIN_CONTENT_CHARS))
+                val safeSnapshot = SubagentActivitySnapshot.sanitizeForWire(
+                    event.snapshotJson,
+                    MAX_DRAIN_CONTENT_CHARS,
+                ) ?: event.snapshotJson.boundedText(MAX_DRAIN_CONTENT_CHARS)
+                putString("snapshot_json", safeSnapshot)
             }
 
             is AgentEvent.HostedToolStarted -> {

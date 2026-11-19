@@ -45,9 +45,16 @@ internal data class SubagentProfile(
         }
         val customAllowlist = explicitTools
         if (customAllowlist != null) {
-            if ("*" in customAllowlist) return true
-            return toolName in customAllowlist ||
-                ("personal_data" in customAllowlist && (toolName in PersonalSearchTools.names || toolName in AgentPhoneToolCatalog.reads))
+            if (toolName in customAllowlist) return true
+            if ("personal_data" in customAllowlist &&
+                (toolName in PersonalSearchTools.names || toolName in AgentPhoneToolCatalog.reads)
+            ) {
+                return true
+            }
+            if ("*" in customAllowlist) {
+                return toolName !in DEFAULT_DEVICE_WRITE_TOOLS
+            }
+            return false
         }
         if (toolName in READ_ONLY_TOOLS || toolName in PersonalSearchTools.names || toolName in AgentPhoneToolCatalog.reads) {
             return true
@@ -161,6 +168,21 @@ internal data class SubagentProfile(
             "skills_read_resource",
         )
 
+        /**
+         * 设备状态修改与动作类写工具。未显式点名授权时，通配 `*` 默认排除这些工具，
+         * 避免多个并发 Subagent 互相修改系统设置、音量或应用状态；仍允许在自定义 Profile
+         * 的 `tools` 列表里显式点名放行（`FORBIDDEN_TOOLS` 除外）。
+         */
+        val DEFAULT_DEVICE_WRITE_TOOLS: Set<String> = AgentPhoneToolCatalog.writes + setOf(
+            "set_setting",
+            "set_device_state",
+            "app_state_control",
+            "set_alarm",
+            "set_timer",
+            "set_volume",
+            "media_control",
+        )
+
         private val CODER_EXTRA_TOOLS =
             (AgentFileToolCatalog.names + AgentTerminalToolCatalog.names) - FORBIDDEN_TOOLS
 
@@ -223,15 +245,24 @@ internal data class SubagentProfile(
                 .orEmpty()
 
             if (matched != null) {
-                if (cleanRole.isEmpty() && cleanTools.isEmpty()) return matched
+                // 对已有预设（尤其是 explore / plan 等只读预设），附加的 tools 只能收紧原允许集，不能提权扩张。
+                val narrowedTools = cleanTools.filter { tool ->
+                    when (tool) {
+                        "*" -> false
+                        "personal_data" -> PersonalSearchTools.names.any(matched::isToolAllowed) ||
+                            AgentPhoneToolCatalog.reads.any(matched::isToolAllowed)
+                        else -> matched.isToolAllowed(tool)
+                    }
+                }
+                if (cleanRole.isEmpty() && narrowedTools.isEmpty()) return matched
                 return matched.copy(
                     roleInstruction = if (cleanRole.isNotEmpty()) {
                         "${matched.roleInstruction}\n\n补充角色要求：$cleanRole"
                     } else {
                         matched.roleInstruction
                     },
-                    explicitTools = if (cleanTools.isNotEmpty()) cleanTools.toSet() else matched.explicitTools,
-                    toolHighlights = if (cleanTools.isNotEmpty()) cleanTools.take(8) else matched.toolHighlights,
+                    explicitTools = if (narrowedTools.isNotEmpty()) narrowedTools.toSet() else matched.explicitTools,
+                    toolHighlights = if (narrowedTools.isNotEmpty()) narrowedTools.take(8) else matched.toolHighlights,
                 )
             }
 

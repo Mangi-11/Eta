@@ -80,7 +80,7 @@ internal class AgentTraceFormatter {
     /** 命令以脱敏后的用户可见投影进入运行轨迹；日志仍只记录长度。 */
     fun displayCommand(toolCall: AgentModelClient.ToolCall): String? =
         if (toolCall.name == AgentSubagentToolCatalog.TOOL_NAME) {
-            SubagentActivitySnapshot.initialFromArguments(toolCall.argumentsJson)?.encode()
+            SubagentActivitySnapshot.initialFromArguments(toolCall.argumentsJson)?.encodeForWire()
         } else if (toolCall.name in AgentTerminalToolCatalog.names || toolCall.name == "run_command") {
             runCatching {
                 JSONObject(toolCall.argumentsJson)

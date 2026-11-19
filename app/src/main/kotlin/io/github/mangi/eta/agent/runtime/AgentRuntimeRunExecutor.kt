@@ -445,7 +445,7 @@ internal class AgentRuntimeRunExecutor(
 
         if (cancelled && session.isTerminal) {
             runCatching {
-                persistArtifacts(snapshotRequest(request), result, archivedEvents.orEmpty())
+                persistArtifacts(snapshotRequest(request), result, snapshotArchivedEvents(archivedEvents))
             }.onFailure { throwable ->
                 AndroidAgentLogger.error(
                     "Agent runtime cancelled result persistence failed: " +
@@ -473,7 +473,7 @@ internal class AgentRuntimeRunExecutor(
                         "Agent runtime checkpoint seal failed: type=${throwable.safeLogType()}"
                     )
                 }
-            runCatching { persistArtifacts(completedRequest, result, archivedEvents.orEmpty()) }
+            runCatching { persistArtifacts(completedRequest, result, snapshotArchivedEvents(archivedEvents)) }
                 .onFailure { throwable ->
                     AndroidAgentLogger.error(
                         "Agent runtime artifact persistence failed: type=${throwable.safeLogType()}"
@@ -498,7 +498,14 @@ internal class AgentRuntimeRunExecutor(
     ) {
         checkpointRecorder?.accept(event)
         if (!session.emit(event)) return
-        if (event !is AgentEvent.GuiControlChanged) archivedEvents?.add(event)
+        // 多 Subagent 并发会跨线程回调 acceptEvent；只缓存可落盘事件，避免瞬态进度堆积内存。
+        if (archivedEvents != null) {
+            event.recoveryProjection()?.let { durable ->
+                synchronized(archivedEvents) {
+                    archivedEvents.add(durable)
+                }
+            }
+        }
         if (event is AgentEvent.ModelRetryScheduled) {
             AndroidAgentLogger.warn("Agent runtime event: ${event.toLogLine()}")
         } else if (event !is AgentEvent.AssistantBlockDelta) {
@@ -510,6 +517,11 @@ internal class AgentRuntimeRunExecutor(
                     "Agent runtime event projection failed: type=${throwable.safeLogType()}"
                 }
             }
+    }
+
+    private fun snapshotArchivedEvents(archivedEvents: MutableList<AgentEvent>?): List<AgentEvent> {
+        if (archivedEvents == null) return emptyList()
+        return synchronized(archivedEvents) { archivedEvents.toList() }
     }
 
     companion object {
