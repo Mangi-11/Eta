@@ -143,6 +143,7 @@ internal fun AgentAppShell(
     onConversationDelete: (ConversationSummaryUi) -> Unit,
     onOpenTools: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenScheduledTasks: () -> Unit = {},
     onOpenCharacters: () -> Unit,
     onOpenPermissions: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -306,6 +307,7 @@ internal fun AgentAppShell(
                 onOpenModelProviders = onOpenModelProviders,
                 onOpenTools = onOpenTools,
                 onOpenSkills = onOpenSkills,
+                onOpenScheduledTasks = onOpenScheduledTasks,
                 onOpenCharacters = onOpenCharacters,
                 onOpenPermissions = onOpenPermissions,
                 activeModelLabel = homeModelPickerState?.selectedModel?.displayName,
@@ -667,6 +669,11 @@ private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.Tools -> stringResource(R.string.route_tools)
     is AppRoute.WebToolsSettings -> stringResource(R.string.web_tools_settings_title)
     is AppRoute.Skills -> stringResource(R.string.route_skills)
+    is AppRoute.ScheduledTasks -> stringResource(R.string.route_scheduled_tasks)
+    is AppRoute.ScheduledTaskDetail -> stringResource(R.string.route_scheduled_task_detail)
+    is AppRoute.ScheduledTaskEditor -> stringResource(
+        if (route.taskId.isNullOrBlank()) R.string.route_scheduled_task_new else R.string.route_scheduled_task_edit,
+    )
     is AppRoute.Subagents -> "Subagent"
     is AppRoute.ConversationTitleSettings -> stringResource(R.string.conversation_title_settings_title)
     is AppRoute.AssistantOverlaySettings -> stringResource(R.string.assistant_overlay_settings_title)

@@ -41,6 +41,7 @@ internal object AgentRuntimeWire {
 
     const val AGENT_UI_HANDOFF_SOURCE = "agent_ui"
     const val ETA_VOICE_HANDOFF_SOURCE = "eta_voice"
+    const val SCHEDULED_TASK_HANDOFF_SOURCE = "scheduled_task"
 
     internal class PayloadTooLargeException(sizeBytes: Int) : IllegalArgumentException(
         "Agent Runtime 请求元数据过大（$sizeBytes bytes）；请缩短输入或会话历史后重试"

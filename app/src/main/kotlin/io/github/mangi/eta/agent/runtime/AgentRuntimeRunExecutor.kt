@@ -16,6 +16,9 @@ import io.github.mangi.eta.agent.memory.AgentMemoryContextBuilder
 import io.github.mangi.eta.agent.memory.ConversationMemoryPins
 import io.github.mangi.eta.agent.roleplay.CharacterMemoryTools
 import io.github.mangi.eta.agent.roleplay.RoleplayRunContext
+import io.github.mangi.eta.agent.scheduler.ScheduledTaskRunContext
+import io.github.mangi.eta.agent.scheduler.ScheduledTaskToolCatalog
+import io.github.mangi.eta.agent.scheduler.ScheduledTaskToolExecutor
 import io.github.mangi.eta.agent.subagent.AgentSubagentToolCatalog
 import io.github.mangi.eta.agent.subagent.SubagentExecutor
 import io.github.mangi.eta.agent.mcp.McpRunSnapshot
@@ -113,6 +116,10 @@ internal class AgentRuntimeRunExecutor(
             val uiPayload = request.handoff
                 ?.takeIf { it.source == AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE }
                 ?.let { AgentUiHandoffPayload.from(it.payload) }
+            val scheduledRunContext = request.handoff
+                ?.takeIf { it.source == AgentRuntimeWire.SCHEDULED_TASK_HANDOFF_SOURCE }
+                ?.let { AgentExternalArchivePayload.from(it.payload)?.adapterPayload }
+                ?.let(ScheduledTaskRunContext::fromAdapterPayload)
             val conversationId = uiPayload?.conversationId
                 ?.takeIf { it.isNotBlank() }
             memoryConversationId = conversationId
@@ -154,12 +161,16 @@ internal class AgentRuntimeRunExecutor(
                 io.github.mangi.eta.agent.device.RootAccess.awaitOrRetryIfPreviouslyGranted(appContext)
             }
             val pendingSkillConflict = PendingSkillConflictCapabilityParser.parse(request.history)
-            val mcpSnapshot = runBlocking {
-                runCatching { McpRunSnapshot.load() }.getOrElse { throwable ->
-                    AndroidAgentLogger.warnThrottled("agent_mcp_snapshot_failed") {
-                        "MCP tool snapshot unavailable: type=${throwable.safeLogType()}"
+            val mcpSnapshot = if (scheduledRunContext?.capabilities?.mcpTools == false) {
+                McpRunSnapshot.EMPTY
+            } else {
+                runBlocking {
+                    runCatching { McpRunSnapshot.load() }.getOrElse { throwable ->
+                        AndroidAgentLogger.warnThrottled("agent_mcp_snapshot_failed") {
+                            "MCP tool snapshot unavailable: type=${throwable.safeLogType()}"
+                        }
+                        McpRunSnapshot.EMPTY
                     }
-                    McpRunSnapshot.EMPTY
                 }
             }
             val mcpTools = JSONArray().also(mcpSnapshot::appendModelTools)
@@ -294,14 +305,52 @@ internal class AgentRuntimeRunExecutor(
                     )
                 },
             )
+            val scheduledToolExecutor = ScheduledTaskToolExecutor(
+                context = appContext,
+                activeRunContext = scheduledRunContext,
+            )
             val runTools = buildRunTools(
                 mcpTools = mcpTools,
                 subagentAllowed = subagentAllowed(),
                 includeHistoryTool = historyTool != null,
                 includeCharacterMemoryTools = characterMemoryTools != null && memoryEnabled,
+                includeScheduledManageTool = scheduledRunContext == null &&
+                    request.operation == AgentRuntimeWire.OP_CHAT,
+                includeScheduledSelfRunTools = scheduledRunContext != null,
             )
+            val scheduledToolFilter: ((JSONArray) -> JSONArray)? =
+                if (scheduledRunContext != null && !scheduledRunContext.capabilities.guiTools) {
+                    { sourceTools ->
+                        JSONArray().also { filtered ->
+                            for (index in 0 until sourceTools.length()) {
+                                val tool = sourceTools.getJSONObject(index)
+                                val name = tool.optJSONObject("function")?.optString("name").orEmpty()
+                                if (!AgentToolRequirements.requiresGuiControl(name)) {
+                                    filtered.put(tool)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    null
+                }
             val runToolExecutor = AgentModelClient.ToolExecutor { call ->
-                if (call.name in AgentSubagentToolCatalog.names) {
+                if (call.name in ScheduledTaskToolCatalog.manageNames) {
+                    scheduledToolExecutor.executeManage(call)
+                } else if (call.name in ScheduledTaskToolCatalog.selfRunNames) {
+                    scheduledToolExecutor.executeSelfRun(call)
+                } else if (scheduledRunContext != null &&
+                    !scheduledRunContext.capabilities.guiTools &&
+                    AgentToolRequirements.requiresGuiControl(call.name)
+                ) {
+                    AgentModelClient.ToolResult(
+                        JSONObject()
+                            .put("ok", false)
+                            .put("code", "GUI_DISABLED_IN_SCHEDULED_TASK")
+                            .put("message", "当前定时任务未开启应用界面（GUI）操作权限，本次未执行")
+                            .toString(),
+                    )
+                } else if (call.name in AgentSubagentToolCatalog.names) {
                     if (!subagentAllowed()) {
                         AgentModelClient.ToolResult(
                             JSONObject()
@@ -360,6 +409,8 @@ internal class AgentRuntimeRunExecutor(
                 capabilitiesProvider = { AgentToolCapabilities.capture(appContext) },
                 prompt = request.prompt,
                 assistantScreenContext = request.assistantScreenContext,
+                extraSystemContext = scheduledRunContext?.buildSystemGuidance().orEmpty(),
+                toolFilter = scheduledToolFilter,
                 toolExecutor = runToolExecutor,
                 images = request.images,
                 history = request.history,
@@ -534,9 +585,13 @@ internal class AgentRuntimeRunExecutor(
             includeHistoryTool: Boolean,
             includeCharacterMemoryTools: Boolean,
             isToolEnabled: (String) -> Boolean = Prefs::isToolEnabled,
+            includeScheduledManageTool: Boolean = false,
+            includeScheduledSelfRunTools: Boolean = false,
         ): JSONArray = JSONArray(mcpTools.toString()).also { tools ->
             if (subagentAllowed) AgentSubagentToolCatalog.appendSchemas(tools)
             if (includeHistoryTool) tools.put(AgentConversationToolCatalog.schema())
+            if (includeScheduledManageTool) ScheduledTaskToolCatalog.appendManageTool(tools)
+            if (includeScheduledSelfRunTools) ScheduledTaskToolCatalog.appendSelfRunTools(tools)
             if (includeCharacterMemoryTools) {
                 val temp = JSONArray().also(CharacterMemoryTools::appendSchemas)
                 for (index in 0 until temp.length()) {

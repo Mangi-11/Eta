@@ -211,6 +211,27 @@ internal object ConversationPaneIcons {
         }
     }
 
+    val Schedule: ImageVector by lazy {
+        vector24("PaneSchedule") {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                // 精致圆形表盘
+                moveTo(20.2f, 12.0f)
+                arcTo(8.2f, 8.2f, 0f, isMoreThanHalf = true, isPositiveArc = true, 3.8f, 12.0f)
+                arcTo(8.2f, 8.2f, 0f, isMoreThanHalf = true, isPositiveArc = true, 20.2f, 12.0f)
+                close()
+                // 指针（12点到表心再到约4点）
+                moveTo(12.0f, 7.6f)
+                verticalLineTo(12.0f)
+                lineTo(15.2f, 13.9f)
+            }
+        }
+    }
+
     val Search: ImageVector by lazy {
         vector24("PaneSearch") {
             path(

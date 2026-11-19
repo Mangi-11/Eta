@@ -77,6 +77,11 @@ class MainActivity : ComponentActivity() {
                             launchRequests = launchRequests.copy(archivedConversation = null)
                             intent?.action = null
                         },
+                        requestedScheduledTaskId = launchRequests.scheduledTaskId,
+                        onScheduledTaskOpened = {
+                            launchRequests = launchRequests.copy(scheduledTaskId = null)
+                            intent?.action = null
+                        },
                         sharedContent = launchRequests.sharedContent,
                         onSharedContentAccepted = {
                             launchRequests = launchRequests.copy(sharedContent = null)
@@ -196,5 +201,7 @@ class MainActivity : ComponentActivity() {
         const val ACTION_OPEN_ARCHIVED_CONVERSATION = "io.github.mangi.eta.action.OPEN_ARCHIVED_CONVERSATION"
         const val EXTRA_HANDOFF_SOURCE = "io.github.mangi.eta.extra.HANDOFF_SOURCE"
         const val EXTRA_CONVERSATION_KEY = "io.github.mangi.eta.extra.CONVERSATION_KEY"
+        const val ACTION_OPEN_SCHEDULED_TASK_DETAIL = "io.github.mangi.eta.action.OPEN_SCHEDULED_TASK_DETAIL"
+        const val EXTRA_SCHEDULED_TASK_ID = "io.github.mangi.eta.extra.SCHEDULED_TASK_ID"
     }
 }

@@ -137,6 +137,7 @@ internal fun ConversationPanePanel(
     onOpenModelProviders: () -> Unit,
     onOpenTools: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenScheduledTasks: () -> Unit = {},
     onOpenCharacters: () -> Unit,
     onOpenPermissions: () -> Unit,
     modifier: Modifier = Modifier,
@@ -199,6 +200,7 @@ internal fun ConversationPanePanel(
                                         onOpenCharacters = onOpenCharacters,
                                         onOpenTools = onOpenTools,
                                         onOpenSkills = onOpenSkills,
+                                        onOpenScheduledTasks = onOpenScheduledTasks,
                                     )
                                 }
                             }
@@ -295,6 +297,7 @@ private fun PaneWorkbenchSection(
     onOpenCharacters: () -> Unit,
     onOpenTools: () -> Unit,
     onOpenSkills: () -> Unit,
+    onOpenScheduledTasks: () -> Unit = {},
 ) {
     val modelSummary = activeModelLabel?.takeIf { it.isNotBlank() }
         ?: stringResource(R.string.conversation_model_unconfigured)
@@ -319,6 +322,11 @@ private fun PaneWorkbenchSection(
             icon = ConversationPaneIcons.Skills,
             title = stringResource(R.string.route_skills),
             onClick = onOpenSkills,
+        ),
+        WorkbenchEntry(
+            icon = ConversationPaneIcons.Schedule,
+            title = stringResource(R.string.route_scheduled_tasks),
+            onClick = onOpenScheduledTasks,
         ),
     )
 

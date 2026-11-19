@@ -1411,4 +1411,19 @@
   <string name="subagent_settings_name_exists">已存在名為「%1$s」的自訂 Subagent，請改用其他名稱</string>
   <string name="subagent_settings_delete_title">刪除 Subagent</string>
   <string name="subagent_settings_delete_confirm">確定刪除自訂 Subagent「%1$s」？對應的 agents/%1$s.md 檔案將被移除，此操作無法復原。</string>
+  <string name="route_scheduled_tasks">排程任務</string>
+  <string name="route_scheduled_task_detail">任務詳情</string>
+  <string name="route_scheduled_task_new">新增排程任務</string>
+  <string name="route_scheduled_task_edit">編輯排程任務</string>
+  <string name="scheduled_notification_channel_results">排程任務結果</string>
+  <string name="scheduled_notification_channel_results_desc">排程任務完成後的簡報與變動提醒</string>
+  <string name="scheduled_notification_channel_alerts">排程任務告警</string>
+  <string name="scheduled_notification_channel_alerts_desc">任務執行失敗、連續失敗自動暫停及待解鎖提醒</string>
+  <string name="scheduled_notification_completed_fallback">排程任務已完成，點按檢視完整對話。</string>
+  <string name="scheduled_notification_failed_title">排程任務失敗：%1$s</string>
+  <string name="scheduled_notification_auto_disabled_title">排程任務已暫停：%1$s</string>
+  <string name="scheduled_notification_failed_fallback">任務執行失敗，點按檢視詳情。</string>
+  <string name="scheduled_notification_gui_ready_title">排程任務就緒：%1$s</string>
+  <string name="scheduled_action_run_now">立即試跑</string>
+  <string name="scheduled_action_stop">停止執行</string>
 </resources>

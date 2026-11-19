@@ -43,6 +43,8 @@ import io.github.mangi.eta.agent.runtime.AgentRunCheckpointStore
 import io.github.mangi.eta.agent.runtime.AgentRuntimeClient
 import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
 import io.github.mangi.eta.agent.runtime.AgentUiHandoffPayload
+import io.github.mangi.eta.agent.scheduler.ScheduledTaskRunContext
+import io.github.mangi.eta.data.model.ScheduledTaskSessionMode
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
@@ -671,12 +673,15 @@ internal class AgentAppState(
                 onEvent = { event -> enqueueRunEvent(runId, event) },
             )
             when (outcome) {
-                is AgentRuntimeClient.AttachOutcome.Completed -> withContext(Dispatchers.Main) {
-                    applyRunResult(
-                        runId = runId,
-                        result = outcome.result,
-                        acknowledgeRuntimeResult = true,
-                    )
+                is AgentRuntimeClient.AttachOutcome.Completed -> {
+                    withContext(Dispatchers.Main) {
+                        applyRunResult(
+                            runId = runId,
+                            result = outcome.result,
+                            acknowledgeRuntimeResult = true,
+                        )
+                    }
+                    AgentRunArchiveStore.remove(appContext, runId)
                 }
                 AgentRuntimeClient.AttachOutcome.NotActive -> {
                     withContext(Dispatchers.Main) {
@@ -700,10 +705,18 @@ internal class AgentAppState(
         observationJob.start()
     }
 
-    private suspend fun importArchivedExternalRuns() {
+    private suspend fun importArchivedExternalRuns(
+        includeIsolatedScheduledKey: String? = null,
+    ) {
         val archivedRuns = withContext(Dispatchers.IO) {
             AgentRunArchiveStore.list(appContext)
-                .filter { AgentExternalArchivePayload.from(it.handoff.payload) != null }
+                .filter { run ->
+                    val payload = AgentExternalArchivePayload.from(run.handoff.payload) ?: return@filter false
+                    if (run.handoff.source != AgentRuntimeWire.SCHEDULED_TASK_HANDOFF_SOURCE) return@filter true
+                    val scheduled = ScheduledTaskRunContext.fromAdapterPayload(payload.adapterPayload)
+                    scheduled?.sessionMode == ScheduledTaskSessionMode.DEDICATED ||
+                        (includeIsolatedScheduledKey != null && payload.conversationKey == includeIsolatedScheduledKey)
+                }
         }
         if (archivedRuns.isEmpty()) return
 
@@ -728,19 +741,118 @@ internal class AgentAppState(
     /** 打开外部入口按 [source] 与 [conversationKey] 归档的会话；先导入尚未入库的归档结果。 */
     suspend fun openArchivedConversation(source: String, conversationKey: String): Boolean {
         if (source.isBlank() || conversationKey.isBlank()) return false
-        importArchivedExternalRuns()
-        return withContext(Dispatchers.Main.immediate) {
-            val conversationId = archiveConversationId(
-                source = source,
-                conversationKey = conversationKey,
-            )
-            if (conversationsById[conversationId] == null) {
-                false
-            } else {
-                selectConversation(conversationId)
-                true
-            }
+        val targetScheduledKey = if (source == AgentRuntimeWire.SCHEDULED_TASK_HANDOFF_SOURCE) {
+            conversationKey
+        } else {
+            null
         }
+        importArchivedExternalRuns(includeIsolatedScheduledKey = targetScheduledKey)
+        val conversationId = archiveConversationId(
+            source = source,
+            conversationKey = conversationKey,
+        )
+        val exists = withContext(Dispatchers.Main.immediate) { conversationsById[conversationId] != null }
+        if (!exists) return false
+        ensureConversationLoaded(conversationId)
+        withContext(Dispatchers.Main.immediate) {
+            selectConversation(conversationId)
+        }
+        return true
+    }
+
+    /**
+     * 打开定时任务的某次运行：
+     * - 若该次 run 正在后台运行，立即在主聊天中挂载实时事件流（回放已有轨迹 + 实时流式更新）；
+     * - 若该次 run 已完成，按需导入归档并切到对应会话以供阅读和继续追问。
+     */
+    suspend fun openScheduledTaskRun(
+        runId: String,
+        archiveConversationKey: String,
+        taskTitle: String,
+        taskPrompt: String,
+        isRunning: Boolean,
+    ): Boolean {
+        if (archiveConversationKey.isBlank()) return false
+        importArchivedExternalRuns(includeIsolatedScheduledKey = archiveConversationKey)
+        val conversationId = archiveConversationId(
+            source = AgentRuntimeWire.SCHEDULED_TASK_HANDOFF_SOURCE,
+            conversationKey = archiveConversationKey,
+        )
+        val shouldAttachLive = isRunning && runId.isNotBlank() && run {
+            val active = withContext(Dispatchers.IO) {
+                AgentRuntimeClient(appContext, AndroidAgentLogger).queryActiveRuns()
+            }
+            active is AgentRuntimeClient.ActiveRunsQuery.Known && runId in active.runIds
+        }
+
+        if (shouldAttachLive) {
+            if (withContext(Dispatchers.Main.immediate) { conversationsById[conversationId] != null }) {
+                ensureConversationLoaded(conversationId)
+            }
+            withContext(Dispatchers.Main.immediate) {
+                val now = System.currentTimeMillis()
+                val effort = defaultReasoningEffort(null)
+                val existing = conversationsById[conversationId] ?: emptyChatState(effort)
+                if (conversationTitles[conversationId].isNullOrBlank()) {
+                    conversationTitles = conversationTitles + (conversationId to taskTitle.ifBlank { "定时任务" })
+                }
+                val alreadyHasRun = AgentRuntimeHistoryReducer.wasApplied(existing, runId) ||
+                    runStore.activeRunId(conversationId) == runId ||
+                    existing.messages.any { it.id == "assistant-$runId" || it.id.startsWith("assistant-$runId-") }
+                if (!alreadyHasRun) {
+                    updateConversation(
+                        conversationId,
+                        existing.copy(
+                            input = "",
+                            isStreaming = true,
+                            messages = existing.messages +
+                                UserMessageUi(
+                                    id = "user-$runId",
+                                    content = taskPrompt,
+                                ) +
+                                AgentMessageUi(
+                                    id = "assistant-$runId",
+                                    content = "",
+                                    isStreaming = true,
+                                    renderMarkdown = false,
+                                ),
+                        ),
+                    )
+                    conversationUpdatedAt = conversationUpdatedAt + (conversationId to now)
+                    startReattachedRun(
+                        runId = runId,
+                        conversationId = conversationId,
+                        operation = AgentRuntimeWire.OP_CHAT,
+                    )
+                } else {
+                    if (conversationsById[conversationId] == null) {
+                        updateConversation(conversationId, existing)
+                    }
+                    if (runStore.activeRunId(conversationId) != runId &&
+                        !AgentRuntimeHistoryReducer.wasApplied(existing, runId)
+                    ) {
+                        startReattachedRun(
+                            runId = runId,
+                            conversationId = conversationId,
+                            operation = AgentRuntimeWire.OP_CHAT,
+                        )
+                    }
+                }
+                refreshConversationSummaries()
+                selectConversation(conversationId)
+            }
+            return true
+        }
+
+        // 若刚刚在查询活跃态瞬间结束，再补扫一次归档避免漏掉最后几十毫秒落盘的结果。
+        importArchivedExternalRuns(includeIsolatedScheduledKey = archiveConversationKey)
+        val exists = withContext(Dispatchers.Main.immediate) { conversationsById[conversationId] != null }
+        if (!exists) return false
+        ensureConversationLoaded(conversationId)
+        withContext(Dispatchers.Main.immediate) {
+            selectConversation(conversationId)
+        }
+        return true
     }
 
     private fun importExternalRun(archivedRun: AgentRunArchiveStore.ArchivedRun): String? {

@@ -1534,4 +1534,19 @@
   <string name="subagent_settings_name_exists">A custom Subagent named “%1$s” already exists. Choose a different name.</string>
   <string name="subagent_settings_delete_title">Delete Subagent</string>
   <string name="subagent_settings_delete_confirm">Delete custom Subagent “%1$s”? Its agents/%1$s.md file will be removed and cannot be undone.</string>
+  <string name="route_scheduled_tasks">Scheduled Tasks</string>
+  <string name="route_scheduled_task_detail">Task Details</string>
+  <string name="route_scheduled_task_new">New Scheduled Task</string>
+  <string name="route_scheduled_task_edit">Edit Scheduled Task</string>
+  <string name="scheduled_notification_channel_results">Scheduled task results</string>
+  <string name="scheduled_notification_channel_results_desc">Summaries and updates delivered by Eta scheduled tasks</string>
+  <string name="scheduled_notification_channel_alerts">Scheduled task alerts</string>
+  <string name="scheduled_notification_channel_alerts_desc">Failures, auto-pause alerts, and actions awaiting unlock</string>
+  <string name="scheduled_notification_completed_fallback">Scheduled task completed. Tap to view full conversation.</string>
+  <string name="scheduled_notification_failed_title">Task failed: %1$s</string>
+  <string name="scheduled_notification_auto_disabled_title">Task paused: %1$s</string>
+  <string name="scheduled_notification_failed_fallback">Execution failed. Tap to inspect details.</string>
+  <string name="scheduled_notification_gui_ready_title">Ready to run: %1$s</string>
+  <string name="scheduled_action_run_now">Run now</string>
+  <string name="scheduled_action_stop">Stop</string>
 </resources>

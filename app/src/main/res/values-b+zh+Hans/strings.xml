@@ -1515,4 +1515,19 @@
   <string name="subagent_settings_name_exists">已存在名为「%1$s」的自定义 Subagent，请换用其他名称</string>
   <string name="subagent_settings_delete_title">删除 Subagent</string>
   <string name="subagent_settings_delete_confirm">确定删除自定义 Subagent「%1$s」？对应的 agents/%1$s.md 文件将被移除，此操作无法撤销。</string>
+  <string name="route_scheduled_tasks">定时任务</string>
+  <string name="route_scheduled_task_detail">任务详情</string>
+  <string name="route_scheduled_task_new">新建定时任务</string>
+  <string name="route_scheduled_task_edit">编辑定时任务</string>
+  <string name="scheduled_notification_channel_results">定时任务结果</string>
+  <string name="scheduled_notification_channel_results_desc">定时任务完成后的简报与变动提醒</string>
+  <string name="scheduled_notification_channel_alerts">定时任务告警</string>
+  <string name="scheduled_notification_channel_alerts_desc">任务执行失败、连续失败自动暂停及待解锁提醒</string>
+  <string name="scheduled_notification_completed_fallback">定时任务已完成，点按查看完整对话。</string>
+  <string name="scheduled_notification_failed_title">定时任务失败：%1$s</string>
+  <string name="scheduled_notification_auto_disabled_title">定时任务已暂停：%1$s</string>
+  <string name="scheduled_notification_failed_fallback">任务执行失败，点按查看详情。</string>
+  <string name="scheduled_notification_gui_ready_title">定时任务就绪：%1$s</string>
+  <string name="scheduled_action_run_now">立即试跑</string>
+  <string name="scheduled_action_stop">停止运行</string>
 </resources>
