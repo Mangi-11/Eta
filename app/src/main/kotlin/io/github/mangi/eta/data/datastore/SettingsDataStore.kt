@@ -1,6 +1,7 @@
 package io.github.mangi.eta.data.datastore
 
 import android.content.Context
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
@@ -183,7 +184,26 @@ internal object SettingsDataStore {
     private val APPEARANCE_INTERFACE_SCALE = floatPreferencesKey("appearance_interface_scale")
     private const val SELECTED_MODEL_BY_PROVIDER_PREFIX = "selected_model_id_by_provider."
 
-    private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = STORE_NAME)
+    internal object DefaultUiStyleMigration : DataMigration<Preferences> {
+        private val revision = intPreferencesKey("appearance_ui_style_default_revision")
+
+        override suspend fun shouldMigrate(currentData: Preferences): Boolean =
+            (currentData[revision] ?: 0) < AppearanceUiStyle.DEFAULT_REVISION
+
+        override suspend fun migrate(currentData: Preferences): Preferences =
+            currentData.toMutablePreferences().apply {
+                // 只在切换默认样式时清除旧选择，后续启动尊重用户重新选择的样式。
+                remove(APPEARANCE_UI_STYLE)
+                this[revision] = AppearanceUiStyle.DEFAULT_REVISION
+            }
+
+        override suspend fun cleanUp() = Unit
+    }
+
+    private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+        name = STORE_NAME,
+        produceMigrations = { listOf(DefaultUiStyleMigration) },
+    )
 
     @Volatile
     private lateinit var dataStore: DataStore<Preferences>

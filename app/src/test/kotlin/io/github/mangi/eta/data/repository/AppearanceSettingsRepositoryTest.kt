@@ -1,5 +1,11 @@
 package io.github.mangi.eta.data.repository
 
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.PreferencesFileSerializer
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.preferencesOf
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStoreFile
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.model.AppearanceAccentColor
@@ -7,12 +13,17 @@ import io.github.mangi.eta.data.model.AppearanceSettings
 import io.github.mangi.eta.data.model.AppearanceThemeMode
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -52,26 +63,29 @@ class AppearanceSettingsRepositoryTest {
     }
 
     @Test
-    fun upgradedUserWithoutSavedUiStyleDefaultsToCouiAndExplicitChoiceIsPreserved() = runBlocking {
-        val before = SettingsDataStore.settings()
-        try {
-            // 模拟升级用户：尚无 appearance_ui_style 持久化键时，默认使用 COUI
-            assertEquals(AppearanceUiStyle.COUI, AppearanceSettingsRepository.settings().uiStyle)
-
-            // 用户明确选择 Miuix 后，即使后续修改其他外观项，仍保留 Miuix 选择
-            AppearanceSettingsRepository.selectUiStyle(AppearanceUiStyle.MIUIX)
-            assertEquals(AppearanceUiStyle.MIUIX, AppearanceSettingsRepository.settings().uiStyle)
-
-            AppearanceSettingsRepository.update { it.copy(themeMode = AppearanceThemeMode.DARK) }
-            val afterOtherChange = AppearanceSettingsRepository.settings()
-            assertEquals(AppearanceUiStyle.MIUIX, afterOtherChange.uiStyle)
-            assertEquals(AppearanceThemeMode.DARK, afterOtherChange.themeMode)
-
-            // 用户再次明确选择 COUI，同样持久化保留
-            AppearanceSettingsRepository.selectUiStyle(AppearanceUiStyle.COUI)
-            assertEquals(AppearanceUiStyle.COUI, AppearanceSettingsRepository.settings().uiStyle)
-        } finally {
-            SettingsDataStore.updateSettings { before }
+    fun upgradeResetsSavedCouiOnceAcrossRestarts() = runBlocking {
+        val file = RuntimeEnvironment.getApplication().preferencesDataStoreFile("appearance-test-${UUID.randomUUID()}")
+        val style = stringPreferencesKey("appearance_ui_style")
+        val mode = stringPreferencesKey("appearance_theme_mode")
+        file.parentFile!!.mkdirs()
+        file.outputStream().use {
+            PreferencesFileSerializer.writeTo(preferencesOf(style to "coui", mode to "dark"), it)
+        }
+        for (expected in listOf(AppearanceUiStyle.MIUIX, AppearanceUiStyle.COUI)) {
+            val job = Job()
+            try {
+                val store = PreferenceDataStoreFactory.create(
+                    scope = CoroutineScope(Dispatchers.IO + job),
+                    migrations = listOf(SettingsDataStore.DefaultUiStyleMigration),
+                    produceFile = { file },
+                )
+                val settings = store.data.first()
+                assertEquals(expected, AppearanceUiStyle.fromPersistedValue(settings[style]))
+                assertEquals("dark", settings[mode])
+                store.edit { it[style] = "coui" }
+            } finally {
+                job.cancelAndJoin()
+            }
         }
     }
 

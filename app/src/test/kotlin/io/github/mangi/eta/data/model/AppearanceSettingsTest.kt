@@ -7,10 +7,10 @@ import org.junit.Test
 
 class AppearanceSettingsTest {
     @Test
-    fun defaultsPreserveExistingAppearanceBehaviorAndDefaultToCoui() {
+    fun defaultsPreserveExistingAppearanceBehaviorAndDefaultToMiuix() {
         val settings = AppearanceSettings()
 
-        assertEquals(AppearanceUiStyle.COUI, settings.uiStyle)
+        assertEquals(AppearanceUiStyle.MIUIX, settings.uiStyle)
         assertEquals(AppearanceThemeMode.SYSTEM, settings.themeMode)
         assertFalse(settings.monetEnabled)
         assertTrue(settings.blurEnabled)
@@ -22,8 +22,8 @@ class AppearanceSettingsTest {
 
     @Test
     fun invalidPersistedEnumsFallBackToStableDefaults() {
-        assertEquals(AppearanceUiStyle.COUI, AppearanceUiStyle.fromPersistedValue(null))
-        assertEquals(AppearanceUiStyle.COUI, AppearanceUiStyle.fromPersistedValue("unknown"))
+        assertEquals(AppearanceUiStyle.MIUIX, AppearanceUiStyle.fromPersistedValue(null))
+        assertEquals(AppearanceUiStyle.MIUIX, AppearanceUiStyle.fromPersistedValue("unknown"))
         assertEquals(AppearanceUiStyle.COUI, AppearanceUiStyle.fromPersistedValue("coui"))
         assertEquals(AppearanceUiStyle.MIUIX, AppearanceUiStyle.fromPersistedValue("miuix"))
         assertEquals(AppearanceThemeMode.SYSTEM, AppearanceThemeMode.fromPersistedValue("unknown"))

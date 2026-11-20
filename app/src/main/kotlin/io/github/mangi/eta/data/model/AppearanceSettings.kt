@@ -8,7 +8,7 @@ const val DEFAULT_INTERFACE_SCALE = 1f
 
 @Serializable
 data class AppearanceSettings(
-    val uiStyle: AppearanceUiStyle = AppearanceUiStyle.COUI,
+    val uiStyle: AppearanceUiStyle = AppearanceUiStyle.Default,
     val themeMode: AppearanceThemeMode = AppearanceThemeMode.SYSTEM,
     val monetEnabled: Boolean = false,
     val paletteStyle: AppearancePaletteStyle = AppearancePaletteStyle.TONAL_SPOT,
@@ -35,8 +35,12 @@ enum class AppearanceUiStyle(val persistedValue: String) {
         get() = this == COUI
 
     companion object {
+        val Default = MIUIX
+        // 仅在需要让已有用户重新采用默认样式时递增。
+        internal const val DEFAULT_REVISION = 1
+
         fun fromPersistedValue(value: String?): AppearanceUiStyle =
-            entries.firstOrNull { it.persistedValue == value } ?: COUI
+            entries.firstOrNull { it.persistedValue == value } ?: Default
     }
 }
 

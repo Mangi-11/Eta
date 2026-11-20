@@ -8,7 +8,7 @@ import io.github.mangi.eta.ui.components.EtaTopLayerState
 import top.yukonga.miuix.kmp.blur.Backdrop
 
 internal val LocalAppearanceSettings = staticCompositionLocalOf { AppearanceSettings() }
-internal val LocalUiStyle = staticCompositionLocalOf { AppearanceUiStyle.COUI }
+internal val LocalUiStyle = staticCompositionLocalOf { AppearanceUiStyle.Default }
 internal val LocalPlatformDensity = staticCompositionLocalOf<Density?> { null }
 internal val LocalGlassSceneBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 internal val LocalGlassPageBackdrop = staticCompositionLocalOf<Backdrop?> { null }
