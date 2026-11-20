@@ -29,10 +29,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.provider.CommunityCatalog
@@ -46,13 +42,14 @@ import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.coui.CouiCheckboxPreference
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiPageSearch
 import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarTextButton
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
 import io.github.mangi.eta.ui.navigation.AppRoute
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.CancellationException
@@ -93,10 +90,10 @@ internal fun CommunityCatalogScreen(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
             CouiLazyScaffoldPage(
                 title = stringResource(R.string.catalog_i18n_title),
                 onBack = onBack,
+                search = CouiPageSearch(query, { query = it }, stringResource(R.string.catalog_i18n_search_providers)),
                 actions = {
                     CouiTopAppBarIconButton(
                         icon = Icons.Rounded.Refresh,
@@ -105,29 +102,22 @@ internal fun CommunityCatalogScreen(
                         onClick = store::refresh,
                     )
                 },
-            ) {
-                item(key = "search") {
-                    CouiSearchBarBox(
-                        query = query,
-                        onQueryChange = { query = it },
-                        placeholder = stringResource(R.string.catalog_i18n_search_providers),
-                    )
-                }
+            ) { searching ->
 
-                item(key = "catalog_status") {
+                if (!searching) item(key = "catalog_status") {
                     ProviderSection(title = stringResource(R.string.catalog_i18n_status_section)) {
                         CouiPreference(
                             title = stringResource(R.string.catalog_i18n_community_title),
                             summary = stringResource(R.string.catalog_i18n_community_privacy),
                             showChevron = false,
                         )
-                        Divider()
+                        CouiDivider()
                         CouiPreference(
                             title = stringResource(R.string.catalog_i18n_candidate_title),
                             summary = stringResource(R.string.catalog_i18n_candidate_summary),
                             showChevron = false,
                         )
-                        Divider()
+                        CouiDivider()
                         CouiPreference(
                             title = catalog?.sourceLabel() ?: stringResource(
                                 if (store.loading) R.string.catalog_i18n_loading_local else R.string.catalog_i18n_unavailable,
@@ -136,11 +126,11 @@ internal fun CommunityCatalogScreen(
                             showChevron = false,
                         )
                         if (store.refreshing) {
-                            Divider()
+                            CouiDivider()
                             CouiPreference(title = stringResource(R.string.catalog_i18n_updating_online), showChevron = false)
                         }
                         store.refreshError?.let { error ->
-                            Divider()
+                            CouiDivider()
                             CouiPreference(
                                 title = stringResource(R.string.catalog_i18n_update_failed),
                                 summary = if (catalog != null) {
@@ -152,7 +142,7 @@ internal fun CommunityCatalogScreen(
                             )
                         }
                         if (store.loadError && catalog == null) {
-                            Divider()
+                            CouiDivider()
                             CouiPreference(
                                 title = stringResource(R.string.catalog_i18n_local_load_failed),
                                 summary = stringResource(R.string.catalog_i18n_local_load_failed_summary),
@@ -362,6 +352,7 @@ internal fun CommunityCatalogProviderScreen(
             CouiLazyScaffoldPage(
                 title = provider?.name ?: stringResource(R.string.catalog_i18n_select_models),
                 onBack = onBack,
+                search = CouiPageSearch(query, { query = it }, stringResource(R.string.catalog_i18n_search_models)),
                 actions = {
                     CouiTopAppBarTextButton(
                         text = stringResource(R.string.catalog_i18n_import_count, selectedIds.size),
@@ -369,7 +360,7 @@ internal fun CommunityCatalogProviderScreen(
                         onClick = onImport,
                     )
                 },
-            ) {
+            ) { searching ->
                 if (provider == null) {
                     item(key = "missing") {
                         if (store.loading) {
@@ -384,14 +375,14 @@ internal fun CommunityCatalogProviderScreen(
                     return@CouiLazyScaffoldPage
                 }
 
-                item(key = "provider") {
+                if (!searching) item(key = "provider") {
                     ProviderSection(title = stringResource(R.string.catalog_i18n_provider_section)) {
                         CouiPreference(title = stringResource(R.string.catalog_i18n_field_name), summary = provider.name, showChevron = false)
-                        Divider()
+                        CouiDivider()
                         CouiPreference(title = "Base URL", summary = provider.baseUrl, showChevron = false)
                     }
                 }
-                importErrorRes?.let { errorRes ->
+                if (!searching) importErrorRes?.let { errorRes ->
                     item(key = "import_error") {
                         Text(
                             text = stringResource(errorRes),
@@ -400,13 +391,6 @@ internal fun CommunityCatalogProviderScreen(
                             modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp),
                         )
                     }
-                }
-                item(key = "model_search") {
-                    CouiSearchBarBox(
-                        query = query,
-                        onQueryChange = { query = it },
-                        placeholder = stringResource(R.string.catalog_i18n_search_models),
-                    )
                 }
                 item(key = "models_title") {
                     val visibleIds = remember(filteredModels) { filteredModels.mapTo(mutableSetOf()) { it.modelId } }

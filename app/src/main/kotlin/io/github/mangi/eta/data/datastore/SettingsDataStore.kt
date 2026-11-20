@@ -8,7 +8,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -181,7 +180,6 @@ internal object SettingsDataStore {
         booleanPreferencesKey("appearance_swipe_dismiss_enabled")
     private val APPEARANCE_PREDICTIVE_BACK_ENABLED =
         booleanPreferencesKey("appearance_predictive_back_enabled")
-    private val APPEARANCE_INTERFACE_SCALE = floatPreferencesKey("appearance_interface_scale")
     private const val SELECTED_MODEL_BY_PROVIDER_PREFIX = "selected_model_id_by_provider."
 
     internal object DefaultUiStyleMigration : DataMigration<Preferences> {
@@ -254,7 +252,7 @@ internal object SettingsDataStore {
             prefs.putOrRemove(SELECTED_PROVIDER_ID, updated.selectedProviderId)
             prefs.putOrRemove(SELECTED_MODEL_ID, updated.selectedModelId)
             prefs[MEMORY_ENABLED] = updated.memoryEnabled
-            prefs.putAppearance(updated.appearance.normalized())
+            prefs.putAppearance(updated.appearance)
         }
     }
 
@@ -350,12 +348,12 @@ internal object SettingsDataStore {
     }
 
     suspend fun setAppearanceSettings(settings: AppearanceSettings) {
-        updateSettings { it.copy(appearance = settings.normalized()) }
+        updateSettings { it.copy(appearance = settings) }
     }
 
     suspend fun updateAppearanceSettings(transform: (AppearanceSettings) -> AppearanceSettings) {
         updateSettings { settings ->
-            settings.copy(appearance = transform(settings.appearance).normalized())
+            settings.copy(appearance = transform(settings.appearance))
         }
     }
 
@@ -411,8 +409,7 @@ internal object SettingsDataStore {
             ),
             swipeDismissEnabled = this[APPEARANCE_SWIPE_DISMISS_ENABLED] ?: true,
             predictiveBackEnabled = this[APPEARANCE_PREDICTIVE_BACK_ENABLED] ?: true,
-            interfaceScale = this[APPEARANCE_INTERFACE_SCALE] ?: 1f,
-        ).normalized(),
+        ),
     )
 
     private fun MutablePreferences.putAppearance(settings: AppearanceSettings) {
@@ -430,6 +427,5 @@ internal object SettingsDataStore {
         this[APPEARANCE_TOP_BAR_BLUR_STYLE] = settings.topBarBlurStyle.persistedValue
         this[APPEARANCE_SWIPE_DISMISS_ENABLED] = settings.swipeDismissEnabled
         this[APPEARANCE_PREDICTIVE_BACK_ENABLED] = settings.predictiveBackEnabled
-        this[APPEARANCE_INTERFACE_SCALE] = settings.interfaceScale
     }
 }

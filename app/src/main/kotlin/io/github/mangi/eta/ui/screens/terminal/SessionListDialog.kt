@@ -83,18 +83,17 @@ internal fun SessionListDialog(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            if (show) {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.terminal_sessions),
-                    message = null,
-                    confirmText = stringResource(R.string.terminal_new_session),
-                    cancelText = stringResource(R.string.action_close),
-                    onConfirm = { onNew(); onDismiss() },
-                    onDismissRequest = onDismiss,
-                ) {
-                    listBody()
-                }
+            CouiConfirmDialog(
+                visible = show,
+                title = stringResource(R.string.terminal_sessions),
+                message = null,
+                confirmText = stringResource(R.string.terminal_new_session),
+                cancelText = stringResource(R.string.action_close),
+                scrollableContent = false,
+                onConfirm = { onNew(); onDismiss() },
+                onDismissRequest = onDismiss,
+            ) {
+                listBody()
             }
         }
         AppearanceUiStyle.MIUIX -> {

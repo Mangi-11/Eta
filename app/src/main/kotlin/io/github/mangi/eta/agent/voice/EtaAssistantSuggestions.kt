@@ -32,9 +32,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.motion.couiPressMotion
-import com.itos.coui.motion.rememberCouiPressMotion
 import io.github.mangi.eta.R
+import io.github.mangi.eta.ui.components.coui.couiPressMotion
+import io.github.mangi.eta.ui.components.coui.rememberCouiPressMotion
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -123,7 +123,6 @@ internal fun EtaAssistantSuggestions(
                             interactive = visible,
                             interactionSource = interactionSource,
                             pressMotion = press,
-                            spotlightEnabled = true,
                         )
                         .clickable(
                             interactionSource = interactionSource,

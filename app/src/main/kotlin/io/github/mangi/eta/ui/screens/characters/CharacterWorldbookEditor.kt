@@ -9,12 +9,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Group
-import com.itos.coui.switch.CouiSwitchDefaults
-import com.itos.coui.switch.Switch as CouiSwitch
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.roleplay.CharacterBookEntryDraft
 import io.github.mangi.eta.agent.roleplay.CharacterWorldbook
@@ -23,8 +17,12 @@ import io.github.mangi.eta.ui.app.CharacterLibraryStore
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
+import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
@@ -51,12 +49,14 @@ internal fun LazyListScope.characterWorldbookEditor(
         val summary = stringResource(R.string.character_worldbook_summary_format, countText, toggleText)
         val embeddedTitle = stringResource(R.string.character_worldbook_embedded)
         if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-            Group {
-                CouiPreference(
-                    title = embeddedTitle,
-                    summary = summary,
-                    onClick = onToggleExpanded,
-                )
+            CouiPreferenceGroup {
+                item {
+                    CouiPreference(
+                        title = embeddedTitle,
+                        summary = summary,
+                        onClick = onToggleExpanded,
+                    )
+                }
             }
         } else {
             Card(
@@ -90,14 +90,16 @@ internal fun LazyListScope.characterWorldbookEditor(
         val recursiveTitle = stringResource(R.string.character_worldbook_recursive_title)
         val recursiveSummary = stringResource(R.string.character_worldbook_recursive_summary)
         if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-            Group {
-                CouiSwitchPreference(
-                    title = recursiveTitle,
-                    summary = recursiveSummary,
-                    checked = book.recursiveScanning == true,
-                    enabled = enabled,
-                    onCheckedChange = { value -> store.updateWorldbook { it.copy(recursiveScanning = value) } },
-                )
+            CouiPreferenceGroup {
+                item {
+                    CouiSwitchPreference(
+                        title = recursiveTitle,
+                        summary = recursiveSummary,
+                        checked = book.recursiveScanning == true,
+                        enabled = enabled,
+                        onCheckedChange = { value -> store.updateWorldbook { it.copy(recursiveScanning = value) } },
+                    )
+                }
             }
         } else {
             Card(
@@ -136,37 +138,36 @@ internal fun LazyListScope.characterWorldbookEditor(
             }
         }
         if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-            val dark = CouiTheme.isDark
-            val colors = CouiPageDefaults.themeColors(dark)
-            Group {
-                CouiPreference(
-                    title = entryTitle,
-                    summary = entrySummary,
-                    onClick = { onExpandEntry(if (expandedEntry == index) null else index) },
-                    trailing = {
-                        CouiSwitch(
-                            checked = entry.enabled,
-                            enabled = enabled,
-                            dark = dark,
-                            colors = CouiSwitchDefaults.colors(colors.accent, dark),
-                            onCheckedChange = onToggleEntry,
-                        )
-                    },
-                )
-                if (expandedEntry == index) {
-                    Divider()
-                    CharacterWorldbookEntryEditor(
-                        entry = entry,
-                        enabled = enabled,
-                        unsupported = unsupported[index].orEmpty(),
-                        onChange = { replacement ->
-                            store.updateWorldbook { current -> current.copy(entries = current.entries.toMutableList().apply { this[index] = replacement }) }
-                        },
-                        onDelete = {
-                            onExpandEntry(null)
-                            store.updateWorldbook { current -> current.copy(entries = current.entries.filterIndexed { i, _ -> i != index }) }
+            CouiPreferenceGroup {
+                item {
+                    CouiPreference(
+                        title = entryTitle,
+                        summary = entrySummary,
+                        onClick = { onExpandEntry(if (expandedEntry == index) null else index) },
+                        trailing = {
+                            CouiSwitch(
+                                checked = entry.enabled,
+                                enabled = enabled,
+                                onCheckedChange = onToggleEntry,
+                            )
                         },
                     )
+                }
+                if (expandedEntry == index) {
+                    item {
+                        CharacterWorldbookEntryEditor(
+                            entry = entry,
+                            enabled = enabled,
+                            unsupported = unsupported[index].orEmpty(),
+                            onChange = { replacement ->
+                                store.updateWorldbook { current -> current.copy(entries = current.entries.toMutableList().apply { this[index] = replacement }) }
+                            },
+                            onDelete = {
+                                onExpandEntry(null)
+                                store.updateWorldbook { current -> current.copy(entries = current.entries.filterIndexed { i, _ -> i != index }) }
+                            },
+                        )
+                    }
                 }
             }
         } else {
@@ -283,7 +284,7 @@ private fun CharacterWorldbookEntryEditor(
             enabled = enabled,
             onCheckedChange = { onChange(entry.copy(constant = it)) },
         )
-        Divider()
+        CouiDivider()
         CouiSwitchPreference(
             title = beforeCharTitle,
             summary = beforeCharSummary,

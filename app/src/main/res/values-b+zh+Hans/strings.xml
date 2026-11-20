@@ -197,11 +197,6 @@
   <string name="appearance_predictive_back_summary">启用预测性返回动画效果</string>
   <string name="appearance_progressive_blur">渐进模糊</string>
   <string name="appearance_progressive_blur_summary">为顶栏与侧栏浮层启用渐进模糊，关闭可提升流畅度</string>
-  <string name="appearance_interface_scale">界面缩放</string>
-  <string name="appearance_interface_scale_summary" formatted="false">调整全局显示比例（80%–110%）</string>
-  <string name="appearance_interface_scale_dialog_title">界面缩放</string>
-  <string name="appearance_interface_scale_dialog_summary">请输入 80 至 110 之间的整数</string>
-  <string name="appearance_interface_scale_input_label">百分比</string>
   <string name="conversation_unnamed">新对话</string>
   <string name="conversation_loading">正在加载会话…</string>
   <string name="conversation_load_failed">会话加载失败</string>

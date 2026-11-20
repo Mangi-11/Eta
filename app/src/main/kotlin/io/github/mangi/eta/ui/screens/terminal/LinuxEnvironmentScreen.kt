@@ -38,11 +38,6 @@ import io.github.mangi.eta.agent.terminal.LinuxPackageProfiles
 import io.github.mangi.eta.agent.terminal.PackageProfileInstallProgress
 import io.github.mangi.eta.agent.terminal.PackageProfileInstallResult
 import io.github.mangi.eta.agent.terminal.PackageProfileInstallStage
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.repository.LinuxEnvironmentSettingsRepository
 import io.github.mangi.eta.ui.app.LocalUiStyle
@@ -53,7 +48,9 @@ import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.navigation.AppRoute
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -289,8 +286,8 @@ internal fun LinuxEnvironmentScreen(
                 },
             )
         }
-        item(key = "configuration-title") {
-            if (uiStyle != AppearanceUiStyle.COUI) {
+        if (uiStyle != AppearanceUiStyle.COUI) {
+            item(key = "configuration-title") {
                 SmallTitle(stringResource(R.string.linux_environment_configuration))
             }
         }
@@ -318,32 +315,36 @@ internal fun LinuxEnvironmentScreen(
                 },
             )
         }
-        item(key = "files-title") {
-            if (uiStyle != AppearanceUiStyle.COUI) {
+        if (uiStyle != AppearanceUiStyle.COUI) {
+            item(key = "files-title") {
                 SmallTitle(stringResource(R.string.linux_environment_files))
             }
         }
         item(key = "files-card") {
             if (uiStyle == AppearanceUiStyle.COUI) {
-                Group(title = stringResource(R.string.linux_environment_files)) {
-                    CouiPreference(
-                        title = stringResource(R.string.capability_workspace),
-                        summary = stringResource(R.string.capability_workspace_summary),
-                        onClick = { onNavigate(AppRoute.Workspace) },
-                    )
+                CouiPreferenceGroup(title = stringResource(R.string.linux_environment_files)) {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.capability_workspace),
+                            summary = stringResource(R.string.capability_workspace_summary),
+                            onClick = { onNavigate(AppRoute.Workspace) },
+                        )
+                    }
                     if (selectedBaseReady) {
-                        Divider()
-                        CouiPreference(
-                            title = stringResource(R.string.shared_folders_entry_title),
-                            summary = stringResource(R.string.linux_environment_shared_folders_summary),
-                            onClick = { onNavigate(AppRoute.SharedFolders) },
-                        )
-                        Divider()
-                        CouiPreference(
-                            title = stringResource(R.string.linux_files_entry_title),
-                            summary = stringResource(R.string.linux_files_entry_summary),
-                            onClick = { onNavigate(AppRoute.LinuxFiles(selectedDistribution.wireName)) },
-                        )
+                        item {
+                            CouiPreference(
+                                title = stringResource(R.string.shared_folders_entry_title),
+                                summary = stringResource(R.string.linux_environment_shared_folders_summary),
+                                onClick = { onNavigate(AppRoute.SharedFolders) },
+                            )
+                        }
+                        item {
+                            CouiPreference(
+                                title = stringResource(R.string.linux_files_entry_title),
+                                summary = stringResource(R.string.linux_files_entry_summary),
+                                onClick = { onNavigate(AppRoute.LinuxFiles(selectedDistribution.wireName)) },
+                            )
+                        }
                     }
                 }
             } else {
@@ -374,8 +375,8 @@ internal fun LinuxEnvironmentScreen(
         }
 
         if (selectedToolsReady) {
-            item(key = "optional-tools-title") {
-                if (uiStyle != AppearanceUiStyle.COUI) {
+            if (uiStyle != AppearanceUiStyle.COUI) {
+                item(key = "optional-tools-title") {
                     SmallTitle(stringResource(R.string.ui_optional_tools_3097d6), modifier = Modifier.animateItem())
                 }
             }
@@ -442,7 +443,7 @@ internal fun LinuxEnvironmentScreen(
                                     )
                                 },
                             )
-                            Divider()
+                            CouiDivider()
                         } else {
                             BasicComponent(
                                 title = rowTitle,
@@ -522,11 +523,13 @@ internal fun LinuxEnvironmentScreen(
                     }
                 }
                 if (uiStyle == AppearanceUiStyle.COUI) {
-                    Group(
+                    CouiPreferenceGroup(
                         modifier = Modifier.animateItem(),
                         title = stringResource(R.string.ui_optional_tools_3097d6),
                     ) {
-                        optionalItemsContent()
+                        item {
+                            optionalItemsContent()
+                        }
                     }
                 } else {
                     Card(
@@ -547,7 +550,7 @@ internal fun LinuxEnvironmentScreen(
             CouiLazyScaffoldPage(
                 title = stringResource(R.string.ui_linux_tool_environment_314d22),
                 onBack = onBack,
-                content = listContent,
+                content = { listContent() },
             )
         }
         AppearanceUiStyle.MIUIX -> {

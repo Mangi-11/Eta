@@ -80,18 +80,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.shape.CouiShape
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.BrowserSessionSnapshot
 import io.github.mangi.eta.agent.imagegen.ImageGenToolCatalog
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.repository.ConversationBranchBoundary
+import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
+import io.github.mangi.eta.ui.components.coui.rememberCouiPageBackdrop
 import io.github.mangi.eta.ui.model.branchMessageOutline
 import io.github.mangi.eta.ui.app.AgentConversationRevisionReducer
 import io.github.mangi.eta.ui.app.LocalUiStyle
@@ -113,6 +109,11 @@ import io.github.mangi.eta.ui.model.UserMessageUi
 import io.github.mangi.eta.ui.model.latestContextUsage
 import io.github.mangi.eta.ui.voice.SpeechAutoReadAloud
 import io.github.mangi.eta.ui.voice.SpeechPlaybackHost
+import io.github.suqi8.coui.kmp.basic.IconButton as CouiIconButton
+import io.github.suqi8.coui.kmp.blur.LayerBackdrop as CouiLayerBackdrop
+import io.github.suqi8.coui.kmp.blur.layerBackdrop
+import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlin.math.exp
 import kotlin.math.min
 import kotlinx.coroutines.CancellationException
@@ -125,7 +126,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.Backdrop
@@ -382,6 +382,8 @@ private fun AgentChatScaffold(
 ) {
     val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val chatBackdrop = if (isCoui) null else rememberGlassBackdrop()
+    val couiChatBackdrop = if (isCoui) rememberCouiPageBackdrop(CouiTheme.colorScheme.backgroundWithCard) else null
+    val couiCapture = if (couiChatBackdrop == null) Modifier else Modifier.layerBackdrop(couiChatBackdrop)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -408,6 +410,7 @@ private fun AgentChatScaffold(
                 focusInputOnSync = focusInputOnSync,
                 messageEdit = messageEdit,
                 glassBackdrop = chatBackdrop,
+                couiBackdrop = couiChatBackdrop,
                 onSubmit = onSubmit,
                 onInterruptAndSubmit = onInterruptAndSubmit,
                 onSteerQueuedMessage = onSteerQueuedMessage,
@@ -431,7 +434,8 @@ private fun AgentChatScaffold(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .captureGlassBackdrop(chatBackdrop),
+                .captureGlassBackdrop(chatBackdrop)
+                .then(couiCapture),
         ) {
             if (!hasMessages) {
                 EmptyChatState(
@@ -886,7 +890,7 @@ internal fun AgentConversationMessages(
                 }
                 if (isCoui) {
                     val couiDark = CouiTheme.isDark
-                    IconButton(
+                    CouiIconButton(
                         modifier = Modifier
                             .dropShadow(
                                 shape = CircleShape,
@@ -902,7 +906,8 @@ internal fun AgentConversationMessages(
                                 shape = CircleShape,
                             ),
                         onClick = scrollToBottom,
-                        backgroundColor = if (couiDark) Color(0xFF24262B) else Color.White,
+                        backgroundColor = CouiTheme.colorScheme.surface,
+                        material = false,
                         minWidth = 36.dp,
                         minHeight = 36.dp,
                     ) {
@@ -1084,6 +1089,7 @@ private fun AgentChatBottomBar(
     focusInputOnSync: Boolean,
     messageEdit: MessageEditUiState?,
     glassBackdrop: Backdrop?,
+    couiBackdrop: CouiLayerBackdrop?,
     onSubmit: (String) -> Unit,
     onInterruptAndSubmit: (String) -> Unit,
     onSteerQueuedMessage: (String) -> Unit,
@@ -1163,6 +1169,7 @@ private fun AgentChatBottomBar(
                 onRemoveFileReference = onRemoveFileReference,
                 onCancelMessageEdit = onCancelMessageEdit,
                 glassBackdrop = glassBackdrop,
+                couiBackdrop = couiBackdrop,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

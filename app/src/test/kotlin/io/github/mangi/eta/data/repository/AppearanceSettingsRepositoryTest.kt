@@ -39,7 +39,6 @@ class AppearanceSettingsRepositoryTest {
             themeMode = AppearanceThemeMode.DARK,
             monetEnabled = true,
             accentColor = AppearanceAccentColor.TEAL,
-            interfaceScale = 0.9f,
         )
 
         try {

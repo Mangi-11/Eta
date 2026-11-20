@@ -40,18 +40,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.itos.coui.dialog.CouiDialogAction
-import com.itos.coui.dialog.CouiDialogDefaults
-import com.itos.coui.dialog.CouiDialogPlacement
-import com.itos.coui.dialog.Dialog
-import com.itos.coui.menu.rememberCouiWindowBackdrop
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot
 import io.github.mangi.eta.agent.subagent.SubagentStepSnapshot
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
+import io.github.mangi.eta.ui.components.coui.CouiBottomSheet
+import io.github.mangi.eta.ui.components.coui.CouiPanelDefaults
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
 import top.yukonga.miuix.kmp.basic.Icon
@@ -169,19 +164,10 @@ internal fun SubagentActivityRow(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            val dark = CouiTheme.isDark
-            Dialog(
-                visible = showInspector,
+            CouiBottomSheet(
+                show = showInspector,
                 onDismissRequest = { showInspector = false },
-                dark = dark,
                 title = taskTitle,
-                confirmAction = CouiDialogAction(
-                    text = stringResource(R.string.action_close),
-                    onClick = { showInspector = false },
-                ),
-                placement = CouiDialogPlacement.Bottom,
-                material = rememberCouiDialogMaterial(dark),
-                backdrop = rememberCouiWindowBackdrop(),
             ) {
                 SubagentInspectorContent(
                     messageId = message.id,
@@ -265,7 +251,11 @@ private fun SubagentInspectorContent(
             .fillMaxWidth()
             .then(
                 if (isCoui) {
-                    Modifier.padding(horizontal = CouiDialogDefaults.contentPadding, vertical = 8.dp)
+                    Modifier
+                        .heightIn(max = maxSheetHeight)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = CouiPanelDefaults.contentPadding)
+                        .padding(top = 8.dp, bottom = 24.dp)
                 } else {
                     Modifier
                         .heightIn(max = maxSheetHeight)

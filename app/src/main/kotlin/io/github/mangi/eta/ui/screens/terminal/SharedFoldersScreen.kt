@@ -46,11 +46,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.itos.coui.dialog.CouiDialogDefaults
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Footer
-import com.itos.coui.layout.Group
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.AlpineEnvironmentPaths
 import io.github.mangi.eta.agent.terminal.LinuxDistribution
@@ -69,12 +64,16 @@ import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceFooter
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -191,82 +190,114 @@ internal fun SharedFoldersScreen(
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
             val pageColors = CouiPageDefaults.themeColors()
-            val dialogColors = CouiDialogDefaults.themeColors()
+
             CouiScaffoldPage(
                 title = stringResource(R.string.shared_folders_title),
                 onBack = onBack,
+                overlay = {
+                    SharedFolderPickerDialog(
+                        show = showPicker,
+                        session = pickerSession,
+                        context = context,
+                        supervisor = shellSupervisor,
+                        existing = mounts,
+                        extraForbiddenRoots = rootfsPaths,
+                        onDismiss = { showPicker = false },
+                        onConfirm = onConfirmPicker,
+                    )
+                    val activeRemove = removeTarget ?: retainedRemoveTarget
+                    CouiConfirmDialog(
+                        visible = removeTarget != null,
+                        title = stringResource(R.string.shared_folders_remove_title),
+                        message = activeRemove?.let { target ->
+                            stringResource(R.string.shared_folders_remove_message, target.name, target.sourcePath)
+                        },
+                        confirmText = stringResource(R.string.action_delete),
+                        confirmEnabled = activeRemove != null,
+                        destructive = true,
+                        onConfirm = { activeRemove?.let(onConfirmRemove) },
+                        onDismissRequest = { removeTarget = null },
+                        onDismissFinished = { if (removeTarget == null) retainedRemoveTarget = null },
+                    )
+                },
             ) {
-                Group {
+                CouiPreferenceGroup {
                     if (mounts.isEmpty()) {
-                        CouiPreference(
-                            title = stringResource(R.string.shared_folders_empty),
-                            summary = stringResource(R.string.shared_folders_entry_summary),
-                            showChevron = false,
-                        )
-                        Divider()
+                        item {
+                            CouiPreference(
+                                title = stringResource(R.string.shared_folders_empty),
+                                summary = stringResource(R.string.shared_folders_entry_summary),
+                                showChevron = false,
+                            )
+                        }
                     }
                     mounts.forEach { mount ->
                         val missing = sourceExists[mount.sourcePath] == false
-                        CouiPreference(
-                            title = mount.name,
-                            summary = buildString {
-                                append(mount.sourcePath)
-                                append("\n")
-                                append(
-                                    context.getString(
-                                        R.string.shared_folders_mount_point,
-                                        "${SharedFolderMounts.LINUX_MOUNTS_ROOT}/${mount.name}",
-                                    ),
-                                )
-                                if (missing) {
-                                    append(" · ")
-                                    append(context.getString(R.string.shared_folders_source_missing))
-                                }
-                            },
-                            summaryColor = if (missing) dialogColors.destructive else Color.Unspecified,
-                            showChevron = false,
-                            trailing = {
-                                IconButton(onClick = { removeTarget = mount }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.DeleteOutline,
-                                        contentDescription = stringResource(R.string.action_delete),
-                                        modifier = Modifier.size(20.dp),
-                                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        item {
+                            CouiPreference(
+                                title = mount.name,
+                                summary = buildString {
+                                    append(mount.sourcePath)
+                                    append("\n")
+                                    append(
+                                        context.getString(
+                                            R.string.shared_folders_mount_point,
+                                            "${SharedFolderMounts.LINUX_MOUNTS_ROOT}/${mount.name}",
+                                        ),
                                     )
-                                }
-                            },
-                        )
-                        Divider()
+                                    if (missing) {
+                                        append(" · ")
+                                        append(context.getString(R.string.shared_folders_source_missing))
+                                    }
+                                },
+                                summaryColor = if (missing) CouiTheme.colorScheme.error else Color.Unspecified,
+                                showChevron = false,
+                                trailing = {
+                                    IconButton(onClick = { removeTarget = mount }) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.DeleteOutline,
+                                            contentDescription = stringResource(R.string.action_delete),
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        )
+                                    }
+                                },
+                            )
+                        }
                     }
-                    CouiPreference(
-                        title = stringResource(R.string.shared_folders_add),
-                        titleColor = pageColors.accent,
-                        showChevron = false,
-                        onClick = onAddMountClick,
-                    )
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.shared_folders_add),
+                            titleColor = pageColors.accent,
+                            showChevron = false,
+                            onClick = onAddMountClick,
+                        )
+                    }
                 }
 
                 notice?.let { message ->
-                    Group {
-                        CouiPreference(
-                            title = message,
-                            titleColor = dialogColors.destructive,
-                            showChevron = false,
-                            trailing = {
-                                IconButton(onClick = { notice = null }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = stringResource(R.string.action_close),
-                                        modifier = Modifier.size(18.dp),
-                                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                    )
-                                }
-                            },
-                        )
+                    CouiPreferenceGroup {
+                        item {
+                            CouiPreference(
+                                title = message,
+                                titleColor = CouiTheme.colorScheme.error,
+                                showChevron = false,
+                                trailing = {
+                                    IconButton(onClick = { notice = null }) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Close,
+                                            contentDescription = stringResource(R.string.action_close),
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        )
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
 
-                Footer(text = stringResource(R.string.shared_folders_footer))
+                CouiPreferenceFooter(text = stringResource(R.string.shared_folders_footer))
                 CouiPageBottomSpacer()
             }
         }
@@ -402,33 +433,6 @@ internal fun SharedFoldersScreen(
             }
         }
     }
-
-    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-        if (showPicker) {
-            SharedFolderPickerDialog(
-                show = true,
-                session = pickerSession,
-                context = context,
-                supervisor = shellSupervisor,
-                existing = mounts,
-                extraForbiddenRoots = rootfsPaths,
-                onDismiss = { showPicker = false },
-                onConfirm = onConfirmPicker,
-            )
-        }
-
-        removeTarget?.let { target ->
-            CouiConfirmDialog(
-                visible = true,
-                title = stringResource(R.string.shared_folders_remove_title),
-                message = stringResource(R.string.shared_folders_remove_message, target.name, target.sourcePath),
-                confirmText = stringResource(R.string.action_delete),
-                destructive = true,
-                onConfirm = { onConfirmRemove(target) },
-                onDismissRequest = { removeTarget = null },
-            )
-        }
-    }
 }
 
 @Composable
@@ -443,10 +447,10 @@ private fun SharedFolderPickerDialog(
     onConfirm: (sourcePath: String, name: String) -> Unit,
 ) {
     val uiStyle = LocalUiStyle.current
-    if (uiStyle == AppearanceUiStyle.COUI && !show) return
     val dialogBody: @Composable () -> Unit = {
         key(session) {
             SharedFolderPickerBody(
+                show = show,
                 context = context,
                 supervisor = supervisor,
                 existing = existing,
@@ -475,6 +479,7 @@ private fun SharedFolderPickerDialog(
 
 @Composable
 private fun SharedFolderPickerBody(
+    show: Boolean,
     context: Context,
     supervisor: ShellProcessSupervisor,
     existing: List<SharedFolderMount>,
@@ -505,7 +510,8 @@ private fun SharedFolderPickerBody(
         if (!nameTouched) nameInput = SharedFolderMounts.defaultName(normalized)
     }
 
-    LaunchedEffect(path) {
+    LaunchedEffect(show, path) {
+        if (!show) return@LaunchedEffect
         entries = null
         val result = withContext(Dispatchers.IO) {
             runOneShotShell(
@@ -664,10 +670,11 @@ private fun SharedFolderPickerBody(
 
     if (uiStyle == AppearanceUiStyle.COUI) {
         CouiConfirmDialog(
-            visible = true,
+            visible = show,
             title = stringResource(R.string.shared_folders_picker_title),
             message = null,
             confirmText = stringResource(R.string.shared_folders_add),
+            scrollableContent = false,
             onConfirm = onValidateAndConfirm,
             onDismissRequest = onDismiss,
         ) {

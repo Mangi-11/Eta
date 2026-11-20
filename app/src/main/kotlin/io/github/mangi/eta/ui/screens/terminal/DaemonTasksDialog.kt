@@ -71,15 +71,14 @@ internal fun DaemonTasksDialog(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            if (show) {
-                CouiNoticeDialog(
-                    visible = true,
-                    title = stringResource(R.string.terminal_daemon_tasks),
-                    message = null,
-                    onDismissRequest = onDismiss,
-                ) {
-                    body()
-                }
+            CouiNoticeDialog(
+                visible = show,
+                title = stringResource(R.string.terminal_daemon_tasks),
+                message = null,
+                scrollableContent = false,
+                onDismissRequest = onDismiss,
+            ) {
+                body()
             }
         }
         AppearanceUiStyle.MIUIX -> {

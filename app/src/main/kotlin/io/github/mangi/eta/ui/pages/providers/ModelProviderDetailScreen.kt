@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,11 +40,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.datastore.SettingsDataStore
@@ -68,6 +64,8 @@ import io.github.mangi.eta.ui.components.MiuixScaffold
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
@@ -82,6 +80,10 @@ import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
 import io.github.mangi.eta.ui.navigation.NewProviderType
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
+import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
+import io.github.suqi8.coui.kmp.utils.rememberCOUIFlingBehavior
+import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -212,12 +214,16 @@ internal fun ModelProviderDetailScreen(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            CouiScaffold(title = title, onBack = onBack, compactTitle = true) { contentPadding, _, nestedScrollConnection, sidePadding ->
+            CouiScaffold(title = title, onBack = onBack, compactTitle = true) { contentPadding, rawPadding, nestedScrollConnection, sidePadding ->
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .horizontalCutoutPadding()
-                        .padding(top = contentPadding.calculateTopPadding()),
+                        .padding(
+                            top = contentPadding.calculateTopPadding(),
+                            bottom = contentPadding.calculateBottomPadding(),
+                        )
+                        .consumeWindowInsets(rawPadding),
                 ) {
                     if (!isNew) {
                         CouiSegmentedTabs(
@@ -480,19 +486,33 @@ private fun ProviderConfigTab(
     val onOverscrollChanged: (Float) -> Unit = remember(scrollState) {
         { scrollState?.overscrollOffset = it }
     }
+    val scrollModifier = if (uiStyle == AppearanceUiStyle.COUI) {
+        Modifier
+            .couiScrollEndHaptic()
+            .couiOverScrollVertical()
+    } else {
+        Modifier
+            .scrollEndHaptic()
+            .overScrollVertical(onOffsetChanged = onOverscrollChanged)
+    }
+    val flingBehavior = if (uiStyle == AppearanceUiStyle.COUI) {
+        rememberCOUIFlingBehavior()
+    } else {
+        androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
+    }
     LazyColumn(
         state = listState,
         modifier = Modifier
             .fillMaxSize()
             .imePadding()
-            .scrollEndHaptic()
-            .overScrollVertical(onOffsetChanged = onOverscrollChanged)
+            .then(scrollModifier)
             .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier),
         contentPadding = PaddingValues(
             start = contentSidePadding,
             top = contentTopPadding,
             end = contentSidePadding,
         ),
+        flingBehavior = flingBehavior,
         overscrollEffect = null,
     ) {
         item(key = "connection") {
@@ -518,7 +538,7 @@ private fun ProviderConfigTab(
                     onCancel = loginStore::cancel,
                 )
                 if (uiStyle == AppearanceUiStyle.COUI) {
-                    Divider()
+                    CouiDivider()
                     CouiPreference(
                         title = stringResource(R.string.ui_test_connection_10b7d8),
                         summary = testStatus,
@@ -560,18 +580,20 @@ private fun ProviderConfigTab(
                 }
             }
             if (uiStyle == AppearanceUiStyle.COUI) {
-                Group(title = stringResource(R.string.ui_system_prompt_word_193981)) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 12.dp),
-                    ) {
-                        CouiTextField(
-                            state = rememberDraftTextFieldState(draft.systemPrompt) { onDraftChange(draft.copy(systemPrompt = it)) },
-                            placeholder = stringResource(R.string.ui_leave_blank_to_use_the_default_mobile_agent_prompt_w_21e7c8),
-                            singleLine = false,
-                            minLines = 4,
-                        )
+                CouiPreferenceGroup(title = stringResource(R.string.ui_system_prompt_word_193981)) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 12.dp),
+                        ) {
+                            CouiTextField(
+                                state = rememberDraftTextFieldState(draft.systemPrompt) { onDraftChange(draft.copy(systemPrompt = it)) },
+                                placeholder = stringResource(R.string.ui_leave_blank_to_use_the_default_mobile_agent_prompt_w_21e7c8),
+                                singleLine = false,
+                                minLines = 4,
+                            )
+                        }
                     }
                 }
             } else {
@@ -725,32 +747,28 @@ private fun ProviderConfigTab(
 
     when (uiStyle) {
         AppearanceUiStyle.COUI -> {
-            if (showDeleteDialog) {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_remove_provider_9f848f),
-                    message = stringResource(R.string.provider_delete_summary, providerDisplayName),
-                    confirmText = deleteConfirmText,
-                    confirmEnabled = !isWorking,
-                    cancelEnabled = !isWorking,
-                    destructive = true,
-                    onConfirm = onConfirmDelete,
-                    onDismissRequest = { if (!isWorking) showDeleteDialog = false },
-                )
-            }
-            if (showResetDialog) {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_reset_built_in_configuration_35b6ec),
-                    message = stringResource(R.string.provider_reset_summary, providerDisplayName),
-                    confirmText = resetConfirmText,
-                    confirmEnabled = !isWorking,
-                    cancelEnabled = !isWorking,
-                    destructive = true,
-                    onConfirm = onConfirmReset,
-                    onDismissRequest = { if (!isWorking) showResetDialog = false },
-                )
-            }
+            CouiConfirmDialog(
+                visible = showDeleteDialog,
+                title = stringResource(R.string.ui_remove_provider_9f848f),
+                message = stringResource(R.string.provider_delete_summary, providerDisplayName),
+                confirmText = deleteConfirmText,
+                confirmEnabled = !isWorking,
+                cancelEnabled = !isWorking,
+                destructive = true,
+                onConfirm = onConfirmDelete,
+                onDismissRequest = { if (!isWorking) showDeleteDialog = false },
+            )
+            CouiConfirmDialog(
+                visible = showResetDialog,
+                title = stringResource(R.string.ui_reset_built_in_configuration_35b6ec),
+                message = stringResource(R.string.provider_reset_summary, providerDisplayName),
+                confirmText = resetConfirmText,
+                confirmEnabled = !isWorking,
+                cancelEnabled = !isWorking,
+                destructive = true,
+                onConfirm = onConfirmReset,
+                onDismissRequest = { if (!isWorking) showResetDialog = false },
+            )
         }
         AppearanceUiStyle.MIUIX -> {
             val overlayBackdrop = currentGlassOverlayBackdrop()

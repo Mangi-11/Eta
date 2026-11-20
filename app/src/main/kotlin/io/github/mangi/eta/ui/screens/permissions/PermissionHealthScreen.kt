@@ -5,10 +5,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
@@ -16,6 +12,7 @@ import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.color
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.label
 import io.github.mangi.eta.ui.model.PermissionHealthAction
@@ -40,14 +37,13 @@ fun PermissionHealthScreen(
                 onBack = { onAction(PermissionHealthAction.NavigateBack) },
                 modifier = modifier,
             ) {
-                Group(title = stringResource(R.string.ui_permissions_and_status_35f368)) {
-                    state.items.forEachIndexed { index, item ->
-                        PermissionItemRow(
-                            item = item,
-                            onActionClick = { onAction(PermissionHealthAction.OpenItemAction(item.id)) },
-                        )
-                        if (index < state.items.lastIndex) {
-                            Divider()
+                CouiPreferenceGroup(title = stringResource(R.string.ui_permissions_and_status_35f368)) {
+                    state.items.forEach { item ->
+                        item(key = item.id) {
+                            PermissionItemRow(
+                                item = item,
+                                onActionClick = { onAction(PermissionHealthAction.OpenItemAction(item.id)) },
+                            )
                         }
                     }
                 }

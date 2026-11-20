@@ -38,11 +38,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Footer
-import com.itos.coui.layout.Group
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.imagegen.ImageGenModelCapability
 import io.github.mangi.eta.data.model.AppearanceUiStyle
@@ -69,7 +64,10 @@ import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiIcon
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceFooter
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSettingsIcon
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
@@ -255,12 +253,10 @@ internal fun ImageGenSettingsScreen(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            val dark = CouiTheme.isDark
-            val pageColors = CouiPageDefaults.themeColors(dark)
+            val pageColors = CouiPageDefaults.themeColors()
             CouiScaffoldPage(
                 title = stringResource(R.string.image_gen_settings_title),
                 onBack = onBack,
-                modifier = Modifier.imePadding(),
             ) {
                 if (store.loading) {
                     Box(
@@ -274,57 +270,63 @@ internal fun ImageGenSettingsScreen(
                     return@CouiScaffoldPage
                 }
 
-                Group {
-                    CouiSwitchPreference(
-                        title = stringResource(R.string.imagegen_enable_title),
-                        summary = stringResource(R.string.imagegen_enable_summary),
-                        checked = settings.enabled,
-                        onCheckedChange = { store.edit(settings.copy(enabled = it)) },
-                    )
+                CouiPreferenceGroup {
+                    item {
+                        CouiSwitchPreference(
+                            title = stringResource(R.string.imagegen_enable_title),
+                            summary = stringResource(R.string.imagegen_enable_summary),
+                            checked = settings.enabled,
+                            onCheckedChange = { store.edit(settings.copy(enabled = it)) },
+                        )
+                    }
                 }
 
-                Group(title = stringResource(R.string.imagegen_section_service)) {
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.imagegen_provider_channel),
-                        items = backendList.map { it.displayName() },
-                        selectedIndex = backendList.indexOf(backend).coerceAtLeast(0),
-                        onSelectedIndexChange = { idx ->
-                            val nextBackend = backendList[idx]
-                            val nextModel = when (nextBackend) {
-                                ImageGenBackend.GEMINI -> settings.gemini.model
-                                ImageGenBackend.OPENAI_COMPATIBLE -> settings.openAi.model
-                                ImageGenBackend.XAI -> settings.xai.model
-                                ImageGenBackend.DOUBAO -> settings.doubao.model
-                                ImageGenBackend.QWEN -> settings.qwen.model
-                                ImageGenBackend.SILICONFLOW -> settings.siliconFlow.model
-                            }
-                            val nextCap = ImageGenModelCapability.resolve(nextBackend, nextModel)
-                            store.edit(
-                                settings.copy(
-                                    backend = nextBackend,
-                                    defaultResolution = nextCap.clampResolution(settings.defaultResolution),
-                                ),
-                            )
-                        },
-                    )
-                    Divider()
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.imagegen_credential_source),
-                        items = linkChoiceLabels,
-                        selectedIndex = selectedLinkIndex,
-                        onSelectedIndexChange = onSelectLink,
-                    )
-                    Divider()
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.imagegen_model_presets),
-                        items = presetLabels,
-                        selectedIndex = selectedPresetIndex,
-                        onSelectedIndexChange = onSelectPreset,
-                    )
+                CouiPreferenceGroup(title = stringResource(R.string.imagegen_section_service)) {
+                    item {
+                        CouiDropdownPreference(
+                            title = stringResource(R.string.imagegen_provider_channel),
+                            items = backendList.map { it.displayName() },
+                            selectedIndex = backendList.indexOf(backend).coerceAtLeast(0),
+                            onSelectedIndexChange = { idx ->
+                                val nextBackend = backendList[idx]
+                                val nextModel = when (nextBackend) {
+                                    ImageGenBackend.GEMINI -> settings.gemini.model
+                                    ImageGenBackend.OPENAI_COMPATIBLE -> settings.openAi.model
+                                    ImageGenBackend.XAI -> settings.xai.model
+                                    ImageGenBackend.DOUBAO -> settings.doubao.model
+                                    ImageGenBackend.QWEN -> settings.qwen.model
+                                    ImageGenBackend.SILICONFLOW -> settings.siliconFlow.model
+                                }
+                                val nextCap = ImageGenModelCapability.resolve(nextBackend, nextModel)
+                                store.edit(
+                                    settings.copy(
+                                        backend = nextBackend,
+                                        defaultResolution = nextCap.clampResolution(settings.defaultResolution),
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                    item {
+                        CouiDropdownPreference(
+                            title = stringResource(R.string.imagegen_credential_source),
+                            items = linkChoiceLabels,
+                            selectedIndex = selectedLinkIndex,
+                            onSelectedIndexChange = onSelectLink,
+                        )
+                    }
+                    item {
+                        CouiDropdownPreference(
+                            title = stringResource(R.string.imagegen_model_presets),
+                            items = presetLabels,
+                            selectedIndex = selectedPresetIndex,
+                            onSelectedIndexChange = onSelectPreset,
+                        )
+                    }
                 }
 
                 if (usingLinkedProvider) {
-                    Footer(
+                    CouiPreferenceFooter(
                         text = stringResource(
                             R.string.imagegen_linked_provider_footer_with_url,
                             resolvedLink.name,
@@ -346,237 +348,252 @@ internal fun ImageGenSettingsScreen(
                     }
                 }
 
-                Group(title = stringResource(R.string.imagegen_section_connection)) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        CouiTextField(
-                            state = modelField,
-                            label = stringResource(
-                                if (backend == ImageGenBackend.DOUBAO) {
-                                    R.string.imagegen_field_model_or_endpoint_id
-                                } else {
-                                    R.string.imagegen_field_model_id
-                                },
-                            ),
-                            placeholder = presets.firstOrNull()?.id.orEmpty(),
-                            singleLine = true,
-                        )
-
-                        // 仅独立配置模式展示独立地址与平台参数，避免将关联服务商的 Key 发往不同主机。
-                        if (!usingLinkedProvider) {
-                            when (backend) {
-                                ImageGenBackend.GEMINI -> {
-                                    val endpointModes = listOf(GeminiEndpointMode.AI_STUDIO, GeminiEndpointMode.VERTEX_AI)
-                                    val endpointLabels = listOf(
-                                        stringResource(R.string.imagegen_gemini_endpoint_ai_studio),
-                                        stringResource(R.string.imagegen_gemini_endpoint_vertex),
-                                    )
-                                    CouiDropdownPreference(
-                                        title = stringResource(R.string.imagegen_gemini_platform),
-                                        items = endpointLabels,
-                                        selectedIndex = endpointModes.indexOf(
-                                            GeminiEndpointMode.normalize(settings.gemini.endpointMode),
-                                        ).coerceAtLeast(0),
-                                        onSelectedIndexChange = { idx ->
-                                            store.edit(settings.copy(gemini = settings.gemini.copy(endpointMode = endpointModes[idx])))
-                                        },
-                                    )
-                                    CouiTextField(
-                                        state = rememberDraftTextFieldState(settings.gemini.baseUrl) {
-                                            store.edit(settings.copy(gemini = settings.gemini.copy(baseUrl = it)))
-                                        },
-                                        label = stringResource(R.string.imagegen_field_base_url_optional),
-                                        placeholder = if (GeminiEndpointMode.normalize(settings.gemini.endpointMode) == GeminiEndpointMode.VERTEX_AI) {
-                                            GeminiProviderSetting.DEFAULT_VERTEX_BASE_URL
-                                        } else {
-                                            GeminiProviderSetting.DEFAULT_BASE_URL
-                                        },
-                                        singleLine = true,
-                                    )
-                                    if (GeminiEndpointMode.normalize(settings.gemini.endpointMode) == GeminiEndpointMode.VERTEX_AI) {
-                                        CouiTextField(
-                                            state = rememberDraftTextFieldState(settings.gemini.vertexProject) {
-                                                store.edit(settings.copy(gemini = settings.gemini.copy(vertexProject = it)))
-                                            },
-                                            label = stringResource(R.string.imagegen_field_vertex_project),
-                                            placeholder = stringResource(R.string.imagegen_field_vertex_project_placeholder),
-                                            singleLine = true,
-                                        )
-                                        CouiTextField(
-                                            state = rememberDraftTextFieldState(settings.gemini.vertexLocation) {
-                                                store.edit(settings.copy(gemini = settings.gemini.copy(vertexLocation = it)))
-                                            },
-                                            label = stringResource(R.string.imagegen_field_vertex_location),
-                                            placeholder = "global",
-                                            singleLine = true,
-                                        )
-                                    }
-                                }
-
-                                ImageGenBackend.OPENAI_COMPATIBLE -> {
-                                    CouiTextField(
-                                        state = rememberDraftTextFieldState(settings.openAi.baseUrl) {
-                                            store.edit(settings.copy(openAi = settings.openAi.copy(baseUrl = it)))
-                                        },
-                                        label = stringResource(R.string.imagegen_field_openai_base_url),
-                                        placeholder = OpenAiImageConfig.DEFAULT_BASE_URL,
-                                        singleLine = true,
-                                    )
-                                }
-
-                                ImageGenBackend.XAI -> {
-                                    CouiTextField(
-                                        state = rememberDraftTextFieldState(settings.xai.baseUrl) {
-                                            store.edit(settings.copy(xai = settings.xai.copy(baseUrl = it)))
-                                        },
-                                        label = stringResource(R.string.imagegen_field_xai_base_url),
-                                        placeholder = XaiImageConfig.DEFAULT_BASE_URL,
-                                        singleLine = true,
-                                    )
-                                }
-
-                                ImageGenBackend.DOUBAO -> {
-                                    CouiTextField(
-                                        state = rememberDraftTextFieldState(settings.doubao.baseUrl) {
-                                            store.edit(settings.copy(doubao = settings.doubao.copy(baseUrl = it)))
-                                        },
-                                        label = stringResource(R.string.imagegen_field_doubao_base_url),
-                                        placeholder = DoubaoImageConfig.DEFAULT_BASE_URL,
-                                        singleLine = true,
-                                    )
-                                }
-
-                                ImageGenBackend.QWEN -> {
-                                    val regions = listOf(SpeechRegion.BEIJING, SpeechRegion.SINGAPORE)
-                                    val regionLabels = listOf(
-                                        stringResource(R.string.imagegen_qwen_region_beijing),
-                                        stringResource(R.string.imagegen_qwen_region_singapore),
-                                    )
-                                    CouiDropdownPreference(
-                                        title = stringResource(R.string.imagegen_qwen_region),
-                                        items = regionLabels,
-                                        selectedIndex = regions.indexOf(settings.qwen.region).coerceAtLeast(0),
-                                        onSelectedIndexChange = { idx ->
-                                            store.edit(settings.copy(qwen = settings.qwen.copy(region = regions[idx])))
-                                        },
-                                    )
-                                    CouiTextField(
-                                        state = rememberDraftTextFieldState(settings.qwen.baseUrl) {
-                                            store.edit(settings.copy(qwen = settings.qwen.copy(baseUrl = it)))
-                                        },
-                                        label = stringResource(R.string.imagegen_field_qwen_base_url),
-                                        placeholder = settings.qwen.defaultEndpoint(),
-                                        singleLine = true,
-                                    )
-                                }
-
-                                ImageGenBackend.SILICONFLOW -> {
-                                    CouiTextField(
-                                        state = rememberDraftTextFieldState(settings.siliconFlow.baseUrl) {
-                                            store.edit(settings.copy(siliconFlow = settings.siliconFlow.copy(baseUrl = it)))
-                                        },
-                                        label = stringResource(R.string.imagegen_field_siliconflow_base_url),
-                                        placeholder = SiliconFlowImageConfig.DEFAULT_BASE_URL,
-                                        singleLine = true,
-                                    )
-                                }
-                            }
-
-                            CouiTextField(
-                                state = apiKeyField,
-                                label = stringResource(R.string.imagegen_field_api_key),
-                                placeholder = "sk-... / AIza...",
-                                singleLine = true,
-                                secretVisible = apiKeyVisible,
-                                trailingIcon = {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clickable { apiKeyVisible = !apiKeyVisible },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        CouiIcon(
-                                            imageVector = if (apiKeyVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                            contentDescription = stringResource(R.string.imagegen_toggle_api_key_visibility),
-                                            tint = pageColors.summary,
-                                        )
-                                    }
+                CouiPreferenceGroup(title = stringResource(R.string.imagegen_section_connection)) {
+                    if (!usingLinkedProvider && backend == ImageGenBackend.GEMINI) {
+                        val endpointModes = listOf(GeminiEndpointMode.AI_STUDIO, GeminiEndpointMode.VERTEX_AI)
+                        item {
+                            CouiDropdownPreference(
+                                title = stringResource(R.string.imagegen_gemini_platform),
+                                items = listOf(
+                                    stringResource(R.string.imagegen_gemini_endpoint_ai_studio),
+                                    stringResource(R.string.imagegen_gemini_endpoint_vertex),
+                                ),
+                                selectedIndex = endpointModes.indexOf(
+                                    GeminiEndpointMode.normalize(settings.gemini.endpointMode),
+                                ).coerceAtLeast(0),
+                                onSelectedIndexChange = { idx ->
+                                    store.edit(settings.copy(gemini = settings.gemini.copy(endpointMode = endpointModes[idx])))
                                 },
                             )
                         }
                     }
+                    if (!usingLinkedProvider && backend == ImageGenBackend.QWEN) {
+                        val regions = listOf(SpeechRegion.BEIJING, SpeechRegion.SINGAPORE)
+                        item {
+                            CouiDropdownPreference(
+                                title = stringResource(R.string.imagegen_qwen_region),
+                                items = listOf(
+                                    stringResource(R.string.imagegen_qwen_region_beijing),
+                                    stringResource(R.string.imagegen_qwen_region_singapore),
+                                ),
+                                selectedIndex = regions.indexOf(settings.qwen.region).coerceAtLeast(0),
+                                onSelectedIndexChange = { idx ->
+                                    store.edit(settings.copy(qwen = settings.qwen.copy(region = regions[idx])))
+                                },
+                            )
+                        }
+                    }
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            CouiTextField(
+                                state = modelField,
+                                label = stringResource(
+                                    if (backend == ImageGenBackend.DOUBAO) {
+                                        R.string.imagegen_field_model_or_endpoint_id
+                                    } else {
+                                        R.string.imagegen_field_model_id
+                                    },
+                                ),
+                                placeholder = presets.firstOrNull()?.id.orEmpty(),
+                                singleLine = true,
+                            )
+
+                            // 仅独立配置模式展示独立地址与平台参数，避免将关联服务商的 Key 发往不同主机。
+                            if (!usingLinkedProvider) {
+                                when (backend) {
+                                    ImageGenBackend.GEMINI -> {
+                                        CouiTextField(
+                                            state = rememberDraftTextFieldState(settings.gemini.baseUrl) {
+                                                store.edit(settings.copy(gemini = settings.gemini.copy(baseUrl = it)))
+                                            },
+                                            label = stringResource(R.string.imagegen_field_base_url_optional),
+                                            placeholder = if (GeminiEndpointMode.normalize(settings.gemini.endpointMode) == GeminiEndpointMode.VERTEX_AI) {
+                                                GeminiProviderSetting.DEFAULT_VERTEX_BASE_URL
+                                            } else {
+                                                GeminiProviderSetting.DEFAULT_BASE_URL
+                                            },
+                                            singleLine = true,
+                                        )
+                                        if (GeminiEndpointMode.normalize(settings.gemini.endpointMode) == GeminiEndpointMode.VERTEX_AI) {
+                                            CouiTextField(
+                                                state = rememberDraftTextFieldState(settings.gemini.vertexProject) {
+                                                    store.edit(settings.copy(gemini = settings.gemini.copy(vertexProject = it)))
+                                                },
+                                                label = stringResource(R.string.imagegen_field_vertex_project),
+                                                placeholder = stringResource(R.string.imagegen_field_vertex_project_placeholder),
+                                                singleLine = true,
+                                            )
+                                            CouiTextField(
+                                                state = rememberDraftTextFieldState(settings.gemini.vertexLocation) {
+                                                    store.edit(settings.copy(gemini = settings.gemini.copy(vertexLocation = it)))
+                                                },
+                                                label = stringResource(R.string.imagegen_field_vertex_location),
+                                                placeholder = "global",
+                                                singleLine = true,
+                                            )
+                                        }
+                                    }
+
+                                    ImageGenBackend.OPENAI_COMPATIBLE -> {
+                                        CouiTextField(
+                                            state = rememberDraftTextFieldState(settings.openAi.baseUrl) {
+                                                store.edit(settings.copy(openAi = settings.openAi.copy(baseUrl = it)))
+                                            },
+                                            label = stringResource(R.string.imagegen_field_openai_base_url),
+                                            placeholder = OpenAiImageConfig.DEFAULT_BASE_URL,
+                                            singleLine = true,
+                                        )
+                                    }
+
+                                    ImageGenBackend.XAI -> {
+                                        CouiTextField(
+                                            state = rememberDraftTextFieldState(settings.xai.baseUrl) {
+                                                store.edit(settings.copy(xai = settings.xai.copy(baseUrl = it)))
+                                            },
+                                            label = stringResource(R.string.imagegen_field_xai_base_url),
+                                            placeholder = XaiImageConfig.DEFAULT_BASE_URL,
+                                            singleLine = true,
+                                        )
+                                    }
+
+                                    ImageGenBackend.DOUBAO -> {
+                                        CouiTextField(
+                                            state = rememberDraftTextFieldState(settings.doubao.baseUrl) {
+                                                store.edit(settings.copy(doubao = settings.doubao.copy(baseUrl = it)))
+                                            },
+                                            label = stringResource(R.string.imagegen_field_doubao_base_url),
+                                            placeholder = DoubaoImageConfig.DEFAULT_BASE_URL,
+                                            singleLine = true,
+                                        )
+                                    }
+
+                                    ImageGenBackend.QWEN -> {
+                                        CouiTextField(
+                                            state = rememberDraftTextFieldState(settings.qwen.baseUrl) {
+                                                store.edit(settings.copy(qwen = settings.qwen.copy(baseUrl = it)))
+                                            },
+                                            label = stringResource(R.string.imagegen_field_qwen_base_url),
+                                            placeholder = settings.qwen.defaultEndpoint(),
+                                            singleLine = true,
+                                        )
+                                    }
+
+                                    ImageGenBackend.SILICONFLOW -> {
+                                        CouiTextField(
+                                            state = rememberDraftTextFieldState(settings.siliconFlow.baseUrl) {
+                                                store.edit(settings.copy(siliconFlow = settings.siliconFlow.copy(baseUrl = it)))
+                                            },
+                                            label = stringResource(R.string.imagegen_field_siliconflow_base_url),
+                                            placeholder = SiliconFlowImageConfig.DEFAULT_BASE_URL,
+                                            singleLine = true,
+                                        )
+                                    }
+                                }
+
+                                CouiTextField(
+                                    state = apiKeyField,
+                                    label = stringResource(R.string.imagegen_field_api_key),
+                                    placeholder = "sk-... / AIza...",
+                                    singleLine = true,
+                                    secretVisible = apiKeyVisible,
+                                    trailingIcon = {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clickable { apiKeyVisible = !apiKeyVisible },
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            CouiIcon(
+                                                imageVector = if (apiKeyVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                                contentDescription = stringResource(R.string.imagegen_toggle_api_key_visibility),
+                                                tint = pageColors.summary,
+                                            )
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
                 }
 
-                Group(title = stringResource(R.string.imagegen_section_defaults)) {
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.imagegen_default_aspect_ratio),
-                        items = ratioList.map { stringResource(it.displayLabelRes) },
-                        selectedIndex = ratioList.indexOf(settings.defaultAspectRatio).coerceAtLeast(0),
-                        onSelectedIndexChange = { idx ->
-                            store.edit(settings.copy(defaultAspectRatio = ratioList[idx]))
-                        },
-                    )
-                    if (supportedResolutions.size > 1) {
-                        Divider()
+                CouiPreferenceGroup(title = stringResource(R.string.imagegen_section_defaults)) {
+                    item {
                         CouiDropdownPreference(
-                            title = stringResource(
-                                if (capability.resolutionIsQualityTier) {
-                                    R.string.imagegen_default_quality_tier
-                                } else {
-                                    R.string.imagegen_default_resolution
-                                },
-                            ),
-                            items = resolutionOptionLabels,
-                            selectedIndex = supportedResolutions.indexOf(effectiveResolution).coerceAtLeast(0),
+                            title = stringResource(R.string.imagegen_default_aspect_ratio),
+                            items = ratioList.map { stringResource(it.displayLabelRes) },
+                            selectedIndex = ratioList.indexOf(settings.defaultAspectRatio).coerceAtLeast(0),
                             onSelectedIndexChange = { idx ->
-                                store.edit(settings.copy(defaultResolution = supportedResolutions[idx]))
+                                store.edit(settings.copy(defaultAspectRatio = ratioList[idx]))
                             },
                         )
+                    }
+                    if (supportedResolutions.size > 1) {
+                        item {
+                            CouiDropdownPreference(
+                                title = stringResource(
+                                    if (capability.resolutionIsQualityTier) {
+                                        R.string.imagegen_default_quality_tier
+                                    } else {
+                                        R.string.imagegen_default_resolution
+                                    },
+                                ),
+                                items = resolutionOptionLabels,
+                                selectedIndex = supportedResolutions.indexOf(effectiveResolution).coerceAtLeast(0),
+                                onSelectedIndexChange = { idx ->
+                                    store.edit(settings.copy(defaultResolution = supportedResolutions[idx]))
+                                },
+                            )
+                        }
                     } else {
-                        Divider()
-                        CouiPreference(
-                            title = stringResource(R.string.imagegen_default_resolution),
-                            value = stringResource(
-                                R.string.imagegen_resolution_fixed_by_model,
-                                resolutionOptionLabels.first(),
-                            ),
-                            showChevron = false,
-                        )
+                        item {
+                            CouiPreference(
+                                title = stringResource(R.string.imagegen_default_resolution),
+                                value = stringResource(
+                                    R.string.imagegen_resolution_fixed_by_model,
+                                    resolutionOptionLabels.first(),
+                                ),
+                                showChevron = false,
+                            )
+                        }
                     }
                     if (backend == ImageGenBackend.DOUBAO) {
-                        Divider()
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.imagegen_doubao_watermark_title),
-                            summary = stringResource(R.string.imagegen_doubao_watermark_summary),
-                            checked = settings.doubao.watermark,
-                            onCheckedChange = {
-                                store.edit(settings.copy(doubao = settings.doubao.copy(watermark = it)))
-                            },
-                        )
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.imagegen_doubao_watermark_title),
+                                summary = stringResource(R.string.imagegen_doubao_watermark_summary),
+                                checked = settings.doubao.watermark,
+                                onCheckedChange = {
+                                    store.edit(settings.copy(doubao = settings.doubao.copy(watermark = it)))
+                                },
+                            )
+                        }
                     }
                     if (backend == ImageGenBackend.QWEN) {
-                        Divider()
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.imagegen_qwen_prompt_extend_title),
-                            summary = stringResource(R.string.imagegen_qwen_prompt_extend_summary),
-                            checked = settings.qwen.promptExtend,
-                            onCheckedChange = {
-                                store.edit(settings.copy(qwen = settings.qwen.copy(promptExtend = it)))
-                            },
-                        )
-                        Divider()
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.imagegen_qwen_watermark_title),
-                            summary = stringResource(R.string.imagegen_default_off),
-                            checked = settings.qwen.watermark,
-                            onCheckedChange = {
-                                store.edit(settings.copy(qwen = settings.qwen.copy(watermark = it)))
-                            },
-                        )
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.imagegen_qwen_prompt_extend_title),
+                                summary = stringResource(R.string.imagegen_qwen_prompt_extend_summary),
+                                checked = settings.qwen.promptExtend,
+                                onCheckedChange = {
+                                    store.edit(settings.copy(qwen = settings.qwen.copy(promptExtend = it)))
+                                },
+                            )
+                        }
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.imagegen_qwen_watermark_title),
+                                summary = stringResource(R.string.imagegen_default_off),
+                                checked = settings.qwen.watermark,
+                                onCheckedChange = {
+                                    store.edit(settings.copy(qwen = settings.qwen.copy(watermark = it)))
+                                },
+                            )
+                        }
                     }
                 }
 
@@ -612,13 +629,15 @@ internal fun ImageGenSettingsScreen(
                     )
                 }
 
-                Group(title = stringResource(R.string.imagegen_section_local_images)) {
-                    CouiPreference(
-                        title = stringResource(R.string.imagegen_open_gallery),
-                        value = gallerySummary,
-                        icon = { CouiSettingsIcon(Icons.Rounded.PhotoLibrary, pageColors.accent) },
-                        onClick = onOpenGallery,
-                    )
+                CouiPreferenceGroup(title = stringResource(R.string.imagegen_section_local_images)) {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.imagegen_open_gallery),
+                            value = gallerySummary,
+                            icon = { CouiSettingsIcon(Icons.Rounded.PhotoLibrary, pageColors.accent) },
+                            onClick = onOpenGallery,
+                        )
+                    }
                 }
 
                 CouiPageBottomSpacer()
@@ -1033,12 +1052,12 @@ private fun ImageGenFeedbackBlock(
         if (previewRecord != null) {
             val bitmap = rememberChatImageBitmap(previewRecord.filePath, maxDimensionPx = 800)
             val previewCardBg = if (isCoui) {
-                CouiPageDefaults.themeColors(CouiTheme.isDark).card
+                CouiPageDefaults.themeColors().card
             } else {
                 MiuixTheme.colorScheme.surfaceContainerHigh
             }
             val previewTitleColor = if (isCoui) {
-                CouiPageDefaults.themeColors(CouiTheme.isDark).title
+                CouiPageDefaults.themeColors().title
             } else {
                 MiuixTheme.colorScheme.onSurface
             }

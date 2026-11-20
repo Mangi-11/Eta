@@ -42,7 +42,6 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.itos.coui.effect.LocalCouiContourGlowEnabled
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.device.RootAccess
@@ -1456,13 +1455,12 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     .collectAsState(initial = AppearanceSettings())
                 AgentAppTheme(
                     appearance = appearance,
-                    applyInterfaceScale = false,
+                    systemOverlay = true,
                 ) {
                     // 部分 ROM 会给 TYPE_ACCESSIBILITY_OVERLAY 分配软件 Canvas；Miuix 与 COUI 的
                     // RuntimeShader 只检查系统版本，因此系统浮层统一使用无 RuntimeShader 的圆角回退。
                     CompositionLocalProvider(
                         LocalSquircleEnabled provides false,
-                        LocalCouiContourGlowEnabled provides false,
                     ) {
                         content()
                     }

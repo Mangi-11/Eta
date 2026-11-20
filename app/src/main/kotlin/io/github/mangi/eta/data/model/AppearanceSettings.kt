@@ -2,10 +2,6 @@ package io.github.mangi.eta.data.model
 
 import kotlinx.serialization.Serializable
 
-const val MIN_INTERFACE_SCALE = 0.8f
-const val MAX_INTERFACE_SCALE = 1.1f
-const val DEFAULT_INTERFACE_SCALE = 1f
-
 @Serializable
 data class AppearanceSettings(
     val uiStyle: AppearanceUiStyle = AppearanceUiStyle.Default,
@@ -19,12 +15,7 @@ data class AppearanceSettings(
     val topBarBlurStyle: AppearanceTopBarBlurStyle = AppearanceTopBarBlurStyle.GAUSSIAN,
     val swipeDismissEnabled: Boolean = true,
     val predictiveBackEnabled: Boolean = true,
-    val interfaceScale: Float = DEFAULT_INTERFACE_SCALE,
-) {
-    fun normalized(): AppearanceSettings = copy(
-        interfaceScale = normalizeInterfaceScale(interfaceScale),
-    )
-}
+)
 
 @Serializable
 enum class AppearanceUiStyle(val persistedValue: String) {
@@ -103,10 +94,3 @@ enum class AppearanceTopBarBlurStyle(val persistedValue: String) {
             entries.firstOrNull { it.persistedValue == value } ?: GAUSSIAN
     }
 }
-
-fun normalizeInterfaceScale(value: Float): Float =
-    if (value.isFinite()) {
-        value.coerceIn(MIN_INTERFACE_SCALE, MAX_INTERFACE_SCALE)
-    } else {
-        DEFAULT_INTERFACE_SCALE
-    }

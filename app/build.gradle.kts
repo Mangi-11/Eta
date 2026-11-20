@@ -161,8 +161,16 @@ dependencies {
     // Hook 侧用 XposedInterface.getRemotePreferences 读取当前进程持有的配置缓存。
     implementation(libs.libxposed.service)
     implementation(libs.dexkit)
-    implementation(libs.coui)
+    constraints {
+        // 延续旧依赖图中两套 UI 共用的窗口尺寸和 Android 兼容组件版本。
+        implementation(libs.androidx.compose.window.size)
+        implementation(libs.androidx.core.ktx)
+    }
+    implementation(libs.coui.ui)
+    implementation(libs.coui.preference)
     implementation(libs.coui.icons)
+    implementation(libs.coui.blur)
+    implementation(libs.coui.squircle)
     implementation(libs.miuix.ui)
     implementation(libs.miuix.blur)
     implementation(libs.miuix.glass)

@@ -70,23 +70,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.dialog.CouiDialogAction
-import com.itos.coui.dialog.CouiDialogPlacement
-import com.itos.coui.dialog.Dialog
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.menu.CouiMenuItem
-import com.itos.coui.menu.Menu
-import com.itos.coui.menu.couiMenuAnchor
-import com.itos.coui.menu.rememberCouiMenuAnchor
-import com.itos.coui.menu.rememberCouiWindowBackdrop
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalGlassPageBackdrop
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.coui.CouiBottomSheet
 import io.github.mangi.eta.ui.components.coui.CouiChipTabs
+import io.github.mangi.eta.ui.components.coui.CouiMenu
+import io.github.mangi.eta.ui.components.coui.CouiMenuItem
 import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
-import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
+import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
+import io.github.mangi.eta.ui.components.coui.couiMenuAnchor
+import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
 import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.filterGroups
@@ -400,7 +395,7 @@ internal fun AgentTopBarChatHeader(
                         }
                     }
                 }
-                Menu(
+                CouiMenu(
                     expanded = showPopup,
                     onDismissRequest = { showPopup = false },
                     items = menuItems,
@@ -411,19 +406,10 @@ internal fun AgentTopBarChatHeader(
                     anchor = anchor,
                 )
 
-                val dark = CouiTheme.isDark
-                Dialog(
-                    visible = showSheet,
+                CouiBottomSheet(
+                    show = showSheet,
                     onDismissRequest = { showSheet = false },
-                    dark = dark,
                     title = stringResource(R.string.model_picker_title),
-                    confirmAction = CouiDialogAction(
-                        text = stringResource(R.string.action_close),
-                        onClick = { showSheet = false },
-                    ),
-                    placement = CouiDialogPlacement.Bottom,
-                    material = rememberCouiDialogMaterial(dark),
-                    backdrop = rememberCouiWindowBackdrop(),
                 ) {
                     key(sheetSession) {
                         ModelSheetContent(
@@ -720,7 +706,6 @@ internal fun ModelPickerSheetContent(
                     query = query,
                     onQueryChange = { query = it },
                     placeholder = stringResource(R.string.ui_search_model_df5586),
-                    backgroundColor = Color.Transparent,
                 )
                 if (pickerState.providerGroups.size > 1) {
                     val allLabel = stringResource(R.string.model_picker_filter_all)
@@ -731,7 +716,6 @@ internal fun ModelPickerSheetContent(
                         items = tabItems,
                         selectedKey = providerFilter.orEmpty(),
                         onSelectedKeyChange = { key -> providerFilter = key.takeIf { it.isNotEmpty() } },
-                        backgroundColor = Color.Transparent,
                     )
                 }
             }

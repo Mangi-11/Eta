@@ -73,9 +73,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.motion.couiPressMotion
-import com.itos.coui.motion.rememberCouiPressMotion
 import io.github.mangi.eta.R
+import io.github.mangi.eta.ui.components.coui.couiPressMotion
+import io.github.mangi.eta.ui.components.coui.rememberCouiPressMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -265,7 +265,6 @@ private fun AssistantInputBar(
                 highlightProgress = highlightProgress,
                 highlightColor = colors.accent.copy(alpha = if (colors.dark) 0.44f else 0.30f),
                 interactive = true,
-                spotlightEnabled = true,
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -610,7 +609,6 @@ private fun AssistantFloatingRoundButton(
                 elevation = AssistantCapsuleElevation.Chip,
                 interactive = enabled,
                 interactionSource = interactionSource,
-                spotlightEnabled = true,
             )
             .semantics(mergeDescendants = true) {
                 this.contentDescription = contentDescription

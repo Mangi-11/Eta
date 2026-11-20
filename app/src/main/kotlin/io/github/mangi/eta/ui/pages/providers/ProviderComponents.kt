@@ -21,16 +21,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiIcon
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.providerBrandLogoRes as sharedProviderBrandLogoRes
+import io.github.suqi8.coui.kmp.theme.COUITheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -46,11 +45,12 @@ internal fun ProviderSection(
 ) {
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            Group(
+            CouiPreferenceGroup(
                 modifier = modifier,
                 title = title,
-                content = content,
-            )
+            ) {
+                item { androidx.compose.foundation.layout.Column(content = content) }
+            }
         }
         AppearanceUiStyle.MIUIX -> {
             Column(modifier = modifier) {
@@ -186,15 +186,15 @@ internal fun TagChip(
     val weight: FontWeight
     if (uiStyle == AppearanceUiStyle.COUI) {
         val colors = CouiPageDefaults.themeColors()
-        val dark = com.itos.coui.theme.CouiTheme.isDark
+        val dark = COUITheme.isDark
         when (tone) {
             TagChipTone.Normal -> {
-                background = if (dark) Color(0x1AFFFFFF) else Color(0x0D000000)
+                background = COUITheme.colorScheme.container8
                 foreground = colors.summary
                 weight = FontWeight.Normal
             }
             TagChipTone.Emphasized -> {
-                background = colors.accent.copy(alpha = if (dark) 0.24f else 0.14f)
+                background = COUITheme.colorScheme.secondary
                 foreground = colors.accent
                 weight = FontWeight.Medium
             }

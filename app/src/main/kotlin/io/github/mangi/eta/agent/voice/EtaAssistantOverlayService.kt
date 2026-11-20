@@ -352,7 +352,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                 .collectAsState(initial = AppearanceSettings())
             AgentAppTheme(
                 appearance = appearance,
-                applyInterfaceScale = false,
+                systemOverlay = true,
             ) {
                 // ColorOS 在 Overlay 窗口切换期间可能短暂使用软件画布；RuntimeShader
                 // 无法在该画布绘制，因此浮窗统一使用 Miuix 的圆角回退路径。

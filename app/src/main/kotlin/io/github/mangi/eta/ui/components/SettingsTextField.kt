@@ -20,11 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiIcon
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -58,7 +58,7 @@ internal fun SettingsTextField(
                             modifier = Modifier
                                 .padding(start = 8.dp)
                                 .size(28.dp)
-                                .clickable(role = Role.Button) { visible = !visible },
+                                .clickable(enabled = enabled, role = Role.Button) { visible = !visible },
                             contentAlignment = Alignment.Center,
                         ) {
                             CouiIcon(
@@ -67,7 +67,7 @@ internal fun SettingsTextField(
                                     if (visible) R.string.page_hide_bb0e7e else R.string.page_show_71b677,
                                 ),
                                 modifier = Modifier.size(20.dp),
-                                tint = colors.summary,
+                                tint = if (enabled) colors.summary else colors.disabled,
                             )
                         }
                     }

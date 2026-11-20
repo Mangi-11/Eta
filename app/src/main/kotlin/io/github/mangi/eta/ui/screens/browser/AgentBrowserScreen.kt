@@ -161,18 +161,16 @@ internal fun AgentBrowserScreen(
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
             pageContent(modifier)
-            if (showClearDataDialog) {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.browser_clear_shared_data),
-                    message = stringResource(R.string.browser_clear_shared_data_message),
-                    confirmText = stringResource(R.string.browser_clear_shared_data),
-                    confirmEnabled = !actionPending,
-                    destructive = true,
-                    onConfirm = onConfirmClear,
-                    onDismissRequest = { showClearDataDialog = false },
-                )
-            }
+            CouiConfirmDialog(
+                visible = showClearDataDialog,
+                title = stringResource(R.string.browser_clear_shared_data),
+                message = stringResource(R.string.browser_clear_shared_data_message),
+                confirmText = stringResource(R.string.browser_clear_shared_data),
+                confirmEnabled = !actionPending,
+                destructive = true,
+                onConfirm = onConfirmClear,
+                onDismissRequest = { showClearDataDialog = false },
+            )
         }
         AppearanceUiStyle.MIUIX -> {
             pageContent(modifier)

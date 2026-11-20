@@ -1,34 +1,22 @@
 package io.github.mangi.eta.ui.components.coui
 
-import android.graphics.Paint
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicSecureTextField
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.KeyboardActionHandler
@@ -46,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
@@ -54,9 +41,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -65,53 +51,23 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import com.itos.coui.backdrop.couiBackdrop
-import com.itos.coui.backdrop.rememberCouiBackdrop
-import com.itos.coui.chip.ChipTabRow
-import com.itos.coui.chip.CouiChipTabItem
-import com.itos.coui.dialog.CouiDialogAction
-import com.itos.coui.dialog.CouiDialogActionStyle
-import com.itos.coui.dialog.CouiDialogDefaults
-import com.itos.coui.dialog.CouiDialogMaterial
-import com.itos.coui.dialog.CouiDialogPlacement
-import com.itos.coui.dialog.Dialog
-import com.itos.coui.dialog.InputDialog
-import com.itos.coui.effect.CouiContour
-import com.itos.coui.effect.CouiContourStyle
-import com.itos.coui.effect.CouiFloatingRenderer
-import com.itos.coui.effect.LocalCouiContourGlowEnabled
-import com.itos.coui.effect.SpotlightPreset
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.effect.rememberCouiSpotlight
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.menu.rememberCouiWindowBackdrop
-import com.itos.coui.motion.couiPressMotion
-import com.itos.coui.motion.couiTouchMotion
-import com.itos.coui.motion.rememberCouiPressMotion
-import com.itos.coui.motion.rememberCouiTouchMotion
-import com.itos.coui.search.SearchBar
-import com.itos.coui.search.rememberCouiSearchBarState
-import com.itos.coui.segmentbutton.SegmentedControl
-import com.itos.coui.shape.CouiCapsuleShape
-import com.itos.coui.shape.CouiShape
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text
-import com.itos.coui.text.rememberCouiTextStyle
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
+import io.github.suqi8.coui.kmp.basic.ButtonDefaults
+import io.github.suqi8.coui.kmp.basic.CancelButton
+import io.github.suqi8.coui.kmp.basic.ChipTabRow
+import io.github.suqi8.coui.kmp.basic.InputField
+import io.github.suqi8.coui.kmp.basic.SearchBar
+import io.github.suqi8.coui.kmp.basic.SegmentButton
+import io.github.suqi8.coui.kmp.basic.TextButton
+import io.github.suqi8.coui.kmp.basic.TextField
+import io.github.suqi8.coui.kmp.basic.TextFieldDefaults
+import io.github.suqi8.coui.kmp.basic.TextFieldMode
+import io.github.suqi8.coui.kmp.theme.COUITheme
 
-enum class CouiButtonRole {
-    Primary,
-    Secondary,
-    Destructive,
-    DestructiveFilled,
-}
+enum class CouiButtonRole { Primary, Secondary, Destructive, DestructiveFilled }
 
-/**
- * COUI 页面胶囊按钮，使用 COUI 公开的 CouiCapsuleShape、TouchMotion、PressMotion、Spotlight、
- * CouiContour(Button) 与 couiButtonFeedback 组合。
- */
 @Composable
 internal fun CouiButton(
     text: String,
@@ -119,120 +75,36 @@ internal fun CouiButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     role: CouiButtonRole = CouiButtonRole.Secondary,
-    minHeight: Dp = CouiDialogDefaults.buttonHeight,
+    minHeight: Dp = 44.dp,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
 ) {
-    val dark = CouiTheme.isDark
-    val scheme = CouiTheme.colorSchemeFor(dark)
-    val dialogColors = CouiDialogDefaults.themeColors(dark)
-    val isPrimaryLike = role == CouiButtonRole.Primary || role == CouiButtonRole.DestructiveFilled
-    val fillColor = when (role) {
-        CouiButtonRole.Primary -> if (enabled) scheme.accent else scheme.accent.copy(alpha = 0.3f)
-        CouiButtonRole.DestructiveFilled -> if (enabled) dialogColors.destructive else dialogColors.destructive.copy(alpha = 0.3f)
-        CouiButtonRole.Secondary, CouiButtonRole.Destructive -> if (enabled) {
-            if (dark) Color(0xFF353535) else Color(0xFFEBEBEB)
-        } else {
-            if (dark) Color(0x1AFFFFFF) else Color(0x14000000)
-        }
-    }
-    val textColor = when (role) {
-        CouiButtonRole.Primary, CouiButtonRole.DestructiveFilled ->
-            if (enabled) Color.White else Color(0x4DFFFFFF)
-        CouiButtonRole.Destructive ->
-            if (enabled) dialogColors.destructive else dialogColors.disabledAction
-        CouiButtonRole.Secondary ->
-            if (enabled) scheme.onSurface else dialogColors.disabledAction
-    }
-
-    val source = remember { MutableInteractionSource() }
-    val motion = rememberCouiTouchMotion(enabled)
-    val press = rememberCouiPressMotion()
-    val (lightInput, drawLight) = rememberCouiSpotlight(
-        interactive = enabled,
-        dark = dark,
-        preset = if (isPrimaryLike) SpotlightPreset.OpaqueMedium1 else SpotlightPreset.OpaqueMedium2,
-        cancelOnConsumedMove = true,
-    )
-    val glow = LocalCouiContourGlowEnabled.current
-    val contour = remember(glow) {
-        if (glow) CouiContour(style = CouiContourStyle.Button) else null
-    }
-    val paint = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
-
-    Box(
-        modifier = modifier
-            .heightIn(min = minHeight)
-            .graphicsLayer {
-                scaleX = motion.scaleX.value + press.scale.value - 1f
-                scaleY = motion.scaleY.value + press.scale.value - 1f
-                translationX = motion.translationX.value
-                translationY = motion.translationY.value
-            }
-            .couiTouchMotion(motion, enabled)
-            .couiPressMotion(press, enabled, cancelOnConsumedMove = true)
-            .then(lightInput)
-            .clip(CouiCapsuleShape)
-            .drawWithContent {
-                drawContent()
-                drawLight?.invoke(this)
-            }
-            .drawWithContent {
-                drawRect(fillColor)
-                if (contour != null) {
-                    val alpha = if (isPrimaryLike) {
-                        if (dark) { if (enabled) 0.25f else 0.05f } else 0.3f
-                    } else if (dark) {
-                        if (enabled) 0.1f else 0.03f
-                    } else {
-                        if (enabled) 0.8f else 0.24f
-                    }
-                    val inner = if (isPrimaryLike) {
-                        if (enabled) 0.1f else if (dark) 0.06f else 0.04f
-                    } else if (dark) {
-                        0.01f
-                    } else {
-                        0.05f
-                    }
-                    paint.shader = contour.shader(
-                        size = size,
-                        density = density,
-                        radiusPx = size.minDimension / 2f,
-                        cornerWeight = if (size.width == size.height) 2f else 1f,
-                        surfaceColor = Color.Transparent,
-                        innerGlowAlpha = inner,
-                        lineAlpha = alpha,
-                        effectAlpha = 1f,
-                        lineWidthPx = (if (isPrimaryLike) 2.5f else 3f) * density,
-                    )
-                    drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, size.height, paint) }
-                }
-                drawContent()
-            }
-            .couiButtonFeedback(dark, source, enabled)
-            .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(contentPadding),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            kind = CouiTextKind.ItemTitle,
-            color = textColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+    val scheme = COUITheme.colorScheme
+    val colors = when (role) {
+        CouiButtonRole.Primary -> ButtonDefaults.textButtonColorsPrimary()
+        CouiButtonRole.Secondary -> ButtonDefaults.textButtonColors()
+        CouiButtonRole.Destructive -> ButtonDefaults.textButtonColors(textColor = scheme.error)
+        CouiButtonRole.DestructiveFilled -> ButtonDefaults.textButtonColorsPrimary(
+            color = scheme.error,
+            disabledColor = scheme.errorDisabled,
+            textColor = scheme.onError,
         )
     }
+    TextButton(
+        text = text, onClick = onClick, modifier = modifier, enabled = enabled,
+        minHeight = minHeight, insideMargin = contentPadding, colors = colors,
+    )
 }
 
 private val FieldFocusEasing = CubicBezierEasing(0f, 0f, 0.1f, 1f)
 
 /**
- * COUI 输入框：上方可选标签行（支持右侧辅助文案），主体采用平滑圆角浅底容器与聚焦描边，
- * 在卡片与弹窗内均保持干净的留白与呼吸感，不产生贯穿整宽的突兀底线。
+ * 保留调用端的编辑状态，密文通过安全输入框切换显隐。
  */
 @Composable
 internal fun CouiTextField(
     state: TextFieldState,
     modifier: Modifier = Modifier,
+    inputModifier: Modifier = Modifier,
     label: String? = null,
     rightLabel: String? = null,
     rightLabelColor: Color = Color.Unspecified,
@@ -248,14 +120,15 @@ internal fun CouiTextField(
     showClearButton: Boolean = singleLine,
     trailingIcon: (@Composable () -> Unit)? = null,
 ) {
-    val dark = CouiTheme.isDark
-    val colors = CouiPageDefaults.themeColors(dark)
+    val colors = CouiPageDefaults.themeColors()
     var focused by remember { mutableStateOf(false) }
     val focusAlpha = remember { Animatable(0f) }
-    val hintColor = if (dark) Color(0x59FFFFFF) else Color(0x4D000000)
-    val containerColor = if (dark) Color(0x1AFFFFFF) else Color(0x0D000000)
-    val shape = CouiShape(14.dp, 2f)
-    val textStyle = rememberCouiTextStyle(CouiTextKind.Search).copy(
+    val scheme = COUITheme.colorScheme
+    val hintColor = scheme.hintNeutral
+    val rectShape = RoundedCornerShape(TextFieldDefaults.CornerRadius)
+    val rectMargin = TextFieldDefaults.insideMargin(TextFieldMode.Rectangle)
+    val rectMinHeight = TextFieldDefaults.minHeight(TextFieldMode.Rectangle)
+    val textStyle = TextFieldDefaults.textStyle(TextFieldMode.Rectangle).copy(
         color = if (enabled) colors.title else colors.disabled,
         textAlign = TextAlign.Start,
     )
@@ -266,7 +139,7 @@ internal fun CouiTextField(
             focusAlpha.animateTo(0f, tween(150))
         }
     }
-    val effectivePlaceholder = placeholder ?: label
+    val effectivePlaceholder = placeholder.orEmpty()
     Column(modifier = modifier.fillMaxWidth()) {
         if (!label.isNullOrEmpty() || !rightLabel.isNullOrEmpty()) {
             Row(
@@ -277,7 +150,7 @@ internal fun CouiTextField(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (!label.isNullOrEmpty()) {
-                    Text(
+                    CouiText(
                         text = label,
                         kind = CouiTextKind.GroupFooter,
                         color = if (focused && enabled) colors.accent else colors.summary,
@@ -288,7 +161,7 @@ internal fun CouiTextField(
                     Spacer(Modifier.weight(1f))
                 }
                 if (!rightLabel.isNullOrEmpty()) {
-                    Text(
+                    CouiText(
                         text = rightLabel,
                         kind = CouiTextKind.GroupFooter,
                         color = if (rightLabelColor != Color.Unspecified) rightLabelColor else colors.summary,
@@ -297,23 +170,37 @@ internal fun CouiTextField(
                 }
             }
         }
+        if (secretVisible == null) {
+            TextField(
+                state = state,
+                modifier = inputModifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+                backgroundMode = TextFieldMode.Rectangle,
+                label = effectivePlaceholder,
+                enabled = enabled,
+                showClearButton = showClearButton,
+                inputTransformation = inputTransformation,
+                keyboardOptions = keyboardOptions,
+                onKeyboardAction = onKeyboardAction,
+                lineLimits = if (singleLine) TextFieldLineLimits.SingleLine else TextFieldLineLimits.MultiLine(minLines, maxLines),
+                trailingIcon = trailingIcon,
+            )
+            return@Column
+        }
+        // 密文输入框沿用 BasicSecureTextField 保留密码无障碍语义与禁复制保护，
+        // 同时外框对齐 COUI TextFieldMode.Rectangle，避免同表单中普通与密钥输入框割裂。
+        val borderColor = if (!enabled) {
+            scheme.disabledTextFieldBorder
+        } else {
+            lerp(colors.divider, colors.accent, focusAlpha.value.coerceIn(0f, 1f))
+        }
+        val borderWidth = if (enabled && focusAlpha.value > 0.01f) 1.dp else 0.5.dp
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(shape)
-                .background(containerColor, shape)
-                .then(
-                    if (focusAlpha.value > 0.01f && enabled) {
-                        Modifier.border(
-                            width = 1.dp,
-                            color = colors.accent.copy(alpha = 0.7f * focusAlpha.value),
-                            shape = shape,
-                        )
-                    } else {
-                        Modifier
-                    },
-                )
-                .padding(horizontal = 14.dp, vertical = if (singleLine) 11.dp else 12.dp),
+                .heightIn(min = rectMinHeight)
+                .clip(rectShape)
+                .border(width = borderWidth, color = borderColor, shape = rectShape)
+                .padding(horizontal = rectMargin.width, vertical = rectMargin.height),
             verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
         ) {
             Box(
@@ -322,8 +209,8 @@ internal fun CouiTextField(
                     .heightIn(min = (22 * minLines.coerceAtLeast(1)).dp),
                 contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart,
             ) {
-                if (state.text.isEmpty() && !effectivePlaceholder.isNullOrEmpty()) {
-                    Text(
+                if (state.text.isEmpty() && effectivePlaceholder.isNotEmpty()) {
+                    CouiText(
                         text = effectivePlaceholder,
                         kind = CouiTextKind.Search,
                         color = hintColor,
@@ -332,47 +219,22 @@ internal fun CouiTextField(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                val fieldModifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { focused = it.isFocused }
-                if (secretVisible != null) {
-                    BasicSecureTextField(
-                        state = state,
-                        modifier = fieldModifier,
-                        enabled = enabled,
-                        textStyle = textStyle,
-                        cursorBrush = SolidColor(colors.accent),
-                        inputTransformation = inputTransformation,
-                        onKeyboardAction = onKeyboardAction,
-                        textObfuscationMode = if (secretVisible) TextObfuscationMode.Visible else TextObfuscationMode.Hidden,
-                    )
-                } else {
-                    BasicTextField(
-                        state = state,
-                        modifier = fieldModifier,
-                        enabled = enabled,
-                        textStyle = textStyle,
-                        cursorBrush = SolidColor(colors.accent),
-                        lineLimits = if (singleLine) TextFieldLineLimits.SingleLine else TextFieldLineLimits.MultiLine(minLines, maxLines),
-                        inputTransformation = inputTransformation,
-                        keyboardOptions = keyboardOptions,
-                        onKeyboardAction = onKeyboardAction,
-                    )
-                }
+                BasicSecureTextField(
+                    state = state,
+                    modifier = inputModifier
+                        .fillMaxWidth()
+                        .onFocusChanged { focused = it.isFocused },
+                    enabled = enabled,
+                    textStyle = textStyle,
+                    cursorBrush = SolidColor(colors.accent),
+                    inputTransformation = inputTransformation,
+                    keyboardOptions = keyboardOptions,
+                    onKeyboardAction = onKeyboardAction,
+                    textObfuscationMode = if (secretVisible) TextObfuscationMode.Visible else TextObfuscationMode.Hidden,
+                )
             }
-            if (showClearButton && focused && enabled && state.text.isNotEmpty() && trailingIcon == null) {
-                val clearLabel = stringResource(R.string.page_clear_84fcd7)
-                Box(modifier = Modifier.padding(start = 8.dp)) {
-                    CouiClearGlyph(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .semantics { contentDescription = clearLabel }
-                            .clickable(interactionSource = null, indication = null, role = Role.Button) {
-                                state.clearText()
-                            },
-                        color = colors.summary,
-                    )
-                }
+            if (showClearButton && focused && enabled && state.text.isNotEmpty()) {
+                CouiFieldClear(state, colors.summary)
             }
             trailingIcon?.invoke()
         }
@@ -403,9 +265,23 @@ private fun CouiClearGlyph(modifier: Modifier, color: Color) {
     }
 }
 
-/**
- * 页面内常驻 COUI SearchBar 封装，自动挂载不自采样的局部背景源并处理展开态返回键。
- */
+@Composable
+private fun CouiFieldClear(state: TextFieldState, color: Color) {
+    val clearLabel = stringResource(R.string.page_clear_84fcd7)
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .semantics { contentDescription = clearLabel }
+            .clickable(interactionSource = null, indication = null, role = Role.Button) { state.clearText() },
+        contentAlignment = Alignment.Center,
+    ) {
+        CouiClearGlyph(
+            modifier = Modifier.size(18.dp),
+            color = color,
+        )
+    }
+}
+
 @Composable
 internal fun CouiSearchBarBox(
     query: String,
@@ -413,51 +289,46 @@ internal fun CouiSearchBarBox(
     placeholder: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    backgroundColor: Color = CouiPageDefaults.themeColors().background,
     onSearch: () -> Unit = {},
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
-    val searchState = rememberCouiSearchBarState(expanded)
     val keyboard = LocalSoftwareKeyboardController.current
-    val backdrop = rememberCouiBackdrop()
-    val dark = CouiTheme.isDark
-    BackHandler(enabled = expanded) {
-        expanded = false
-        onQueryChange("")
-        keyboard?.hide()
+    val setExpanded: (Boolean) -> Unit = {
+        expanded = it
+        if (!it) {
+            onQueryChange("")
+            keyboard?.hide()
+        }
     }
-    Box(modifier = modifier.fillMaxWidth()) {
-        Box(
-            Modifier
-                .matchParentSize()
-                .couiBackdrop(backdrop)
-                .background(backgroundColor),
-        )
-        SearchBar(
-            state = searchState,
-            query = query,
-            onQueryChange = onQueryChange,
-            onExpandedChange = { next ->
-                expanded = next
-                if (!next) onQueryChange("")
-            },
-            placeholder = placeholder,
-            cancelText = stringResource(R.string.action_cancel),
-            clearDescription = stringResource(R.string.page_clear_84fcd7),
-            dark = dark,
-            backdrop = backdrop,
-            enabled = enabled,
-            onSearch = {
-                keyboard?.hide()
-                onSearch()
-            },
-        )
-    }
+    SearchBar(
+        modifier = modifier.fillMaxWidth(),
+        insideMargin = DpSize(16.dp, 6.dp),
+        expanded = expanded,
+        onExpandedChange = setExpanded,
+        inputField = {
+            InputField(
+                query = query,
+                onQueryChange = onQueryChange,
+                onSearch = {
+                    keyboard?.hide()
+                    onSearch()
+                },
+                expanded = expanded,
+                onExpandedChange = setExpanded,
+                label = placeholder,
+                enabled = enabled,
+            )
+        },
+        outsideEndAction = {
+            CancelButton(
+                onClick = { setExpanded(false) },
+                text = stringResource(R.string.action_cancel),
+            )
+        },
+        content = {},
+    )
 }
 
-/**
- * COUI ChipTabRow 封装：渲染器可用时使用 COUI 原生 ChipTabRow，否则使用 COUI 胶囊标签回退。
- */
 @Composable
 internal fun <T : Any> CouiChipTabs(
     items: List<Pair<T, String>>,
@@ -465,90 +336,17 @@ internal fun <T : Any> CouiChipTabs(
     onSelectedKeyChange: (T) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    backgroundColor: Color = CouiPageDefaults.themeColors().background,
 ) {
-    val dark = CouiTheme.isDark
-    val colors = CouiPageDefaults.themeColors(dark)
-    val renderers = remember(items.map { it.first }) {
-        if (items.isNotEmpty()) {
-            runCatching { items.map { CouiFloatingRenderer.standalone() } }.getOrNull()
-        } else {
-            null
-        }
-    }
-    if (renderers != null) {
-        val backdrop = rememberCouiBackdrop()
-        val chipItems = remember(items) {
-            items.map { (key, label) -> CouiChipTabItem(key = key, label = label) }
-        }
-        Box(modifier = modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .couiBackdrop(backdrop)
-                    .background(backgroundColor),
-            )
-            ChipTabRow(
-                modifier = Modifier.fillMaxWidth(),
-                items = chipItems,
-                selectedKey = selectedKey,
-                onSelectedKeyChange = { key ->
-                    @Suppress("UNCHECKED_CAST")
-                    onSelectedKeyChange(key as T)
-                },
-                backdrop = backdrop,
-                dark = dark,
-                enabled = enabled,
-                renderers = renderers,
-            )
-        }
-    } else {
-        Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .selectableGroup()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items.forEach { (key, label) ->
-                val selected = key == selectedKey
-                val source = remember { MutableInteractionSource() }
-                Box(
-                    modifier = Modifier
-                        .heightIn(min = 32.dp)
-                        .clip(CouiCapsuleShape)
-                        .background(
-                            if (selected) colors.accent else colors.card,
-                            CouiCapsuleShape,
-                        )
-                        .couiButtonFeedback(dark, source, enabled)
-                        .selectable(
-                            selected = selected,
-                            interactionSource = source,
-                            indication = null,
-                            enabled = enabled,
-                            role = Role.Tab,
-                            onClick = { onSelectedKeyChange(key) },
-                        )
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = label,
-                        kind = CouiTextKind.ItemValue,
-                        color = if (selected) Color.White else colors.title,
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
-    }
+    if (items.isEmpty()) return
+    ChipTabRow(
+        tabs = items.map { it.second },
+        selectedTabIndex = items.indexOfFirst { it.first == selectedKey }.coerceAtLeast(0),
+        onTabSelected = { items.getOrNull(it)?.first?.let(onSelectedKeyChange) },
+        modifier = modifier,
+        enabled = enabled,
+    )
 }
 
-/**
- * COUI 原生分段选择器，适合固定子页面或视图的切换。
- */
 @Composable
 internal fun <T : Any> CouiSegmentedTabs(
     items: List<Pair<T, String>>,
@@ -559,193 +357,12 @@ internal fun <T : Any> CouiSegmentedTabs(
     small: Boolean = false,
 ) {
     if (items.isEmpty()) return
-    val dark = CouiTheme.isDark
-    val selectedIndex = items.indexOfFirst { it.first == selectedKey }.let { if (it >= 0) it else 0 }
-    val labels = remember(items) { items.map { it.second } }
-    SegmentedControl(
+    SegmentButton(
+        items = items.map { it.second },
+        selectedIndex = items.indexOfFirst { it.first == selectedKey }.coerceAtLeast(0),
+        onSelectedIndexChange = { items.getOrNull(it)?.first?.let(onSelectedKeyChange) },
         modifier = modifier.fillMaxWidth(),
-        labels = labels,
-        selectedIndex = selectedIndex,
-        onSelected = { index ->
-            items.getOrNull(index)?.first?.let(onSelectedKeyChange)
-        },
-        dark = dark,
         enabled = enabled,
-        small = small,
+        height = if (small) 32.dp else io.github.suqi8.coui.kmp.basic.SegmentButtonDefaults.Height,
     )
 }
-
-@Composable
-internal fun rememberCouiDialogMaterial(dark: Boolean = CouiTheme.isDark): CouiDialogMaterial? {
-    val backdrop = rememberCouiWindowBackdrop()
-    return if (CouiDialogDefaults.isMaterialSupported() && backdrop != null) {
-        CouiDialogDefaults.material(dark)
-    } else {
-        null
-    }
-}
-
-@Composable
-internal fun couiPrimaryDialogAction(
-    text: String,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    destructive: Boolean = false,
-    dark: Boolean = CouiTheme.isDark,
-): CouiDialogAction {
-    val accent = if (destructive) {
-        CouiDialogDefaults.themeColors(dark).destructive
-    } else {
-        CouiTheme.colorSchemeFor(dark).accent
-    }
-    return CouiDialogAction(
-        text = text,
-        onClick = onClick,
-        enabled = enabled,
-        style = CouiDialogActionStyle.Primary,
-        colors = CouiDialogDefaults.primaryActionColors(accent),
-    )
-}
-
-@Composable
-internal fun CouiConfirmDialog(
-    visible: Boolean,
-    title: String?,
-    message: String?,
-    confirmText: String,
-    onConfirm: () -> Unit,
-    onDismissRequest: () -> Unit,
-    cancelText: String = stringResource(R.string.action_cancel),
-    confirmEnabled: Boolean = true,
-    cancelEnabled: Boolean = true,
-    destructive: Boolean = false,
-    placement: CouiDialogPlacement = CouiDialogPlacement.Bottom,
-    neutralAction: CouiDialogAction? = null,
-    content: (@Composable ColumnScope.() -> Unit)? = null,
-) {
-    val dark = CouiTheme.isDark
-    val backdrop = rememberCouiWindowBackdrop()
-    val material = rememberCouiDialogMaterial(dark)
-    Dialog(
-        visible = visible,
-        onDismissRequest = onDismissRequest,
-        dark = dark,
-        title = title,
-        message = message,
-        confirmAction = couiPrimaryDialogAction(
-            text = confirmText,
-            onClick = onConfirm,
-            enabled = confirmEnabled,
-            destructive = destructive,
-            dark = dark,
-        ),
-        dismissAction = CouiDialogAction(
-            text = cancelText,
-            onClick = onDismissRequest,
-            enabled = cancelEnabled,
-        ),
-        neutralAction = neutralAction,
-        placement = placement,
-        material = material,
-        backdrop = backdrop,
-    ) {
-        if (content != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = CouiDialogDefaults.contentPadding)
-                    .padding(top = 4.dp, bottom = 12.dp),
-                content = content,
-            )
-        }
-    }
-}
-
-@Composable
-internal fun CouiNoticeDialog(
-    visible: Boolean,
-    title: String?,
-    message: String?,
-    confirmText: String = stringResource(R.string.action_close),
-    onDismissRequest: () -> Unit,
-    placement: CouiDialogPlacement = CouiDialogPlacement.Bottom,
-    content: (@Composable ColumnScope.() -> Unit)? = null,
-) {
-    val dark = CouiTheme.isDark
-    val backdrop = rememberCouiWindowBackdrop()
-    val material = rememberCouiDialogMaterial(dark)
-    Dialog(
-        visible = visible,
-        onDismissRequest = onDismissRequest,
-        dark = dark,
-        title = title,
-        message = message,
-        confirmAction = couiPrimaryDialogAction(
-            text = confirmText,
-            onClick = onDismissRequest,
-            dark = dark,
-        ),
-        placement = placement,
-        material = material,
-        backdrop = backdrop,
-    ) {
-        if (content != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = CouiDialogDefaults.contentPadding)
-                    .padding(top = 4.dp, bottom = 12.dp),
-                content = content,
-            )
-        }
-    }
-}
-
-@Composable
-internal fun CouiInputDialog(
-    visible: Boolean,
-    title: String?,
-    message: String? = null,
-    state: TextFieldState,
-    inputTransformation: InputTransformation? = null,
-    placeholder: String? = null,
-    counter: String? = null,
-    counterIsError: Boolean = false,
-    confirmText: String,
-    confirmEnabled: Boolean = true,
-    cancelText: String = stringResource(R.string.action_cancel),
-    onConfirm: () -> Unit,
-    onDismissRequest: () -> Unit,
-    autoFocus: Boolean = true,
-) {
-    val dark = CouiTheme.isDark
-    val backdrop = rememberCouiWindowBackdrop()
-    val material = rememberCouiDialogMaterial(dark)
-    InputDialog(
-        visible = visible,
-        title = title,
-        message = message,
-        state = state,
-        inputTransformation = inputTransformation,
-        placeholder = placeholder,
-        counter = counter,
-        counterIsError = counterIsError,
-        clearContentDescription = stringResource(R.string.page_clear_84fcd7),
-        confirmAction = couiPrimaryDialogAction(
-            text = confirmText,
-            onClick = onConfirm,
-            enabled = confirmEnabled,
-            dark = dark,
-        ),
-        dismissAction = CouiDialogAction(
-            text = cancelText,
-            onClick = onDismissRequest,
-        ),
-        onDismissRequest = onDismissRequest,
-        dark = dark,
-        material = material,
-        backdrop = backdrop,
-        autoFocus = autoFocus,
-    )
-}
-

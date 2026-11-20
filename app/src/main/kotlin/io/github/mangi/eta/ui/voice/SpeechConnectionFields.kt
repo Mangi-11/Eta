@@ -15,8 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.AsrProvider
@@ -29,9 +27,11 @@ import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.SettingsTextField
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiIcon
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
@@ -120,7 +120,7 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                             SpeechRegion.entries.getOrNull(index)?.let { change(config.copy(region = it)) }
                         },
                     )
-                    Divider()
+                    CouiDivider()
                 } else {
                     GlassDropdownPreference(
                         title = stringResource(R.string.speech_region),
@@ -167,7 +167,7 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
             val chevronRotation by animateFloatAsState(if (advanced) 180f else 0f)
             if (uiStyle == AppearanceUiStyle.COUI) {
                 val colors = CouiPageDefaults.themeColors()
-                Divider()
+                CouiDivider()
                 CouiPreference(
                     title = stringResource(R.string.speech_advanced),
                     showChevron = false,
@@ -226,7 +226,7 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                             )
                         }
                         if (uiStyle == AppearanceUiStyle.COUI) {
-                            Divider()
+                            CouiDivider()
                             CouiSwitchPreference(
                                 title = stringResource(R.string.speech_legacy_auth),
                                 checked = config.legacyAuth,

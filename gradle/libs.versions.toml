@@ -6,9 +6,11 @@ ksp = "2.3.13"
 libxposedApi = "102.0.0"
 libxposedService = "102.0.0"
 dexkit = "2.3.0"
-coui = "0.0.1-alpha11"
+coui = "2.1.0"
 miuix = "0.9.5-beta02"
 materialIcons = "1.7.8"
+androidx-compose-window-size = "1.5.0-alpha27"
+androidx-core = "1.19.1"
 androidx-navigationevent = "1.2.0"
 androidx-lifecycle = "2.11.0"
 activityCompose = "1.13.0"
@@ -36,8 +38,11 @@ xz = { group = "org.tukaani", name = "xz", version.ref = "xz" }
 libxposed-api = { group = "io.github.libxposed", name = "api", version.ref = "libxposedApi" }
 libxposed-service = { group = "io.github.libxposed", name = "service", version.ref = "libxposedService" }
 dexkit = { group = "org.luckypray", name = "dexkit", version.ref = "dexkit" }
-coui = { group = "io.github.itoseo", name = "coui", version.ref = "coui" }
-coui-icons = { group = "io.github.itoseo", name = "coui-icons", version.ref = "coui" }
+coui-ui = { group = "io.github.suqi8.coui.kmp", name = "coui-ui-android", version.ref = "coui" }
+coui-preference = { group = "io.github.suqi8.coui.kmp", name = "coui-preference-android", version.ref = "coui" }
+coui-icons = { group = "io.github.suqi8.coui.kmp", name = "coui-icons-android", version.ref = "coui" }
+coui-blur = { group = "io.github.suqi8.coui.kmp", name = "coui-blur-android", version.ref = "coui" }
+coui-squircle = { group = "io.github.suqi8.coui.kmp", name = "coui-squircle-android", version.ref = "coui" }
 miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui-android", version.ref = "miuix" }
 miuix-blur = { group = "top.yukonga.miuix.kmp", name = "miuix-blur-android", version.ref = "miuix" }
 miuix-glass = { group = "top.yukonga.miuix.kmp", name = "miuix-glass-android", version.ref = "miuix" }
@@ -45,6 +50,8 @@ miuix-glass-icons = { group = "top.yukonga.miuix.kmp", name = "miuix-glass-icons
 miuix-material = { group = "top.yukonga.miuix.kmp", name = "miuix-material-android", version.ref = "miuix" }
 miuix-nav = { group = "top.yukonga.miuix.kmp", name = "miuix-nav-android", version.ref = "miuix" }
 miuix-preference = { group = "top.yukonga.miuix.kmp", name = "miuix-preference-android", version.ref = "miuix" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
+androidx-compose-window-size = { group = "androidx.compose.material3", name = "material3-window-size-class", version.ref = "androidx-compose-window-size" }
 material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIcons" }
 androidx-navigationevent = { group = "androidx.navigationevent", name = "navigationevent-compose", version.ref = "androidx-navigationevent" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }

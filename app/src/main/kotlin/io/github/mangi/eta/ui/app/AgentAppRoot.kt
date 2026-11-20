@@ -891,59 +891,76 @@ fun AgentAppRoot(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            characterStore.notice?.let { notice ->
-                CouiNoticeDialog(
-                    visible = true,
-                    title = stringResource(R.string.conversation_dock_characters),
-                    message = notice,
-                    confirmText = stringResource(R.string.ui_misc_got_it),
-                    onDismissRequest = characterStore::dismissNotice,
-                )
-            }
+            var retainedNotice by remember { mutableStateOf<String?>(null) }
+            characterStore.notice?.let { retainedNotice = it }
+            CouiNoticeDialog(
+                visible = characterStore.notice != null,
+                title = stringResource(R.string.conversation_dock_characters),
+                message = characterStore.notice ?: retainedNotice,
+                confirmText = stringResource(R.string.ui_misc_got_it),
+                onDismissRequest = characterStore::dismissNotice,
+                onDismissFinished = { if (characterStore.notice == null) retainedNotice = null },
+            )
 
-            conversationRenameTarget?.let { conversation ->
-                val renameInputState = remember(conversation.id) { TextFieldState(conversation.title) }
-                CouiInputDialog(
-                    visible = true,
-                    title = stringResource(R.string.conversation_rename_title),
-                    state = renameInputState,
-                    placeholder = stringResource(R.string.conversation_rename_hint),
-                    confirmText = stringResource(R.string.action_save),
-                    confirmEnabled = renameInputState.text.isNotBlank(),
-                    onConfirm = {
+            var retainedRename by remember { mutableStateOf<ConversationSummaryUi?>(null) }
+            conversationRenameTarget?.let { retainedRename = it }
+            val activeRename = conversationRenameTarget ?: retainedRename
+            val renameInputState = remember(activeRename?.id) {
+                TextFieldState(activeRename?.title.orEmpty())
+            }
+            CouiInputDialog(
+                visible = conversationRenameTarget != null,
+                title = stringResource(R.string.conversation_rename_title),
+                state = renameInputState,
+                placeholder = stringResource(R.string.conversation_rename_hint),
+                confirmText = stringResource(R.string.action_save),
+                confirmEnabled = renameInputState.text.isNotBlank() && activeRename != null,
+                onConfirm = {
+                    activeRename?.let { conversation ->
                         agentState.renameConversation(conversation.id, renameInputState.text.toString())
-                        conversationRenameTarget = null
-                    },
-                    onDismissRequest = { conversationRenameTarget = null },
-                )
-            }
+                    }
+                    conversationRenameTarget = null
+                },
+                onDismissRequest = { conversationRenameTarget = null },
+                onDismissFinished = { if (conversationRenameTarget == null) retainedRename = null },
+            )
 
-            conversationDeleteTarget?.let { conversation ->
-                val message = stringResource(
+            var retainedDelete by remember { mutableStateOf<ConversationSummaryUi?>(null) }
+            conversationDeleteTarget?.let { retainedDelete = it }
+            val activeDelete = conversationDeleteTarget ?: retainedDelete
+            val deleteMessage = activeDelete?.let { conversation ->
+                stringResource(
                     if (conversation.isActiveRun) R.string.conversation_stop_and_delete_message else R.string.conversation_delete_message,
                 )
-                val confirmText = stringResource(
-                    if (conversation.isActiveRun) R.string.conversation_stop_and_delete else R.string.action_delete,
-                )
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.conversation_delete_title),
-                    message = message,
-                    confirmText = confirmText,
-                    destructive = true,
-                    onConfirm = {
+            }
+            val deleteConfirmText = stringResource(
+                if (activeDelete?.isActiveRun == true) R.string.conversation_stop_and_delete else R.string.action_delete,
+            )
+            CouiConfirmDialog(
+                visible = conversationDeleteTarget != null,
+                title = stringResource(R.string.conversation_delete_title),
+                message = deleteMessage,
+                confirmText = deleteConfirmText,
+                confirmEnabled = activeDelete != null,
+                destructive = true,
+                onConfirm = {
+                    activeDelete?.let { conversation ->
                         if ((backStack.lastOrNull() as? AppRoute.Browser)?.sessionKey == conversation.id) {
                             navigator.popToHome()
                         }
                         agentState.deleteConversation(conversation.id)
-                        conversationDeleteTarget = null
-                    },
-                    onDismissRequest = { conversationDeleteTarget = null },
-                )
-            }
+                    }
+                    conversationDeleteTarget = null
+                },
+                onDismissRequest = { conversationDeleteTarget = null },
+                onDismissFinished = { if (conversationDeleteTarget == null) retainedDelete = null },
+            )
 
-            messageDeleteTarget?.let { target ->
-                val summary = if (target.laterTurnCount == 0) {
+            var retainedMessageDelete by remember { mutableStateOf<MessageMutationTarget?>(null) }
+            messageDeleteTarget?.let { retainedMessageDelete = it }
+            val activeMessageDelete = messageDeleteTarget ?: retainedMessageDelete
+            val messageDeleteSummary = activeMessageDelete?.let { target ->
+                if (target.laterTurnCount == 0) {
                     stringResource(R.string.conversation_delete_message_body)
                 } else {
                     pluralStringResource(
@@ -952,22 +969,29 @@ fun AgentAppRoot(
                         target.laterTurnCount,
                     )
                 }
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.conversation_delete_message_title),
-                    message = summary,
-                    confirmText = stringResource(R.string.action_delete),
-                    destructive = true,
-                    onConfirm = {
-                        agentState.deleteMessageTurn(target.messageId)
-                        messageDeleteTarget = null
-                    },
-                    onDismissRequest = { messageDeleteTarget = null },
-                )
             }
+            CouiConfirmDialog(
+                visible = messageDeleteTarget != null,
+                title = stringResource(R.string.conversation_delete_message_title),
+                message = messageDeleteSummary,
+                confirmText = stringResource(R.string.action_delete),
+                confirmEnabled = activeMessageDelete != null,
+                destructive = true,
+                onConfirm = {
+                    activeMessageDelete?.let { target ->
+                        agentState.deleteMessageTurn(target.messageId)
+                    }
+                    messageDeleteTarget = null
+                },
+                onDismissRequest = { messageDeleteTarget = null },
+                onDismissFinished = { if (messageDeleteTarget == null) retainedMessageDelete = null },
+            )
 
-            messageRegenerateTarget?.let { target ->
-                val summary = if (target.laterTurnCount == 0) {
+            var retainedRegenerate by remember { mutableStateOf<MessageMutationTarget?>(null) }
+            messageRegenerateTarget?.let { retainedRegenerate = it }
+            val activeRegenerate = messageRegenerateTarget ?: retainedRegenerate
+            val regenerateSummary = activeRegenerate?.let { target ->
+                if (target.laterTurnCount == 0) {
                     stringResource(R.string.conversation_regenerate_current_turn)
                 } else {
                     pluralStringResource(
@@ -976,19 +1000,23 @@ fun AgentAppRoot(
                         target.laterTurnCount,
                     )
                 }
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.conversation_regenerate_title),
-                    message = summary,
-                    confirmText = stringResource(R.string.action_regenerate),
-                    destructive = true,
-                    onConfirm = {
-                        agentState.regenerateMessage(target.messageId)
-                        messageRegenerateTarget = null
-                    },
-                    onDismissRequest = { messageRegenerateTarget = null },
-                )
             }
+            CouiConfirmDialog(
+                visible = messageRegenerateTarget != null,
+                title = stringResource(R.string.conversation_regenerate_title),
+                message = regenerateSummary,
+                confirmText = stringResource(R.string.action_regenerate),
+                confirmEnabled = activeRegenerate != null,
+                destructive = true,
+                onConfirm = {
+                    activeRegenerate?.let { target ->
+                        agentState.regenerateMessage(target.messageId)
+                    }
+                    messageRegenerateTarget = null
+                },
+                onDismissRequest = { messageRegenerateTarget = null },
+                onDismissFinished = { if (messageRegenerateTarget == null) retainedRegenerate = null },
+            )
         }
         AppearanceUiStyle.MIUIX -> {
             val sceneBackdrop = currentGlassOverlayBackdrop()

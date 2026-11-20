@@ -51,10 +51,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Group
-import com.itos.coui.scroll.rememberCouiOverscrollEffect
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
@@ -65,7 +61,9 @@ import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiNoticeDialog
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffold
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
@@ -76,6 +74,8 @@ import io.github.mangi.eta.ui.markdown.LazyStaticMarkdown
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.model.AgentMemoryAction
 import io.github.mangi.eta.ui.model.AgentMemoryUiState
+import io.github.suqi8.coui.kmp.basic.HorizontalDivider as CouiDivider
+import io.github.suqi8.coui.kmp.utils.COUIOverscrollEffect
 import java.text.NumberFormat
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -132,6 +132,31 @@ internal fun AgentMemoryScreen(
                         contentDescription = stringResource(R.string.ui_clear_all_memory_a43bd3),
                         enabled = canClear,
                         onClick = { showClearDialog = true },
+                    )
+                },
+                overlay = {
+                    CouiConfirmDialog(
+                        visible = showClearDialog,
+                        title = stringResource(R.string.ui_clear_all_memory_a43bd3),
+                        message = stringResource(R.string.ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac),
+                        confirmText = stringResource(R.string.memory_clear),
+                        confirmEnabled = !state.isSaving,
+                        destructive = true,
+                        onConfirm = {
+                            showClearDialog = false
+                            onAction(AgentMemoryAction.Clear)
+                        },
+                        onDismissRequest = { showClearDialog = false },
+                    )
+
+                    val activeNotice = state.notice ?: retainedNotice
+                    CouiNoticeDialog(
+                        visible = state.notice != null,
+                        title = stringResource(R.string.ui_memory_b55ff5),
+                        message = activeNotice,
+                        confirmText = stringResource(R.string.ui_knew_cb63c6),
+                        onDismissRequest = { onAction(AgentMemoryAction.DismissNotice) },
+                        onDismissFinished = { if (state.notice == null) retainedNotice = null },
                     )
                 },
             ) { contentPadding, _, nestedScrollConnection, sidePadding ->
@@ -262,34 +287,6 @@ internal fun AgentMemoryScreen(
             }
         }
     }
-
-    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-        if (showClearDialog) {
-            CouiConfirmDialog(
-                visible = true,
-                title = stringResource(R.string.ui_clear_all_memory_a43bd3),
-                message = stringResource(R.string.ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac),
-                confirmText = stringResource(R.string.memory_clear),
-                confirmEnabled = !state.isSaving,
-                destructive = true,
-                onConfirm = {
-                    showClearDialog = false
-                    onAction(AgentMemoryAction.Clear)
-                },
-                onDismissRequest = { showClearDialog = false },
-            )
-        }
-
-        state.notice?.let { notice ->
-            CouiNoticeDialog(
-                visible = true,
-                title = stringResource(R.string.ui_memory_b55ff5),
-                message = notice,
-                confirmText = stringResource(R.string.ui_knew_cb63c6),
-                onDismissRequest = { onAction(AgentMemoryAction.DismissNotice) },
-            )
-        }
-    }
 }
 
 @Composable
@@ -299,20 +296,23 @@ private fun MemorySettingsGroup(
 ) {
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            Group {
-                CouiSwitchPreference(
-                    title = stringResource(R.string.ui_enable_memory_4b69b7),
-                    summary = stringResource(R.string.ui_after_closing_no_memory_will_be_injected_and_the_mod_db3d23),
-                    checked = state.enabled,
-                    enabled = !state.isLoading,
-                    onCheckedChange = { onAction(AgentMemoryAction.ToggleEnabled(it)) },
-                )
-                Divider()
-                CouiPreference(
-                    title = stringResource(R.string.ui_core_memory_injection_budget_48b5d5),
-                    summary = stringResource(R.string.memory_budget_summary, formatNumber(state.coreBudgetChars)),
-                    showChevron = false,
-                )
+            CouiPreferenceGroup {
+                item {
+                    CouiSwitchPreference(
+                        title = stringResource(R.string.ui_enable_memory_4b69b7),
+                        summary = stringResource(R.string.ui_after_closing_no_memory_will_be_injected_and_the_mod_db3d23),
+                        checked = state.enabled,
+                        enabled = !state.isLoading,
+                        onCheckedChange = { onAction(AgentMemoryAction.ToggleEnabled(it)) },
+                    )
+                }
+                item {
+                    CouiPreference(
+                        title = stringResource(R.string.ui_core_memory_injection_budget_48b5d5),
+                        summary = stringResource(R.string.memory_budget_summary, formatNumber(state.coreBudgetChars)),
+                        showChevron = false,
+                    )
+                }
             }
         }
         AppearanceUiStyle.MIUIX -> {
@@ -383,7 +383,7 @@ private fun MemoryDocumentCard(
             MemoryModeSwitch(mode = mode, enabled = !state.isLoading, onModeChange = onModeChange)
         }
         if (isCoui) {
-            Divider()
+            CouiDivider()
         } else {
             Box(
                 modifier = Modifier
@@ -461,7 +461,7 @@ private fun MemoryPreview(content: String, onStartEditing: () -> Unit) {
         return
     }
     val overscroll = if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-        rememberCouiOverscrollEffect()
+        remember { COUIOverscrollEffect() }
     } else {
         null
     }

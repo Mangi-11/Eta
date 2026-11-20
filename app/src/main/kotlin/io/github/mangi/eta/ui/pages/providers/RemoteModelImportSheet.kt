@@ -29,27 +29,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import com.itos.coui.checkbox.Checkbox as CouiCheckbox
-import com.itos.coui.checkbox.CouiCheckboxDefaults
-import com.itos.coui.dialog.CouiDialogAction
-import com.itos.coui.dialog.CouiDialogPlacement
-import com.itos.coui.dialog.Dialog
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.menu.rememberCouiWindowBackdrop
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.repository.RemoteModelCatalog
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.coui.CouiBottomSheet
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
-import io.github.mangi.eta.ui.components.coui.couiPrimaryDialogAction
-import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.glassOverlayFieldBackgroundColor
 import io.github.mangi.eta.ui.model.ModelSearchQuery
+import io.github.suqi8.coui.kmp.basic.Checkbox as CouiCheckbox
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.InputField
@@ -81,26 +73,11 @@ internal fun RemoteModelImportSheet(
     }
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            val dark = CouiTheme.isDark
-            Dialog(
-                visible = pending != null,
+            CouiBottomSheet(
+                show = pending != null,
                 onDismissRequest = onDismissRequest,
-                dark = dark,
                 title = stringResource(R.string.remote_model_import_title),
-                // 正文由弹窗滚动承载，提交入口必须留在独立操作栏中。
-                confirmAction = couiPrimaryDialogAction(
-                    text = confirmText,
-                    onClick = { pending?.let { onConfirm(it, selected) } },
-                    enabled = pending != null && selected.isNotEmpty(),
-                    dark = dark,
-                ),
-                dismissAction = CouiDialogAction(
-                    text = stringResource(R.string.action_cancel),
-                    onClick = onDismissRequest,
-                ),
-                placement = CouiDialogPlacement.Bottom,
-                material = rememberCouiDialogMaterial(dark),
-                backdrop = rememberCouiWindowBackdrop(),
+                onDismissFinished = { if (pending == null) shown = null },
             ) {
                 shown?.let { current ->
                     key(current) {
@@ -210,7 +187,6 @@ private fun RemoteModelImportContent(
                 query = query,
                 onQueryChange = { query = it },
                 placeholder = stringResource(R.string.ui_search_model_df5586),
-                backgroundColor = Color.Transparent,
             )
         } else {
             InputField(
@@ -257,7 +233,15 @@ private fun RemoteModelImportContent(
                 )
             }
         }
-        if (uiStyle == AppearanceUiStyle.MIUIX) {
+        if (uiStyle == AppearanceUiStyle.COUI) {
+            CouiButton(
+                text = confirmText,
+                onClick = { onConfirm(selected) },
+                enabled = selected.isNotEmpty(),
+                role = CouiButtonRole.Primary,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+        } else {
             TextButton(
                 text = confirmText,
                 onClick = { onConfirm(selected) },
@@ -309,14 +293,10 @@ private fun RemoteModelRow(
         Spacer(modifier = Modifier.width(12.dp))
         when (LocalUiStyle.current) {
             AppearanceUiStyle.COUI -> {
-                val dark = CouiTheme.isDark
-                val colors = CouiPageDefaults.themeColors(dark)
                 CouiCheckbox(
                     modifier = Modifier,
-                    checked = checked,
-                    colors = CouiCheckboxDefaults.colors(colors.accent, dark),
-                    shape = CouiCheckboxDefaults.shape,
-                    borderShape = CouiCheckboxDefaults.borderShape,
+                    state = if (checked) ToggleableState.On else ToggleableState.Off,
+                    onClick = null,
                 )
             }
             AppearanceUiStyle.MIUIX -> {

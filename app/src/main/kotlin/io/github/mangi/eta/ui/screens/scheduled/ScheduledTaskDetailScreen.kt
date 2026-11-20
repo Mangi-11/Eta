@@ -36,15 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Edit as OutlinedEdit
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.icons.CouiIcons
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Footer
-import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.scheduler.ScheduledTaskRunner
 import io.github.mangi.eta.agent.scheduler.ScheduledTaskScheduleCalculator
@@ -61,15 +52,23 @@ import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceFooter
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
+import io.github.mangi.eta.ui.components.coui.CouiText
+import io.github.mangi.eta.ui.components.coui.CouiTextKind
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
+import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.navigation.AppRoute
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -206,6 +205,29 @@ internal fun ScheduledTaskDetailScreen(
                         )
                     }
                 },
+                overlay = {
+                    CouiConfirmDialog(
+                        visible = showDeleteConfirm,
+                        title = stringResource(R.string.scheduled_action_delete_task),
+                        message = stringResource(
+                            R.string.scheduled_delete_dialog_message,
+                            currentTask?.name.orEmpty(),
+                        ),
+                        confirmText = stringResource(R.string.action_delete),
+                        destructive = true,
+                        onConfirm = onConfirmDelete,
+                        onDismissRequest = { showDeleteConfirm = false },
+                    )
+                    CouiConfirmDialog(
+                        visible = showClearMemoConfirm,
+                        title = stringResource(R.string.scheduled_clear_memo_dialog_title),
+                        message = stringResource(R.string.scheduled_clear_memo_dialog_message),
+                        confirmText = stringResource(R.string.scheduled_action_clear),
+                        destructive = true,
+                        onConfirm = onConfirmClearMemo,
+                        onDismissRequest = { showClearMemoConfirm = false },
+                    )
+                },
             ) {
                 if (currentTask == null) {
                     item(key = "missing") {
@@ -227,76 +249,84 @@ internal fun ScheduledTaskDetailScreen(
                         )
                     }
                     item(key = "prompt_card") {
-                        Group(title = stringResource(R.string.scheduled_detail_section_config)) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                CouiText(
-                                    text = currentTask.prompt,
-                                    kind = CouiTextKind.ItemSummary,
-                                    color = colors.title,
-                                )
-                            }
-                            Divider()
-                            CouiPreference(
-                                title = stringResource(R.string.scheduled_field_model),
-                                value = modelDisplay,
-                                showChevron = false,
-                            )
-                            Divider()
-                            CouiPreference(
-                                title = stringResource(R.string.scheduled_detail_field_notify_session),
-                                value = "${ScheduledTaskUiFormatting.deliveryBadge(currentTask.deliveryMode)} · ${
-                                    stringResource(
-                                        if (currentTask.showRunningNotification) {
-                                            R.string.scheduled_progress_badge_show
-                                        } else {
-                                            R.string.scheduled_progress_badge_silent
-                                        },
-                                    )
-                                } · ${
-                                    stringResource(
-                                        if (currentTask.sessionMode.wireValue == "dedicated") {
-                                            R.string.scheduled_session_badge_dedicated
-                                        } else {
-                                            R.string.scheduled_session_badge_isolated
-                                        },
-                                    )
-                                }",
-                                showChevron = false,
-                            )
-                            Divider()
-                            CouiPreference(
-                                title = stringResource(R.string.scheduled_detail_field_capabilities),
-                                summary = buildCapabilitiesSummary(currentTask),
-                                showChevron = false,
-                            )
-                        }
-                    }
-                    if (currentTask.memo.isNotBlank()) {
-                        item(key = "memo_card") {
-                            Group(title = stringResource(R.string.scheduled_detail_memo_title_with_hint)) {
+                        CouiPreferenceGroup(title = stringResource(R.string.scheduled_detail_section_config)) {
+                            item {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
                                     CouiText(
-                                        text = currentTask.memo,
+                                        text = currentTask.prompt,
                                         kind = CouiTextKind.ItemSummary,
-                                        color = colors.summary,
-                                        maxLines = 8,
-                                        overflow = TextOverflow.Ellipsis,
+                                        color = colors.title,
                                     )
-                                    CouiButton(
-                                        text = stringResource(R.string.scheduled_action_clear_memo),
-                                        role = CouiButtonRole.Secondary,
-                                        onClick = { showClearMemoConfirm = true },
-                                    )
+                                }
+                                CouiCardDivider()
+                            }
+                            item {
+                                CouiPreference(
+                                    title = stringResource(R.string.scheduled_field_model),
+                                    value = modelDisplay,
+                                    showChevron = false,
+                                )
+                            }
+                            item {
+                                CouiPreference(
+                                    title = stringResource(R.string.scheduled_detail_field_notify_session),
+                                    value = "${ScheduledTaskUiFormatting.deliveryBadge(currentTask.deliveryMode)} · ${
+                                        stringResource(
+                                            if (currentTask.showRunningNotification) {
+                                                R.string.scheduled_progress_badge_show
+                                            } else {
+                                                R.string.scheduled_progress_badge_silent
+                                            },
+                                        )
+                                    } · ${
+                                        stringResource(
+                                            if (currentTask.sessionMode.wireValue == "dedicated") {
+                                                R.string.scheduled_session_badge_dedicated
+                                            } else {
+                                                R.string.scheduled_session_badge_isolated
+                                            },
+                                        )
+                                    }",
+                                    showChevron = false,
+                                )
+                            }
+                            item {
+                                CouiPreference(
+                                    title = stringResource(R.string.scheduled_detail_field_capabilities),
+                                    summary = buildCapabilitiesSummary(currentTask),
+                                    showChevron = false,
+                                )
+                            }
+                        }
+                    }
+                    if (currentTask.memo.isNotBlank()) {
+                        item(key = "memo_card") {
+                            CouiPreferenceGroup(title = stringResource(R.string.scheduled_detail_memo_title_with_hint)) {
+                                item {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    ) {
+                                        CouiText(
+                                            text = currentTask.memo,
+                                            kind = CouiTextKind.ItemSummary,
+                                            color = colors.summary,
+                                            maxLines = 8,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        CouiButton(
+                                            text = stringResource(R.string.scheduled_action_clear_memo),
+                                            role = CouiButtonRole.Secondary,
+                                            onClick = { showClearMemoConfirm = true },
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -306,7 +336,7 @@ internal fun ScheduledTaskDetailScreen(
                     }
                     if (runs.isEmpty()) {
                         item(key = "history_empty") {
-                            Footer(text = stringResource(R.string.scheduled_detail_timeline_empty))
+                            CouiPreferenceFooter(text = stringResource(R.string.scheduled_detail_timeline_empty))
                         }
                     } else {
                         itemsIndexed(items = runs, key = { _, run -> run.id }) { _, run ->
@@ -340,28 +370,6 @@ internal fun ScheduledTaskDetailScreen(
                     }
                 }
             }
-
-            CouiConfirmDialog(
-                visible = showDeleteConfirm,
-                title = stringResource(R.string.scheduled_action_delete_task),
-                message = stringResource(
-                    R.string.scheduled_delete_dialog_message,
-                    currentTask?.name.orEmpty(),
-                ),
-                confirmText = stringResource(R.string.action_delete),
-                destructive = true,
-                onConfirm = onConfirmDelete,
-                onDismissRequest = { showDeleteConfirm = false },
-            )
-            CouiConfirmDialog(
-                visible = showClearMemoConfirm,
-                title = stringResource(R.string.scheduled_clear_memo_dialog_title),
-                message = stringResource(R.string.scheduled_clear_memo_dialog_message),
-                confirmText = stringResource(R.string.scheduled_action_clear),
-                destructive = true,
-                onConfirm = onConfirmClearMemo,
-                onDismissRequest = { showClearMemoConfirm = false },
-            )
         }
 
         AppearanceUiStyle.MIUIX -> {
@@ -581,44 +589,48 @@ private fun CouiTaskControlCard(
         stringResource(R.string.scheduled_status_currently_paused)
     }
 
-    Group {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            CouiText(
-                text = scheduleText,
-                kind = CouiTextKind.ItemTitle,
-                color = colors.title,
-            )
-            CouiText(
-                text = nextText,
-                kind = CouiTextKind.ItemSummary,
-                color = colors.summary,
-            )
-            CouiButton(
-                text = if (isRunning) stringResource(R.string.scheduled_action_stop)
-                else stringResource(R.string.scheduled_action_run_now),
-                role = if (isRunning) CouiButtonRole.DestructiveFilled else CouiButtonRole.Primary,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onRunOrStop,
+    CouiPreferenceGroup {
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                CouiText(
+                    text = scheduleText,
+                    kind = CouiTextKind.ItemTitle,
+                    color = colors.title,
+                )
+                CouiText(
+                    text = nextText,
+                    kind = CouiTextKind.ItemSummary,
+                    color = colors.summary,
+                )
+                CouiButton(
+                    text = if (isRunning) stringResource(R.string.scheduled_action_stop)
+                    else stringResource(R.string.scheduled_action_run_now),
+                    role = if (isRunning) CouiButtonRole.DestructiveFilled else CouiButtonRole.Primary,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onRunOrStop,
+                )
+            }
+            CouiCardDivider()
+        }
+        item {
+            CouiSwitchPreference(
+                title = stringResource(R.string.scheduled_detail_enable_schedule_title),
+                summary = stringResource(
+                    if (task.enabled) {
+                        R.string.scheduled_detail_enable_schedule_on_summary
+                    } else {
+                        R.string.scheduled_detail_enable_schedule_off_summary
+                    },
+                ),
+                checked = task.enabled,
+                onCheckedChange = onToggleEnabled,
             )
         }
-        Divider()
-        CouiSwitchPreference(
-            title = stringResource(R.string.scheduled_detail_enable_schedule_title),
-            summary = stringResource(
-                if (task.enabled) {
-                    R.string.scheduled_detail_enable_schedule_on_summary
-                } else {
-                    R.string.scheduled_detail_enable_schedule_off_summary
-                },
-            ),
-            checked = task.enabled,
-            onCheckedChange = onToggleEnabled,
-        )
     }
 }
 
@@ -700,7 +712,7 @@ private fun CouiRunTimelineItem(
     onOpenConversation: () -> Unit,
 ) {
     val dark = CouiTheme.isDark
-    val colors = CouiPageDefaults.themeColors(dark)
+    val colors = CouiPageDefaults.themeColors()
     val canOpen = !run.archiveConversationKey.isNullOrBlank() &&
         (isLive || (run.status != ScheduledTaskRunStatus.RUNNING && run.status != ScheduledTaskRunStatus.SKIPPED))
     val dotColor = ScheduledTaskUiFormatting.statusDotColor(
@@ -718,68 +730,70 @@ private fun CouiRunTimelineItem(
     }
     val timeText = ScheduledTaskUiFormatting.formatTimestamp(run.startedAt, nowMs)
 
-    Group {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (canOpen) {
-                        Modifier
-                            .couiButtonFeedback(dark, interaction, enabled = true)
-                            .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onOpenConversation)
-                    } else Modifier
-                )
-                .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+    CouiPreferenceGroup {
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (canOpen) {
+                            Modifier
+                                .couiButtonFeedback(dark, interaction, enabled = true)
+                                .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onOpenConversation)
+                        } else Modifier
+                    )
+                    .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(dotColor),
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(dotColor),
+                        )
+                        CouiText(
+                            text = headline,
+                            kind = CouiTextKind.ItemTitle,
+                            color = colors.title,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
                     CouiText(
-                        text = headline,
-                        kind = CouiTextKind.ItemTitle,
-                        color = colors.title,
-                        maxLines = 1,
+                        text = timeText,
+                        kind = CouiTextKind.ItemSummary,
+                        color = colors.summary,
+                    )
+                }
+                if (run.summary.isNotBlank()) {
+                    CouiText(
+                        text = run.summary,
+                        kind = CouiTextKind.ItemSummary,
+                        color = colors.summary,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                CouiText(
-                    text = timeText,
-                    kind = CouiTextKind.ItemSummary,
-                    color = colors.summary,
-                )
-            }
-            if (run.summary.isNotBlank()) {
-                CouiText(
-                    text = run.summary,
-                    kind = CouiTextKind.ItemSummary,
-                    color = colors.summary,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (canOpen) {
-                CouiText(
-                    text = stringResource(
-                        if (isLive) R.string.scheduled_timeline_tap_live else R.string.scheduled_timeline_tap_conversation,
-                    ),
-                    kind = CouiTextKind.ItemSummary,
-                    color = colors.accent,
-                )
+                if (canOpen) {
+                    CouiText(
+                        text = stringResource(
+                            if (isLive) R.string.scheduled_timeline_tap_live else R.string.scheduled_timeline_tap_conversation,
+                        ),
+                        kind = CouiTextKind.ItemSummary,
+                        color = colors.accent,
+                    )
+                }
             }
         }
     }

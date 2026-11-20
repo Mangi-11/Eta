@@ -1,8 +1,6 @@
 package io.github.mangi.eta.ui.components.coui
 
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -13,100 +11,71 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.itos.coui.effect.CouiFloatingRenderer
-import com.itos.coui.effect.LocalCouiContourGlowEnabled
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.icons.CouiIcons
-import com.itos.coui.layout.CouiPageColors
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Scaffold
-import com.itos.coui.scroll.CouiOverscrollEffect
-import com.itos.coui.scroll.couiVerticalScroll
-import com.itos.coui.scroll.rememberCouiOverscrollEffect
-import com.itos.coui.shape.CouiCapsuleShape
-import com.itos.coui.shape.CouiShape
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.rememberCouiTextStyle
-import com.itos.coui.theme.CouiTheme
-import com.itos.coui.theme.LocalCouiContentColor
-import com.itos.coui.theme.LocalCouiTextStyle
-import com.itos.coui.topappbar.CouiToolbarStyle
-import com.itos.coui.topappbar.CouiTopAppBarButtonDefaults
-import com.itos.coui.topappbar.CouiTopAppBarDefaults
-import com.itos.coui.topappbar.CouiTopAppBarScrollBehavior
-import com.itos.coui.topappbar.LargeTopAppBar
-import com.itos.coui.topappbar.TopAppBar
-import com.itos.coui.topappbar.TopAppBarButton
-import com.itos.coui.topappbar.TopAppBarButtonGroup
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.layout.WidePageContent
 import io.github.mangi.eta.ui.layout.rememberIsWideScreen
-
-@Composable
-internal fun rememberCouiSystemToolbarStyle(
-    dark: Boolean = CouiTheme.isDark,
-    colors: CouiPageColors = CouiPageDefaults.themeColors(dark),
-): CouiToolbarStyle {
-    val density = LocalDensity.current.density
-    val contour = LocalCouiContourGlowEnabled.current
-    val textStyle = rememberCouiTextStyle(CouiTextKind.TopBar)
-    return CouiTopAppBarButtonDefaults.style(dark).copy(
-        contentColor = colors.title,
-        textStyle = textStyle,
-        cursorColor = colors.accent,
-        material = { CouiTopAppBarButtonDefaults.systemMaterial(dark, it) },
-        shadow = { CouiTopAppBarButtonDefaults.shadow(dark, it, density, contour, alphaScale = 1f) },
-    )
-}
+import io.github.suqi8.coui.kmp.basic.COUIScrollBehavior
+import io.github.suqi8.coui.kmp.basic.Icon
+import io.github.suqi8.coui.kmp.basic.IconButton
+import io.github.suqi8.coui.kmp.basic.Scaffold
+import io.github.suqi8.coui.kmp.basic.SmallTopAppBar
+import io.github.suqi8.coui.kmp.basic.ToolbarTextButton
+import io.github.suqi8.coui.kmp.basic.TopAppBar
+import io.github.suqi8.coui.kmp.basic.TopAppBarSearchBar
+import io.github.suqi8.coui.kmp.basic.TopAppBarSearchState
+import io.github.suqi8.coui.kmp.basic.TopAppBarState
+import io.github.suqi8.coui.kmp.basic.glowScrollOffsetPx
+import io.github.suqi8.coui.kmp.basic.rememberTopAppBarSearchState
+import io.github.suqi8.coui.kmp.basic.rememberTopAppBarState
+import io.github.suqi8.coui.kmp.basic.topAppBarSearchContent
+import io.github.suqi8.coui.kmp.basic.topAppBarSearchResults
+import io.github.suqi8.coui.kmp.blur.TopAppBarGlow
+import io.github.suqi8.coui.kmp.icon.COUIIcons
+import io.github.suqi8.coui.kmp.icon.extended.Back
+import io.github.suqi8.coui.kmp.theme.COUITheme
+import io.github.suqi8.coui.kmp.utils.overScrollVertical
+import io.github.suqi8.coui.kmp.utils.rememberCOUIFlingBehavior
+import io.github.suqi8.coui.kmp.utils.scrollEndHaptic
 
 @Composable
 internal fun CouiBackButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    dark: Boolean = CouiTheme.isDark,
-    colors: CouiPageColors = CouiPageDefaults.themeColors(dark),
+    dark: Boolean = COUITheme.isDark,
+    colors: CouiPageColors = CouiPageDefaults.themeColors(),
     backDescription: String = stringResource(R.string.action_back),
-) {
-    CouiTopAppBarIconButton(
-        icon = CouiIcons.Outlined.Back,
-        contentDescription = backDescription,
-        onClick = onClick,
-        modifier = modifier,
-        dark = dark,
-        colors = colors,
-    )
-}
+) = CouiTopAppBarIconButton(COUIIcons.Back, backDescription, onClick, modifier, tint = colors.title)
 
 @Composable
 internal fun CouiTopAppBarIconButton(
@@ -115,58 +84,24 @@ internal fun CouiTopAppBarIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    dark: Boolean = CouiTheme.isDark,
-    colors: CouiPageColors = CouiPageDefaults.themeColors(dark),
+    dark: Boolean = COUITheme.isDark,
+    colors: CouiPageColors = CouiPageDefaults.themeColors(),
     iconSize: Dp = 24.dp,
     tint: Color = Color.Unspecified,
 ) {
-    val renderer = remember {
-        runCatching { CouiFloatingRenderer.standalone() }.getOrNull()
-    }
-    if (renderer != null) {
-        val style = rememberCouiSystemToolbarStyle(dark, colors)
-        TopAppBarButton(
-            modifier = modifier,
-            onClick = onClick,
-            enabled = enabled,
-            renderer = renderer,
-            style = style,
-        ) {
-            val resolvedTint = tint.takeOrElse {
-                LocalCouiContentColor.current.takeOrElse { colors.title }
-            }
-            CouiIcon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(iconSize),
-                tint = resolvedTint,
-            )
-        }
-    } else {
-        val source = remember { MutableInteractionSource() }
-        val resolvedTint = tint.takeOrElse { if (enabled) colors.title else colors.disabled }
-        Box(
-            modifier = modifier
-                .size(48.dp)
-                .clip(CouiShape(24.dp, 2f))
-                .couiButtonFeedback(dark, source, enabled)
-                .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-                .then(
-                    if (contentDescription != null) {
-                        Modifier.semantics { this.contentDescription = contentDescription }
-                    } else {
-                        Modifier
-                    },
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            CouiIcon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(iconSize),
-                tint = resolvedTint,
-            )
-        }
+    IconButton(
+        onClick = onClick,
+        modifier = if (contentDescription == null) modifier else modifier.semantics {
+            this.contentDescription = contentDescription
+        },
+        enabled = enabled,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(iconSize),
+            tint = if (!enabled) colors.disabled else if (tint == Color.Unspecified) colors.title else tint,
+        )
     }
 }
 
@@ -176,351 +111,282 @@ internal fun CouiTopAppBarTextButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    dark: Boolean = CouiTheme.isDark,
-    colors: CouiPageColors = CouiPageDefaults.themeColors(dark),
+    dark: Boolean = COUITheme.isDark,
+    colors: CouiPageColors = CouiPageDefaults.themeColors(),
 ) {
-    val renderer = remember {
-        runCatching { CouiFloatingRenderer.standalone() }.getOrNull()
-    }
-    if (renderer != null) {
-        val style = rememberCouiSystemToolbarStyle(dark, colors)
-        TopAppBarButton(
-            modifier = modifier,
-            onClick = onClick,
-            enabled = enabled,
-            text = true,
-            renderer = renderer,
-            style = style,
-        ) {
-            val textColor = LocalCouiContentColor.current.takeOrElse {
-                if (enabled) colors.title else colors.disabled
-            }
-            BasicText(
-                text = text,
-                style = LocalCouiTextStyle.current.copy(color = textColor),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    } else {
-        val source = remember { MutableInteractionSource() }
-        val textStyle = rememberCouiTextStyle(CouiTextKind.ItemValue)
-        val textColor = if (enabled) colors.accent else colors.disabled
-        Box(
-            modifier = modifier
-                .widthIn(min = 60.dp)
-                .heightIn(min = 40.dp)
-                .clip(CouiCapsuleShape)
-                .couiButtonFeedback(dark, source, enabled)
-                .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            BasicText(
-                text = text,
-                style = textStyle.copy(color = textColor),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+    ToolbarTextButton(text = text, onClick = onClick, modifier = modifier, enabled = enabled)
 }
 
-/**
- * COUI 二级页骨架（ScrollState + Column）：
- * 手机使用大标题弧线折叠顶栏，宽屏或 compactTitle 使用紧凑顶栏；
- * 仅在宿主窗口持有焦点时应用 imePadding，避免输入弹窗打开时背景页面提前空出键盘高度。
- */
 @Composable
 internal fun CouiScaffoldPage(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    dark: Boolean = CouiTheme.isDark,
-    colors: CouiPageColors = CouiPageDefaults.themeColors(dark),
+    dark: Boolean = COUITheme.isDark,
+    colors: CouiPageColors = CouiPageDefaults.themeColors(),
     scrollState: ScrollState = rememberScrollState(),
     compactTitle: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
-    overscrollEffect: CouiOverscrollEffect? = rememberCouiOverscrollEffect(),
     floatingAction: (@Composable BoxScope.() -> Unit)? = null,
     overlay: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val useCompact = compactTitle || rememberIsWideScreen()
-    val behavior = if (useCompact) {
-        null
-    } else {
-        CouiTopAppBarDefaults.exitUntilCollapsedScrollBehavior(
-            canScroll = { scrollState.maxValue > 0 },
-        )
-    }
-    val localDensity = LocalDensity.current
-    val imePadding = if (LocalWindowInfo.current.isWindowFocused) Modifier.imePadding() else Modifier
-    val barColors = CouiTopAppBarDefaults.colors(titleColor = colors.title, dark = dark)
-    val navigation: @Composable () -> Unit = {
-        CouiBackButton(onClick = onBack, dark = dark, colors = colors)
-    }
-    val topBarActions: @Composable RowScope.() -> Unit = {
-        TopAppBarButtonGroup {
-            actions()
-        }
-    }
-    Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .then(imePadding)
-            .then(if (behavior != null) Modifier.nestedScroll(behavior.nestedScrollConnection) else Modifier),
-        containerColor = colors.background,
-        floatingActionButton = floatingAction,
-        topBar = {
-            if (useCompact) {
-                TopAppBar(
-                    title = {
-                        BasicText(
-                            text = title,
-                            style = LocalCouiTextStyle.current,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    navigationIcon = navigation,
-                    actions = topBarActions,
-                    dark = dark,
-                    colors = barColors,
-                )
-            } else {
-                LargeTopAppBar(
-                    title = {
-                        BasicText(
-                            text = title,
-                            style = LocalCouiTextStyle.current,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    navigationIcon = navigation,
-                    actions = topBarActions,
-                    scrollBehavior = behavior,
-                    dark = dark,
-                    colors = barColors,
-                )
-            }
-        },
-    ) { innerPadding ->
-        val contentPadding = remember(behavior, innerPadding, localDensity) {
-            behavior?.state?.contentPadding(innerPadding, localDensity) ?: innerPadding
-        }
-        WidePageContent { sidePadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .couiVerticalScroll(scrollState, overscrollEffect = overscrollEffect)
-                    .padding(contentPadding)
-                    .padding(horizontal = sidePadding)
-                    .consumeWindowInsets(innerPadding)
-                    .padding(bottom = CouiPageDefaults.groupSpacing),
-                content = content,
+    CouiScaffold(
+        title = title,
+        onBack = onBack,
+        modifier = modifier.then(if (LocalWindowInfo.current.isWindowFocused) Modifier.imePadding() else Modifier),
+        dark = dark,
+        colors = colors,
+        compactTitle = compactTitle,
+        actions = actions,
+        floatingAction = floatingAction,
+        overlay = overlay,
+    ) { padding, rawPadding, nestedScroll, sidePadding ->
+        // 延迟到测量阶段读取 Scaffold 顶栏高度，与 COUI 折叠弹簧同帧联动且不截断穿过顶栏的凝光模糊。
+        val contentPadding = remember(padding, sidePadding) {
+            CouiPageContentPadding(
+                inner = padding,
+                sidePadding = sidePadding,
+                extraBottom = CouiPageDefaults.groupSpacing,
             )
         }
-        overlay()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .consumeWindowInsets(rawPadding)
+                .scrollEndHaptic()
+                .overScrollVertical()
+                .then(if (nestedScroll != null) Modifier.nestedScroll(nestedScroll) else Modifier)
+                .verticalScroll(
+                    state = scrollState,
+                    flingBehavior = rememberCOUIFlingBehavior(),
+                    overscrollEffect = null,
+                )
+                .padding(contentPadding),
+            content = content,
+        )
     }
 }
 
-/**
- * COUI 二级页骨架（LazyColumn），用于长动态列表页。
- */
+internal class CouiPageSearch(
+    val query: String,
+    val onQueryChange: (String) -> Unit,
+    val label: String,
+)
+
 @Composable
 internal fun CouiLazyScaffoldPage(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    dark: Boolean = CouiTheme.isDark,
-    colors: CouiPageColors = CouiPageDefaults.themeColors(dark),
+    dark: Boolean = COUITheme.isDark,
+    colors: CouiPageColors = CouiPageDefaults.themeColors(),
     listState: LazyListState = rememberLazyListState(),
     compactTitle: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
     floatingAction: (@Composable BoxScope.() -> Unit)? = null,
     overlay: @Composable () -> Unit = {},
-    content: LazyListScope.() -> Unit,
+    search: CouiPageSearch? = null,
+    content: LazyListScope.(searching: Boolean) -> Unit,
 ) {
-    val useCompact = compactTitle || rememberIsWideScreen()
-    val behavior = if (useCompact) {
-        null
-    } else {
-        CouiTopAppBarDefaults.exitUntilCollapsedScrollBehavior(
-            canScroll = { listState.canScrollForward || listState.canScrollBackward },
-        )
-    }
-    val overscroll = rememberCouiOverscrollEffect()
-    val localDensity = LocalDensity.current
-    val imePadding = if (LocalWindowInfo.current.isWindowFocused) Modifier.imePadding() else Modifier
-    val barColors = CouiTopAppBarDefaults.colors(titleColor = colors.title, dark = dark)
-    val navigation: @Composable () -> Unit = {
-        CouiBackButton(onClick = onBack, dark = dark, colors = colors)
-    }
-    val topBarActions: @Composable RowScope.() -> Unit = {
-        TopAppBarButtonGroup {
-            actions()
+    var searching by rememberSaveable { mutableStateOf(false) }
+    val searchState = if (search == null) null else rememberTopAppBarSearchState(searching)
+    val resultsListState = if (search == null) null else rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    if (resultsListState != null) {
+        LaunchedEffect(resultsListState.isScrollInProgress, searching) {
+            if (searching && resultsListState.isScrollInProgress) {
+                focusManager.clearFocus()
+                keyboard?.hide()
+            }
         }
     }
-    Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .then(imePadding)
-            .then(if (behavior != null) Modifier.nestedScroll(behavior.nestedScrollConnection) else Modifier),
-        containerColor = colors.background,
-        floatingActionButton = floatingAction,
-        topBar = {
-            if (useCompact) {
-                TopAppBar(
-                    title = {
-                        BasicText(
-                            text = title,
-                            style = LocalCouiTextStyle.current,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+    CouiScaffold(
+        title = title,
+        onBack = onBack,
+        modifier = modifier.then(if (LocalWindowInfo.current.isWindowFocused) Modifier.imePadding() else Modifier),
+        dark = dark,
+        colors = colors,
+        compactTitle = compactTitle,
+        canScroll = { !searching },
+        actions = actions,
+        floatingAction = floatingAction,
+        searchState = searchState,
+        overlay = overlay,
+        topBarBottomContent = {
+            if (search != null) {
+                TopAppBarSearchBar(
+                    query = search.query,
+                    onQueryChange = search.onQueryChange,
+                    expanded = searching,
+                    onExpandedChange = {
+                        searching = it
+                        if (!it) {
+                            search.onQueryChange("")
+                            keyboard?.hide()
+                        }
                     },
-                    navigationIcon = navigation,
-                    actions = topBarActions,
-                    dark = dark,
-                    colors = barColors,
-                )
-            } else {
-                LargeTopAppBar(
-                    title = {
-                        BasicText(
-                            text = title,
-                            style = LocalCouiTextStyle.current,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    navigationIcon = navigation,
-                    actions = topBarActions,
-                    scrollBehavior = behavior,
-                    dark = dark,
-                    colors = barColors,
+                    cancelText = stringResource(R.string.action_cancel),
+                    label = search.label,
                 )
             }
         },
-    ) { innerPadding ->
-        val topBarAdjustedPadding = remember(behavior, innerPadding, localDensity) {
-            behavior?.state?.contentPadding(innerPadding, localDensity) ?: innerPadding
+    ) { padding, rawPadding, nestedScroll, sidePadding ->
+        val contentPadding = remember(padding, sidePadding) {
+            CouiPageContentPadding(
+                inner = padding,
+                sidePadding = sidePadding,
+                extraBottom = CouiPageDefaults.groupSpacing,
+            )
         }
-        WidePageContent { sidePadding ->
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .consumeWindowInsets(innerPadding),
-                contentPadding = PaddingValues(
-                    start = sidePadding,
-                    top = topBarAdjustedPadding.calculateTopPadding(),
-                    end = sidePadding,
-                    bottom = topBarAdjustedPadding.calculateBottomPadding() + CouiPageDefaults.groupSpacing,
-                ),
-                overscrollEffect = overscroll,
-            ) {
-                content()
+        Box(Modifier.fillMaxSize().consumeWindowInsets(rawPadding)) {
+            if (searchState == null || searchState.isContentVisible) {
+                CouiPageList(
+                    state = listState,
+                    contentPadding = contentPadding,
+                    nestedScroll = nestedScroll,
+                    modifier = if (searchState == null) Modifier else Modifier.topAppBarSearchContent(searchState),
+                ) { content(false) }
+            }
+            if (searchState?.isResultsVisible == true && resultsListState != null) {
+                CouiPageList(
+                    state = resultsListState,
+                    contentPadding = contentPadding,
+                    nestedScroll = null,
+                    modifier = Modifier.topAppBarSearchResults(searchState),
+                ) {
+                    content(true)
+                }
             }
         }
-        overlay()
     }
 }
 
-/**
- * 自定义容器（如分页、整页编辑器）使用的低层 COUI 二级页骨架。
- */
+@Composable
+private fun CouiPageList(
+    state: LazyListState,
+    contentPadding: PaddingValues,
+    nestedScroll: NestedScrollConnection?,
+    modifier: Modifier = Modifier,
+    content: LazyListScope.() -> Unit,
+) {
+    LazyColumn(
+        state = state,
+        modifier = modifier
+            .fillMaxSize()
+            .scrollEndHaptic()
+            .overScrollVertical()
+            .then(if (nestedScroll != null) Modifier.nestedScroll(nestedScroll) else Modifier),
+        contentPadding = contentPadding,
+        flingBehavior = rememberCOUIFlingBehavior(),
+        overscrollEffect = null,
+        content = content,
+    )
+}
+
 @Composable
 internal fun CouiScaffold(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    dark: Boolean = CouiTheme.isDark,
-    colors: CouiPageColors = CouiPageDefaults.themeColors(dark),
+    dark: Boolean = COUITheme.isDark,
+    colors: CouiPageColors = CouiPageDefaults.themeColors(),
     compactTitle: Boolean = false,
+    topBarState: TopAppBarState = rememberTopAppBarState(),
     canScroll: () -> Boolean = { true },
     actions: @Composable RowScope.() -> Unit = {},
     floatingAction: (@Composable BoxScope.() -> Unit)? = null,
-    content: @Composable (
-        contentPadding: PaddingValues,
-        rawPadding: PaddingValues,
-        nestedScrollConnection: NestedScrollConnection?,
-        sidePadding: Dp,
-    ) -> Unit,
+    searchState: TopAppBarSearchState? = null,
+    topBarBottomContent: @Composable () -> Unit = {},
+    overlay: @Composable () -> Unit = {},
+    content: @Composable (PaddingValues, PaddingValues, NestedScrollConnection?, Dp) -> Unit,
 ) {
-    val useCompact = compactTitle || rememberIsWideScreen()
-    val behavior: CouiTopAppBarScrollBehavior? = if (useCompact) {
+    val compact = searchState == null && (compactTitle || rememberIsWideScreen())
+    val behavior = COUIScrollBehavior(state = topBarState, canScroll = canScroll)
+    val backdrop = rememberCouiPageBackdrop(colors.background)
+    val barColor = if (backdrop == null) colors.background else Color.Transparent
+    val glow: (@Composable BoxScope.() -> Unit)? = if (backdrop == null) {
         null
     } else {
-        CouiTopAppBarDefaults.exitUntilCollapsedScrollBehavior(canScroll = canScroll)
-    }
-    val localDensity = LocalDensity.current
-    val barColors = CouiTopAppBarDefaults.colors(titleColor = colors.title, dark = dark)
-    val navigation: @Composable () -> Unit = {
-        CouiBackButton(onClick = onBack, dark = dark, colors = colors)
-    }
-    val topBarActions: @Composable RowScope.() -> Unit = {
-        TopAppBarButtonGroup {
-            actions()
+        {
+            TopAppBarGlow(
+                backdrop = backdrop,
+                scrollOffsetPx = behavior.glowScrollOffsetPx(),
+                isDark = dark,
+                baseColor = colors.background,
+                enabled = true,
+            )
         }
     }
+    val navigation: @Composable () -> Unit = { CouiBackButton(onBack, colors = colors) }
     Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .then(if (behavior != null) Modifier.nestedScroll(behavior.nestedScrollConnection) else Modifier),
+        modifier = modifier.fillMaxSize(),
         containerColor = colors.background,
-        floatingActionButton = floatingAction,
-        topBar = {
-            if (useCompact) {
-                TopAppBar(
-                    title = {
-                        BasicText(
-                            text = title,
-                            style = LocalCouiTextStyle.current,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    navigationIcon = navigation,
-                    actions = topBarActions,
-                    dark = dark,
-                    colors = barColors,
-                )
-            } else {
-                LargeTopAppBar(
-                    title = {
-                        BasicText(
-                            text = title,
-                            style = LocalCouiTextStyle.current,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    navigationIcon = navigation,
-                    actions = topBarActions,
-                    scrollBehavior = behavior,
-                    dark = dark,
-                    colors = barColors,
-                )
+        floatingActionButton = {
+            if (floatingAction != null) {
+                ProvideCouiMaterial(backdrop) {
+                    Box(content = floatingAction)
+                }
             }
         },
-    ) { innerPadding ->
-        val contentPadding = remember(behavior, innerPadding, localDensity) {
-            behavior?.state?.contentPadding(innerPadding, localDensity) ?: innerPadding
-        }
-        WidePageContent { sidePadding ->
-            content(contentPadding, innerPadding, behavior?.nestedScrollConnection, sidePadding)
+        topBar = {
+            ProvideCouiMaterial(backdrop) {
+                if (compact) {
+                    SmallTopAppBar(
+                        title = title,
+                        color = barColor,
+                        titleColor = colors.title,
+                        navigationIcon = navigation,
+                        actions = actions,
+                        scrollBehavior = behavior,
+                        glow = glow,
+                        bottomContent = topBarBottomContent,
+                    )
+                } else {
+                    TopAppBar(
+                        title = title,
+                        color = barColor,
+                        titleColor = colors.title,
+                        navigationIcon = navigation,
+                        actions = actions,
+                        glow = glow,
+                        scrollBehavior = behavior,
+                        searchState = searchState,
+                        bottomContent = topBarBottomContent,
+                    )
+                }
+            }
+        },
+    ) { padding ->
+        CouiBackdropContent(backdrop) {
+            WidePageContent { sidePadding ->
+                content(padding, padding, behavior.nestedScrollConnection, sidePadding)
+            }
+            overlay()
         }
     }
 }
 
+@Stable
+private class CouiPageContentPadding(
+    private val inner: PaddingValues,
+    private val sidePadding: Dp,
+    private val extraBottom: Dp,
+) : PaddingValues {
+    override fun calculateLeftPadding(layoutDirection: LayoutDirection): Dp =
+        inner.calculateLeftPadding(layoutDirection) + sidePadding
+
+    override fun calculateTopPadding(): Dp = inner.calculateTopPadding()
+
+    override fun calculateRightPadding(layoutDirection: LayoutDirection): Dp =
+        inner.calculateRightPadding(layoutDirection) + sidePadding
+
+    override fun calculateBottomPadding(): Dp =
+        inner.calculateBottomPadding() + extraBottom
+}
+
 @Composable
 internal fun CouiPageBottomSpacer(modifier: Modifier = Modifier) {
-    Spacer(
-        modifier = modifier
-            .height(24.dp)
-            .navigationBarsPadding(),
-    )
+    Spacer(modifier.height(24.dp))
 }

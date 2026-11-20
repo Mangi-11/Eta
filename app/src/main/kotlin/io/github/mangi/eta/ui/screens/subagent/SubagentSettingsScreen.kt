@@ -33,15 +33,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import com.itos.coui.dialog.CouiDialogAction
-import com.itos.coui.dialog.CouiDialogDefaults
-import com.itos.coui.dialog.CouiDialogPlacement
-import com.itos.coui.dialog.Dialog
-import com.itos.coui.icons.CouiIcons
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Group
-import com.itos.coui.menu.rememberCouiWindowBackdrop
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.subagent.SubagentProfile
@@ -61,20 +52,24 @@ import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.OptionalModelPickerContent
 import io.github.mangi.eta.ui.components.StatusError
+import io.github.mangi.eta.ui.components.coui.CouiBottomSheet
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPanelDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
-import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
+import io.github.suqi8.coui.kmp.icon.COUIIcons
+import io.github.suqi8.coui.kmp.icon.extended.Add
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -333,7 +328,7 @@ internal fun SubagentSettingsScreen(
                 onBack = onBack,
                 actions = {
                     CouiTopAppBarIconButton(
-                        icon = CouiIcons.Outlined.Add,
+                        icon = COUIIcons.Add,
                         contentDescription = stringResource(R.string.subagent_settings_create),
                         onClick = {
                             editorError = null
@@ -342,19 +337,10 @@ internal fun SubagentSettingsScreen(
                     )
                 },
                 overlay = {
-                    val dark = CouiTheme.isDark
-                    Dialog(
-                        visible = showModelSheet,
+                    CouiBottomSheet(
+                        show = showModelSheet,
                         onDismissRequest = { showModelSheet = false },
-                        dark = dark,
                         title = stringResource(R.string.subagent_settings_model),
-                        confirmAction = CouiDialogAction(
-                            text = stringResource(R.string.action_close),
-                            onClick = { showModelSheet = false },
-                        ),
-                        placement = CouiDialogPlacement.Bottom,
-                        material = rememberCouiDialogMaterial(dark),
-                        backdrop = rememberCouiWindowBackdrop(),
                     ) {
                         OptionalModelPickerContent(
                             pickerState = pickerState,
@@ -366,18 +352,11 @@ internal fun SubagentSettingsScreen(
                     }
 
                     val currentProfile = inspectedProfile ?: retainedProfile
-                    Dialog(
-                        visible = inspectedProfile != null,
+                    CouiBottomSheet(
+                        show = inspectedProfile != null,
                         onDismissRequest = { inspectedProfile = null },
-                        dark = dark,
                         title = currentProfile?.name.orEmpty(),
-                        confirmAction = CouiDialogAction(
-                            text = stringResource(R.string.action_close),
-                            onClick = { inspectedProfile = null },
-                        ),
-                        placement = CouiDialogPlacement.Bottom,
-                        material = rememberCouiDialogMaterial(dark),
-                        backdrop = rememberCouiWindowBackdrop(),
+                        onDismissFinished = { if (inspectedProfile == null) retainedProfile = null },
                     ) {
                         if (currentProfile != null) {
                             SubagentProfileDetailContent(
@@ -468,71 +447,75 @@ internal fun SubagentSettingsScreen(
                     )
                 },
             ) {
-                Group(title = stringResource(R.string.subagent_settings_group_general)) {
-                    CouiSwitchPreference(
-                        title = stringResource(R.string.subagent_settings_enable),
-                        checked = subagentEnabled,
-                        enabled = agentPrefs != null,
-                        onCheckedChange = onToggleSubagent,
-                    )
-                    Divider()
-                    CouiPreference(
-                        title = stringResource(R.string.subagent_settings_model),
-                        summary = secondarySummary,
-                        enabled = subagentEnabled,
-                        onClick = { showModelSheet = true },
-                    )
-                    if (effortOptions.size > 1) {
-                        Divider()
-                        CouiDropdownPreference(
-                            title = stringResource(R.string.subagent_settings_reasoning),
-                            items = effortLabels,
-                            selectedIndex = selectedEffortIndex,
-                            enabled = subagentEnabled,
-                            onSelectedIndexChange = onEffortChange,
+                CouiPreferenceGroup(title = stringResource(R.string.subagent_settings_group_general)) {
+                    item {
+                        CouiSwitchPreference(
+                            title = stringResource(R.string.subagent_settings_enable),
+                            checked = subagentEnabled,
+                            enabled = agentPrefs != null,
+                            onCheckedChange = onToggleSubagent,
                         )
                     }
-                }
-
-                Group(title = stringResource(R.string.subagent_settings_group_builtin)) {
-                    SubagentProfile.BUILTIN_PROFILES.forEachIndexed { index, profile ->
+                    item {
                         CouiPreference(
-                            title = profile.name,
-                            summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
-                            onClick = { inspectedProfile = profile },
+                            title = stringResource(R.string.subagent_settings_model),
+                            summary = secondarySummary,
+                            enabled = subagentEnabled,
+                            onClick = { showModelSheet = true },
                         )
-                        if (index < SubagentProfile.BUILTIN_PROFILES.lastIndex) {
-                            Divider()
+                    }
+                    if (effortOptions.size > 1) {
+                        item {
+                            CouiDropdownPreference(
+                                title = stringResource(R.string.subagent_settings_reasoning),
+                                items = effortLabels,
+                                selectedIndex = selectedEffortIndex,
+                                enabled = subagentEnabled,
+                                onSelectedIndexChange = onEffortChange,
+                            )
                         }
                     }
                 }
 
-                Group(title = stringResource(R.string.subagent_settings_group_custom)) {
-                    if (customProfiles.isEmpty()) {
-                        ListEmptyState(
-                            title = stringResource(R.string.subagent_settings_empty_title),
-                            summary = stringResource(R.string.subagent_settings_empty_summary),
-                            icon = Icons.Rounded.JoinLeft,
-                            action = {
-                                CouiButton(
-                                    text = stringResource(R.string.subagent_settings_create),
-                                    role = CouiButtonRole.Primary,
-                                    onClick = {
-                                        editorError = null
-                                        editorDraft = CustomSubagentDraft()
-                                    },
-                                )
-                            },
-                        )
-                    } else {
-                        customProfiles.forEachIndexed { index, profile ->
+                CouiPreferenceGroup(title = stringResource(R.string.subagent_settings_group_builtin)) {
+                    SubagentProfile.BUILTIN_PROFILES.forEach { profile ->
+                        item(key = profile.name) {
                             CouiPreference(
                                 title = profile.name,
                                 summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
                                 onClick = { inspectedProfile = profile },
                             )
-                            if (index < customProfiles.lastIndex) {
-                                Divider()
+                        }
+                    }
+                }
+
+                CouiPreferenceGroup(title = stringResource(R.string.subagent_settings_group_custom)) {
+                    if (customProfiles.isEmpty()) {
+                        item {
+                            ListEmptyState(
+                                title = stringResource(R.string.subagent_settings_empty_title),
+                                summary = stringResource(R.string.subagent_settings_empty_summary),
+                                icon = Icons.Rounded.JoinLeft,
+                                action = {
+                                    CouiButton(
+                                        text = stringResource(R.string.subagent_settings_create),
+                                        role = CouiButtonRole.Primary,
+                                        onClick = {
+                                            editorError = null
+                                            editorDraft = CustomSubagentDraft()
+                                        },
+                                    )
+                                },
+                            )
+                        }
+                    } else {
+                        customProfiles.forEach { profile ->
+                            item(key = profile.name) {
+                                CouiPreference(
+                                    title = profile.name,
+                                    summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
+                                    onClick = { inspectedProfile = profile },
+                                )
                             }
                         }
                     }
@@ -805,7 +788,10 @@ private fun SubagentProfileDetailContent(
             .fillMaxWidth()
             .then(
                 if (uiStyle == AppearanceUiStyle.COUI) {
-                    Modifier.padding(horizontal = CouiDialogDefaults.contentPadding, vertical = 8.dp)
+                    Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = CouiPanelDefaults.contentPadding)
+                        .padding(top = 8.dp, bottom = 24.dp)
                 } else {
                     Modifier
                         .verticalScroll(rememberScrollState())

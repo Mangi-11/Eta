@@ -50,17 +50,17 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.shape.CouiShape
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
+import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
 import io.github.mangi.eta.ui.model.AgentContextUsageUi
 import io.github.mangi.eta.ui.model.TokenUsageUi
+import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -429,8 +429,8 @@ internal fun ChatStatsPopoverPopup(
     ) {
         val cardModifier = if (isCoui) {
             val shape = remember { CouiShape(18.dp, 2.2f) }
-            val bgColor = if (couiDark) Color(0xFF24262B) else Color.White
-            val borderColor = if (couiDark) Color(0x24FFFFFF) else Color(0x12000000)
+            val bgColor = CouiTheme.colorScheme.surface
+            val borderColor = CouiTheme.colorScheme.divider
             Modifier
                 .widthIn(min = 256.dp, max = 328.dp)
                 .dropShadow(

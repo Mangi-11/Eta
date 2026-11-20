@@ -1,42 +1,44 @@
 # Eta 设置与管理组件
 
-Eta 支持全局界面样式切换，提供 **Miuix** 与 **COUI** 两种选择。新安装默认使用 Miuix，旧版升级时一次性重置为 Miuix。之后可在“设置 → 外观与主题 → 界面样式”切换，选择会保存。两套界面共享同一套业务状态、Store、Repository 与路由栈，切换样式时通过 `AgentAppTheme` 的 `movableContentOf` 移动同一组合树，不丢失导航历史、页面草稿或正在运行的任务。
+Eta 支持全局界面样式切换，提供 **Miuix** 与 **COUI** 两种选择。新安装默认使用 Miuix。用户可在“设置 → 外观与主题 → 界面样式”切换，选择会保存并在后续升级时恢复。两套界面共享同一套业务状态、Store、Repository 与路由栈，切换样式时通过 `AgentAppTheme` 的 `movableContentOf` 移动同一组合树，不丢失导航历史、页面草稿或正在运行的任务。
 
 ## 根主题与缩放不变式
 
-- `AgentAppTheme` 同时提供 `CouiTheme`（COUI 模式）与 `MiuixTheme`，并通过 `LocalUiStyle` 暴露当前 `AppearanceUiStyle`（`COUI` / `MIUIX`）。
-- COUI 模式在设备支持 `RuntimeShader` 时，在根部挂载 `ProvideCouiMenuBackdrop(isolateContent = false)`，供全局 COUI `Menu`、`Dialog` 与 `InputDialog` 采样窗口背景。
+- `AgentAppTheme` 同时提供 `COUITheme`（COUI 模式）与 `MiuixTheme`，并通过 `LocalUiStyle` 暴露当前 `AppearanceUiStyle`（`COUI` / `MIUIX`）。
+- COUI 模式使用 Activity 根部的 COUI `Scaffold` 托管弹层。页面按需录制背景，顶栏与弹层在录制范围之外采样。独立系统浮窗使用适合软件画布的实色和圆角。
 - Miuix 模式采用 HyperOS 4（OS4）玻璃架构：`MainActivity` 与 `AgentBrowserActivity` 通过 `AgentAppTheme(provideGlassHost = true)` 在根部挂载 `Scaffold`、`LocalGlassSceneBackdrop` 与全窗口 `EtaTopLayerHost`（COUI 与非 Activity 浮窗不挂载该宿主），供 `GlassDialog`、`GlassBottomSheet`、`GlassPopup` 与 `GlassTransformPopup` 采样场景而不产生自采样；二级页通过 `MiuixScaffoldPage` / `MiuixScaffold` 提供 `LocalGlassPageBackdrop` 与 `GlassTopAppBar`。
-- 界面缩放以 `configuration.densityDpi.toFloat() / DisplayMetrics.DENSITY_DEFAULT` 作为 100% 尺寸基准，并在 `applyInterfaceScale = true` 时同步写入宿主 `context.resources.displayMetrics.density`，保证主页面、独立 Activity（`AgentBrowserActivity`）以及独立窗口拥有一致的缩放比例。
+- 两种样式的页面和弹层使用 Android 提供的显示密度和字体缩放。
+- 聊天和会话侧栏的自定义顶栏只按前景内容占位，背景可以延伸到下方形成渐隐。两种样式各自使用组件库的模糊与回退样式。固定 COUI 顶栏使用完整凝光，可折叠 COUI 顶栏随滚动显现。
 
 ## 组件选择与双界面组织
 
 页面层将 `rememberSaveable`、草稿状态、Store 与副作用声明在 `when (LocalUiStyle.current)` 分支之前，再分别组织 COUI 与 Miuix 的界面组合：
 
-| 场景 | COUI 组合（`ui/components/coui/` 及 `com.itos.coui.*`） | Miuix 组合（`ui/components/` 及 `top.yukonga.miuix.kmp.*`） |
+| 场景 | COUI 组合（`ui/components/coui/` 及 `io.github.suqi8.coui.kmp.*`） | Miuix 组合（`ui/components/` 及 `top.yukonga.miuix.kmp.*`） |
 | --- | --- | --- |
-| 二级页（Column + 回弹滚动） | `CouiScaffoldPage`（`Scaffold` + `LargeTopAppBar` / `TopAppBar` + `couiVerticalScroll`） | `MiuixScaffoldPage`（`GlassTopAppBar`） |
+| 二级页（Column + 回弹滚动） | `CouiScaffoldPage`（`Scaffold` + `TopAppBar` / `SmallTopAppBar` + `overScrollVertical`） | `MiuixScaffoldPage`（`GlassTopAppBar`） |
 | 二级页（长动态列表） | `CouiLazyScaffoldPage` | `MiuixScaffoldPage`（`GlassTopAppBar`） |
 | 自定义容器二级页（分页、整页编辑器） | `CouiScaffold` | `MiuixScaffold`（`GlassTopAppBar`） |
-| 顶栏返回与操作按钮 | `CouiBackButton`、`CouiTopAppBarIconButton`、`CouiTopAppBarTextButton`、`TopAppBarButtonGroup` | `MiuixBackButton`、`MiuixTopBarActionButton`、`TextButton`（`GlassIconButton` + `MiuixIcons.Glass.*`） |
-| 分组卡片与标题 | `com.itos.coui.layout.Group(title = ...)` | `SmallTitle` + `Card` |
+| 顶栏返回与操作按钮 | `CouiBackButton`、`CouiTopAppBarIconButton`、`CouiTopAppBarTextButton` | `MiuixBackButton`、`MiuixTopBarActionButton`、`TextButton`（`GlassIconButton` + `MiuixIcons.Glass.*`） |
+| 分组卡片与标题 | `CouiPreferenceGroup`（`PreferenceCategory` + `Card` + `CardListGroup`） | `SmallTitle` + `Card` |
 | 懒加载连续分组条目 | `EtaPreferenceGroupItem` → `CouiGroupItem` | `EtaPreferenceGroupItem` |
-| 跳转行 / 信息行 | `CouiPreference`（右侧箭头使用 `CouiIcons.Next`，`12.dp × 24.dp`） | `ArrowPreference` / `BasicComponent` |
-| 开关行 | `CouiSwitchPreference`（整行 `Role.Switch` + `CouiHapticFeedback.Switch`） | `SwitchPreference` |
-| 下拉 / 弹窗选择行 | `CouiDropdownPreference` / `CouiPopupPreference`（`rememberCouiMenuAnchor` + `Modifier.couiMenuAnchor` + `CouiIcons.Popup` `14.dp × 24.dp` + `Menu`） | `GlassDropdownPreference` / `EtaGlassSpinnerPreference`（基于 `GlassDropdownPopup` + `EtaTopLayer`） |
-| 复选 / 单选行 | `CouiCheckboxPreference` / `CouiSelectPreference` | `CheckboxPreference` / `Checkbox` |
-| 滑块行 | `CouiSliderPreference` | `SliderPreference` |
-| 分组内分割线 | `Divider()`（无前导图标）/ `CouiIconDivider()`（有前导图标） | Miuix 列表间距 |
-| 搜索栏 | `CouiSearchBarBox`（COUI `SearchBar` + 局部 `CouiBackdrop`） | `SearchBar` + `InputField` |
+| 跳转行 / 信息行 | `CouiPreference`（`ArrowPreference` / `BasicComponent`） | `ArrowPreference` / `BasicComponent` |
+| 开关行 | `CouiSwitchPreference`（`SwitchPreference` / `SwitchLoadingPreference`） | `SwitchPreference` |
+| 下拉 / 弹窗选择行 | `CouiDropdownPreference` / `CouiPopupPreference`（`OverlayDropdownPreference` / `OverlayListPopup`） | `GlassDropdownPreference` / `EtaGlassSpinnerPreference`（基于 `GlassDropdownPopup` + `EtaTopLayer`） |
+| 复选 / 单选行 | `CouiCheckboxPreference` | `CheckboxPreference` / `Checkbox` |
+| 分组内分割线 | `CardListGroup` 绘制相邻行分隔线 | Miuix 列表间距 |
+| 搜索栏 | 页面顶栏用 `TopAppBarSearchBar`，面板内用 `SearchBar` | `SearchBar` + `InputField` |
 | 分页 / 筛选标签 | `CouiChipTabs`（COUI `ChipTabRow`） | `GlassSegmentedTabRow` / `EtaChoiceChip` |
 | 行内输入框 | `CouiTextField` | `TextField` |
 | 页面胶囊按钮 / 悬浮工具栏 | `CouiButton`（`CouiButtonRole`）、`FloatingToolbar` | `TextButton`、`GlassFloatingToolbar` |
-| 确认 / 提示 / 底部弹框 | `CouiConfirmDialog`、`CouiNoticeDialog`、`com.itos.coui.dialog.Dialog`（`CouiDialogPlacement.Bottom`） | 持续组合的 `GlassDialog`（配 `MiuixDialogActions` / `GlassDialogButton`）与 `GlassBottomSheet` |
-| 单行输入弹窗 | `CouiInputDialog`（`com.itos.coui.dialog.InputDialog`） | `GlassDialog` + `TextField` |
-| 上下文 / 溢出菜单 | `com.itos.coui.menu.Menu` + `rememberCouiMenuAnchor` | `EtaTopLayer` + `GlassPopup` / `GlassTransformPopup` + `GlassPopupItem` |
+| 确认 / 提示 / 底部弹框 | `CouiConfirmDialog`、`CouiNoticeDialog`（`OverlayDialog`）、`CouiBottomSheet`（`OverlayBottomSheet`） | 持续组合的 `GlassDialog`（配 `MiuixDialogActions` / `GlassDialogButton`）与 `GlassBottomSheet` |
+| 单行输入弹窗 | `CouiInputDialog`（`OverlayDialog` + `TextFieldState`） | `GlassDialog` + `TextField` |
+| 上下文 / 溢出菜单 | `OverlayListPopup` + `DropdownImpl` | `EtaTopLayer` + `GlassPopup` / `GlassTransformPopup` + `GlassPopupItem` |
 
 ## 分组、分割线与状态边界
 
-- COUI 的 `Group` 内相邻条目之间显式插入 `Divider()` 或 `CouiIconDivider()`；条件行与其前置分割线放在同一可见分支中，避免首尾出现多余分割线。
-- 长列表使用稳定 key 的独立 Lazy 条目与 `EtaPreferenceGroupItem`（COUI 自动切换为 `CouiGroupItem`），不将大量动态模型或文件塞进单个 `Group` 或 `Card`。
+- COUI 分组以 `CardListGroup` 的 `item` 注册每行，由组件处理条件行的卡片位置和分隔线。
+- 长列表使用稳定 key 的独立 Lazy 条目与 `EtaPreferenceGroupItem`（COUI 自动切换为 `CouiGroupItem`），每条动态数据独立参与懒加载。
 - 开关、复选、单选、输入框草稿与弹窗开关均由页面或 Store 在 `when (LocalUiStyle.current)` 之上持有，保证运行期切换 `COUI` 与 `Miuix` 时状态与草稿完整保留。
+
+模型选择、远程模型导入和子代理详情在两种样式中都使用原生底部面板。可滚动内容在各自的面板内持有状态，退出可通过下拉、点击遮罩或系统返回完成。远程模型导入的提交按钮固定在列表下方。

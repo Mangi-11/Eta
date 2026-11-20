@@ -32,7 +32,6 @@ class AgentBrowserActivity : ComponentActivity() {
                 val appearance by AppearanceSettingsRepository.settingsFlow().collectAsState(initialAppearance)
                 AgentAppTheme(
                     appearance = appearance,
-                    applyInterfaceScale = true,
                     provideGlassHost = true,
                     onResolvedDarkModeChange = { isDark ->
                         val style = if (isDark) {

@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import io.github.mangi.eta.ui.app.LocalPlatformDensity
 import kotlin.math.roundToInt
 
 private val WideScreenMinWidth = 600.dp
@@ -37,7 +36,7 @@ private val FloatingBottomMaxCornerTotalPadding = 26.dp
 @Composable
 fun rememberIsWideScreen(): Boolean {
     val containerSize = LocalWindowInfo.current.containerSize
-    val density = LocalPlatformDensity.current ?: LocalDensity.current
+    val density = LocalDensity.current
     return isWideScreen(containerSize.width, density)
 }
 
@@ -89,7 +88,6 @@ fun rememberFloatingBottomBarInsets(
     maxCornerTotalPadding: Dp = FloatingBottomMaxCornerTotalPadding,
 ): WindowInsets {
     val view = LocalView.current
-    val platformDensity = LocalPlatformDensity.current
     var attachVersion by remember(view) {
         mutableIntStateOf(if (view.isAttachedToWindow) 1 else 0)
     }
@@ -113,7 +111,6 @@ fun rememberFloatingBottomBarInsets(
         view,
         attachVersion,
         baseInsets,
-        platformDensity,
         fixedBottomPadding,
         minTotalPadding,
         maxCornerTotalPadding,
@@ -121,7 +118,6 @@ fun rememberFloatingBottomBarInsets(
         FloatingBottomBarWindowInsets(
             view = view,
             baseInsets = baseInsets,
-            platformDensity = platformDensity,
             fixedBottomPadding = fixedBottomPadding,
             minTotalPadding = minTotalPadding,
             maxCornerTotalPadding = maxCornerTotalPadding,
@@ -161,7 +157,6 @@ private fun readBottomScreenCornerRadiusPx(view: View): Int {
 private class FloatingBottomBarWindowInsets(
     private val view: View,
     private val baseInsets: WindowInsets,
-    private val platformDensity: Density?,
     private val fixedBottomPadding: Dp,
     private val minTotalPadding: Dp,
     private val maxCornerTotalPadding: Dp,
@@ -180,9 +175,7 @@ private class FloatingBottomBarWindowInsets(
         val cornerRadiusPx = readBottomScreenCornerRadiusPx(view)
         val fixedBottomPx = with(density) { fixedBottomPadding.roundToPx() }
         val minTotalPx = with(density) { minTotalPadding.roundToPx() }
-        // 物理圆角半径以屏幕硬件像素度量，最大圆角避让高度同步以未缩放物理密度为准，
-        // 防止界面调小缩放后底栏重新贴进屏幕玻璃弧线。
-        val maxCornerTotalPx = with(platformDensity ?: density) { maxCornerTotalPadding.roundToPx() }
+        val maxCornerTotalPx = with(density) { maxCornerTotalPadding.roundToPx() }
         return computeFloatingBottomExtraInsetPx(
             baseBottomInsetPx = baseBottomPx,
             bottomCornerRadiusPx = cornerRadiusPx,
@@ -197,7 +190,6 @@ private class FloatingBottomBarWindowInsets(
         if (other !is FloatingBottomBarWindowInsets) return false
         return view === other.view &&
             baseInsets == other.baseInsets &&
-            platformDensity == other.platformDensity &&
             fixedBottomPadding == other.fixedBottomPadding &&
             minTotalPadding == other.minTotalPadding &&
             maxCornerTotalPadding == other.maxCornerTotalPadding
@@ -206,7 +198,6 @@ private class FloatingBottomBarWindowInsets(
     override fun hashCode(): Int {
         var result = System.identityHashCode(view)
         result = 31 * result + baseInsets.hashCode()
-        result = 31 * result + (platformDensity?.hashCode() ?: 0)
         result = 31 * result + fixedBottomPadding.hashCode()
         result = 31 * result + minTotalPadding.hashCode()
         result = 31 * result + maxCornerTotalPadding.hashCode()

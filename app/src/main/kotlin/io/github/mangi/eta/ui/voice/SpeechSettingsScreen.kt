@@ -6,7 +6,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.stringResource
-import com.itos.coui.layout.Divider
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.TtsProvider
@@ -18,6 +17,7 @@ import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.navigation.AppRoute
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -45,7 +45,7 @@ internal fun SpeechSettingsScreen(onBack: () -> Unit, onNavigate: (AppRoute) -> 
                         else stringResource(R.string.speech_recognition_disabled),
                         onClick = { onNavigate(AppRoute.SpeechRecognition) },
                     )
-                    Divider()
+                    CouiDivider()
                     CouiPreference(
                         title = stringResource(R.string.speech_synthesis_title),
                         summary = current.tts.label(),

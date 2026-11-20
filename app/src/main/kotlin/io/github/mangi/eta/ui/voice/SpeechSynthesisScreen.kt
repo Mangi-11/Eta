@@ -16,8 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import com.itos.coui.dialog.CouiDialogDefaults
-import com.itos.coui.layout.Divider
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.voice.validateSpeechSettings
 import io.github.mangi.eta.data.model.AppearanceUiStyle
@@ -30,6 +28,8 @@ import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
@@ -171,12 +171,12 @@ private fun SpeechPreviewSection(store: SpeechSettingsStore) {
             }
             when (LocalUiStyle.current) {
                 AppearanceUiStyle.COUI -> {
-                    val dialogColors = CouiDialogDefaults.themeColors()
-                    Divider()
+
+                    CouiDivider()
                     CouiPreference(
                         title = title,
                         summary = summary,
-                        summaryColor = if (playback.error != null) dialogColors.destructive else Color.Unspecified,
+                        summaryColor = if (playback.error != null) CouiTheme.colorScheme.error else Color.Unspecified,
                         enabled = !store.saving && text.isNotBlank(),
                         showChevron = false,
                         onClick = onPreviewClick,

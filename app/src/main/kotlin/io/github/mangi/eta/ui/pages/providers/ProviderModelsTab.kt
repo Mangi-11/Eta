@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -72,15 +73,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import com.itos.coui.checkbox.Checkbox as CouiCheckbox
-import com.itos.coui.checkbox.CouiCheckboxDefaults
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.switch.CouiSwitchDefaults
-import com.itos.coui.switch.Switch as CouiSwitch
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.auth.ProviderAuthException
@@ -106,15 +98,24 @@ import io.github.mangi.eta.ui.components.captureGlassBackdrop
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
+import io.github.mangi.eta.ui.components.coui.CouiText
 import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.coui.CouiTextKind
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.components.rememberGlassBackdrop
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
+import io.github.suqi8.coui.kmp.basic.Checkbox as CouiCheckbox
+import io.github.suqi8.coui.kmp.basic.HorizontalDivider as CouiDivider
+import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
+import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
+import io.github.suqi8.coui.kmp.utils.rememberCOUIFlingBehavior
+import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -325,20 +326,35 @@ internal fun ProviderModelsTab(
         )
     }
 
+    val scrollModifier = if (uiStyle == AppearanceUiStyle.COUI) {
+        Modifier
+            .imePadding()
+            .couiScrollEndHaptic()
+            .couiOverScrollVertical()
+    } else {
+        Modifier
+            .scrollEndHaptic()
+            .overScrollVertical(onOffsetChanged = onOverscrollChanged)
+    }
+    val flingBehavior = if (uiStyle == AppearanceUiStyle.COUI) {
+        rememberCOUIFlingBehavior()
+    } else {
+        androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .captureGlassBackdrop(tabBackdrop)
-                .scrollEndHaptic()
-                .overScrollVertical(onOffsetChanged = onOverscrollChanged)
+                .then(scrollModifier)
                 .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier),
             contentPadding = PaddingValues(
                 start = contentSidePadding,
                 top = contentTopPadding,
                 end = contentSidePadding,
             ),
+            flingBehavior = flingBehavior,
             overscrollEffect = null,
         ) {
             item(key = "actions", contentType = "section") {
@@ -363,7 +379,7 @@ internal fun ProviderModelsTab(
                                 enabled = !isFetching && !isMutatingModel,
                                 onClick = onPullRemoteModels,
                             )
-                            Divider()
+                            CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
                             CouiPreference(
                                 title = customTitle,
                                 summary = customSummary,
@@ -686,32 +702,29 @@ internal fun ProviderModelsTab(
 
     when (uiStyle) {
         AppearanceUiStyle.COUI -> {
-            if (modelPendingDelete != null && activeDeleteModel != null) {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_delete_model_cf24da),
-                    message = stringResource(R.string.provider_model_delete_summary, activeDeleteModel.displayName),
-                    confirmText = deleteConfirmText,
-                    confirmEnabled = !isMutatingModel,
-                    cancelEnabled = !isMutatingModel,
-                    destructive = true,
-                    onConfirm = { onConfirmDeleteModel(activeDeleteModel) },
-                    onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
-                )
-            }
-            if (showBatchDeleteDialog) {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_delete_model_cf24da),
-                    message = batchSummary,
-                    confirmText = batchConfirmText,
-                    confirmEnabled = !isMutatingModel,
-                    cancelEnabled = !isMutatingModel,
-                    destructive = true,
-                    onConfirm = onConfirmBatchDelete,
-                    onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
-                )
-            }
+            CouiConfirmDialog(
+                visible = modelPendingDelete != null,
+                title = stringResource(R.string.ui_delete_model_cf24da),
+                message = stringResource(R.string.provider_model_delete_summary, activeDeleteModel?.displayName.orEmpty()),
+                confirmText = deleteConfirmText,
+                confirmEnabled = !isMutatingModel && activeDeleteModel != null,
+                cancelEnabled = !isMutatingModel,
+                destructive = true,
+                onConfirm = { activeDeleteModel?.let(onConfirmDeleteModel) },
+                onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
+                onDismissFinished = { if (modelPendingDelete == null) retainedModelPendingDelete = null },
+            )
+            CouiConfirmDialog(
+                visible = showBatchDeleteDialog,
+                title = stringResource(R.string.ui_delete_model_cf24da),
+                message = batchSummary,
+                confirmText = batchConfirmText,
+                confirmEnabled = !isMutatingModel,
+                cancelEnabled = !isMutatingModel,
+                destructive = true,
+                onConfirm = onConfirmBatchDelete,
+                onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
+            )
         }
         AppearanceUiStyle.MIUIX -> {
             val overlayBackdrop = currentGlassOverlayBackdrop() ?: tabBackdrop
@@ -945,15 +958,11 @@ private fun ModelListItem(
         if (selectionMode) {
             when (LocalUiStyle.current) {
                 AppearanceUiStyle.COUI -> {
-                    val dark = CouiTheme.isDark
-                    val colors = CouiPageDefaults.themeColors(dark)
                     CouiCheckbox(
                         modifier = Modifier.size(24.dp),
-                        checked = checked,
+                        state = if (checked) ToggleableState.On else ToggleableState.Off,
+                        onClick = null,
                         enabled = enabled,
-                        colors = CouiCheckboxDefaults.colors(colors.accent, dark),
-                        shape = CouiCheckboxDefaults.shape,
-                        borderShape = CouiCheckboxDefaults.borderShape,
                     )
                 }
                 AppearanceUiStyle.MIUIX -> {
@@ -1099,8 +1108,7 @@ private fun ModelEditDialog(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            val dark = CouiTheme.isDark
-            val colors = CouiPageDefaults.themeColors(dark)
+            val colors = CouiPageDefaults.themeColors()
             val contextRightLabel = when {
                 contextWindowOverrideTextState.text.isBlank() -> null
                 contextError != null -> stringResource(R.string.provider_context_window_invalid)
@@ -1116,6 +1124,7 @@ private fun ModelEditDialog(
                 cancelEnabled = !isSaving,
                 onConfirm = { onSubmit(updated()) },
                 onDismissRequest = { if (!isSaving) onDismiss() },
+                onDismissFinished = onDismissFinished,
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -1169,7 +1178,7 @@ private fun ModelEditDialog(
                         }
                     }
 
-                    Divider(startIndent = 0.dp, endIndent = 0.dp)
+                    CouiDivider()
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
@@ -1205,8 +1214,6 @@ private fun ModelEditDialog(
                                     reasoningOverrideActive = true
                                     reasoningEnabled = enabled
                                 },
-                                dark = dark,
-                                colors = CouiSwitchDefaults.colors(colors.accent, dark),
                                 enabled = !isSaving,
                             )
                         }

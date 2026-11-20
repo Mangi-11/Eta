@@ -196,11 +196,6 @@
   <string name="appearance_predictive_back_summary">Enable predictive back animations</string>
   <string name="appearance_progressive_blur">Progressive blur</string>
   <string name="appearance_progressive_blur_summary">Apply progressive blur to top bars and sidebar overlays; disable for smoother performance</string>
-  <string name="appearance_interface_scale">Interface scale</string>
-  <string name="appearance_interface_scale_summary" formatted="false">Adjust the global display scale (80%–110%)</string>
-  <string name="appearance_interface_scale_dialog_title">Interface scale</string>
-  <string name="appearance_interface_scale_dialog_summary">Enter an integer from 80 to 110</string>
-  <string name="appearance_interface_scale_input_label">Percentage</string>
   <string name="conversation_unnamed">New conversation</string>
   <string name="conversation_loading">Loading conversation…</string>
   <string name="conversation_load_failed">Failed to load conversation</string>

@@ -2,29 +2,17 @@ package io.github.mangi.eta.ui.components.coui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,52 +22,48 @@ import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.itos.coui.checkbox.Checkbox
-import com.itos.coui.checkbox.CouiCheckboxDefaults
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.icons.CouiIcons
-import com.itos.coui.input.CouiHapticFeedback
-import com.itos.coui.input.performCouiHapticFeedback
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Item
-import com.itos.coui.menu.CouiMenuDefaults
-import com.itos.coui.menu.CouiMenuItem
-import com.itos.coui.menu.CouiMenuStyle
-import com.itos.coui.menu.Menu
-import com.itos.coui.menu.couiMenuAnchor
-import com.itos.coui.menu.rememberCouiMenuAnchor
-import com.itos.coui.radiobutton.RadioButton
-import com.itos.coui.shape.CouiCapsuleShape
-import com.itos.coui.slider.CouiSliderDefaults
-import com.itos.coui.slider.Slider
-import com.itos.coui.switch.CouiSwitchDefaults
-import com.itos.coui.switch.Switch
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text
-import com.itos.coui.text.rememberCouiTextStyle
-import com.itos.coui.theme.CouiTheme
+import io.github.suqi8.coui.kmp.basic.BasicComponent
+import io.github.suqi8.coui.kmp.basic.BasicComponentDefaults
+import io.github.suqi8.coui.kmp.basic.Card
+import io.github.suqi8.coui.kmp.basic.CardDefaults
+import io.github.suqi8.coui.kmp.basic.CardListGroup
+import io.github.suqi8.coui.kmp.basic.CardListGroupScope
+import io.github.suqi8.coui.kmp.basic.CardListPosition
+import io.github.suqi8.coui.kmp.basic.HorizontalDivider
+import io.github.suqi8.coui.kmp.basic.LocalCardListPosition
+import io.github.suqi8.coui.kmp.basic.Switch
+import io.github.suqi8.coui.kmp.preference.ArrowPreference
+import io.github.suqi8.coui.kmp.preference.CheckboxPreference
+import io.github.suqi8.coui.kmp.preference.OverlayDropdownPreference
+import io.github.suqi8.coui.kmp.preference.PreferenceCategory
+import io.github.suqi8.coui.kmp.preference.SwitchLoadingPreference
+import io.github.suqi8.coui.kmp.preference.SwitchPreference
+import io.github.suqi8.coui.kmp.squircle.squircleSurface
+import io.github.suqi8.coui.kmp.theme.COUITheme
 
 val CouiIconDividerIndent: Dp =
     CouiPageDefaults.rowPadding + CouiPageDefaults.iconSize + CouiPageDefaults.iconSpacing
 
 @Composable
+internal fun CouiCardDivider(modifier: Modifier = Modifier) {
+    HorizontalDivider(modifier.padding(horizontal = CouiPageDefaults.rowPadding))
+}
+
+@Composable
 internal fun CouiIconDivider(modifier: Modifier = Modifier) {
-    Divider(
-        modifier = modifier,
-        startIndent = CouiIconDividerIndent,
-        endIndent = CouiPageDefaults.rowPadding,
-    )
+    HorizontalDivider(modifier.padding(start = CouiIconDividerIndent, end = CouiPageDefaults.rowPadding))
 }
 
 @Composable
@@ -87,7 +71,7 @@ internal fun CouiIcon(
     imageVector: ImageVector,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    tint: Color = CouiTheme.colorScheme.onSurface,
+    tint: Color = COUITheme.colorScheme.labelPrimary,
 ) {
     CouiIcon(
         painter = rememberVectorPainter(imageVector),
@@ -102,7 +86,7 @@ internal fun CouiIcon(
     painter: Painter,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    tint: Color = CouiTheme.colorScheme.onSurface,
+    tint: Color = COUITheme.colorScheme.labelPrimary,
 ) {
     val semantics = if (contentDescription == null) {
         Modifier
@@ -140,6 +124,7 @@ internal fun CouiSettingsIcon(
     }
 }
 
+
 @Composable
 internal fun CouiPreference(
     modifier: Modifier = Modifier,
@@ -155,48 +140,39 @@ internal fun CouiPreference(
     showChevron: Boolean = onClick != null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    val dark = CouiTheme.isDark
-    val colors = CouiPageDefaults.themeColors(dark)
-    CouiPreferenceRow(
-        modifier = modifier,
-        title = title,
-        summary = summary,
-        titleColor = titleColor,
-        summaryColor = summaryColor,
-        enabled = enabled,
-        icon = icon,
-        onClick = onClick,
-    ) {
+    val titleColors = if (titleColor.isSpecified) BasicComponentDefaults.titleColor(color = titleColor)
+        else BasicComponentDefaults.titleColor()
+    val summaryColors = if (summaryColor.isSpecified) BasicComponentDefaults.summaryColor(color = summaryColor)
+        else BasicComponentDefaults.summaryColor()
+    val actions: @Composable RowScope.() -> Unit = {
         trailing?.invoke()
         if (!value.isNullOrEmpty()) {
-            val resolvedValueColor = if (valueColor.isSpecified) {
-                valueColor
-            } else if (enabled) {
-                colors.summary
-            } else {
-                colors.disabled
-            }
-            Text(
-                modifier = Modifier
-                    .widthIn(max = 162.dp)
-                    .padding(start = 16.dp),
+            val colors = COUITheme.colorScheme
+            CouiText(
                 text = value,
+                modifier = Modifier.widthIn(max = 162.dp),
                 kind = CouiTextKind.ItemValue,
-                color = resolvedValueColor,
+                color = when {
+                    !enabled -> colors.disabledNeutral
+                    valueColor.isSpecified -> valueColor
+                    else -> colors.labelTertiary
+                },
                 textAlign = TextAlign.End,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (showChevron) {
-            CouiSettingsArrow(
-                modifier = Modifier
-                    .padding(start = 4.dp)
-                    .size(width = 12.dp, height = 24.dp),
-                back = false,
-                color = Color(if (dark) 0x4DFFFFFF else 0x42000000),
-            )
-        }
+    }
+    if (showChevron) {
+        ArrowPreference(
+            title = title, modifier = modifier, titleColor = titleColors, summary = summary,
+            summaryColor = summaryColors, startAction = icon, endActions = actions, onClick = onClick, enabled = enabled,
+        )
+    } else {
+        BasicComponent(
+            title = title, modifier = modifier, titleColor = titleColors, summary = summary,
+            summaryColor = summaryColors, startAction = icon, endActions = actions, onClick = onClick, enabled = enabled,
+        )
     }
 }
 
@@ -213,39 +189,38 @@ internal fun CouiSwitchPreference(
     loadingDescription: String? = null,
     hapticFeedbackEnabled: Boolean = true,
 ) {
-    val dark = CouiTheme.isDark
-    val colors = CouiPageDefaults.themeColors(dark)
-    val view = LocalView.current
-    val source = remember { MutableInteractionSource() }
-    var optimisticChecked by remember(checked) { mutableStateOf(checked) }
-    val commitChange: (Boolean) -> Unit = { target ->
-        optimisticChecked = target
-        onCheckedChange(target)
-    }
-    CouiPreferenceRow(
-        modifier = modifier
-            .couiButtonFeedback(dark, source, enabled && !loading, list = true)
-            .toggleable(optimisticChecked, source, null, enabled && !loading, Role.Switch) { target ->
-                view.performCouiHapticFeedback(CouiHapticFeedback.Switch, hapticFeedbackEnabled)
-                commitChange(target)
+    // 直接透传业务态 checked，避免异步校验拒绝切换时乐观本地态卡在错误位置。
+    when {
+        loading -> SwitchLoadingPreference(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            title = title,
+            summary = summary,
+            modifier = if (loadingDescription == null) modifier else modifier.semantics {
+                stateDescription = loadingDescription
             },
-        title = title,
-        summary = summary,
-        enabled = enabled,
-        icon = icon,
-    ) {
-        Switch(
-            modifier = Modifier.padding(start = 16.dp),
-            checked = optimisticChecked,
-            onCheckedChange = null,
-            dark = dark,
-            colors = CouiSwitchDefaults.colors(colors.accent, dark),
+            startAction = icon,
             enabled = enabled,
-            interactionSource = source,
-            onDragCheckedChange = commitChange,
-            loading = loading,
-            loadingDescription = loadingDescription,
-            hapticFeedbackEnabled = hapticFeedbackEnabled,
+            isLoading = true,
+        )
+        hapticFeedbackEnabled -> SwitchPreference(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            title = title,
+            modifier = modifier,
+            summary = summary,
+            startAction = icon,
+            enabled = enabled,
+        )
+        else -> BasicComponent(
+            title = title,
+            modifier = modifier.semantics { toggleableState = ToggleableState(checked) },
+            summary = summary,
+            startAction = icon,
+            enabled = enabled,
+            role = Role.Switch,
+            onClick = { onCheckedChange(!checked) },
+            endActions = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
         )
     }
 }
@@ -259,66 +234,12 @@ internal fun CouiCheckboxPreference(
     summary: String? = null,
     enabled: Boolean = true,
     icon: (@Composable () -> Unit)? = null,
-    contentPadding: PaddingValues = PaddingValues(
-        horizontal = CouiPageDefaults.rowPadding,
-        vertical = CouiPageDefaults.contentPadding,
-    ),
+    contentPadding: PaddingValues = BasicComponentDefaults.InsideMargin,
 ) {
-    val dark = CouiTheme.isDark
-    val colors = CouiPageDefaults.themeColors(dark)
-    val source = remember { MutableInteractionSource() }
-    CouiPreferenceRow(
-        modifier = modifier
-            .couiButtonFeedback(dark, source, enabled, list = true)
-            .toggleable(checked, source, null, enabled, Role.Checkbox, onCheckedChange),
-        title = title,
-        summary = summary,
-        enabled = enabled,
-        icon = icon,
-        contentPadding = contentPadding,
-    ) {
-        Checkbox(
-            modifier = Modifier
-                .padding(start = 16.dp)
-                .size(24.dp),
-            checked = checked,
-            enabled = enabled,
-            colors = CouiCheckboxDefaults.colors(colors.accent, dark),
-            shape = CouiCheckboxDefaults.shape,
-            borderShape = CouiCheckboxDefaults.borderShape,
-        )
-    }
-}
-
-@Composable
-internal fun CouiSelectPreference(
-    modifier: Modifier = Modifier,
-    title: String,
-    selected: Boolean,
-    onSelect: () -> Unit,
-    summary: String? = null,
-    enabled: Boolean = true,
-    icon: (@Composable () -> Unit)? = null,
-) {
-    val dark = CouiTheme.isDark
-    val source = remember { MutableInteractionSource() }
-    CouiPreferenceRow(
-        modifier = modifier
-            .couiButtonFeedback(dark, source, enabled, list = true)
-            .selectable(selected, source, null, enabled, Role.RadioButton, onSelect),
-        title = title,
-        summary = summary,
-        enabled = enabled,
-        icon = icon,
-    ) {
-        RadioButton(
-            modifier = Modifier
-                .padding(start = 16.dp)
-                .size(24.dp),
-            selected = selected,
-            enabled = enabled,
-        )
-    }
+    CheckboxPreference(
+        title = title, checked = checked, onCheckedChange = onCheckedChange, modifier = modifier,
+        summary = summary, enabled = enabled, startAction = icon, insideMargin = contentPadding,
+    )
 }
 
 @Composable
@@ -330,59 +251,39 @@ internal fun <T> CouiPopupPreference(
     onExpandedChange: (Boolean) -> Unit,
     items: List<CouiMenuItem<T>>,
     onItemClick: (CouiMenuItem<T>) -> Unit,
-    menuStyle: CouiMenuStyle = CouiMenuDefaults.style(),
     summary: String? = null,
     enabled: Boolean = true,
     icon: (@Composable () -> Unit)? = null,
 ) {
-    val dark = CouiTheme.isDark
-    val colors = CouiPageDefaults.themeColors(dark)
-    val source = remember { MutableInteractionSource() }
     val anchor = rememberCouiMenuAnchor()
+    val scheme = COUITheme.colorScheme
     Box(modifier) {
-        CouiPreferenceRow(
-            modifier = Modifier
-                .couiMenuAnchor(anchor)
-                .couiButtonFeedback(dark, source, enabled, list = true, hoverLocked = expanded)
-                .clickable(source, null, enabled, role = Role.Button) {
-                    anchor.open { onExpandedChange(true) }
-                },
+        ArrowPreference(
             title = title,
+            modifier = Modifier.couiMenuAnchor(anchor),
             summary = summary,
-            enabled = enabled,
-            icon = icon,
-        ) {
-            BasicText(
-                text = value,
-                modifier = Modifier
-                    .widthIn(max = 162.dp)
-                    .padding(start = 16.dp),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                style = rememberCouiTextStyle(CouiTextKind.ItemValue).copy(
-                    color = if (enabled) colors.summary else colors.disabled,
+            startAction = icon,
+            endActions = {
+                CouiText(
+                    text = value,
+                    modifier = Modifier.widthIn(max = 162.dp),
+                    kind = CouiTextKind.ItemValue,
+                    color = if (enabled) scheme.labelTertiary else scheme.disabledNeutral,
                     textAlign = TextAlign.End,
-                ),
-            )
-            CouiIcon(
-                imageVector = Icons.Rounded.UnfoldMore,
-                contentDescription = null,
-                modifier = Modifier
-                    .padding(start = 4.dp)
-                    .size(16.dp),
-                tint = Color(if (dark) 0x4DFFFFFF else 0x42000000),
-            )
-        }
-        Menu(
-            expanded = expanded,
-            onDismissRequest = { onExpandedChange(false) },
-            items = items,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            holdDownState = expanded,
+            enabled = enabled,
+            onClick = { anchor.open { onExpandedChange(true) } },
+        )
+        CouiMenu(
+            expanded = expanded, onDismissRequest = { onExpandedChange(false) }, items = items, anchor = anchor,
             onItemClick = { item ->
                 onItemClick(item)
                 onExpandedChange(false)
             },
-            style = menuStyle,
-            anchor = anchor,
         )
     }
 }
@@ -398,195 +299,72 @@ internal fun CouiDropdownPreference(
     enabled: Boolean = true,
     icon: (@Composable () -> Unit)? = null,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val safeIndex = selectedIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
-    val currentLabel = items.getOrNull(safeIndex).orEmpty()
-    val menuItems = remember(items, safeIndex) {
-        items.mapIndexed { index, label ->
-            CouiMenuItem(
-                value = index,
-                text = label,
-                selected = index == safeIndex,
-            )
-        }
-    }
-    CouiPopupPreference(
-        modifier = modifier,
-        title = title,
-        value = currentLabel,
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-        items = menuItems,
-        onItemClick = { onSelectedIndexChange(it.value) },
-        summary = summary,
-        enabled = enabled,
-        icon = icon,
+    OverlayDropdownPreference(
+        items = items, selectedIndex = selectedIndex, title = title, modifier = modifier, summary = summary,
+        enabled = enabled && items.isNotEmpty(), startAction = icon, onSelectedIndexChange = onSelectedIndexChange,
     )
 }
 
 @Composable
-internal fun CouiSliderPreference(
+internal fun CouiItem(
     modifier: Modifier = Modifier,
-    title: String,
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    valueText: String? = null,
-    summary: String? = null,
-    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
-    steps: Int = 0,
-    showTickMarks: Boolean = steps > 0,
-    enabled: Boolean = true,
+    icon: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
-    onValueChangeFinished: () -> Unit = {},
-    leading: (@Composable () -> Unit)? = null,
+    enabled: Boolean = true,
+    title: @Composable () -> Unit,
+    summary: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    val dark = CouiTheme.isDark
-    val colors = CouiPageDefaults.themeColors(dark)
-    Column(modifier.fillMaxWidth()) {
-        CouiPreference(
-            title = title,
-            summary = summary,
-            value = valueText,
-            enabled = enabled,
-            onClick = onClick,
-            showChevron = false,
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            leading?.invoke()
-            Slider(
-                modifier = Modifier
-                    .weight(1f)
-                    .semantics { contentDescription = title },
-                value = value,
-                onValueChange = onValueChange,
-                dark = dark,
-                enabled = enabled,
-                colors = CouiSliderDefaults.colors(colors.accent, dark, enabled),
-                shape = CouiCapsuleShape,
-                valueRange = valueRange,
-                steps = steps,
-                showTickMarks = showTickMarks,
-                onValueChangeFinished = onValueChangeFinished,
-            )
-            trailing?.invoke()
-        }
+    BasicComponent(
+        modifier = modifier, startAction = icon, onClick = onClick, enabled = enabled,
+        endActions = trailing?.let { { it() } },
+    ) {
+        title()
+        summary?.invoke()
     }
 }
 
-@Composable
-internal fun CouiPreferenceRow(
-    modifier: Modifier,
-    title: String,
-    summary: String?,
-    enabled: Boolean,
-    icon: (@Composable () -> Unit)?,
-    titleColor: Color = Color.Unspecified,
-    summaryColor: Color = Color.Unspecified,
-    contentPadding: PaddingValues = PaddingValues(
-        horizontal = CouiPageDefaults.rowPadding,
-        vertical = CouiPageDefaults.contentPadding,
-    ),
-    onClick: (() -> Unit)? = null,
-    trailing: @Composable () -> Unit,
-) {
-    val colors = CouiPageDefaults.themeColors()
-    val resolvedTitleColor = if (titleColor.isSpecified) {
-        if (enabled) titleColor else colors.disabled
-    } else if (enabled) {
-        colors.title
-    } else {
-        colors.disabled
-    }
-    val resolvedSummaryColor = if (summaryColor.isSpecified) {
-        if (enabled) summaryColor else colors.disabled
-    } else if (enabled) {
-        colors.summary
-    } else {
-        colors.disabled
-    }
-    Item(
-        modifier = modifier,
-        icon = icon,
-        onClick = onClick,
-        enabled = enabled,
-        contentPadding = contentPadding,
-        title = {
-            Text(
-                text = title,
-                kind = CouiTextKind.ItemTitle,
-                color = resolvedTitleColor,
-                textAlign = TextAlign.Start,
-            )
-        },
-        summary = summary?.takeIf { it.isNotEmpty() }?.let { text ->
-            @Composable {
-                Text(
-                    text = text,
-                    kind = CouiTextKind.ItemSummary,
-                    color = resolvedSummaryColor,
-                    textAlign = TextAlign.Start,
-                )
-            }
-        },
-        trailing = trailing,
-    )
-}
-
-@Composable
-internal fun CouiSettingsArrow(
-    modifier: Modifier,
-    back: Boolean,
-    color: Color,
-) {
-    CouiIcon(
-        imageVector = if (back) CouiIcons.Outlined.Back else CouiIcons.Outlined.Next,
-        contentDescription = null,
-        modifier = modifier,
-        tint = color,
-    )
-}
-
-/**
- * 对齐 COUI Group 标题行与留白规范的独立分组标题（用于 Lazy 列表或带尾部动作的分组标题）。
- */
 @Composable
 internal fun CouiSectionTitle(
     text: String,
     modifier: Modifier = Modifier,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
-    val colors = CouiPageDefaults.themeColors()
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = CouiPageDefaults.categoryTopSpacing)
-            .padding(horizontal = 32.dp, vertical = 8.dp)
-            .heightIn(min = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = text,
-            kind = CouiTextKind.GroupTitle,
-            color = colors.summary,
-            modifier = Modifier
-                .weight(1f)
-                .semantics { heading() },
-            textAlign = TextAlign.Start,
-        )
-        trailing()
+    PreferenceCategory(text, modifier.semantics { heading() }, endWidget = trailing)
+}
+
+@Composable
+internal fun CouiPreferenceFooter(text: String, modifier: Modifier = Modifier, color: Color = COUITheme.colorScheme.labelSecondary) {
+    CouiText(
+        text = text, modifier = modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp),
+        color = color, kind = CouiTextKind.GroupFooter,
+    )
+}
+
+@Composable
+internal fun CouiPreferenceGroup(
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    footer: String? = null,
+    headerActions: @Composable RowScope.() -> Unit = {},
+    colors: CouiPageColors = CouiPageDefaults.themeColors(),
+    content: CardListGroupScope.() -> Unit,
+) {
+    Column(modifier.fillMaxWidth()) {
+        if (!title.isNullOrEmpty()) CouiSectionTitle(title, trailing = headerActions)
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = CouiPageDefaults.horizontalMargin)
+                .padding(bottom = if (footer.isNullOrEmpty()) CouiPageDefaults.groupSpacing else 0.dp),
+            insideMargin = PaddingValues(0.dp),
+            colors = CardDefaults.defaultColors(color = colors.card),
+        ) {
+            CardListGroup(content = content)
+        }
+        if (!footer.isNullOrEmpty()) CouiPreferenceFooter(footer)
     }
 }
 
-/**
- * 长列表保持逐项 Lazy 组合，首尾应用 COUI Group 的 24.dp 平滑圆角，中间项自动插入组内 Divider。
- */
+/** 逐项组合长列表，首尾条目沿用设置卡片的位置语义。 */
 @Composable
 internal fun CouiGroupItem(
     isFirst: Boolean,
@@ -596,27 +374,34 @@ internal fun CouiGroupItem(
     content: @Composable () -> Unit,
 ) {
     val colors = CouiPageDefaults.themeColors()
-    val shape = when {
-        isFirst && isLast -> CouiPageDefaults.shape
-        isFirst -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-        isLast -> RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
-        else -> RoundedCornerShape(0.dp)
+    val position = when {
+        isFirst && isLast -> CardListPosition.Full
+        isFirst -> CardListPosition.Head
+        isLast -> CardListPosition.Tail
+        else -> CardListPosition.Middle
+    }
+    val topRadius = if (isFirst) 24.dp else 0.dp
+    val bottomRadius = if (isLast) 24.dp else 0.dp
+    val surfaceModifier = if (isFirst || isLast) {
+        Modifier.squircleSurface(
+            color = colors.card,
+            topStart = topRadius,
+            topEnd = topRadius,
+            bottomEnd = bottomRadius,
+            bottomStart = bottomRadius,
+        )
+    } else {
+        Modifier.background(colors.card)
     }
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = CouiPageDefaults.horizontalMargin)
+        modifier.fillMaxWidth().padding(horizontal = CouiPageDefaults.horizontalMargin)
             .padding(bottom = if (isLast) CouiPageDefaults.groupSpacing else 0.dp)
-            .clip(shape)
-            .background(colors.card),
+            .then(surfaceModifier),
     ) {
-        content()
+        CompositionLocalProvider(LocalCardListPosition provides position, content = content)
         if (!isLast) {
-            if (hasLeadingIcon) {
-                CouiIconDivider()
-            } else {
-                Divider()
-            }
+            if (hasLeadingIcon) CouiIconDivider()
+            else HorizontalDivider(Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
         }
     }
 }

@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -66,15 +67,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.imagegen.GeneratedImageActivityPayload
 import io.github.mangi.eta.agent.imagegen.GeneratedImageStore
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -188,9 +189,9 @@ private fun GeneratingPlaceholderCard(
     } else {
         MiuixTheme.colorScheme.surfaceContainerHigh
     }
-    val accent = if (isCoui) CouiPageDefaults.themeColors(couiDark).accent else MiuixTheme.colorScheme.primary
-    val titleColor = if (isCoui) CouiPageDefaults.themeColors(couiDark).title else MiuixTheme.colorScheme.onSurface
-    val summaryColor = if (isCoui) CouiPageDefaults.themeColors(couiDark).summary else MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val accent = if (isCoui) CouiPageDefaults.themeColors().accent else MiuixTheme.colorScheme.primary
+    val titleColor = if (isCoui) CouiPageDefaults.themeColors().title else MiuixTheme.colorScheme.onSurface
+    val summaryColor = if (isCoui) CouiPageDefaults.themeColors().summary else MiuixTheme.colorScheme.onSurfaceVariantSummary
     val maxCardWidth = if (assistantOverlay) 260.dp else 300.dp
     val cornerShape = RoundedCornerShape(18.dp)
 
@@ -309,8 +310,8 @@ private fun GeneratedImagesGalleryCard(
     } else {
         MiuixTheme.colorScheme.surfaceContainerHigh
     }
-    val titleColor = if (isCoui) CouiPageDefaults.themeColors(couiDark).title else MiuixTheme.colorScheme.onSurface
-    val summaryColor = if (isCoui) CouiPageDefaults.themeColors(couiDark).summary else MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val titleColor = if (isCoui) CouiPageDefaults.themeColors().title else MiuixTheme.colorScheme.onSurface
+    val summaryColor = if (isCoui) CouiPageDefaults.themeColors().summary else MiuixTheme.colorScheme.onSurfaceVariantSummary
     val borderColor = if (isCoui) {
         if (couiDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
     } else {
@@ -653,17 +654,17 @@ private fun GeneratedImageStatusNotice(
     detail: String?,
     isCoui: Boolean,
 ) {
-    val couiDark = if (isCoui) CouiTheme.isDark else false
+    val dark = if (isCoui) CouiTheme.isDark else MiuixTheme.colorScheme.surface.luminance() < 0.5f
     val bg = if (isError) {
-        StatusError.copy(alpha = if (couiDark) 0.16f else 0.09f)
+        StatusError.copy(alpha = if (dark) 0.16f else 0.09f)
     } else if (isCoui) {
-        if (couiDark) Color(0xFF1F2229) else Color(0xFFF4F6FA)
+        CouiTheme.colorScheme.cardBackground
     } else {
         MiuixTheme.colorScheme.surfaceContainerHigh
     }
     val tint = if (isError) StatusError else MiuixTheme.colorScheme.primary
-    val titleColor = if (isCoui) CouiPageDefaults.themeColors(couiDark).title else MiuixTheme.colorScheme.onSurface
-    val summaryColor = if (isCoui) CouiPageDefaults.themeColors(couiDark).summary else MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val titleColor = if (isCoui) CouiPageDefaults.themeColors().title else MiuixTheme.colorScheme.onSurface
+    val summaryColor = if (isCoui) CouiPageDefaults.themeColors().summary else MiuixTheme.colorScheme.onSurfaceVariantSummary
 
     Row(
         modifier = Modifier

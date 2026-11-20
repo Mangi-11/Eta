@@ -46,6 +46,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.Path
+import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
+import io.github.mangi.eta.ui.components.coui.couiPressMotion
+import io.github.mangi.eta.ui.components.coui.rememberCouiPressMotion
+import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import top.yukonga.miuix.kmp.squircle.addSquircleRect
 import top.yukonga.miuix.kmp.basic.IconButton
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -89,11 +94,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.motion.couiPressMotion
-import com.itos.coui.motion.rememberCouiPressMotion
-import com.itos.coui.shape.CouiShape
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.R
@@ -559,7 +559,7 @@ private fun ResultCardActions(
                     imageVector = if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
                     contentDescription = stringResource(if (copied) R.string.copy_copied else R.string.ui_copy_4edd1d),
                     modifier = Modifier.size(18.dp),
-                    tint = if (copied) CouiTheme.colorSchemeFor(dark).accent else CouiTheme.colorSchemeFor(dark).onSurface,
+                    tint = if (copied) CouiTheme.colorScheme.primary else CouiTheme.colorScheme.labelPrimary,
                 )
             }
         } else {

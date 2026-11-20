@@ -1,5 +1,10 @@
 package io.github.mangi.eta.ui.components
 
+import io.github.mangi.eta.ui.components.coui.CouiMenu
+import io.github.mangi.eta.ui.components.coui.CouiMenuItem
+import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
+import io.github.mangi.eta.ui.components.coui.couiMenuAnchor
+import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
 import io.github.mangi.eta.ui.voice.SpeechDictationButton
 import io.github.mangi.eta.ui.voice.SpeechInputFeedback
 import io.github.mangi.eta.ui.voice.rememberSpeechInput
@@ -91,13 +96,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.menu.CouiMenuItem
-import com.itos.coui.menu.Menu
-import com.itos.coui.menu.couiMenuAnchor
-import com.itos.coui.menu.rememberCouiMenuAnchor
-import com.itos.coui.shape.CouiShape
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ReasoningEffort
@@ -108,6 +106,11 @@ import io.github.mangi.eta.ui.model.AgentContextUsageUi
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import io.github.mangi.eta.ui.model.PendingImageUi
 import io.github.mangi.eta.ui.model.QueuedMessageUi
+import io.github.suqi8.coui.kmp.blur.LayerBackdrop as CouiLayerBackdrop
+import io.github.suqi8.coui.kmp.blur.ViewBlurDefaults
+import io.github.suqi8.coui.kmp.blur.couiViewBlur
+import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -174,6 +177,7 @@ internal fun AgentChatInputBar(
     onRemoveFileReference: (String) -> Unit,
     onCancelMessageEdit: () -> Unit,
     glassBackdrop: Backdrop? = null,
+    couiBackdrop: CouiLayerBackdrop? = null,
     modifier: Modifier = Modifier,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
@@ -333,6 +337,7 @@ internal fun AgentChatInputBar(
 
         val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
         val couiDark = CouiTheme.isDark
+        val couiColors = CouiTheme.colorScheme
         val couiInputShape = remember { CouiShape(24.dp, 2.3f) }
         val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
         val miuixInputBg = if (!isDark && MiuixTheme.colorScheme.surfaceContainer == MiuixTheme.colorScheme.surface) {
@@ -341,7 +346,7 @@ internal fun AgentChatInputBar(
             MiuixTheme.colorScheme.surfaceContainer
         }
         val defaultInputBorderColor = if (isCoui) {
-            if (couiDark) Color(0x20FFFFFF) else Color(0x0E000000)
+            couiColors.divider
         } else {
             MiuixTheme.colorScheme.outline.copy(alpha = 0.5f)
         }
@@ -383,9 +388,12 @@ internal fun AgentChatInputBar(
                                     ),
                                 )
                                 .clip(couiInputShape)
-                                .background(
-                                    if (couiDark) Color(0xFF1C1E22) else Color(0xFFF6F7F9),
-                                    couiInputShape,
+                                .then(
+                                    if (couiBackdrop != null) Modifier.couiViewBlur(
+                                        backdrop = couiBackdrop,
+                                        style = ViewBlurDefaults.frameworkBottomBar(couiDark),
+                                        shape = couiInputShape,
+                                    ) else Modifier.background(couiColors.surface, couiInputShape),
                                 )
                                 .border(
                                     width = inputBorderWidth,
@@ -842,7 +850,7 @@ private fun ThinkingEffortChip(
                             )
                         }
                     }
-                    Menu(
+                    CouiMenu(
                         expanded = showPopup && interactive,
                         onDismissRequest = { showPopup = false },
                         items = menuItems,

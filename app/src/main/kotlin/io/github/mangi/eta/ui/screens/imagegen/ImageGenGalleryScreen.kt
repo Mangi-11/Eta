@@ -44,8 +44,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.imagegen.GeneratedImageRecord
 import io.github.mangi.eta.agent.imagegen.GeneratedImageStore
@@ -60,8 +58,10 @@ import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiIcon
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.rememberChatImageBitmap
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -138,8 +138,10 @@ internal fun ImageGenGalleryScreen(
     }
 
     val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
+    var retainedPendingDelete by remember { mutableStateOf<GeneratedImageRecord?>(null) }
+    if (pendingDelete != null) retainedPendingDelete = pendingDelete
 
-    if (confirmClearAll) {
+    if (!isCoui && confirmClearAll) {
         val clearTitle = stringResource(R.string.imagegen_gallery_clear_title)
         val clearMessage = pluralStringResource(
             R.plurals.imagegen_gallery_clear_message,
@@ -148,50 +150,28 @@ internal fun ImageGenGalleryScreen(
             formatImageStorageSize(totalBytes),
         )
         val clearAction = stringResource(R.string.imagegen_action_clear)
-        if (isCoui) {
-            CouiConfirmDialog(
-                visible = true,
-                title = clearTitle,
-                message = clearMessage,
+        GlassDialog(
+            show = true,
+            title = clearTitle,
+            summary = clearMessage,
+            backdrop = currentGlassOverlayBackdrop(),
+            onDismissRequest = { confirmClearAll = false },
+        ) {
+            MiuixDialogActions(
+                cancelText = stringResource(R.string.action_cancel),
                 confirmText = clearAction,
                 destructive = true,
-                onDismissRequest = { confirmClearAll = false },
+                onCancel = { confirmClearAll = false },
                 onConfirm = clearAll,
             )
-        } else {
-            GlassDialog(
-                show = true,
-                title = clearTitle,
-                summary = clearMessage,
-                backdrop = currentGlassOverlayBackdrop(),
-                onDismissRequest = { confirmClearAll = false },
-            ) {
-                MiuixDialogActions(
-                    cancelText = stringResource(R.string.action_cancel),
-                    confirmText = clearAction,
-                    destructive = true,
-                    onCancel = { confirmClearAll = false },
-                    onConfirm = clearAll,
-                )
-            }
         }
     }
 
-    pendingDelete?.let { target ->
-        val deleteTitle = stringResource(R.string.imagegen_gallery_delete_title)
-        val deleteMessage = stringResource(R.string.imagegen_gallery_delete_message)
-        val deleteAction = stringResource(R.string.action_delete)
-        if (isCoui) {
-            CouiConfirmDialog(
-                visible = true,
-                title = deleteTitle,
-                message = deleteMessage,
-                confirmText = deleteAction,
-                destructive = true,
-                onDismissRequest = { pendingDelete = null },
-                onConfirm = { deleteSingle(target) },
-            )
-        } else {
+    if (!isCoui) {
+        pendingDelete?.let { target ->
+            val deleteTitle = stringResource(R.string.imagegen_gallery_delete_title)
+            val deleteMessage = stringResource(R.string.imagegen_gallery_delete_message)
+            val deleteAction = stringResource(R.string.action_delete)
             GlassDialog(
                 show = true,
                 title = deleteTitle,
@@ -214,12 +194,40 @@ internal fun ImageGenGalleryScreen(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            val dark = CouiTheme.isDark
-            val colors = CouiPageDefaults.themeColors(dark)
+            val colors = CouiPageDefaults.themeColors()
             // 使用 CouiLazyScaffoldPage 惰性回收离屏行，避免大量缩略图同时驻留内存。
             CouiLazyScaffoldPage(
                 title = stringResource(R.string.image_gen_gallery_title),
                 onBack = onBack,
+                overlay = {
+                    val clearMessage = pluralStringResource(
+                        R.plurals.imagegen_gallery_clear_message,
+                        records.size,
+                        records.size,
+                        formatImageStorageSize(totalBytes),
+                    )
+                    CouiConfirmDialog(
+                        visible = confirmClearAll,
+                        title = stringResource(R.string.imagegen_gallery_clear_title),
+                        message = clearMessage,
+                        confirmText = stringResource(R.string.imagegen_action_clear),
+                        destructive = true,
+                        onDismissRequest = { confirmClearAll = false },
+                        onConfirm = clearAll,
+                    )
+                    val activeDelete = pendingDelete ?: retainedPendingDelete
+                    CouiConfirmDialog(
+                        visible = pendingDelete != null,
+                        title = stringResource(R.string.imagegen_gallery_delete_title),
+                        message = stringResource(R.string.imagegen_gallery_delete_message),
+                        confirmText = stringResource(R.string.action_delete),
+                        confirmEnabled = activeDelete != null,
+                        destructive = true,
+                        onDismissRequest = { pendingDelete = null },
+                        onDismissFinished = { if (pendingDelete == null) retainedPendingDelete = null },
+                        onConfirm = { activeDelete?.let(deleteSingle) },
+                    )
+                },
                 actions = {
                     if (records.isNotEmpty()) {
                         Box(
@@ -373,17 +381,17 @@ private fun GalleryImageTile(
         SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(Date(record.createdAt))
     }
     val cardBg = if (isCoui) {
-        if (CouiTheme.isDark) Color(0xFF1F2229) else Color(0xFFF3F5F9)
+        CouiTheme.colorScheme.cardBackground
     } else {
         MiuixTheme.colorScheme.surfaceContainerHigh
     }
     val titleColor = if (isCoui) {
-        CouiPageDefaults.themeColors(CouiTheme.isDark).title
+        CouiPageDefaults.themeColors().title
     } else {
         MiuixTheme.colorScheme.onSurface
     }
     val summaryColor = if (isCoui) {
-        CouiPageDefaults.themeColors(CouiTheme.isDark).summary
+        CouiPageDefaults.themeColors().summary
     } else {
         MiuixTheme.colorScheme.onSurfaceVariantSummary
     }

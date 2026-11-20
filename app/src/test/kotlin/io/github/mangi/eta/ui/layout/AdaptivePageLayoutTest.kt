@@ -9,7 +9,7 @@ import org.junit.Test
 
 class AdaptivePageLayoutTest {
     @Test
-    fun wideScreenDecisionUsesTheProvidedUnscaledDensity() {
+    fun wideScreenDecisionUsesWindowDensity() {
         val widthPx = 1200
 
         assertTrue(isWideScreen(widthPx, Density(density = 2f)))

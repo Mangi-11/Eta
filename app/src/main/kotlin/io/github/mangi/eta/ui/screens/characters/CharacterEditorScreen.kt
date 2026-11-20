@@ -20,8 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Group
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
@@ -31,7 +29,9 @@ import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
@@ -139,12 +139,14 @@ internal fun CharacterEditorScreen(
                 val advancedTitle = stringResource(R.string.character_editor_advanced_title)
                 val advancedSummary = stringResource(R.string.character_editor_advanced_summary)
                 if (uiStyle == AppearanceUiStyle.COUI) {
-                    Group {
-                        CouiPreference(
-                            title = advancedTitle,
-                            summary = advancedSummary,
-                            onClick = { advanced = !advanced },
-                        )
+                    CouiPreferenceGroup {
+                        item {
+                            CouiPreference(
+                                title = advancedTitle,
+                                summary = advancedSummary,
+                                onClick = { advanced = !advanced },
+                            )
+                        }
                     }
                 } else {
                     Card(
@@ -220,7 +222,7 @@ internal fun CharacterEditorScreen(
                         onClick = { store.saveEditor(onSaved) },
                     )
                 },
-                content = listContent,
+                content = { listContent() },
             )
         }
         AppearanceUiStyle.MIUIX -> {
@@ -274,8 +276,10 @@ internal fun CharacterTextField(
             if (inGroup) {
                 fieldContent()
             } else {
-                Group {
-                    fieldContent()
+                CouiPreferenceGroup {
+                    item {
+                        fieldContent()
+                    }
                 }
             }
         }

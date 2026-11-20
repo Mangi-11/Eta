@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CircleShape as CouiCapsuleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -43,13 +44,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Group
-import com.itos.coui.shape.CouiCapsuleShape
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.config.Prefs
@@ -60,14 +54,20 @@ import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.MiuixPageBottomSpacer
 import io.github.mangi.eta.ui.components.MiuixScaffold
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiSegmentedTabs
+import io.github.mangi.eta.ui.components.coui.CouiText
+import io.github.mangi.eta.ui.components.coui.CouiTextKind
+import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
 import io.github.mangi.eta.ui.model.AgentToolsAction
 import io.github.mangi.eta.ui.model.AgentToolsUiState
 import io.github.mangi.eta.ui.model.ToolGroupUi
 import io.github.mangi.eta.ui.model.projectToolGroups
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -170,11 +170,20 @@ fun AgentToolsScreen(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
+            var inspectedTool by remember { mutableStateOf<Pair<String, String>?>(null) }
             CouiLazyScaffoldPage(
                 title = stringResource(R.string.ui_tool_ability_9f0f80),
                 onBack = { onAction(AgentToolsAction.NavigateBack) },
                 modifier = modifier,
                 listState = if (showAll) allListState else currentListState,
+                overlay = {
+                    io.github.mangi.eta.ui.components.ItemDescriptionDialog(
+                        show = inspectedTool != null,
+                        title = inspectedTool?.first.orEmpty(),
+                        description = inspectedTool?.second.orEmpty(),
+                        onDismiss = { inspectedTool = null },
+                    )
+                },
             ) {
                 item(key = "capability-view") {
                     CouiSegmentedTabs(
@@ -197,12 +206,14 @@ fun AgentToolsScreen(
                 }
                 if (activeFilterId == ALL_GROUP_FILTER) {
                     item(key = "capability-discovery") {
-                        Group {
-                            CouiPreference(
-                                title = stringResource(R.string.capability_enhancements),
-                                summary = stringResource(R.string.capability_enhancements_summary),
-                                onClick = { onAction(AgentToolsAction.OpenEnhancements) },
-                            )
+                        CouiPreferenceGroup {
+                            item {
+                                CouiPreference(
+                                    title = stringResource(R.string.capability_enhancements),
+                                    summary = stringResource(R.string.capability_enhancements_summary),
+                                    onClick = { onAction(AgentToolsAction.OpenEnhancements) },
+                                )
+                            }
                         }
                     }
                 }
@@ -238,6 +249,7 @@ fun AgentToolsScreen(
                                 rootGranted = capabilities.root.isGranted,
                                 capabilities = capabilities.tools,
                                 onAction = onAction,
+                                onInspectDescription = { title, desc -> inspectedTool = title to desc },
                             )
                         }
                     }
@@ -443,7 +455,7 @@ private fun ToolCategoryFilterStrip(
             val source = remember { MutableInteractionSource() }
             if (isCoui) {
                 val dark = CouiTheme.isDark
-                val colors = CouiPageDefaults.themeColors(dark)
+                val colors = CouiPageDefaults.themeColors()
                 Box(
                     modifier = Modifier
                         .heightIn(min = 32.dp)
@@ -467,7 +479,7 @@ private fun ToolCategoryFilterStrip(
                     CouiText(
                         text = label,
                         kind = CouiTextKind.GroupFooter,
-                        color = if (selected) Color.White else colors.title,
+                        color = if (selected) io.github.suqi8.coui.kmp.theme.COUITheme.colorScheme.labelOnColor else colors.title,
                         maxLines = 1,
                     )
                 }
@@ -537,7 +549,7 @@ internal fun GroupBatchTogglePill(
     val source = remember { MutableInteractionSource() }
     if (isCoui) {
         val dark = CouiTheme.isDark
-        val colors = CouiPageDefaults.themeColors(dark)
+        val colors = CouiPageDefaults.themeColors()
         val textColor = when {
             !enabled -> colors.disabled
             allEnabled -> colors.summary

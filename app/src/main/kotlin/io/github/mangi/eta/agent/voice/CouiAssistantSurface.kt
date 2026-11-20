@@ -1,6 +1,5 @@
 package io.github.mangi.eta.agent.voice
 
-import android.graphics.Paint
 import android.util.LruCache
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -11,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape as CouiCapsuleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
@@ -18,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -32,31 +31,20 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.platform.LocalGraphicsContext
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.itos.coui.dialog.CouiDialogDefaults
-import com.itos.coui.effect.CouiContour
-import com.itos.coui.effect.CouiContourStyle
-import com.itos.coui.effect.CouiShadowOutline
-import com.itos.coui.effect.CouiShadowRenderer
-import com.itos.coui.effect.CouiShadowStyle
-import com.itos.coui.effect.LocalCouiContourGlowEnabled
-import com.itos.coui.effect.SpotlightPreset
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.effect.rememberCouiSpotlight
-import com.itos.coui.motion.CouiPressMotion
-import com.itos.coui.motion.CouiTouchMotion
-import com.itos.coui.shape.CouiCapsuleShape
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.coui.CouiPressMotion
+import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlin.math.PI
 import kotlin.math.ceil
 import kotlin.math.pow
@@ -96,11 +84,15 @@ internal fun rememberEtaVoicePanelColors(): EtaVoicePanelColors {
         MiuixTheme.colorScheme.background.luminance() < 0.5f
     }
     val accent = if (isCoui) {
-        CouiTheme.colorSchemeFor(dark).accent
+        CouiTheme.colorScheme.primary
     } else {
         MiuixTheme.colorScheme.primary
     }
-    val destructive = CouiDialogDefaults.colors(dark).destructive
+    val destructive = if (isCoui) {
+        CouiTheme.colorScheme.error
+    } else {
+        MiuixTheme.colorScheme.error
+    }
     return remember(dark, accent, destructive) {
         if (dark) {
             EtaVoicePanelColors(
@@ -273,8 +265,7 @@ internal enum class AssistantCapsuleElevation {
 }
 
 /**
- * COUI 悬浮胶囊表面：硬件加速画布上启用逆裁剪网格投影、轮廓内晕与跟手光；
- * 遇到窗口切换期的软件画布或单元测试位图回读时，自动回退为同轮廓的纯矢量填充与细描边。
+ * 语音助手悬浮胶囊表面：硬件加速画布上启用投影，软件画布或窗口切换期回退为同轮廓纯色填充与细描边。
  */
 @Composable
 internal fun Modifier.couiAssistantCapsule(
@@ -287,141 +278,42 @@ internal fun Modifier.couiAssistantCapsule(
     interactive: Boolean = false,
     interactionSource: MutableInteractionSource? = null,
     pressMotion: CouiPressMotion? = null,
-    touchMotion: CouiTouchMotion? = null,
-    spotlightEnabled: Boolean = false,
 ): Modifier {
-    val contourEnabled = LocalCouiContourGlowEnabled.current
-    val contour = remember(contourEnabled) {
-        if (contourEnabled) {
-            runCatching { CouiContour(style = CouiContourStyle.Button) }.getOrNull()
-        } else {
-            null
-        }
-    }
-    val shadowRenderer = remember(elevation) {
-        if (elevation != AssistantCapsuleElevation.InlineControl) {
-            runCatching { CouiShadowRenderer() }.getOrNull()
-        } else {
-            null
-        }
-    }
-    val shadowStyle = remember(dark, elevation) {
-        when (elevation) {
-            AssistantCapsuleElevation.Composer -> CouiShadowStyle(
-                elevation = if (dark) 32.dp else 76.dp,
-                color = Color(if (dark) 0x66000000 else 0x22000000),
-                lightY = (-220).dp,
-                lightZ = 10000.dp,
-                lightRadius = 2200.dp,
-            )
-            AssistantCapsuleElevation.Chip -> CouiShadowStyle(
-                elevation = if (dark) 22.dp else 48.dp,
-                color = Color(if (dark) 0x54000000 else 0x1A000000),
-                lightY = (-180).dp,
-                lightZ = 10000.dp,
-                lightRadius = 1800.dp,
-            )
-            AssistantCapsuleElevation.InlineControl -> null
-        }
-    }
-    val contourPaint = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
-    val (lightInput, drawLight) = rememberCouiSpotlight(
-        interactive = spotlightEnabled && interactive,
-        preset = SpotlightPreset.OpaqueMedium2,
-        dark = dark,
-        cancelOnConsumedMove = true,
-    )
-
-    val motionLayer = if (pressMotion != null || touchMotion != null) {
-        Modifier.graphicsLayer {
-            val touchScaleX = touchMotion?.scaleX?.value ?: 1f
-            val touchScaleY = touchMotion?.scaleY?.value ?: 1f
-            val pressScale = pressMotion?.scale?.value ?: 1f
-            scaleX = touchScaleX + pressScale - 1f
-            scaleY = touchScaleY + pressScale - 1f
-            translationX = touchMotion?.translationX?.value ?: 0f
-            translationY = touchMotion?.translationY?.value ?: 0f
-        }
-    } else {
-        Modifier
-    }
-
-    val feedbackModifier = if (interactionSource != null && interactive) {
-        Modifier.couiButtonFeedback(
-            dark = dark,
-            interactionSource = interactionSource,
-            enabled = true,
+    val shadow = when (elevation) {
+        AssistantCapsuleElevation.Composer -> Shadow(
+            radius = if (dark) 12.dp else 20.dp,
+            color = Color.Black,
+            alpha = if (dark) 0.36f else 0.13f,
         )
+        AssistantCapsuleElevation.Chip -> Shadow(
+            radius = if (dark) 8.dp else 14.dp,
+            color = Color.Black,
+            alpha = if (dark) 0.28f else 0.10f,
+        )
+        AssistantCapsuleElevation.InlineControl -> null
+    }
+    val feedback = if (interactive && interactionSource != null) {
+        Modifier.couiButtonFeedback(dark, interactionSource, enabled = true)
     } else {
         Modifier
     }
-
+    val shadowContext = LocalGraphicsContext.current.shadowContext
+    val shadowPainter = remember(shadowContext, shadow) {
+        shadow?.let { shadowContext.createDropShadowPainter(CouiCapsuleShape, it) }
+    }
     return this
-        .then(motionLayer)
-        .then(lightInput)
+        .then(if (pressMotion == null) Modifier else Modifier.graphicsLayer {
+            scaleX = pressMotion.scale.value
+            scaleY = pressMotion.scale.value
+        })
         .drawBehind {
-            val native = drawContext.canvas.nativeCanvas
-            val hardware = native.isHardwareAccelerated
-            val isRound = kotlin.math.abs(size.width - size.height) < 1f
-            if (hardware && shadowRenderer != null && shadowStyle != null) {
-                shadowRenderer.draw(
-                    canvas = native,
-                    slot = 0,
-                    width = size.width,
-                    height = size.height,
-                    sx = 1f,
-                    sy = 1f,
-                    windowX = 0f,
-                    windowY = 0f,
-                    alpha = surfaceColor.alpha,
-                    color = shadowStyle.color.toArgb(),
-                    elevation = shadowStyle.elevation.roundToPx().toFloat(),
-                    lightY = shadowStyle.lightY.roundToPx().toFloat(),
-                    lightZ = shadowStyle.lightZ.roundToPx().toFloat(),
-                    lightRadius = shadowStyle.lightRadius.roundToPx().toFloat(),
-                    outline = if (isRound) CouiShadowOutline.Oval else CouiShadowOutline.SmoothCapsule,
-                    radius = size.minDimension * 0.5f,
-                    clipping = true,
-                )
+            if (shadowPainter != null && drawContext.canvas.nativeCanvas.isHardwareAccelerated) {
+                with(shadowPainter) { draw(size) }
             }
             val outline = CouiCapsuleShape.createOutline(size, layoutDirection, this)
-            if (hardware && contour != null && size.minDimension > 1f) {
-                val lineAlpha = if (dark) {
-                    0.18f + 0.10f * highlightProgress
-                } else {
-                    0.82f
-                }
-                val innerAlpha = if (dark) 0.03f else 0.08f
-                contourPaint.shader = contour.shader(
-                    size = size,
-                    density = density,
-                    radiusPx = size.minDimension * 0.5f,
-                    cornerWeight = if (isRound) 2f else 1f,
-                    surfaceColor = surfaceColor,
-                    innerGlowAlpha = innerAlpha,
-                    lineAlpha = lineAlpha.coerceIn(0f, 1f),
-                    effectAlpha = 1f,
-                    lineWidthPx = 2.6f * density,
-                )
-                drawIntoCanvas { canvas ->
-                    canvas.nativeCanvas.drawRect(0f, 0f, size.width, size.height, contourPaint)
-                }
-                if (strokeColor.alpha > 0f && !dark) {
-                    drawOutline(
-                        outline = outline,
-                        color = strokeColor.copy(alpha = strokeColor.alpha * 0.50f),
-                        style = Stroke(width = 0.5.dp.toPx()),
-                    )
-                }
-            } else {
-                drawOutline(outline = outline, color = surfaceColor)
-                if (strokeColor.alpha > 0f) {
-                    drawOutline(
-                        outline = outline,
-                        color = strokeColor,
-                        style = Stroke(width = 0.75.dp.toPx()),
-                    )
-                }
+            drawOutline(outline, surfaceColor)
+            if (strokeColor.alpha > 0f) {
+                drawOutline(outline, strokeColor, style = Stroke(width = 0.75.dp.toPx()))
             }
             if (highlightProgress > 0.01f && highlightColor != Color.Unspecified) {
                 drawOutline(
@@ -432,11 +324,7 @@ internal fun Modifier.couiAssistantCapsule(
             }
         }
         .clip(CouiCapsuleShape)
-        .then(feedbackModifier)
-        .drawWithContent {
-            drawContent()
-            drawLight?.invoke(this)
-        }
+        .then(feedback)
 }
 
 internal enum class AssistantGlyphKind {

@@ -229,7 +229,7 @@ class SpeechDictationGestureTest {
             val view = ComposeView(activity)
             view.setParentCompositionContext(recomposer)
             view.setContent {
-                AgentAppTheme(AppearanceSettings(), applyInterfaceScale = false) {
+                AgentAppTheme(AppearanceSettings()) {
                     CompositionLocalProvider(LocalSquircleEnabled provides false) {
                         Box(
                             modifier = Modifier

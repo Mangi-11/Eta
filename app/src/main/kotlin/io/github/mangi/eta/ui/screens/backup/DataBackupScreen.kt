@@ -15,10 +15,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
@@ -31,6 +27,7 @@ import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import java.io.InputStream
@@ -150,55 +147,59 @@ internal fun DataBackupScreen(
             CouiScaffoldPage(
                 title = stringResource(R.string.data_backup_title),
                 onBack = onBack,
+                overlay = {
+                    CouiConfirmDialog(
+                        visible = showImportDialog,
+                        title = stringResource(R.string.data_backup_import_confirm_title),
+                        message = stringResource(R.string.data_backup_import_confirm_summary),
+                        confirmText = confirmImportText,
+                        confirmEnabled = !busy,
+                        cancelEnabled = !busy,
+                        destructive = true,
+                        onConfirm = onConfirmImport,
+                        onDismissRequest = onDismissImport,
+                    )
+                },
             ) {
-                Group {
-                    CouiPreference(
-                        title = stringResource(R.string.data_backup_warning_title),
-                        summary = stringResource(R.string.data_backup_warning_summary),
-                        showChevron = false,
-                    )
+                CouiPreferenceGroup {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.data_backup_warning_title),
+                            summary = stringResource(R.string.data_backup_warning_summary),
+                            showChevron = false,
+                        )
+                    }
                 }
-                Group(title = stringResource(R.string.data_backup_actions)) {
-                    CouiPreference(
-                        title = stringResource(R.string.data_backup_export),
-                        summary = if (busy) {
-                            stringResource(R.string.data_backup_working)
-                        } else {
-                            stringResource(R.string.data_backup_export_summary)
-                        },
-                        enabled = !busy,
-                        trailing = if (busy) {
-                            { InfiniteProgressIndicator(size = 20.dp) }
-                        } else {
-                            null
-                        },
-                        onClick = { exportLauncher.launch(defaultBackupFileName()) },
-                    )
-                    Divider()
-                    CouiPreference(
-                        title = stringResource(R.string.data_backup_import),
-                        summary = stringResource(R.string.data_backup_import_summary),
-                        enabled = !busy,
-                        onClick = {
-                            importLauncher.launch(arrayOf("application/json", "text/plain"))
-                        },
-                    )
+                CouiPreferenceGroup(title = stringResource(R.string.data_backup_actions)) {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.data_backup_export),
+                            summary = if (busy) {
+                                stringResource(R.string.data_backup_working)
+                            } else {
+                                stringResource(R.string.data_backup_export_summary)
+                            },
+                            enabled = !busy,
+                            trailing = if (busy) {
+                                { InfiniteProgressIndicator(size = 20.dp) }
+                            } else {
+                                null
+                            },
+                            onClick = { exportLauncher.launch(defaultBackupFileName()) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.data_backup_import),
+                            summary = stringResource(R.string.data_backup_import_summary),
+                            enabled = !busy,
+                            onClick = {
+                                importLauncher.launch(arrayOf("application/json", "text/plain"))
+                            },
+                        )
+                    }
                 }
                 CouiPageBottomSpacer()
-            }
-
-            if (showImportDialog) {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.data_backup_import_confirm_title),
-                    message = stringResource(R.string.data_backup_import_confirm_summary),
-                    confirmText = confirmImportText,
-                    confirmEnabled = !busy,
-                    cancelEnabled = !busy,
-                    destructive = true,
-                    onConfirm = onConfirmImport,
-                    onDismissRequest = onDismissImport,
-                )
             }
         }
 

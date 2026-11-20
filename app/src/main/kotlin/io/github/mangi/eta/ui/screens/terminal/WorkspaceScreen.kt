@@ -34,10 +34,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.itos.coui.dialog.CouiDialogDefaults
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Group
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
@@ -47,9 +43,12 @@ import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiSettingsIcon
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -148,12 +147,14 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
     val listContent: LazyListScope.() -> Unit = {
         item(key = "workspace-info") {
             if (uiStyle == AppearanceUiStyle.COUI) {
-                Group {
-                    CouiPreference(
-                        title = stringResource(R.string.capability_workspace_private),
-                        summary = stringResource(R.string.capability_workspace_private_summary),
-                        showChevron = false,
-                    )
+                CouiPreferenceGroup {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.capability_workspace_private),
+                            summary = stringResource(R.string.capability_workspace_private_summary),
+                            showChevron = false,
+                        )
+                    }
                 }
             } else {
                 Card(
@@ -175,23 +176,26 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
                 stringResource(R.string.capability_workspace_public_summary)
             }
             if (uiStyle == AppearanceUiStyle.COUI) {
-                Group {
-                    CouiPreference(
-                        title = stringResource(R.string.capability_workspace_import),
-                        enabled = !busy,
-                        trailing = if (busy) {
-                            { InfiniteProgressIndicator(size = 20.dp) }
-                        } else {
-                            null
-                        },
-                        onClick = { importLauncher.launch(arrayOf("*/*")) },
-                    )
-                    Divider()
-                    CouiPreference(
-                        title = stringResource(R.string.capability_workspace_public),
-                        summary = publicSummary,
-                        onClick = onOpenPublicAccess,
-                    )
+                CouiPreferenceGroup {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.capability_workspace_import),
+                            enabled = !busy,
+                            trailing = if (busy) {
+                                { InfiniteProgressIndicator(size = 20.dp) }
+                            } else {
+                                null
+                            },
+                            onClick = { importLauncher.launch(arrayOf("*/*")) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.capability_workspace_public),
+                            summary = publicSummary,
+                            onClick = onOpenPublicAccess,
+                        )
+                    }
                 }
             } else {
                 Card(
@@ -220,23 +224,25 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
         message?.let { current ->
             item(key = "message") {
                 if (uiStyle == AppearanceUiStyle.COUI) {
-                    val dialogColors = CouiDialogDefaults.themeColors()
-                    Group(modifier = Modifier.animateItem()) {
-                        CouiPreference(
-                            title = current.text,
-                            titleColor = if (current.isError) dialogColors.destructive else Color.Unspecified,
-                            showChevron = false,
-                            trailing = {
-                                IconButton(onClick = { message = null }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = stringResource(R.string.action_close),
-                                        modifier = Modifier.size(18.dp),
-                                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                                    )
-                                }
-                            },
-                        )
+
+                    CouiPreferenceGroup(modifier = Modifier.animateItem()) {
+                        item {
+                            CouiPreference(
+                                title = current.text,
+                                titleColor = if (current.isError) CouiTheme.colorScheme.error else Color.Unspecified,
+                                showChevron = false,
+                                trailing = {
+                                    IconButton(onClick = { message = null }) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Close,
+                                            contentDescription = stringResource(R.string.action_close),
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                                        )
+                                    }
+                                },
+                            )
+                        }
                     }
                 } else {
                     Card(
@@ -382,7 +388,7 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
             CouiLazyScaffoldPage(
                 title = stringResource(R.string.capability_workspace),
                 onBack = onBack,
-                content = listContent,
+                content = { listContent() },
             )
         }
         AppearanceUiStyle.MIUIX -> {

@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,17 +45,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -66,27 +66,31 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.backdrop.couiBackdrop
-import com.itos.coui.backdrop.rememberCouiBackdrop
-import com.itos.coui.dialog.CouiDialogDefaults
-import com.itos.coui.effect.couiButtonFeedback
-import com.itos.coui.icons.CouiIcons
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider as CouiDivider
-import com.itos.coui.menu.CouiMenuItem
-import com.itos.coui.menu.Menu
-import com.itos.coui.menu.couiMenuAnchor
-import com.itos.coui.menu.rememberCouiMenuAnchor
-import com.itos.coui.shape.CouiShape
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.coui.CouiIcon
+import io.github.mangi.eta.ui.components.coui.CouiMenu
+import io.github.mangi.eta.ui.components.coui.CouiMenuItem
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
+import io.github.mangi.eta.ui.components.coui.CouiText
+import io.github.mangi.eta.ui.components.coui.CouiTextKind
+import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
+import io.github.mangi.eta.ui.components.coui.couiMenuAnchor
+import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
+import io.github.mangi.eta.ui.components.coui.rememberCouiPageBackdrop
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
+import io.github.suqi8.coui.kmp.basic.Card as CouiCard
+import io.github.suqi8.coui.kmp.basic.CardDefaults as CouiCardDefaults
+import io.github.suqi8.coui.kmp.basic.CardListGroup as CouiCardListGroup
+import io.github.suqi8.coui.kmp.blur.layerBackdrop
+import io.github.suqi8.coui.kmp.preference.ArrowPreference as CouiArrowPreference
+import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
+import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
+import io.github.suqi8.coui.kmp.utils.rememberCOUIFlingBehavior
+import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
@@ -148,14 +152,28 @@ internal fun ConversationPanePanel(
     val groups = remember(state.conversations) { state.conversations.groupForDrawer() }
     val containerColor = conversationPaneContainerColor()
     val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-    val couiBackdrop = if (isCoui) rememberCouiBackdrop() else null
+    val couiBackdrop = if (isCoui && isRevealed) rememberCouiPageBackdrop(containerColor) else null
     val miuixBackdrop = if (!isCoui) rememberGlassBackdrop(containerColor) else null
     val barInsets = remember { PaneBarInsets() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) keyboard?.hide()
+    }
     val bodyCaptureModifier = when {
-        isCoui && couiBackdrop != null -> Modifier.couiBackdrop(couiBackdrop)
+        isCoui && couiBackdrop != null -> Modifier.layerBackdrop(couiBackdrop)
         !isCoui && isRevealed && miuixBackdrop != null -> Modifier.captureGlassBackdrop(miuixBackdrop)
         else -> Modifier
     }
+    val listScrollModifier = if (isCoui) {
+        Modifier
+            .couiScrollEndHaptic()
+            .couiOverScrollVertical()
+    } else {
+        Modifier
+            .scrollEndHaptic()
+            .overScrollVertical()
+    }
+    val flingBehavior = if (isCoui) rememberCOUIFlingBehavior() else androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
 
     Box(
         modifier = modifier
@@ -183,13 +201,13 @@ internal fun ConversationPanePanel(
                                 .windowInsetsPadding(
                                     WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
                                 )
-                                .scrollEndHaptic()
-                                .overScrollVertical(),
+                                .then(listScrollModifier),
                             contentPadding = PaddingValues(
                                 top = barInsets.top + 10.dp,
                                 bottom = barInsets.bottom + 10.dp,
                             ),
                             verticalArrangement = Arrangement.spacedBy(ConversationPanelMetrics.RowGap),
+                            flingBehavior = flingBehavior,
                             overscrollEffect = null,
                         ) {
                             if (!isSearching) {
@@ -337,43 +355,43 @@ private fun PaneWorkbenchSection(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            val shape = remember { CouiShape(ConversationPanelMetrics.WorkbenchCornerRadius, 2.5f) }
-            val dark = CouiTheme.isDark
-            Column(
+            val couiColors = CouiPageDefaults.themeColors()
+            CouiCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = ConversationPanelMetrics.PaneHorizontalPadding)
-                    .then(
-                        if (!dark) {
-                            Modifier.dropShadow(
-                                shape = shape,
-                                shadow = Shadow(
-                                    radius = 10.dp,
-                                    color = Color.Black,
-                                    alpha = 0.025f,
-                                ),
-                            )
-                        } else {
-                            Modifier
-                        },
-                    )
-                    .clip(shape)
-                    .background(cardColor, shape)
-                    .then(
-                        if (!dark) {
-                            Modifier.border(0.5.dp, Color(0x0A000000), shape)
-                        } else {
-                            Modifier.border(0.5.dp, Color(0x12FFFFFF), shape)
-                        },
-                    ),
+                    .padding(horizontal = ConversationPanelMetrics.PaneHorizontalPadding),
+                insideMargin = PaddingValues(0.dp),
+                colors = CouiCardDefaults.defaultColors(color = cardColor),
             ) {
-                entries.forEachIndexed { index, entry ->
-                    CouiWorkbenchRow(entry = entry, dark = dark)
-                    if (index < entries.lastIndex) {
-                        CouiDivider(
-                            startIndent = dividerIndent,
-                            endIndent = ConversationPanelMetrics.WorkbenchRowHorizontalPadding,
-                        )
+                CouiCardListGroup {
+                    entries.forEach { entry ->
+                        item(key = entry.title) {
+                            CouiArrowPreference(
+                                title = entry.title,
+                                startAction = {
+                                    CouiIcon(
+                                        imageVector = entry.icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(ConversationPanelMetrics.WorkbenchIconSize),
+                                        tint = couiColors.title.copy(alpha = 0.86f),
+                                    )
+                                },
+                                endActions = {
+                                    if (!entry.trailingValue.isNullOrEmpty()) {
+                                        CouiText(
+                                            text = entry.trailingValue,
+                                            kind = CouiTextKind.ItemValue,
+                                            color = CouiTheme.colorScheme.labelTertiary,
+                                            modifier = Modifier.widthIn(max = 136.dp),
+                                            textAlign = TextAlign.End,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                },
+                                onClick = entry.onClick,
+                            )
+                        }
                     }
                 }
             }
@@ -401,72 +419,6 @@ private fun PaneWorkbenchSection(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun CouiWorkbenchRow(
-    entry: WorkbenchEntry,
-    dark: Boolean,
-) {
-    val colors = CouiPageDefaults.themeColors(dark)
-    val source = remember { MutableInteractionSource() }
-    val chevronTint = Color(if (dark) 0x4DFFFFFF else 0x42000000)
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = ConversationPanelMetrics.WorkbenchRowMinHeight)
-            .couiButtonFeedback(dark, source, enabled = true, list = true)
-            .clickable(
-                interactionSource = source,
-                indication = null,
-                role = Role.Button,
-                onClick = entry.onClick,
-            )
-            .padding(
-                horizontal = ConversationPanelMetrics.WorkbenchRowHorizontalPadding,
-                vertical = 11.dp,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CouiIcon(
-            imageVector = entry.icon,
-            contentDescription = null,
-            modifier = Modifier.size(ConversationPanelMetrics.WorkbenchIconSize),
-            tint = colors.title.copy(alpha = 0.86f),
-        )
-        Spacer(Modifier.width(ConversationPanelMetrics.WorkbenchIconGap))
-        CouiText(
-            text = entry.title,
-            kind = CouiTextKind.ItemTitle,
-            color = colors.title,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Start,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (!entry.trailingValue.isNullOrEmpty()) {
-            CouiText(
-                text = entry.trailingValue,
-                kind = CouiTextKind.ItemValue,
-                color = colors.summary,
-                modifier = Modifier
-                    .widthIn(max = 136.dp)
-                    .padding(start = 8.dp),
-                textAlign = TextAlign.End,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        CouiIcon(
-            imageVector = CouiIcons.Outlined.Next,
-            contentDescription = null,
-            modifier = Modifier
-                .padding(start = 6.dp)
-                .size(width = 11.dp, height = 20.dp),
-            tint = chevronTint,
-        )
     }
 }
 
@@ -600,35 +552,22 @@ private fun ConversationHistoryRow(
     val miuixColors = MiuixTheme.colorScheme
     val miuixDark = miuixColors.surface.luminance() < 0.5f
 
+    val couiScheme = if (isCoui) CouiTheme.colorScheme else null
     val rowBackground = when {
         !selected -> Color.Transparent
-        isCoui -> if (couiDark) Color(0xFF262932) else Color.White
+        isCoui -> couiScheme!!.cardBackground
         else -> miuixColors.tertiaryContainer.copy(alpha = if (miuixDark) 0.72f else 0.90f)
     }
     val rowModifier = if (isCoui) {
         val source = remember { MutableInteractionSource() }
         Modifier
-            .then(
-                if (selected && !couiDark) {
-                    Modifier.dropShadow(
-                        shape = couiRowShape,
-                        shadow = Shadow(
-                            radius = 8.dp,
-                            color = Color.Black,
-                            alpha = 0.028f,
-                        ),
-                    )
-                } else {
-                    Modifier
-                },
-            )
             .clip(couiRowShape)
             .background(rowBackground, couiRowShape)
             .then(
                 if (selected) {
                     Modifier.border(
                         width = 0.5.dp,
-                        color = if (couiDark) Color(0x1AFFFFFF) else Color(0x0D000000),
+                        color = couiScheme!!.divider,
                         shape = couiRowShape,
                     )
                 } else {
@@ -644,17 +583,17 @@ private fun ConversationHistoryRow(
     }
 
     val titleColor = if (isCoui) {
-        CouiPageDefaults.themeColors(couiDark).title
+        CouiPageDefaults.themeColors().title
     } else {
         miuixColors.onSurface
     }
     val summaryColor = if (isCoui) {
-        CouiPageDefaults.themeColors(couiDark).summary
+        CouiPageDefaults.themeColors().summary
     } else {
         miuixColors.onSurfaceVariantSummary
     }
     val accentColor = if (isCoui) {
-        CouiTheme.colorSchemeFor(couiDark).accent
+        CouiTheme.colorScheme.primary
     } else {
         miuixColors.primary
     }
@@ -808,7 +747,7 @@ private fun ConversationHistoryRow(
         val deleteText = stringResource(R.string.action_delete)
         when (LocalUiStyle.current) {
             AppearanceUiStyle.COUI -> {
-                val destructiveColor = CouiDialogDefaults.themeColors().destructive
+                val destructiveColor = CouiTheme.colorScheme.error
                 val menuItems = remember(pinText, renameText, exportText, deleteText, destructiveColor) {
                     listOf(
                         CouiMenuItem(value = 0, text = pinText, icon = Icons.Outlined.PushPin),
@@ -823,7 +762,7 @@ private fun ConversationHistoryRow(
                         ),
                     )
                 }
-                Menu(
+                CouiMenu(
                     expanded = showActionMenu,
                     onDismissRequest = { showActionMenu = false },
                     items = menuItems,
@@ -900,7 +839,7 @@ private fun EmptyConversations(isSearching: Boolean) {
     val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val dark = if (isCoui) CouiTheme.isDark else MiuixTheme.colorScheme.surface.luminance() < 0.5f
     val primaryTextColor = if (isCoui) {
-        CouiPageDefaults.themeColors(dark).summary
+        CouiPageDefaults.themeColors().summary
     } else {
         MiuixTheme.colorScheme.onSurfaceVariantSummary
     }

@@ -65,11 +65,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.itos.coui.dialog.CouiDialogDefaults
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.BuildConfig
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
@@ -100,9 +95,10 @@ import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.StatusWarning
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
-import io.github.mangi.eta.ui.components.coui.CouiIconDivider
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSettingsIcon
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
@@ -110,6 +106,7 @@ import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import io.github.mangi.eta.ui.navigation.AppRoute
 import io.github.mangi.eta.ui.screens.imagegen.shortName
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -576,420 +573,485 @@ private fun SettingsPageContent(
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
             val pageColors = CouiPageDefaults.themeColors()
-            val dialogColors = CouiDialogDefaults.themeColors()
+
             CouiScaffoldPage(
                 title = stringResource(R.string.ui_set_up_7debf9),
                 onBack = onBack,
+                overlay = {
+                    val activeUpdate = availableUpdate ?: retainedUpdate
+                    CouiConfirmDialog(
+                        visible = availableUpdate != null,
+                        title = stringResource(R.string.ui_update_available_title),
+                        message = activeUpdate?.let { update ->
+                            stringResource(R.string.ui_update_available_message, update.version, appVersionName)
+                        },
+                        confirmText = stringResource(R.string.ui_update_go_download),
+                        confirmEnabled = activeUpdate != null,
+                        onConfirm = {
+                            val target = activeUpdate
+                            availableUpdate = null
+                            if (target != null) openUrl(target.url)
+                        },
+                        onDismissRequest = { availableUpdate = null },
+                        onDismissFinished = { if (availableUpdate == null) retainedUpdate = null },
+                    )
+                },
             ) {
-                Group(title = stringResource(R.string.settings_llm_providers)) {
-                    CouiPreference(
-                        title = stringResource(R.string.ui_model_provider_e8c7f5),
-                        summary = providerSummary,
-                        icon = { CouiSettingsIcon(Icons.Rounded.Cloud, SettingsIconColors.Blue) },
-                        onClick = { onNavigate(AppRoute.ModelProviders) },
-                    )
-                    CouiIconDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = agentPrefs,
-                        title = stringResource(R.string.ui_deep_thinking_enabled_by_default_c032d6),
-                        key = Prefs.Keys.AGENT_THINKING_ENABLED,
-                        icon = Icons.Rounded.Psychology,
-                        iconTint = SettingsIconColors.Blue,
-                    )
-                    CouiIconDivider()
-                    if (effortOptions.size > 1) {
-                        CouiDropdownPreference(
-                            title = defaultEffortTitle,
-                            items = effortLabels,
-                            selectedIndex = selectedEffortIndex,
-                            onSelectedIndexChange = onDefaultEffortSelect,
-                            icon = {
-                                CouiSettingsIcon(
-                                    icon = Icons.Rounded.Tune,
-                                    tint = SettingsIconColors.Blue,
-                                    enabled = defaultEffortEnabled,
-                                )
-                            },
-                            enabled = defaultEffortEnabled,
-                        )
-                    } else {
+                CouiPreferenceGroup(title = stringResource(R.string.settings_llm_providers)) {
+                    item {
                         CouiPreference(
-                            title = defaultEffortTitle,
-                            summary = defaultEffortUnsupported,
+                            title = stringResource(R.string.ui_model_provider_e8c7f5),
+                            summary = providerSummary,
+                            icon = { CouiSettingsIcon(Icons.Rounded.Cloud, SettingsIconColors.Blue) },
+                            onClick = { onNavigate(AppRoute.ModelProviders) },
+                        )
+                    }
+                    item {
+                        SwitchPref(
+                            context = context,
+                            prefs = agentPrefs,
+                            title = stringResource(R.string.ui_deep_thinking_enabled_by_default_c032d6),
+                            key = Prefs.Keys.AGENT_THINKING_ENABLED,
+                            icon = Icons.Rounded.Psychology,
+                            iconTint = SettingsIconColors.Blue,
+                        )
+                    }
+                    if (effortOptions.size > 1) {
+                        item {
+                            CouiDropdownPreference(
+                                title = defaultEffortTitle,
+                                items = effortLabels,
+                                selectedIndex = selectedEffortIndex,
+                                onSelectedIndexChange = onDefaultEffortSelect,
+                                icon = {
+                                    CouiSettingsIcon(
+                                        icon = Icons.Rounded.Tune,
+                                        tint = SettingsIconColors.Blue,
+                                        enabled = defaultEffortEnabled,
+                                    )
+                                },
+                                enabled = defaultEffortEnabled,
+                            )
+                        }
+                    } else {
+                        item {
+                            CouiPreference(
+                                title = defaultEffortTitle,
+                                summary = defaultEffortUnsupported,
+                                icon = {
+                                    CouiSettingsIcon(
+                                        icon = Icons.Rounded.Tune,
+                                        tint = SettingsIconColors.Blue,
+                                        enabled = false,
+                                    )
+                                },
+                                enabled = false,
+                                showChevron = false,
+                            )
+                        }
+                    }
+                }
+
+                CouiPreferenceGroup(title = stringResource(R.string.settings_context_extensions)) {
+                    item {
+                        SwitchPref(
+                            context = context,
+                            prefs = agentPrefs,
+                            title = stringResource(R.string.settings_auto_compaction),
+                            key = Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED,
+                            icon = Icons.Rounded.Layers,
+                            iconTint = SettingsIconColors.Blue,
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.conversation_title_settings_title),
+                            icon = { CouiSettingsIcon(Icons.Rounded.AutoAwesome, SettingsIconColors.Blue) },
+                            onClick = { onNavigate(AppRoute.ConversationTitleSettings) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.ui_memory_b55ff5),
                             icon = {
                                 CouiSettingsIcon(
-                                    icon = Icons.Rounded.Tune,
-                                    tint = SettingsIconColors.Blue,
-                                    enabled = false,
+                                    Icons.AutoMirrored.Rounded.MenuBook,
+                                    SettingsIconColors.Orange,
                                 )
                             },
-                            enabled = false,
-                            showChevron = false,
+                            onClick = { onNavigate(AppRoute.Memory) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.ui_misc_route_subagents),
+                            icon = { CouiSettingsIcon(Icons.Rounded.JoinLeft, SettingsIconColors.Blue) },
+                            onClick = { onNavigate(AppRoute.Subagents) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.route_skills),
+                            icon = {
+                                CouiSettingsIcon(
+                                    Icons.Rounded.ImportContacts,
+                                    SettingsIconColors.Green,
+                                )
+                            },
+                            onClick = { onNavigate(AppRoute.Skills) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.route_mcp_servers),
+                            icon = {
+                                CouiSettingsIcon(
+                                    Icons.Rounded.AccountTree,
+                                    SettingsIconColors.Blue,
+                                )
+                            },
+                            onClick = { onNavigate(AppRoute.McpServers) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.route_scheduled_tasks),
+                            icon = {
+                                CouiSettingsIcon(
+                                    Icons.Rounded.Schedule,
+                                    SettingsIconColors.Blue,
+                                )
+                            },
+                            onClick = { onNavigate(AppRoute.ScheduledTasks) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.conversation_dock_characters),
+                            icon = {
+                                CouiSettingsIcon(
+                                    Icons.Rounded.SportsBar,
+                                    SettingsIconColors.Orange,
+                                )
+                            },
+                            onClick = { onNavigate(AppRoute.Characters) },
                         )
                     }
                 }
 
-                Group(title = stringResource(R.string.settings_context_extensions)) {
-                    SwitchPref(
-                        context = context,
-                        prefs = agentPrefs,
-                        title = stringResource(R.string.settings_auto_compaction),
-                        key = Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED,
-                        icon = Icons.Rounded.Layers,
-                        iconTint = SettingsIconColors.Blue,
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.conversation_title_settings_title),
-                        icon = { CouiSettingsIcon(Icons.Rounded.AutoAwesome, SettingsIconColors.Blue) },
-                        onClick = { onNavigate(AppRoute.ConversationTitleSettings) },
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.ui_memory_b55ff5),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.AutoMirrored.Rounded.MenuBook,
-                                SettingsIconColors.Orange,
-                            )
-                        },
-                        onClick = { onNavigate(AppRoute.Memory) },
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.ui_misc_route_subagents),
-                        icon = { CouiSettingsIcon(Icons.Rounded.JoinLeft, SettingsIconColors.Blue) },
-                        onClick = { onNavigate(AppRoute.Subagents) },
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.route_skills),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.ImportContacts,
-                                SettingsIconColors.Green,
-                            )
-                        },
-                        onClick = { onNavigate(AppRoute.Skills) },
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.route_mcp_servers),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.AccountTree,
-                                SettingsIconColors.Blue,
-                            )
-                        },
-                        onClick = { onNavigate(AppRoute.McpServers) },
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.route_scheduled_tasks),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.Schedule,
-                                SettingsIconColors.Blue,
-                            )
-                        },
-                        onClick = { onNavigate(AppRoute.ScheduledTasks) },
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.conversation_dock_characters),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.SportsBar,
-                                SettingsIconColors.Orange,
-                            )
-                        },
-                        onClick = { onNavigate(AppRoute.Characters) },
-                    )
-                }
-
-                Group(title = stringResource(R.string.ui_tool_a72ef1)) {
-                    CouiPreference(
-                        title = stringResource(R.string.settings_tools_list),
-                        icon = { CouiSettingsIcon(Icons.Rounded.Dashboard, SettingsIconColors.Green) },
-                        onClick = { onNavigate(AppRoute.Tools) },
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.web_tools_settings_title),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.TravelExplore,
-                                SettingsIconColors.Blue,
-                            )
-                        },
-                        onClick = { onNavigate(AppRoute.WebToolsSettings) },
-                    )
-                    CouiIconDivider()
-                    val imageGenSettings by remember { ImageGenSettingsRepository.settingsFlow() }
-                        .collectAsState(initial = ImageGenSettings())
-                    CouiPreference(
-                        title = stringResource(R.string.image_gen_settings_title),
-                        value = if (imageGenSettings.enabled) imageGenSettings.backend.shortName() else stringResource(R.string.ui_misc_not_enabled),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.Image,
-                                SettingsIconColors.Orange,
-                            )
-                        },
-                        onClick = { onNavigate(AppRoute.ImageGenSettings) },
-                    )
-                    CouiIconDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = agentPrefs,
-                        title = stringResource(R.string.settings_virtual_display_title),
-                        key = Prefs.Keys.AGENT_VIRTUAL_DISPLAY_ENABLED,
-                        icon = Icons.Rounded.Layers,
-                        iconTint = SettingsIconColors.Blue,
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.ui_linux_tool_environment_314d22),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.Inventory2,
-                                SettingsIconColors.Orange,
-                            )
-                        },
-                        onClick = { onNavigate(AppRoute.LinuxEnvironment) },
-                    )
-                }
-
-                Group {
-                    CouiPreference(
-                        title = stringResource(R.string.capability_enhancements),
-                        icon = { CouiSettingsIcon(Icons.Rounded.Security, SettingsIconColors.Blue) },
-                        onClick = { onNavigate(AppRoute.SystemEnhance) },
-                    )
-                }
-
-                Group(title = stringResource(R.string.ui_system_assistant_takes_over_f46043)) {
-                    CouiPreference(
-                        title = stringResource(R.string.ui_eta_system_assistant_003e9b),
-                        value = assistantRoleStatus.displayValue(),
-                        valueColor = if (assistantRoleStatus.isDefaultAssistant) {
-                            StatusSuccess
-                        } else {
-                            pageColors.summary
-                        },
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.SupportAgent,
-                                SettingsIconColors.Green,
-                            )
-                        },
-                        onClick = openAssistantSettings,
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.assistant_overlay_settings_title),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.ChatBubble,
-                                SettingsIconColors.Blue,
-                            )
-                        },
-                        onClick = { onNavigate(AppRoute.AssistantOverlaySettings) },
-                    )
-                    if (prefs != null || hasConnectedFramework) {
-                        CouiIconDivider()
-                        CouiDropdownPreference(
-                            title = stringResource(R.string.ui_long_press_the_power_button_1958d0),
-                            items = powerAssistantItems,
-                            selectedIndex = powerAssistantTargets.indexOf(powerAssistantTarget),
-                            onSelectedIndexChange = onPowerTargetSelect,
+                CouiPreferenceGroup(title = stringResource(R.string.ui_tool_a72ef1)) {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.settings_tools_list),
+                            icon = { CouiSettingsIcon(Icons.Rounded.Dashboard, SettingsIconColors.Green) },
+                            onClick = { onNavigate(AppRoute.Tools) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.web_tools_settings_title),
                             icon = {
                                 CouiSettingsIcon(
-                                    icon = Icons.Rounded.PowerSettingsNew,
-                                    tint = SettingsIconColors.Yellow,
-                                    enabled = prefs != null,
+                                    Icons.Rounded.TravelExplore,
+                                    SettingsIconColors.Blue,
                                 )
                             },
-                            enabled = prefs != null,
+                            onClick = { onNavigate(AppRoute.WebToolsSettings) },
                         )
-                        CouiIconDivider()
+                    }
+                    item {
+                        val imageGenSettings by remember { ImageGenSettingsRepository.settingsFlow() }
+                            .collectAsState(initial = ImageGenSettings())
+                        CouiPreference(
+                            title = stringResource(R.string.image_gen_settings_title),
+                            value = if (imageGenSettings.enabled) imageGenSettings.backend.shortName() else stringResource(R.string.ui_misc_not_enabled),
+                            icon = {
+                                CouiSettingsIcon(
+                                    Icons.Rounded.Image,
+                                    SettingsIconColors.Orange,
+                                )
+                            },
+                            onClick = { onNavigate(AppRoute.ImageGenSettings) },
+                        )
+                    }
+                    item {
                         SwitchPref(
                             context = context,
-                            prefs = prefs,
-                            title = stringResource(R.string.ui_automatically_set_default_assistant_f86963),
-                            key = Prefs.Keys.ASSISTANT_AUTO_CONFIG,
-                            icon = Icons.Rounded.Settings,
-                            iconTint = SettingsIconColors.Green,
+                            prefs = agentPrefs,
+                            title = stringResource(R.string.settings_virtual_display_title),
+                            key = Prefs.Keys.AGENT_VIRTUAL_DISPLAY_ENABLED,
+                            icon = Icons.Rounded.Layers,
+                            iconTint = SettingsIconColors.Blue,
                         )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.ui_linux_tool_environment_314d22),
+                            icon = {
+                                CouiSettingsIcon(
+                                    Icons.Rounded.Inventory2,
+                                    SettingsIconColors.Orange,
+                                )
+                            },
+                            onClick = { onNavigate(AppRoute.LinuxEnvironment) },
+                        )
+                    }
+                }
+
+                CouiPreferenceGroup {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.capability_enhancements),
+                            icon = { CouiSettingsIcon(Icons.Rounded.Security, SettingsIconColors.Blue) },
+                            onClick = { onNavigate(AppRoute.SystemEnhance) },
+                        )
+                    }
+                }
+
+                CouiPreferenceGroup(title = stringResource(R.string.ui_system_assistant_takes_over_f46043)) {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.ui_eta_system_assistant_003e9b),
+                            value = assistantRoleStatus.displayValue(),
+                            valueColor = if (assistantRoleStatus.isDefaultAssistant) {
+                                StatusSuccess
+                            } else {
+                                pageColors.summary
+                            },
+                            icon = {
+                                CouiSettingsIcon(
+                                    Icons.Rounded.SupportAgent,
+                                    SettingsIconColors.Green,
+                                )
+                            },
+                            onClick = openAssistantSettings,
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.assistant_overlay_settings_title),
+                            icon = {
+                                CouiSettingsIcon(
+                                    Icons.Rounded.ChatBubble,
+                                    SettingsIconColors.Blue,
+                                )
+                            },
+                            onClick = { onNavigate(AppRoute.AssistantOverlaySettings) },
+                        )
+                    }
+                    if (prefs != null || hasConnectedFramework) {
+                        item {
+                            CouiDropdownPreference(
+                                title = stringResource(R.string.ui_long_press_the_power_button_1958d0),
+                                items = powerAssistantItems,
+                                selectedIndex = powerAssistantTargets.indexOf(powerAssistantTarget),
+                                onSelectedIndexChange = onPowerTargetSelect,
+                                icon = {
+                                    CouiSettingsIcon(
+                                        icon = Icons.Rounded.PowerSettingsNew,
+                                        tint = SettingsIconColors.Yellow,
+                                        enabled = prefs != null,
+                                    )
+                                },
+                                enabled = prefs != null,
+                            )
+                        }
+                        item {
+                            SwitchPref(
+                                context = context,
+                                prefs = prefs,
+                                title = stringResource(R.string.ui_automatically_set_default_assistant_f86963),
+                                key = Prefs.Keys.ASSISTANT_AUTO_CONFIG,
+                                icon = Icons.Rounded.Settings,
+                                iconTint = SettingsIconColors.Green,
+                            )
+                        }
                     }
                 }
 
                 if (prefs != null || hasConnectedFramework) {
-                    Group(title = stringResource(R.string.ui_search_in_one_turn_179584)) {
-                        SwitchPref(
-                            context = context,
-                            prefs = prefs,
-                            title = stringResource(R.string.ui_long_press_on_the_gesture_bar_triggers_a_circle_to_s_b80117),
-                            key = Prefs.Keys.GESTURE_BAR_CIRCLE_TO_SEARCH,
-                            icon = Icons.Rounded.SwipeUp,
-                            iconTint = SettingsIconColors.Blue,
-                        )
-                        CouiIconDivider()
-                        SwitchPref(
-                            context = context,
-                            prefs = prefs,
-                            title = stringResource(R.string.ui_long_press_with_two_fingers_to_trigger_a_circle_sear_ab597a),
-                            key = Prefs.Keys.DOUBLE_FINGER_CIRCLE_TO_SEARCH,
-                            icon = Icons.Rounded.TouchApp,
-                            iconTint = SettingsIconColors.Blue,
-                        )
+                    CouiPreferenceGroup(title = stringResource(R.string.ui_search_in_one_turn_179584)) {
+                        item {
+                            SwitchPref(
+                                context = context,
+                                prefs = prefs,
+                                title = stringResource(R.string.ui_long_press_on_the_gesture_bar_triggers_a_circle_to_s_b80117),
+                                key = Prefs.Keys.GESTURE_BAR_CIRCLE_TO_SEARCH,
+                                icon = Icons.Rounded.SwipeUp,
+                                iconTint = SettingsIconColors.Blue,
+                            )
+                        }
+                        item {
+                            SwitchPref(
+                                context = context,
+                                prefs = prefs,
+                                title = stringResource(R.string.ui_long_press_with_two_fingers_to_trigger_a_circle_sear_ab597a),
+                                key = Prefs.Keys.DOUBLE_FINGER_CIRCLE_TO_SEARCH,
+                                icon = Icons.Rounded.TouchApp,
+                                iconTint = SettingsIconColors.Blue,
+                            )
+                        }
                     }
                 }
 
-                Group(title = stringResource(R.string.settings_general)) {
-                    SwitchPref(
-                        context = context,
-                        prefs = agentPrefs,
-                        title = stringResource(R.string.settings_keep_screen_on),
-                        key = Prefs.Keys.AGENT_KEEP_SCREEN_ON_ENABLED,
-                        icon = Icons.Rounded.BrightnessHigh,
-                        iconTint = SettingsIconColors.Orange,
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.appearance_title),
-                        icon = { CouiSettingsIcon(Icons.Rounded.Palette, SettingsIconColors.Orange) },
-                        onClick = { onNavigate(AppRoute.AppearanceSettings) },
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.speech_settings_title),
-                        icon = { CouiSettingsIcon(Icons.Rounded.Mic, SettingsIconColors.Blue) },
-                        onClick = { onNavigate(AppRoute.SpeechSettings) },
-                    )
-                    CouiIconDivider()
-                    LanguagePreference(
-                        iconTint = SettingsIconColors.Blue,
-                        startAction = {
-                            CouiSettingsIcon(Icons.Rounded.Language, SettingsIconColors.Blue)
-                        },
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.data_backup_title),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.Description,
-                                SettingsIconColors.Blue,
-                            )
-                        },
-                        onClick = { onNavigate(AppRoute.DataBackup) },
-                    )
-                }
-
-                Group(title = stringResource(R.string.ui_permissions_560165)) {
-                    CouiPreference(
-                        title = stringResource(R.string.ui_floating_window_permissions_076b77),
-                        value = stringResource(
-                            if (overlayGranted) R.string.status_authorized else R.string.status_unauthorized,
-                        ),
-                        valueColor = if (overlayGranted) pageColors.summary else dialogColors.destructive,
-                        icon = { CouiSettingsIcon(Icons.Rounded.Layers, SettingsIconColors.Blue) },
-                        onClick = {
-                            if (!overlayGranted) {
-                                runCatching {
-                                    context.startActivity(
-                                        Intent(
-                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                            Uri.parse("package:${context.packageName}"),
-                                        ),
-                                    )
-                                }
-                            }
-                        },
-                    )
-                    CouiIconDivider()
-                    val accEnabled = accessibilityGranted || AgentAccessibilityService.isAvailable()
-                    CouiPreference(
-                        title = stringResource(R.string.ui_accessibility_enhancement_tools_8fd257),
-                        value = stringResource(
-                            if (accEnabled) R.string.status_enabled else R.string.status_disabled,
-                        ),
-                        valueColor = if (accEnabled) pageColors.summary else pageColors.accent,
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.AccessibilityNew,
-                                SettingsIconColors.Blue,
-                            )
-                        },
-                        onClick = {
-                            runCatching {
-                                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                            }
-                        },
-                    )
-                    if (prefs != null || hasConnectedFramework) {
-                        CouiIconDivider()
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.ui_enforce_accessibility_55e838),
-                            checked = accessibilityProtectionEnabled,
-                            onCheckedChange = onAccessibilityProtectionToggle,
+                CouiPreferenceGroup(title = stringResource(R.string.settings_general)) {
+                    item {
+                        SwitchPref(
+                            context = context,
+                            prefs = agentPrefs,
+                            title = stringResource(R.string.settings_keep_screen_on),
+                            key = Prefs.Keys.AGENT_KEEP_SCREEN_ON_ENABLED,
+                            icon = Icons.Rounded.BrightnessHigh,
+                            iconTint = SettingsIconColors.Orange,
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.appearance_title),
+                            icon = { CouiSettingsIcon(Icons.Rounded.Palette, SettingsIconColors.Orange) },
+                            onClick = { onNavigate(AppRoute.AppearanceSettings) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.speech_settings_title),
+                            icon = { CouiSettingsIcon(Icons.Rounded.Mic, SettingsIconColors.Blue) },
+                            onClick = { onNavigate(AppRoute.SpeechSettings) },
+                        )
+                    }
+                    item {
+                        LanguagePreference(
+                            iconTint = SettingsIconColors.Blue,
+                            startAction = {
+                                CouiSettingsIcon(Icons.Rounded.Language, SettingsIconColors.Blue)
+                            },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.data_backup_title),
                             icon = {
                                 CouiSettingsIcon(
-                                    icon = Icons.Rounded.VerifiedUser,
-                                    tint = SettingsIconColors.Blue,
-                                    enabled = prefs != null && !accessibilityProtectionPending,
+                                    Icons.Rounded.Description,
+                                    SettingsIconColors.Blue,
                                 )
                             },
-                            enabled = prefs != null && !accessibilityProtectionPending,
+                            onClick = { onNavigate(AppRoute.DataBackup) },
                         )
                     }
                 }
 
-                Group(title = stringResource(R.string.ui_about_bed172)) {
-                    CouiPreference(
-                        title = stringResource(R.string.ui_about_version_title),
-                        summary = appVersionSummary,
-                        icon = { CouiSettingsIcon(Icons.Rounded.Info, SettingsIconColors.Blue) },
-                        showChevron = false,
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.ui_about_update_title),
-                        summary = if (checkingUpdate) {
-                            stringResource(R.string.ui_about_update_checking)
-                        } else {
-                            null
-                        },
-                        icon = {
-                            CouiSettingsIcon(
-                                icon = Icons.Rounded.SystemUpdate,
-                                tint = SettingsIconColors.Green,
-                                enabled = !checkingUpdate,
+                CouiPreferenceGroup(title = stringResource(R.string.ui_permissions_560165)) {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.ui_floating_window_permissions_076b77),
+                            value = stringResource(
+                                if (overlayGranted) R.string.status_authorized else R.string.status_unauthorized,
+                            ),
+                            valueColor = if (overlayGranted) pageColors.summary else CouiTheme.colorScheme.error,
+                            icon = { CouiSettingsIcon(Icons.Rounded.Layers, SettingsIconColors.Blue) },
+                            onClick = {
+                                if (!overlayGranted) {
+                                    runCatching {
+                                        context.startActivity(
+                                            Intent(
+                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                Uri.parse("package:${context.packageName}"),
+                                            ),
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                    }
+                    val accEnabled = accessibilityGranted || AgentAccessibilityService.isAvailable()
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.ui_accessibility_enhancement_tools_8fd257),
+                            value = stringResource(
+                                if (accEnabled) R.string.status_enabled else R.string.status_disabled,
+                            ),
+                            valueColor = if (accEnabled) pageColors.summary else pageColors.accent,
+                            icon = {
+                                CouiSettingsIcon(
+                                    Icons.Rounded.AccessibilityNew,
+                                    SettingsIconColors.Blue,
+                                )
+                            },
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                                }
+                            },
+                        )
+                    }
+                    if (prefs != null || hasConnectedFramework) {
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.ui_enforce_accessibility_55e838),
+                                checked = accessibilityProtectionEnabled,
+                                onCheckedChange = onAccessibilityProtectionToggle,
+                                icon = {
+                                    CouiSettingsIcon(
+                                        icon = Icons.Rounded.VerifiedUser,
+                                        tint = SettingsIconColors.Blue,
+                                        enabled = prefs != null && !accessibilityProtectionPending,
+                                    )
+                                },
+                                enabled = prefs != null && !accessibilityProtectionPending,
                             )
-                        },
-                        enabled = !checkingUpdate,
-                        onClick = checkForUpdate,
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.ui_about_feedback_title),
-                        icon = {
-                            CouiSettingsIcon(
-                                Icons.Rounded.BugReport,
-                                SettingsIconColors.Orange,
-                            )
-                        },
-                        onClick = { openUrl("https://github.com/Mangi-11/Eta/issues") },
-                    )
-                    CouiIconDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.ui_about_github_star_title),
-                        summary = stringResource(R.string.ui_about_github_star_hint),
-                        icon = { CouiSettingsIcon(Icons.Rounded.Code, SettingsIconColors.Blue) },
-                        onClick = { openUrl("https://github.com/Mangi-11/Eta") },
-                    )
+                        }
+                    }
+                }
+
+                CouiPreferenceGroup(title = stringResource(R.string.ui_about_bed172)) {
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.ui_about_version_title),
+                            summary = appVersionSummary,
+                            icon = { CouiSettingsIcon(Icons.Rounded.Info, SettingsIconColors.Blue) },
+                            showChevron = false,
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.ui_about_update_title),
+                            summary = if (checkingUpdate) {
+                                stringResource(R.string.ui_about_update_checking)
+                            } else {
+                                null
+                            },
+                            icon = {
+                                CouiSettingsIcon(
+                                    icon = Icons.Rounded.SystemUpdate,
+                                    tint = SettingsIconColors.Green,
+                                    enabled = !checkingUpdate,
+                                )
+                            },
+                            enabled = !checkingUpdate,
+                            onClick = checkForUpdate,
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.ui_about_feedback_title),
+                            icon = {
+                                CouiSettingsIcon(
+                                    Icons.Rounded.BugReport,
+                                    SettingsIconColors.Orange,
+                                )
+                            },
+                            onClick = { openUrl("https://github.com/Mangi-11/Eta/issues") },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.ui_about_github_star_title),
+                            summary = stringResource(R.string.ui_about_github_star_hint),
+                            icon = { CouiSettingsIcon(Icons.Rounded.Code, SettingsIconColors.Blue) },
+                            onClick = { openUrl("https://github.com/Mangi-11/Eta") },
+                        )
+                    }
                 }
 
                 CouiPageBottomSpacer()
@@ -1405,22 +1467,6 @@ private fun SettingsPageContent(
                     }
                 }
             }
-        }
-    }
-
-    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-        availableUpdate?.let { update ->
-            CouiConfirmDialog(
-                visible = true,
-                title = stringResource(R.string.ui_update_available_title),
-                message = stringResource(R.string.ui_update_available_message, update.version, appVersionName),
-                confirmText = stringResource(R.string.ui_update_go_download),
-                onConfirm = {
-                    availableUpdate = null
-                    openUrl(update.url)
-                },
-                onDismissRequest = { availableUpdate = null },
-            )
         }
     }
 }

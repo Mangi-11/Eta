@@ -30,16 +30,16 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.MiuixSecureTextField
 import io.github.mangi.eta.ui.components.coui.CouiIcon
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -102,7 +102,7 @@ internal fun ProviderHeadersSection(
                 if (expanded) {
                     headers.forEach { row ->
                         key(row.id) {
-                            Divider()
+                            CouiDivider()
                             ProviderHeaderRow(
                                 row = row,
                                 onNameChange = { value ->
@@ -119,7 +119,7 @@ internal fun ProviderHeadersSection(
                             )
                         }
                     }
-                    Divider()
+                    CouiDivider()
                     CouiPreference(
                         title = addHeaderTitle,
                         titleColor = colors.accent,

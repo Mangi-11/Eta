@@ -19,11 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import com.itos.coui.icons.CouiIcons
-import com.itos.coui.layout.Footer
-import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.roleplay.CharacterProfile
 import io.github.mangi.eta.data.model.AppearanceUiStyle
@@ -35,10 +30,14 @@ import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiPageSearch
 import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceFooter
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
 import io.github.mangi.eta.ui.navigation.AppRoute
+import io.github.suqi8.coui.kmp.icon.COUIIcons
+import io.github.suqi8.coui.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
@@ -94,6 +93,7 @@ internal fun CharacterLibraryScreen(
             CouiLazyScaffoldPage(
                 title = libraryTitle,
                 onBack = onBack,
+                search = CouiPageSearch(store.query, { store.query = it }, searchHint),
                 actions = {
                     CouiTopAppBarIconButton(
                         icon = Icons.Rounded.FileUpload,
@@ -102,20 +102,13 @@ internal fun CharacterLibraryScreen(
                         onClick = importCard,
                     )
                     CouiTopAppBarIconButton(
-                        icon = CouiIcons.Outlined.Add,
+                        icon = COUIIcons.Add,
                         contentDescription = createCharacterText,
                         enabled = !store.busy,
                         onClick = createCharacter,
                     )
                 },
-            ) {
-                item(key = "search") {
-                    CouiSearchBarBox(
-                        query = store.query,
-                        onQueryChange = { store.query = it },
-                        placeholder = searchHint,
-                    )
-                }
+            ) { searching ->
                 when {
                     store.busy && store.characters.isEmpty() -> {
                         item(key = "loading") {
@@ -188,13 +181,15 @@ internal fun CharacterLibraryScreen(
                         if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
-                item(key = "persona") {
-                    Group(title = mineSectionTitle) {
-                        CouiPreference(
-                            title = personaTitle,
-                            summary = personaSummary,
-                            onClick = { onNavigate(AppRoute.CharacterPersona) },
-                        )
+                if (!searching) item(key = "persona") {
+                    CouiPreferenceGroup(title = mineSectionTitle) {
+                        item {
+                            CouiPreference(
+                                title = personaTitle,
+                                summary = personaSummary,
+                                onClick = { onNavigate(AppRoute.CharacterPersona) },
+                            )
+                        }
                     }
                 }
             }
@@ -336,7 +331,7 @@ internal fun CharacterLibraryScreen(
 internal fun CharacterPageMessage(text: String) {
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            Footer(text = text)
+            CouiPreferenceFooter(text = text)
         }
         AppearanceUiStyle.MIUIX -> {
             Text(

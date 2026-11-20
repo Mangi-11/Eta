@@ -31,8 +31,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Group
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.LinuxDistribution
 import io.github.mangi.eta.agent.terminal.LinuxEnvironmentPaths
@@ -45,7 +43,9 @@ import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiSettingsIcon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -148,13 +148,15 @@ internal fun LinuxFilesScreen(
                         }
                         item(key = "viewer-content") {
                             if (uiStyle == AppearanceUiStyle.COUI) {
-                                Group {
-                                    Box(modifier = Modifier.padding(16.dp)) {
-                                        SelectionContainer {
-                                            Text(
-                                                text = result.content,
-                                                style = MiuixTheme.textStyles.footnote1.copy(fontFamily = EtaMonospace),
-                                            )
+                                CouiPreferenceGroup {
+                                    item {
+                                        Box(modifier = Modifier.padding(16.dp)) {
+                                            SelectionContainer {
+                                                Text(
+                                                    text = result.content,
+                                                    style = MiuixTheme.textStyles.footnote1.copy(fontFamily = EtaMonospace),
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -265,7 +267,7 @@ internal fun LinuxFilesScreen(
             CouiLazyScaffoldPage(
                 title = stringResource(R.string.linux_files_title),
                 onBack = { if (openFilePath != null) closeFile() else onBack() },
-                content = listContent,
+                content = { listContent() },
             )
         }
         AppearanceUiStyle.MIUIX -> {

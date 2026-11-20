@@ -17,9 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Footer
-import com.itos.coui.layout.Group
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.AsrProvider
@@ -30,6 +27,9 @@ import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceFooter
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
@@ -70,10 +70,11 @@ internal fun SpeechGroupCard(
 ) {
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            Group(
+            CouiPreferenceGroup(
                 title = title,
-                content = content,
-            )
+            ) {
+                item { androidx.compose.foundation.layout.Column(content = content) }
+            }
         }
         AppearanceUiStyle.MIUIX -> {
             if (title != null) {
@@ -94,7 +95,7 @@ internal fun SpeechGroupCard(
 internal fun SpeechNote(text: String, modifier: Modifier = Modifier) {
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            Footer(text = text, modifier = modifier)
+            CouiPreferenceFooter(text = text, modifier = modifier)
         }
         AppearanceUiStyle.MIUIX -> {
             Text(

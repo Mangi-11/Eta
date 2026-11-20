@@ -56,16 +56,14 @@ internal fun rememberLocalNetworkPermissionRequest(onResult: () -> Unit): () -> 
     }
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            if (showSettingsGuide) {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.permission_local_network_title),
-                    message = stringResource(R.string.permission_local_network_denied),
-                    confirmText = stringResource(R.string.state_ui_go_to_settings_1f2998),
-                    onConfirm = onConfirmSettings,
-                    onDismissRequest = { showSettingsGuide = false },
-                )
-            }
+            CouiConfirmDialog(
+                visible = showSettingsGuide,
+                title = stringResource(R.string.permission_local_network_title),
+                message = stringResource(R.string.permission_local_network_denied),
+                confirmText = stringResource(R.string.state_ui_go_to_settings_1f2998),
+                onConfirm = onConfirmSettings,
+                onDismissRequest = { showSettingsGuide = false },
+            )
         }
         AppearanceUiStyle.MIUIX -> {
             GlassDialog(

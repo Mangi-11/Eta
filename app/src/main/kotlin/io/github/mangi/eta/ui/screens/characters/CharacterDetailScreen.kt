@@ -13,12 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.itos.coui.dialog.CouiDialogDefaults
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.roleplay.CharacterCardFormat
 import io.github.mangi.eta.agent.roleplay.CharacterMacros
@@ -31,12 +25,15 @@ import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.navigation.AppRoute
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -122,9 +119,32 @@ internal fun CharacterDetailScreen(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            val pageColors = CouiPageDefaults.themeColors()
-            val dialogColors = CouiDialogDefaults.themeColors()
-            CouiScaffoldPage(title = "", onBack = onBack, compactTitle = true) {
+            CouiScaffoldPage(
+                title = "",
+                onBack = onBack,
+                compactTitle = true,
+                overlay = {
+                    CouiConfirmDialog(
+                        visible = showDeleteConfirm && profile != null,
+                        title = deleteCharacterTitle,
+                        message = deleteMessage,
+                        confirmText = deleteConfirmText,
+                        confirmEnabled = !store.busy && profile != null,
+                        destructive = true,
+                        onConfirm = {
+                            showDeleteConfirm = false
+                            store.delete(id) { onBack() }
+                        },
+                        onDismissRequest = { showDeleteConfirm = false },
+                    )
+                    ItemDescriptionDialog(
+                        show = preview != null,
+                        title = activePreviewTitle,
+                        description = activePreview?.text.orEmpty(),
+                        onDismiss = { preview = null },
+                    )
+                },
+            ) {
                 if (profile == null) {
                     CharacterPageMessage(loadStateText)
                     return@CouiScaffoldPage
@@ -143,18 +163,21 @@ internal fun CharacterDetailScreen(
                     },
                     userName = userName,
                 )
-                Group {
-                    CouiSwitchPreference(
-                        title = usePersonaTitle,
-                        summary = personaNameSummary,
-                        checked = store.usePersona,
-                        onCheckedChange = { store.usePersona = it },
-                    )
-                    Divider()
-                    CouiPreference(
-                        title = editPersonaTitle,
-                        onClick = { onNavigate(AppRoute.CharacterPersona) },
-                    )
+                CouiPreferenceGroup {
+                    item {
+                        CouiSwitchPreference(
+                            title = usePersonaTitle,
+                            summary = personaNameSummary,
+                            checked = store.usePersona,
+                            onCheckedChange = { store.usePersona = it },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = editPersonaTitle,
+                            onClick = { onNavigate(AppRoute.CharacterPersona) },
+                        )
+                    }
                 }
                 CouiSectionTitle(text = greetingsSectionTitle)
                 val greetings = remember(profile.card, userName) {
@@ -167,68 +190,79 @@ internal fun CharacterDetailScreen(
                     onSelect = { store.greetingIndex = it },
                     onRead = { index -> preview = CharacterTextPreview(CharacterPreviewTitle.Greeting(index), greetings[index]) },
                 )
-                Group(title = manageSectionTitle) {
-                    CouiPreference(
-                        title = editCharacterTitle,
-                        enabled = !store.busy,
-                        onClick = {
-                            store.discardEditor()
-                            onNavigate(AppRoute.CharacterEditor(id))
-                        },
-                    )
-                    Divider()
-                    CouiPreference(
-                        title = memoryTitle,
-                        summary = memorySummary,
-                        onClick = { onNavigate(AppRoute.CharacterMemory(id)) },
-                    )
-                    Divider()
-                    CouiPreference(
-                        title = duplicateTitle,
-                        enabled = !store.busy,
-                        onClick = { store.duplicate(id) { onNavigate(AppRoute.CharacterDetail(it)) } },
-                    )
-                    Divider()
-                    CouiPreference(
-                        title = exportPngTitle,
-                        enabled = !store.busy,
-                        onClick = { pngExporter.launch(characterExportName(profile.card.name, "png", exportFallbackName)) },
-                    )
-                    Divider()
-                    CouiPreference(
-                        title = exportJsonTitle,
-                        enabled = !store.busy,
-                        onClick = { jsonExporter.launch(characterExportName(profile.card.name, "json", exportFallbackName)) },
-                    )
+                CouiPreferenceGroup(title = manageSectionTitle) {
+                    item {
+                        CouiPreference(
+                            title = editCharacterTitle,
+                            enabled = !store.busy,
+                            onClick = {
+                                store.discardEditor()
+                                onNavigate(AppRoute.CharacterEditor(id))
+                            },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = memoryTitle,
+                            summary = memorySummary,
+                            onClick = { onNavigate(AppRoute.CharacterMemory(id)) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = duplicateTitle,
+                            enabled = !store.busy,
+                            onClick = { store.duplicate(id) { onNavigate(AppRoute.CharacterDetail(it)) } },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = exportPngTitle,
+                            enabled = !store.busy,
+                            onClick = { pngExporter.launch(characterExportName(profile.card.name, "png", exportFallbackName)) },
+                        )
+                    }
+                    item {
+                        CouiPreference(
+                            title = exportJsonTitle,
+                            enabled = !store.busy,
+                            onClick = { jsonExporter.launch(characterExportName(profile.card.name, "json", exportFallbackName)) },
+                        )
+                    }
                 }
                 if (store.compatibilityWarnings.isNotEmpty()) {
-                    Group {
-                        CouiPreference(
-                            title = compatibilityTitle,
-                            summary = compatibilitySummary,
-                            onClick = { showCompatibility = !showCompatibility },
-                        )
+                    CouiPreferenceGroup {
+                        item {
+                            CouiPreference(
+                                title = compatibilityTitle,
+                                summary = compatibilitySummary,
+                                onClick = { showCompatibility = !showCompatibility },
+                            )
+                        }
                         if (showCompatibility) {
-                            Divider()
                             store.compatibilityWarnings.forEach { warning ->
-                                Text(
-                                    text = warning,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
+                                item {
+                                    Text(
+                                        text = warning,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        style = MiuixTheme.textStyles.body2,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                }
                             }
                         }
                     }
                 }
-                Group {
-                    CouiPreference(
-                        title = deleteCharacterTitle,
-                        titleColor = dialogColors.destructive,
-                        enabled = !store.busy,
-                        showChevron = false,
-                        onClick = { showDeleteConfirm = true },
-                    )
+                CouiPreferenceGroup {
+                    item {
+                        CouiPreference(
+                            title = deleteCharacterTitle,
+                            titleColor = CouiTheme.colorScheme.error,
+                            enabled = !store.busy,
+                            showChevron = false,
+                            onClick = { showDeleteConfirm = true },
+                        )
+                    }
                 }
                 CouiPageBottomSpacer()
             }
@@ -384,31 +418,6 @@ internal fun CharacterDetailScreen(
                 }
             }
         }
-    }
-
-    val uiStyle = LocalUiStyle.current
-    if (uiStyle == AppearanceUiStyle.COUI) {
-        if (showDeleteConfirm && profile != null) {
-            CouiConfirmDialog(
-                visible = true,
-                title = deleteCharacterTitle,
-                message = deleteMessage,
-                confirmText = deleteConfirmText,
-                confirmEnabled = !store.busy,
-                destructive = true,
-                onConfirm = {
-                    showDeleteConfirm = false
-                    store.delete(id) { onBack() }
-                },
-                onDismissRequest = { showDeleteConfirm = false },
-            )
-        }
-        ItemDescriptionDialog(
-            show = preview != null,
-            title = activePreviewTitle,
-            description = activePreview?.text.orEmpty(),
-            onDismiss = { preview = null },
-        )
     }
 }
 

@@ -17,7 +17,6 @@ class AppearanceSettingsTest {
         assertTrue(settings.progressiveBlurEnabled)
         assertTrue(settings.swipeDismissEnabled)
         assertTrue(settings.predictiveBackEnabled)
-        assertEquals(DEFAULT_INTERFACE_SCALE, settings.interfaceScale)
     }
 
     @Test
@@ -34,14 +33,5 @@ class AppearanceSettingsTest {
             AppearanceTopBarBlurStyle.GAUSSIAN,
             AppearanceTopBarBlurStyle.fromPersistedValue("future_style"),
         )
-    }
-
-    @Test
-    fun interfaceScaleIsFiniteAndClamped() {
-        assertEquals(MIN_INTERFACE_SCALE, normalizeInterfaceScale(0.2f))
-        assertEquals(MAX_INTERFACE_SCALE, normalizeInterfaceScale(2f))
-        assertEquals(DEFAULT_INTERFACE_SCALE, normalizeInterfaceScale(Float.NaN))
-        assertEquals(DEFAULT_INTERFACE_SCALE, normalizeInterfaceScale(Float.POSITIVE_INFINITY))
-        assertEquals(0.95f, normalizeInterfaceScale(0.95f))
     }
 }

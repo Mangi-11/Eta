@@ -34,15 +34,19 @@ internal fun ItemDescriptionDialog(
 ) {
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
+            var retainedTitle by remember { mutableStateOf(title) }
+            var retainedDescription by remember { mutableStateOf(description) }
             if (show) {
-                CouiNoticeDialog(
-                    visible = true,
-                    title = title,
-                    message = description,
-                    confirmText = stringResource(R.string.action_close),
-                    onDismissRequest = onDismiss,
-                )
+                retainedTitle = title
+                retainedDescription = description
             }
+            CouiNoticeDialog(
+                visible = show,
+                title = retainedTitle,
+                message = retainedDescription,
+                confirmText = stringResource(R.string.action_close),
+                onDismissRequest = onDismiss,
+            )
         }
         AppearanceUiStyle.MIUIX -> {
             var retainedTitle by remember { mutableStateOf(title) }

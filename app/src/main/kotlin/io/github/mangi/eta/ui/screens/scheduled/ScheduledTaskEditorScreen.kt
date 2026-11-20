@@ -45,16 +45,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.dialog.CouiDialogAction
-import com.itos.coui.dialog.CouiDialogPlacement
-import com.itos.coui.dialog.Dialog
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Group
-import com.itos.coui.menu.rememberCouiWindowBackdrop
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.scheduler.ScheduledTaskScheduleCalculator
@@ -77,18 +67,22 @@ import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.OptionalModelPickerContent
+import io.github.mangi.eta.ui.components.coui.CouiBottomSheet
 import io.github.mangi.eta.ui.components.coui.CouiChipTabs
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarTextButton
-import io.github.mangi.eta.ui.components.coui.rememberCouiDialogMaterial
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
+import io.github.suqi8.coui.kmp.basic.HorizontalDivider as CouiDivider
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -373,7 +367,6 @@ internal fun ScheduledTaskEditorScreen(
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            val dark = CouiTheme.isDark
             CouiScaffoldPage(
                 title = pageTitle,
                 onBack = onBack,
@@ -386,18 +379,10 @@ internal fun ScheduledTaskEditorScreen(
                     )
                 },
                 overlay = {
-                    Dialog(
-                        visible = showModelSheet,
+                    CouiBottomSheet(
+                        show = showModelSheet,
                         onDismissRequest = { showModelSheet = false },
-                        dark = dark,
                         title = stringResource(R.string.scheduled_field_model),
-                        confirmAction = CouiDialogAction(
-                            text = stringResource(R.string.action_close),
-                            onClick = { showModelSheet = false },
-                        ),
-                        placement = CouiDialogPlacement.Bottom,
-                        material = rememberCouiDialogMaterial(dark),
-                        backdrop = rememberCouiWindowBackdrop(),
                     ) {
                         OptionalModelPickerContent(
                             pickerState = pickerState,
@@ -412,29 +397,31 @@ internal fun ScheduledTaskEditorScreen(
                     }
                 },
             ) {
-                Group(title = stringResource(R.string.scheduled_editor_section_content)) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        CouiTextField(
-                            state = nameState,
-                            inputTransformation = InputTransformation.maxLengthTrim(80),
-                            label = stringResource(R.string.scheduled_editor_name_label),
-                            placeholder = stringResource(R.string.scheduled_editor_name_placeholder),
-                            singleLine = true,
-                        )
-                        CouiTextField(
-                            state = promptState,
-                            inputTransformation = InputTransformation.maxLengthTrim(8000),
-                            label = stringResource(R.string.scheduled_editor_prompt_label),
-                            placeholder = stringResource(R.string.scheduled_editor_prompt_placeholder),
-                            singleLine = false,
-                            minLines = 4,
-                            maxLines = 10,
-                        )
+                CouiPreferenceGroup(title = stringResource(R.string.scheduled_editor_section_content)) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            CouiTextField(
+                                state = nameState,
+                                inputTransformation = InputTransformation.maxLengthTrim(80),
+                                label = stringResource(R.string.scheduled_editor_name_label),
+                                placeholder = stringResource(R.string.scheduled_editor_name_placeholder),
+                                singleLine = true,
+                            )
+                            CouiTextField(
+                                state = promptState,
+                                inputTransformation = InputTransformation.maxLengthTrim(8000),
+                                label = stringResource(R.string.scheduled_editor_prompt_label),
+                                placeholder = stringResource(R.string.scheduled_editor_prompt_placeholder),
+                                singleLine = false,
+                                minLines = 4,
+                                maxLines = 10,
+                            )
+                        }
                     }
                 }
 
@@ -449,203 +436,229 @@ internal fun ScheduledTaskEditorScreen(
                         }
                     },
                 )
-                Group {
-                    when (triggerKind) {
-                        ScheduledTaskTriggerKind.DAILY,
-                        ScheduledTaskTriggerKind.WEEKDAYS -> {
-                            CouiPreference(
-                                title = stringResource(R.string.scheduled_editor_trigger_time),
-                                value = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
-                                onClick = openTimePicker,
-                            )
+                CouiPreferenceGroup {
+                    item {
+                        when (triggerKind) {
+                            ScheduledTaskTriggerKind.DAILY,
+                            ScheduledTaskTriggerKind.WEEKDAYS -> {
+                                CouiPreference(
+                                    title = stringResource(R.string.scheduled_editor_trigger_time),
+                                    value = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
+                                    onClick = openTimePicker,
+                                )
+                            }
+                            ScheduledTaskTriggerKind.WEEKLY -> {
+                                CouiPreference(
+                                    title = stringResource(R.string.scheduled_editor_trigger_time),
+                                    value = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
+                                    onClick = openTimePicker,
+                                )
+                                CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
+                                WeekdaySelectorRow(
+                                    selectedDays = daysOfWeek,
+                                    onToggleDay = { day ->
+                                        daysOfWeek = if (day in daysOfWeek && daysOfWeek.size > 1) {
+                                            daysOfWeek - day
+                                        } else {
+                                            daysOfWeek + day
+                                        }
+                                    },
+                                    isCoui = true,
+                                )
+                                CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
+                            }
+                            ScheduledTaskTriggerKind.INTERVAL -> {
+                                QuickOptionPillsRow(
+                                    title = stringResource(R.string.scheduled_editor_interval_label),
+                                    options = intervalChoices.map { it to ScheduledTaskScheduleCalculator.formatInterval(it) },
+                                    selected = intervalMinutes,
+                                    onSelect = { intervalMinutes = it },
+                                    isCoui = true,
+                                )
+                                CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
+                            }
+                            ScheduledTaskTriggerKind.ONCE -> {
+                                QuickOptionPillsRow(
+                                    title = stringResource(R.string.scheduled_editor_once_delay_label),
+                                    options = onceDelayOptions,
+                                    selected = onceDelayMinutes,
+                                    onSelect = { mins ->
+                                        onceDelayMinutes = mins
+                                        onceTriggerAtMs = System.currentTimeMillis() + mins * 60_000L
+                                    },
+                                    isCoui = true,
+                                )
+                                CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
+                            }
+                            ScheduledTaskTriggerKind.CRON -> {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
+                                ) {
+                                    CouiTextField(
+                                        state = cronExpressionState,
+                                        inputTransformation = InputTransformation.maxLengthTrim(80),
+                                        label = stringResource(R.string.scheduled_editor_cron_label),
+                                        placeholder = "0 9 * * 1-5",
+                                        singleLine = true,
+                                    )
+                                }
+                                CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
+                            }
                         }
-                        ScheduledTaskTriggerKind.WEEKLY -> {
-                            CouiPreference(
-                                title = stringResource(R.string.scheduled_editor_trigger_time),
-                                value = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
-                                onClick = openTimePicker,
-                            )
-                            Divider()
-                            WeekdaySelectorRow(
-                                selectedDays = daysOfWeek,
-                                onToggleDay = { day ->
-                                    daysOfWeek = if (day in daysOfWeek && daysOfWeek.size > 1) {
-                                        daysOfWeek - day
-                                    } else {
-                                        daysOfWeek + day
-                                    }
+                    }
+                    item {
+                        CouiPreference(
+                            title = stringResource(R.string.scheduled_editor_schedule_preview),
+                            summary = nextRunPreview,
+                            showChevron = false,
+                        )
+                    }
+                }
+
+                CouiPreferenceGroup(title = stringResource(R.string.scheduled_editor_section_delivery)) {
+                    item {
+                        CouiDropdownPreference(
+                            title = stringResource(R.string.scheduled_editor_result_notification),
+                            items = deliveryOptions.map { it.second },
+                            selectedIndex = deliveryOptions.indexOfFirst { it.first == deliveryMode }.coerceAtLeast(0),
+                            onSelectedIndexChange = { idx -> deliveryMode = deliveryOptions[idx].first },
+                        )
+                    }
+                    item {
+                        CouiSwitchPreference(
+                            title = stringResource(R.string.scheduled_editor_show_progress_title),
+                            summary = stringResource(R.string.scheduled_editor_show_progress_summary),
+                            checked = showRunningNotification,
+                            onCheckedChange = { showRunningNotification = it },
+                        )
+                    }
+                }
+
+                CouiPreferenceGroup {
+                    item {
+                        CouiPreference(
+                            title = stringResource(
+                                if (showAdvanced) {
+                                    R.string.scheduled_editor_advanced_collapse
+                                } else {
+                                    R.string.scheduled_editor_advanced_expand
                                 },
-                                isCoui = true,
+                            ),
+                            summary = if (showAdvanced) null else stringResource(R.string.scheduled_editor_advanced_summary),
+                            onClick = { showAdvanced = !showAdvanced },
+                        )
+                    }
+                }
+
+                if (showAdvanced) {
+                    CouiPreferenceGroup(title = stringResource(R.string.scheduled_editor_section_model)) {
+                        item {
+                            CouiPreference(
+                                title = stringResource(R.string.scheduled_field_model),
+                                summary = modelSummary,
+                                onClick = { showModelSheet = true },
                             )
                         }
-                        ScheduledTaskTriggerKind.INTERVAL -> {
-                            QuickOptionPillsRow(
-                                title = stringResource(R.string.scheduled_editor_interval_label),
-                                options = intervalChoices.map { it to ScheduledTaskScheduleCalculator.formatInterval(it) },
-                                selected = intervalMinutes,
-                                onSelect = { intervalMinutes = it },
-                                isCoui = true,
-                            )
-                        }
-                        ScheduledTaskTriggerKind.ONCE -> {
-                            QuickOptionPillsRow(
-                                title = stringResource(R.string.scheduled_editor_once_delay_label),
-                                options = onceDelayOptions,
-                                selected = onceDelayMinutes,
-                                onSelect = { mins ->
-                                    onceDelayMinutes = mins
-                                    onceTriggerAtMs = System.currentTimeMillis() + mins * 60_000L
-                                },
-                                isCoui = true,
-                            )
-                        }
-                        ScheduledTaskTriggerKind.CRON -> {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
-                            ) {
-                                CouiTextField(
-                                    state = cronExpressionState,
-                                    inputTransformation = InputTransformation.maxLengthTrim(80),
-                                    label = stringResource(R.string.scheduled_editor_cron_label),
-                                    placeholder = "0 9 * * 1-5",
-                                    singleLine = true,
+                        if (effortOptions.size > 1) {
+                            item {
+                                CouiDropdownPreference(
+                                    title = stringResource(R.string.scheduled_editor_reasoning_effort),
+                                    items = effortLabels,
+                                    selectedIndex = selectedEffortIndex,
+                                    onSelectedIndexChange = { idx ->
+                                        selectedReasoningEffort = effortOptions[idx]?.wireValue
+                                    },
                                 )
                             }
                         }
                     }
-                    Divider()
-                    CouiPreference(
-                        title = stringResource(R.string.scheduled_editor_schedule_preview),
-                        summary = nextRunPreview,
-                        showChevron = false,
-                    )
-                }
 
-                Group(title = stringResource(R.string.scheduled_editor_section_delivery)) {
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.scheduled_editor_result_notification),
-                        items = deliveryOptions.map { it.second },
-                        selectedIndex = deliveryOptions.indexOfFirst { it.first == deliveryMode }.coerceAtLeast(0),
-                        onSelectedIndexChange = { idx -> deliveryMode = deliveryOptions[idx].first },
-                    )
-                    Divider()
-                    CouiSwitchPreference(
-                        title = stringResource(R.string.scheduled_editor_show_progress_title),
-                        summary = stringResource(R.string.scheduled_editor_show_progress_summary),
-                        checked = showRunningNotification,
-                        onCheckedChange = { showRunningNotification = it },
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(CouiPageDefaults.groupSpacing))
-                Group {
-                    CouiPreference(
-                        title = stringResource(
-                            if (showAdvanced) {
-                                R.string.scheduled_editor_advanced_collapse
-                            } else {
-                                R.string.scheduled_editor_advanced_expand
-                            },
-                        ),
-                        summary = if (showAdvanced) null else stringResource(R.string.scheduled_editor_advanced_summary),
-                        onClick = { showAdvanced = !showAdvanced },
-                    )
-                }
-
-                if (showAdvanced) {
-                    Group(title = stringResource(R.string.scheduled_editor_section_model)) {
-                        CouiPreference(
-                            title = stringResource(R.string.scheduled_field_model),
-                            summary = modelSummary,
-                            onClick = { showModelSheet = true },
-                        )
-                        if (effortOptions.size > 1) {
-                            Divider()
-                            CouiDropdownPreference(
-                                title = stringResource(R.string.scheduled_editor_reasoning_effort),
-                                items = effortLabels,
-                                selectedIndex = selectedEffortIndex,
-                                onSelectedIndexChange = { idx ->
-                                    selectedReasoningEffort = effortOptions[idx]?.wireValue
-                                },
+                    CouiPreferenceGroup(title = stringResource(R.string.scheduled_editor_section_capabilities)) {
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.scheduled_cap_browser_title),
+                                summary = stringResource(R.string.scheduled_cap_browser_summary),
+                                checked = capabilities.browserTools,
+                                onCheckedChange = { capabilities = capabilities.copy(browserTools = it) },
+                            )
+                        }
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.scheduled_cap_device_read_title),
+                                summary = stringResource(R.string.scheduled_cap_device_read_summary),
+                                checked = capabilities.deviceReadTools,
+                                onCheckedChange = { capabilities = capabilities.copy(deviceReadTools = it) },
+                            )
+                        }
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.scheduled_cap_device_action_title),
+                                summary = stringResource(R.string.scheduled_cap_device_action_summary),
+                                checked = capabilities.deviceActionTools,
+                                onCheckedChange = { capabilities = capabilities.copy(deviceActionTools = it) },
+                            )
+                        }
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.scheduled_cap_terminal_title),
+                                summary = stringResource(R.string.scheduled_cap_terminal_summary),
+                                checked = capabilities.terminalTools,
+                                onCheckedChange = { capabilities = capabilities.copy(terminalTools = it) },
+                            )
+                        }
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.scheduled_cap_mcp_title),
+                                summary = stringResource(R.string.scheduled_cap_mcp_summary),
+                                checked = capabilities.mcpTools,
+                                onCheckedChange = { capabilities = capabilities.copy(mcpTools = it) },
+                            )
+                        }
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.scheduled_cap_gui_title),
+                                summary = stringResource(R.string.scheduled_cap_gui_summary),
+                                checked = capabilities.guiTools,
+                                onCheckedChange = { capabilities = capabilities.copy(guiTools = it) },
                             )
                         }
                     }
 
-                    Group(title = stringResource(R.string.scheduled_editor_section_capabilities)) {
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.scheduled_cap_browser_title),
-                            summary = stringResource(R.string.scheduled_cap_browser_summary),
-                            checked = capabilities.browserTools,
-                            onCheckedChange = { capabilities = capabilities.copy(browserTools = it) },
-                        )
-                        Divider()
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.scheduled_cap_device_read_title),
-                            summary = stringResource(R.string.scheduled_cap_device_read_summary),
-                            checked = capabilities.deviceReadTools,
-                            onCheckedChange = { capabilities = capabilities.copy(deviceReadTools = it) },
-                        )
-                        Divider()
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.scheduled_cap_device_action_title),
-                            summary = stringResource(R.string.scheduled_cap_device_action_summary),
-                            checked = capabilities.deviceActionTools,
-                            onCheckedChange = { capabilities = capabilities.copy(deviceActionTools = it) },
-                        )
-                        Divider()
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.scheduled_cap_terminal_title),
-                            summary = stringResource(R.string.scheduled_cap_terminal_summary),
-                            checked = capabilities.terminalTools,
-                            onCheckedChange = { capabilities = capabilities.copy(terminalTools = it) },
-                        )
-                        Divider()
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.scheduled_cap_mcp_title),
-                            summary = stringResource(R.string.scheduled_cap_mcp_summary),
-                            checked = capabilities.mcpTools,
-                            onCheckedChange = { capabilities = capabilities.copy(mcpTools = it) },
-                        )
-                        Divider()
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.scheduled_cap_gui_title),
-                            summary = stringResource(R.string.scheduled_cap_gui_summary),
-                            checked = capabilities.guiTools,
-                            onCheckedChange = { capabilities = capabilities.copy(guiTools = it) },
-                        )
-                    }
-
-                    Group(title = stringResource(R.string.scheduled_editor_section_session_policy)) {
-                        CouiDropdownPreference(
-                            title = stringResource(R.string.scheduled_editor_session_mode),
-                            items = sessionOptions.map { it.second },
-                            selectedIndex = sessionOptions.indexOfFirst { it.first == sessionMode }.coerceAtLeast(0),
-                            onSelectedIndexChange = { idx -> sessionMode = sessionOptions[idx].first },
-                        )
-                        Divider()
-                        CouiDropdownPreference(
-                            title = stringResource(R.string.scheduled_editor_misfire_policy),
-                            items = misfireOptions.map { it.second },
-                            selectedIndex = misfireOptions.indexOfFirst { it.first == misfirePolicy }.coerceAtLeast(0),
-                            onSelectedIndexChange = { idx -> misfirePolicy = misfireOptions[idx].first },
-                        )
-                        Divider()
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.scheduled_editor_quiet_hours_title),
-                            summary = stringResource(R.string.scheduled_editor_quiet_hours_summary),
-                            checked = quietHoursEnabled,
-                            onCheckedChange = { quietHoursEnabled = it },
-                        )
-                        Divider()
-                        CouiDropdownPreference(
-                            title = stringResource(R.string.scheduled_editor_timeout),
-                            items = timeoutLabels,
-                            selectedIndex = timeoutChoices.indexOf(timeoutSeconds).coerceAtLeast(1),
-                            onSelectedIndexChange = { idx -> timeoutSeconds = timeoutChoices[idx] },
-                        )
+                    CouiPreferenceGroup(title = stringResource(R.string.scheduled_editor_section_session_policy)) {
+                        item {
+                            CouiDropdownPreference(
+                                title = stringResource(R.string.scheduled_editor_session_mode),
+                                items = sessionOptions.map { it.second },
+                                selectedIndex = sessionOptions.indexOfFirst { it.first == sessionMode }.coerceAtLeast(0),
+                                onSelectedIndexChange = { idx -> sessionMode = sessionOptions[idx].first },
+                            )
+                        }
+                        item {
+                            CouiDropdownPreference(
+                                title = stringResource(R.string.scheduled_editor_misfire_policy),
+                                items = misfireOptions.map { it.second },
+                                selectedIndex = misfireOptions.indexOfFirst { it.first == misfirePolicy }.coerceAtLeast(0),
+                                onSelectedIndexChange = { idx -> misfirePolicy = misfireOptions[idx].first },
+                            )
+                        }
+                        item {
+                            CouiSwitchPreference(
+                                title = stringResource(R.string.scheduled_editor_quiet_hours_title),
+                                summary = stringResource(R.string.scheduled_editor_quiet_hours_summary),
+                                checked = quietHoursEnabled,
+                                onCheckedChange = { quietHoursEnabled = it },
+                            )
+                        }
+                        item {
+                            CouiDropdownPreference(
+                                title = stringResource(R.string.scheduled_editor_timeout),
+                                items = timeoutLabels,
+                                selectedIndex = timeoutChoices.indexOf(timeoutSeconds).coerceAtLeast(1),
+                                onSelectedIndexChange = { idx -> timeoutSeconds = timeoutChoices[idx] },
+                            )
+                        }
                     }
                 }
 
@@ -978,7 +991,7 @@ private fun WeekdaySelectorRow(
     )
     val accent = if (isCoui) CouiPageDefaults.themeColors().accent else MiuixTheme.colorScheme.primary
     val inactiveBg = if (isCoui) {
-        if (CouiTheme.isDark) androidx.compose.ui.graphics.Color(0x1FFFFFFF) else androidx.compose.ui.graphics.Color(0x0F000000)
+        CouiTheme.colorScheme.container8
     } else {
         MiuixTheme.colorScheme.surfaceVariant
     }
@@ -1021,7 +1034,7 @@ private fun <T> QuickOptionPillsRow(
 ) {
     val accent = if (isCoui) CouiPageDefaults.themeColors().accent else MiuixTheme.colorScheme.primary
     val inactiveBg = if (isCoui) {
-        if (CouiTheme.isDark) androidx.compose.ui.graphics.Color(0x1FFFFFFF) else androidx.compose.ui.graphics.Color(0x0F000000)
+        CouiTheme.colorScheme.container8
     } else {
         MiuixTheme.colorScheme.surfaceVariant
     }

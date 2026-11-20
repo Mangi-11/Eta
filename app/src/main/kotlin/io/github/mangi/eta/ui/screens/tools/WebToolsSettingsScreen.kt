@@ -27,10 +27,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.layout.Footer
-import com.itos.coui.layout.Group
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.WebHttpMethod
@@ -46,9 +42,13 @@ import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiIcon
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceFooter
+import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -83,28 +83,31 @@ internal fun WebToolsSettingsScreen(onBack: () -> Unit) {
                     WebToolsLoadingState(store.message)
                     return@CouiScaffoldPage
                 }
-                Group(title = stringResource(R.string.web_tools_group_service)) {
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.web_tools_search_service),
-                        items = searchBackendLabels,
-                        selectedIndex = settings.searchBackend.ordinal,
-                        onSelectedIndexChange = { index ->
-                            WebToolBackend.entries.getOrNull(index)?.let {
-                                store.edit(settings.copy(searchBackend = it))
-                            }
-                        },
-                    )
-                    Divider()
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.web_tools_fetch_service),
-                        items = fetchBackendLabels,
-                        selectedIndex = settings.fetchBackend.ordinal,
-                        onSelectedIndexChange = { index ->
-                            WebToolBackend.entries.getOrNull(index)?.let {
-                                store.edit(settings.copy(fetchBackend = it))
-                            }
-                        },
-                    )
+                CouiPreferenceGroup(title = stringResource(R.string.web_tools_group_service)) {
+                    item {
+                        CouiDropdownPreference(
+                            title = stringResource(R.string.web_tools_search_service),
+                            items = searchBackendLabels,
+                            selectedIndex = settings.searchBackend.ordinal,
+                            onSelectedIndexChange = { index ->
+                                WebToolBackend.entries.getOrNull(index)?.let {
+                                    store.edit(settings.copy(searchBackend = it))
+                                }
+                            },
+                        )
+                    }
+                    item {
+                        CouiDropdownPreference(
+                            title = stringResource(R.string.web_tools_fetch_service),
+                            items = fetchBackendLabels,
+                            selectedIndex = settings.fetchBackend.ordinal,
+                            onSelectedIndexChange = { index ->
+                                WebToolBackend.entries.getOrNull(index)?.let {
+                                    store.edit(settings.copy(fetchBackend = it))
+                                }
+                            },
+                        )
+                    }
                 }
                 WebToolsNote(
                     stringResource(
@@ -222,7 +225,7 @@ private fun DeepSeekWebSection(store: WebToolsSettingsStore) {
                     onChange = { store.editCredentials(credentials.copy(deepSeekApiKey = it.trim())) },
                 )
             }
-            if (uiStyle == AppearanceUiStyle.COUI) Divider()
+            if (uiStyle == AppearanceUiStyle.COUI) CouiDivider()
             ExpandableHeaderRow(
                 title = stringResource(R.string.speech_advanced),
                 expanded = advanced,
@@ -272,7 +275,7 @@ private fun CustomSearchSection(store: WebToolsSettingsStore) {
                         }
                     },
                 )
-                Divider()
+                CouiDivider()
             } else {
                 GlassDropdownPreference(
                     title = stringResource(R.string.web_tools_http_method),
@@ -299,7 +302,7 @@ private fun CustomSearchSection(store: WebToolsSettingsStore) {
                     onChange = { store.editCredentials(credentials.copy(customSearchApiKey = it.trim())) },
                 )
             }
-            if (uiStyle == AppearanceUiStyle.COUI) Divider()
+            if (uiStyle == AppearanceUiStyle.COUI) CouiDivider()
             ExpandableHeaderRow(
                 title = stringResource(R.string.web_tools_mapping_and_template),
                 expanded = advanced,
@@ -383,7 +386,7 @@ private fun CustomFetchSection(store: WebToolsSettingsStore) {
                         }
                     },
                 )
-                Divider()
+                CouiDivider()
             } else {
                 GlassDropdownPreference(
                     title = stringResource(R.string.web_tools_http_method),
@@ -410,7 +413,7 @@ private fun CustomFetchSection(store: WebToolsSettingsStore) {
                     onChange = { store.editCredentials(credentials.copy(customFetchApiKey = it.trim())) },
                 )
             }
-            if (uiStyle == AppearanceUiStyle.COUI) Divider()
+            if (uiStyle == AppearanceUiStyle.COUI) CouiDivider()
             ExpandableHeaderRow(
                 title = stringResource(R.string.web_tools_mapping_and_template),
                 expanded = advanced,
@@ -465,10 +468,11 @@ private fun WebSectionGroup(
 ) {
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            Group(
+            CouiPreferenceGroup(
                 title = title,
-                content = content,
-            )
+            ) {
+                item { androidx.compose.foundation.layout.Column(content = content) }
+            }
         }
         AppearanceUiStyle.MIUIX -> {
             SmallTitle(title)
@@ -550,7 +554,7 @@ private fun WebToolBackend.fetchLabel(): String = stringResource(
 private fun WebToolsNote(text: String, modifier: Modifier = Modifier) {
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            Footer(text = text, modifier = modifier)
+            CouiPreferenceFooter(text = text, modifier = modifier)
         }
         AppearanceUiStyle.MIUIX -> {
             Text(

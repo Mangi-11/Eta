@@ -22,8 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.AppearanceUiStyle
@@ -37,9 +35,11 @@ import io.github.mangi.eta.ui.components.EtaGlassSpinnerPreference
 import io.github.mangi.eta.ui.components.MiuixSecureTextField
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiIcon
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
+import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -107,7 +107,7 @@ internal fun ProviderConnectionFields(
                 )
             }
             if (provider is GeminiProviderSetting) {
-                Divider()
+                CouiDivider()
                 CouiDropdownPreference(
                     title = geminiPlatformTitle,
                     items = listOf("Google AI Studio", "Google Cloud Vertex AI"),
@@ -124,7 +124,7 @@ internal fun ProviderConnectionFields(
                 )
             }
             if (accountMode != null) {
-                Divider()
+                CouiDivider()
                 CouiDropdownPreference(
                     title = authMethodTitle,
                     items = listOf("API Key", accountLoginLabel),
@@ -136,7 +136,7 @@ internal fun ProviderConnectionFields(
                 )
             }
             if (oauth) {
-                Divider()
+                CouiDivider()
                 ProviderAccountControls(
                     state = loginState,
                     authMode = draft.authMode,
@@ -149,7 +149,7 @@ internal fun ProviderConnectionFields(
                     onCancel = onCancel,
                 )
             } else {
-                Divider()
+                CouiDivider()
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -214,7 +214,7 @@ internal fun ProviderConnectionFields(
                     }
                 }
                 if (provider !is AnthropicProviderSetting && provider !is GeminiProviderSetting) {
-                    Divider()
+                    CouiDivider()
                     CouiDropdownPreference(
                         title = stringResource(R.string.ui_endpoint_mode_3c8546),
                         items = listOf("Chat Completions API", "Responses API"),
@@ -232,7 +232,7 @@ internal fun ProviderConnectionFields(
                 }
             }
             if (showWebSearchSwitch) {
-                Divider()
+                CouiDivider()
                 CouiSwitchPreference(
                     title = if (provider is GeminiProviderSetting) "Google Search" else stringResource(R.string.ui_server_side_web_search_ddb8e0),
                     summary = if (provider is GeminiProviderSetting) {
