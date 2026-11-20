@@ -4,9 +4,7 @@ import android.graphics.BlendMode as AndroidBlendMode
 import android.graphics.LinearGradient
 import android.graphics.RenderEffect as AndroidRenderEffect
 import android.graphics.Shader
-import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -25,7 +23,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -580,7 +577,6 @@ internal fun ConversationPaneBottomDock(
     val canUseCouiNativeSearchBar = remember(isCoui, activeCouiBackdrop) {
         isCoui &&
             activeCouiBackdrop != null &&
-            Build.VERSION.SDK_INT >= 34 &&
             runCatching { CouiFloatingRenderer.pair() }.isSuccess
     }
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
@@ -1036,7 +1032,7 @@ private fun PaneDockCircleButton(
 }
 
 /**
- * COUI 侧边栏浮层胶囊/圆钮：在 API 34+ 且真实 Display 与背景源就绪时接入 COUI 流体材质与光效，
+ * COUI 侧边栏浮层胶囊/圆钮：在真实 Display 与背景源就绪时接入 COUI 流体材质与光效，
  * 其余环境平滑降级为连续圆角实色浮层，保持相同的按压回弹与轮廓对比度。
  */
 @Composable
@@ -1054,19 +1050,14 @@ private fun CouiPaneFloatingSurface(
     val dark = CouiTheme.isDark
     val view = LocalView.current
     val renderer = remember {
-        if (Build.VERSION.SDK_INT >= 34) {
-            runCatching { CouiFloatingRenderer.standalone() }.getOrNull()
-        } else {
-            null
-        }
+        runCatching { CouiFloatingRenderer.standalone() }.getOrNull()
     }
-    if (Build.VERSION.SDK_INT >= 34 &&
-        couiBackdrop != null &&
+    if (couiBackdrop != null &&
         renderer != null &&
         view.display != null
     ) {
         ProvideCouiBackdrop(couiBackdrop) {
-            CouiApi34FloatingSurface(
+            CouiRenderedFloatingSurface(
                 modifier = modifier,
                 shape = shape,
                 capsule = capsule,
@@ -1129,9 +1120,8 @@ private fun CouiPaneFloatingSurface(
     }
 }
 
-@RequiresApi(34)
 @Composable
-private fun CouiApi34FloatingSurface(
+private fun CouiRenderedFloatingSurface(
     modifier: Modifier,
     shape: Shape,
     capsule: Boolean,

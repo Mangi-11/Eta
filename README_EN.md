@@ -4,7 +4,7 @@
 
 [![GitHub Stars](https://img.shields.io/github/stars/Mangi-11/Eta?logo=github&label=Stars&color=1677FF)](https://github.com/Mangi-11/Eta/stargazers)
 [![Total GitHub Releases downloads](https://img.shields.io/github/downloads/Mangi-11/Eta/total?logo=github&label=Downloads&color=1677FF)](https://github.com/Mangi-11/Eta/releases)
-![minSdk 33](https://img.shields.io/badge/minSdk-33-3DDC84?logo=android&logoColor=white)
+![minSdk 34](https://img.shields.io/badge/minSdk-34-3DDC84?logo=android&logoColor=white)
 ![Deep integrations for ColorOS and HyperOS](https://img.shields.io/badge/ROM%20Integrations-ColorOS%20%26%20HyperOS-1677FF)
 [![GPL-3.0 License](https://img.shields.io/github/license/Mangi-11/Eta?color=1677FF)](LICENSE)
 
@@ -21,7 +21,7 @@ Benchmarked against built-in OEM system assistants, Eta integrates deeply with A
 - **Native digital assistant & system entry points**: set Eta as Android's default digital assistant to wake it with screen context from the power button (succeeding earlier Xposed hooks for Breeno and Super XiaoAI), with Android 16+ Live Updates / Fluid Cloud, plus power-button routing (Eta or Gemini) and Google Circle to Search on compatible ROMs.
 - **Full Agent Runtime & extensions**: implements its own Agent Runtime and Agent Loop, with parallel Subagents, scheduled tasks, a mobile PTY terminal & Linux environment, AI image generation, long-term memory, Skills, MCP, and Tavern character companionship.
 
-Bring your own **API key (BYOK)** or sign in with a **Codex (ChatGPT) / Grok subscription**—you choose the model. Requires **Android 13+** across phone brands, with core features available without root; Root and LSPosed unlock the background virtual display, deep personal context, and ROM entry points.
+Bring your own **API key (BYOK)** or sign in with a **Codex (ChatGPT) / Grok subscription**—you choose the model. Requires **Android 14+** across phone brands, with core features available without root; Root and LSPosed unlock the background virtual display, deep personal context, and ROM entry points.
 
 [Download APK](https://github.com/Mangi-11/Eta/releases) · [Use Cases](#what-you-can-ask-eta) · [Capabilities](#core-capabilities) · [Permissions](#permissions--device-support) · [Getting Started](#getting-started) · [Why I Built Eta](docs/WHY_ETA_EN.md)
 
@@ -57,7 +57,7 @@ Bring your own **API key (BYOK)** or sign in with a **Codex (ChatGPT) / Grok sub
 - **Comprehensive Personal Context**: Retrieves notification history, calendar, location, SMS & OTPs, contacts, call logs, photos (OCR text & visual search), recordings, clipboard, health summaries, and chat images. On ColorOS, Eta also connects directly to **Xiaobu Memory** and **ColorOS Aggregated Search Service (DMP)**—opening up your saved Xiaohongshu / Douyin / Bilibili posts and video summaries, voice notes, memory collections, bills, itineraries, delivery orders, notes, recording summaries, and saved places to any model you choose.
 - **Native System & 1st-Party Actions**: Calls Android and first-party app APIs directly to manage calendars, alarms, timers, system notes, and device controls (brightness, volume, DND, flashlight, Wi-Fi, Bluetooth, hotspot, NFC, app freezing, etc.).
 - **Native Digital Assistant & Entry Points**: Set Eta as Android's default digital assistant for power-button wake with screen context (succeeding earlier Xposed hooks for Breeno and Super XiaoAI); supports Android 16+ Live Updates / Fluid Cloud / Super Island, hold-to-talk ASR (Qwen / Doubao / MiMo / DeepSeek), and multi-engine TTS; compatible ROMs add power-button routing (Eta, Gemini, or OEM default, with automatic default-assistant syncing) and Google Circle to Search (handle long press / two-finger press).
-- **GUI & Background Virtual Display**: Combines accessibility and lossless screenshots for cross-app control; operates in place on the main screen, or defaults to a silent trusted background virtual display on Android 14+ with Root or LSPosed, with a live miniature preview in the top capsule for instant takeover or one-tap handoff to the main screen.
+- **GUI & Background Virtual Display**: Combines accessibility and lossless screenshots for cross-app control; operates in place on the main screen, or defaults to a silent trusted background virtual display with Root or LSPosed, with a live miniature preview in the top capsule for instant takeover or one-tap handoff to the main screen.
 
 ### Autonomous Orchestration & Mobile Toolbox
 
@@ -87,8 +87,8 @@ Most mobile AI tools today fall into two camps:
 ## Permissions & Device Support
 
 - **Standard Device (No Root)**: Full chat & models, emotional companionship & Tavern character cards, AI image gen, Subagents, scheduled tasks, memory / Skills / MCP, web & browser, standard terminal & PRoot Linux, calendar / notifications / location / app usage, main-screen GUI, and Eta native digital assistant.
-- **Rooted Device**: Background virtual display (Android 14+), system controls & native 1st-party actions (alarm management / notes), app management, deep personal context (SMS / calls / photo content search / health / chat images), and root shell & chroot.
-- **LSPosed + Compatible ROM**: Background virtual display (Android 14+), ColorOS / HyperOS power-button routing (Eta or Gemini), direct Xiaobu Memory access, and Google Circle to Search (handle long press / two-finger press).
+- **Rooted Device**: Background virtual display, system controls & native 1st-party actions (alarm management / notes), app management, deep personal context (SMS / calls / photo content search / health / chat images), and root shell & chroot.
+- **LSPosed + Compatible ROM**: Background virtual display, ColorOS / HyperOS power-button routing (Eta or Gemini), direct Xiaobu Memory access, and Google Circle to Search (handle long press / two-finger press).
 
 See [Device Support & Permissions](docs/ROOTLESS_SUPPORT.md) for full details.
 

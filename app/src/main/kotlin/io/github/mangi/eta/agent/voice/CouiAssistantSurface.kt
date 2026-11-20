@@ -1,7 +1,6 @@
 package io.github.mangi.eta.agent.voice
 
 import android.graphics.Paint
-import android.os.Build
 import android.util.LruCache
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -293,14 +292,14 @@ internal fun Modifier.couiAssistantCapsule(
 ): Modifier {
     val contourEnabled = LocalCouiContourGlowEnabled.current
     val contour = remember(contourEnabled) {
-        if (contourEnabled && Build.VERSION.SDK_INT >= 33) {
+        if (contourEnabled) {
             runCatching { CouiContour(style = CouiContourStyle.Button) }.getOrNull()
         } else {
             null
         }
     }
     val shadowRenderer = remember(elevation) {
-        if (elevation != AssistantCapsuleElevation.InlineControl && Build.VERSION.SDK_INT >= 34) {
+        if (elevation != AssistantCapsuleElevation.InlineControl) {
             runCatching { CouiShadowRenderer() }.getOrNull()
         } else {
             null
@@ -364,7 +363,7 @@ internal fun Modifier.couiAssistantCapsule(
             val native = drawContext.canvas.nativeCanvas
             val hardware = native.isHardwareAccelerated
             val isRound = kotlin.math.abs(size.width - size.height) < 1f
-            if (hardware && Build.VERSION.SDK_INT >= 34 && shadowRenderer != null && shadowStyle != null) {
+            if (hardware && shadowRenderer != null && shadowStyle != null) {
                 shadowRenderer.draw(
                     canvas = native,
                     slot = 0,
@@ -386,7 +385,7 @@ internal fun Modifier.couiAssistantCapsule(
                 )
             }
             val outline = CouiCapsuleShape.createOutline(size, layoutDirection, this)
-            if (hardware && Build.VERSION.SDK_INT >= 33 && contour != null && size.minDimension > 1f) {
+            if (hardware && contour != null && size.minDimension > 1f) {
                 val lineAlpha = if (dark) {
                     0.18f + 0.10f * highlightProgress
                 } else {

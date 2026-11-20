@@ -12,7 +12,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Rect
-import android.os.Build
 import android.os.SystemClock
 import android.view.Display
 import java.io.IOException
@@ -871,10 +870,9 @@ internal class RootShellDeviceController(
             return ScreenCapture.failed(source = "virtual_display", code = "SCREENSHOT_UNAVAILABLE")
         }
         val excludedPackages = screenshotExcludedPackages()
-        // Android 14 起优先逐窗口截图，排除 Eta 浮层；旧系统只保留满足排除合同的 Root 回退。
+        // 优先逐窗口截图以排除 Eta 浮层。
         val service = AgentAccessibilityService.current()
-        val windowScreenshotSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
-        if (service != null && windowScreenshotSupported) {
+        if (service != null) {
             val captureStartedAt = SystemClock.elapsedRealtime()
             val result = runCatching {
                 service.captureScreenshotExcludingOverlays(excludedPackages)
@@ -943,11 +941,7 @@ internal class RootShellDeviceController(
                 criticalWindowMissing = false,
             )
         ) {
-            val code = if (!windowScreenshotSupported) {
-                "WINDOW_SCREENSHOT_UNSUPPORTED"
-            } else {
-                "SCREENSHOT_UNAVAILABLE"
-            }
+            val code = "SCREENSHOT_UNAVAILABLE"
             logger.debug {
                 "Agent device action=capture_screenshot outcome=unavailable " +
                     "code=$code excludedPackages=${excludedPackages.size}"

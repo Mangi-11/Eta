@@ -30,7 +30,7 @@ import org.robolectric.shadows.ShadowAccessibilityService
 import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33], application = Application::class, shadows = [WindowQueryShadow::class])
+@Config(sdk = [34], application = Application::class, shadows = [WindowQueryShadow::class])
 class AccessibilityWindowObservationTest {
     @Test
     fun mainDisplayQueryIgnoresActiveRootFromSecondaryDisplay() = withService { service ->
@@ -72,10 +72,10 @@ class AccessibilityWindowObservationTest {
 
     @Test
     fun windowEventsNeverEnumerateWindows() = withService { service ->
-        service.onAccessibilityEvent(AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED).apply {
+        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED).apply {
             shadowOf(this).setWindowId(11)
         })
-        service.onAccessibilityEvent(AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOWS_CHANGED).apply {
+        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_WINDOWS_CHANGED).apply {
             shadowOf(this).setWindowId(1)
         })
         assertEquals(0, WindowQueryShadow.queries)
@@ -95,7 +95,7 @@ class AccessibilityWindowObservationTest {
         clipboard.setPrimaryClip(ClipData.newPlainText("original", "原内容"))
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
-        val root = AccessibilityNodeInfo.obtain().apply {
+        val root = AccessibilityNodeInfo().apply {
             packageName = "editor.app"
             isEditable = true
             isFocused = true
@@ -148,7 +148,7 @@ class AccessibilityWindowObservationTest {
                 setDisplayId(displayId)
                 setType(AccessibilityWindowInfo.TYPE_APPLICATION)
                 setLayer(layer)
-                if (packageName != null) setRoot(AccessibilityNodeInfo.obtain().apply { this.packageName = packageName })
+                if (packageName != null) setRoot(AccessibilityNodeInfo().apply { this.packageName = packageName })
             }
         }
 

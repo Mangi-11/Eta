@@ -117,13 +117,6 @@ class CanvasRoutingPolicyTest {
     }
 
     @Test
-    fun backgroundDisplayRequiresAndroid14FocusIsolation() {
-        assertFalse(CanvasRoutingPolicy.supportsBackgroundDisplay(33))
-        assertTrue(CanvasRoutingPolicy.supportsBackgroundDisplay(34))
-        assertTrue(CanvasRoutingPolicy.supportsBackgroundDisplay(37))
-    }
-
-    @Test
     fun displayMustExposeAllIsolationFlagsAfterCreation() {
         val platformDisplayFlags = (1 shl 7) or (1 shl 11) or (1 shl 12)
         assertTrue(CanvasRoutingPolicy.hasRequiredDisplayFlags(platformDisplayFlags))

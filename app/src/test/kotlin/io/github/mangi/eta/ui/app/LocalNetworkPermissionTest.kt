@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [37], application = Application::class)
 class LocalNetworkPermissionTest {
     @Test
-    @Config(sdk = [33, 36])
+    @Config(sdk = [34, 36])
     fun olderDevicesDoNotCheckOrDisplayTheNewPermission() {
         val context = PermissionContext(granted = false)
 

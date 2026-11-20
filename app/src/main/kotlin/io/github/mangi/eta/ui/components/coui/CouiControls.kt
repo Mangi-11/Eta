@@ -1,7 +1,6 @@
 package io.github.mangi.eta.ui.components.coui
 
 import android.graphics.Paint
-import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -48,11 +46,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -75,7 +71,6 @@ import com.itos.coui.backdrop.rememberCouiBackdrop
 import com.itos.coui.chip.ChipTabRow
 import com.itos.coui.chip.CouiChipTabItem
 import com.itos.coui.dialog.CouiDialogAction
-import com.itos.coui.dialog.CouiDialogActionColors
 import com.itos.coui.dialog.CouiDialogActionStyle
 import com.itos.coui.dialog.CouiDialogDefaults
 import com.itos.coui.dialog.CouiDialogMaterial
@@ -97,7 +92,6 @@ import com.itos.coui.motion.rememberCouiPressMotion
 import com.itos.coui.motion.rememberCouiTouchMotion
 import com.itos.coui.search.SearchBar
 import com.itos.coui.search.rememberCouiSearchBarState
-import com.itos.coui.segmentbutton.CouiSegmentedControlDefaults
 import com.itos.coui.segmentbutton.SegmentedControl
 import com.itos.coui.shape.CouiCapsuleShape
 import com.itos.coui.shape.CouiShape
@@ -161,7 +155,7 @@ internal fun CouiButton(
     )
     val glow = LocalCouiContourGlowEnabled.current
     val contour = remember(glow) {
-        if (glow && Build.VERSION.SDK_INT >= 33) CouiContour(style = CouiContourStyle.Button) else null
+        if (glow) CouiContour(style = CouiContourStyle.Button) else null
     }
     val paint = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
 
@@ -184,7 +178,7 @@ internal fun CouiButton(
             }
             .drawWithContent {
                 drawRect(fillColor)
-                if (Build.VERSION.SDK_INT >= 33 && contour != null) {
+                if (contour != null) {
                     val alpha = if (isPrimaryLike) {
                         if (dark) { if (enabled) 0.25f else 0.05f } else 0.3f
                     } else if (dark) {
@@ -462,7 +456,7 @@ internal fun CouiSearchBarBox(
 }
 
 /**
- * COUI ChipTabRow 封装：API 34+ 且渲染器可用时使用 COUI 原生 ChipTabRow，否则使用 COUI 胶囊标签回退。
+ * COUI ChipTabRow 封装：渲染器可用时使用 COUI 原生 ChipTabRow，否则使用 COUI 胶囊标签回退。
  */
 @Composable
 internal fun <T : Any> CouiChipTabs(
@@ -476,13 +470,13 @@ internal fun <T : Any> CouiChipTabs(
     val dark = CouiTheme.isDark
     val colors = CouiPageDefaults.themeColors(dark)
     val renderers = remember(items.map { it.first }) {
-        if (Build.VERSION.SDK_INT >= 34 && items.isNotEmpty()) {
+        if (items.isNotEmpty()) {
             runCatching { items.map { CouiFloatingRenderer.standalone() } }.getOrNull()
         } else {
             null
         }
     }
-    if (Build.VERSION.SDK_INT >= 34 && renderers != null) {
+    if (renderers != null) {
         val backdrop = rememberCouiBackdrop()
         val chipItems = remember(items) {
             items.map { (key, label) -> CouiChipTabItem(key = key, label = label) }
@@ -553,8 +547,7 @@ internal fun <T : Any> CouiChipTabs(
 }
 
 /**
- * COUI 分段选择器封装：API 34+ 使用 COUI 原生 SegmentedControl（默认普通填色），
- * 低版本回退为等分胶囊分段轨道。适合固定 2–3 个子页面或视图的切换。
+ * COUI 原生分段选择器，适合固定子页面或视图的切换。
  */
 @Composable
 internal fun <T : Any> CouiSegmentedTabs(
@@ -568,73 +561,18 @@ internal fun <T : Any> CouiSegmentedTabs(
     if (items.isEmpty()) return
     val dark = CouiTheme.isDark
     val selectedIndex = items.indexOfFirst { it.first == selectedKey }.let { if (it >= 0) it else 0 }
-    if (Build.VERSION.SDK_INT >= 34) {
-        val labels = remember(items) { items.map { it.second } }
-        SegmentedControl(
-            modifier = modifier.fillMaxWidth(),
-            labels = labels,
-            selectedIndex = selectedIndex,
-            onSelected = { index ->
-                items.getOrNull(index)?.first?.let(onSelectedKeyChange)
-            },
-            dark = dark,
-            enabled = enabled,
-            small = small,
-        )
-    } else {
-        val colors = CouiPageDefaults.themeColors(dark)
-        val trackHeight = if (small) CouiSegmentedControlDefaults.smallHeight else CouiSegmentedControlDefaults.height
-        val trackPadding = if (small) 2.dp else 4.dp
-        Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .height(trackHeight)
-                .clip(CouiCapsuleShape)
-                .background(CouiSegmentedControlDefaults.containerColor(dark), CouiCapsuleShape)
-                .selectableGroup()
-                .padding(trackPadding),
-        ) {
-            items.forEachIndexed { index, (key, label) ->
-                val selected = index == selectedIndex
-                val source = remember { MutableInteractionSource() }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(CouiCapsuleShape)
-                        .then(
-                            if (selected) {
-                                Modifier.background(
-                                    CouiSegmentedControlDefaults.indicatorColor(dark),
-                                    CouiCapsuleShape,
-                                )
-                            } else {
-                                Modifier
-                            },
-                        )
-                        .couiButtonFeedback(dark, source, enabled)
-                        .selectable(
-                            selected = selected,
-                            interactionSource = source,
-                            indication = null,
-                            enabled = enabled,
-                            role = Role.Tab,
-                            onClick = { onSelectedKeyChange(key) },
-                        )
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = label,
-                        kind = CouiTextKind.ItemValue,
-                        color = if (enabled) colors.title else colors.title.copy(alpha = 0.4f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
+    val labels = remember(items) { items.map { it.second } }
+    SegmentedControl(
+        modifier = modifier.fillMaxWidth(),
+        labels = labels,
+        selectedIndex = selectedIndex,
+        onSelected = { index ->
+            items.getOrNull(index)?.first?.let(onSelectedKeyChange)
+        },
+        dark = dark,
+        enabled = enabled,
+        small = small,
+    )
 }
 
 @Composable

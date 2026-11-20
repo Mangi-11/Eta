@@ -1,6 +1,5 @@
 package io.github.mangi.eta.ui.components.coui
 
-import android.os.Build
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -122,13 +121,9 @@ internal fun CouiTopAppBarIconButton(
     tint: Color = Color.Unspecified,
 ) {
     val renderer = remember {
-        if (Build.VERSION.SDK_INT >= 34) {
-            runCatching { CouiFloatingRenderer.standalone() }.getOrNull()
-        } else {
-            null
-        }
+        runCatching { CouiFloatingRenderer.standalone() }.getOrNull()
     }
-    if (Build.VERSION.SDK_INT >= 34 && renderer != null) {
+    if (renderer != null) {
         val style = rememberCouiSystemToolbarStyle(dark, colors)
         TopAppBarButton(
             modifier = modifier,
@@ -185,13 +180,9 @@ internal fun CouiTopAppBarTextButton(
     colors: CouiPageColors = CouiPageDefaults.themeColors(dark),
 ) {
     val renderer = remember {
-        if (Build.VERSION.SDK_INT >= 34) {
-            runCatching { CouiFloatingRenderer.standalone() }.getOrNull()
-        } else {
-            null
-        }
+        runCatching { CouiFloatingRenderer.standalone() }.getOrNull()
     }
-    if (Build.VERSION.SDK_INT >= 34 && renderer != null) {
+    if (renderer != null) {
         val style = rememberCouiSystemToolbarStyle(dark, colors)
         TopAppBarButton(
             modifier = modifier,

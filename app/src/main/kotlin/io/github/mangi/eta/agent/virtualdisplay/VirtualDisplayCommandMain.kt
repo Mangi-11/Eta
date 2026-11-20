@@ -115,10 +115,6 @@ internal object VirtualDisplayCommandMain {
     }
 
     private fun holdVirtualDisplay(request: JSONObject, reader: BufferedReader) {
-        if (!CanvasRoutingPolicy.supportsBackgroundDisplay(android.os.Build.VERSION.SDK_INT)) {
-            println(RESULT_PREFIX + JSONObject().put("ok", false).put("code", "DISPLAY_ISOLATION_UNSUPPORTED"))
-            exitProcess(1)
-        }
         val userId = request.optInt("user_id", 0)
         val token = request.optString("surface_token")
         val width = request.optInt("width", 1080).coerceIn(320, 4096)
@@ -220,14 +216,12 @@ internal object VirtualDisplayCommandMain {
     }
 
     private fun exemptHiddenApis() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-            runCatching {
-                HiddenApiBypass.addHiddenApiExemptions(
-                    "Landroid/view/",
-                    "Landroid/hardware/display/",
-                    "Landroid/app/",
-                )
-            }
+        runCatching {
+            HiddenApiBypass.addHiddenApiExemptions(
+                "Landroid/view/",
+                "Landroid/hardware/display/",
+                "Landroid/app/",
+            )
         }
     }
 
@@ -362,44 +356,32 @@ internal object VirtualDisplayCommandMain {
         val activityThreadClass = Class.forName("android.app.ActivityThread")
         val thread = activityThreadClass.getMethod("systemMain").invoke(null)
         val systemContext = activityThreadClass.getMethod("getSystemContext").invoke(thread) as android.content.Context
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            val config = android.hardware.display.VirtualDisplayConfig.Builder(
-                CanvasRoutingPolicy.VIRTUAL_DISPLAY_NAME,
-                width,
-                height,
-                densityDpi,
-            )
-                .setSurface(surface)
-                .setFlags(CanvasRoutingPolicy.TRUSTED_INTERACTIVE_FLAGS)
-                .build()
-            val dmgClass = Class.forName("android.hardware.display.DisplayManagerGlobal")
-            val dmg = dmgClass.getMethod("getInstance").invoke(null)
-            val createMethod = dmgClass.methods.firstOrNull {
-                it.name == "createVirtualDisplay" &&
-                    it.parameterCount >= 3 &&
-                    it.parameterTypes[0] == android.content.Context::class.java &&
-                    it.parameterTypes[2] == android.hardware.display.VirtualDisplayConfig::class.java
-            }
-            if (createMethod != null) {
-                val args = arrayOfNulls<Any?>(createMethod.parameterCount)
-                args[0] = systemContext
-                args[1] = null // MediaProjection
-                args[2] = config
-                createMethod.invoke(dmg, *args) as? android.hardware.display.VirtualDisplay
-            } else {
-                val dm = systemContext.getSystemService(android.hardware.display.DisplayManager::class.java)
-                dm?.createVirtualDisplay(config)
-            }
+        val config = android.hardware.display.VirtualDisplayConfig.Builder(
+            CanvasRoutingPolicy.VIRTUAL_DISPLAY_NAME,
+            width,
+            height,
+            densityDpi,
+        )
+            .setSurface(surface)
+            .setFlags(CanvasRoutingPolicy.TRUSTED_INTERACTIVE_FLAGS)
+            .build()
+        val dmgClass = Class.forName("android.hardware.display.DisplayManagerGlobal")
+        val dmg = dmgClass.getMethod("getInstance").invoke(null)
+        val createMethod = dmgClass.methods.firstOrNull {
+            it.name == "createVirtualDisplay" &&
+                it.parameterCount >= 3 &&
+                it.parameterTypes[0] == android.content.Context::class.java &&
+                it.parameterTypes[2] == android.hardware.display.VirtualDisplayConfig::class.java
+        }
+        if (createMethod != null) {
+            val args = arrayOfNulls<Any?>(createMethod.parameterCount)
+            args[0] = systemContext
+            args[1] = null // MediaProjection
+            args[2] = config
+            createMethod.invoke(dmg, *args) as? android.hardware.display.VirtualDisplay
         } else {
             val dm = systemContext.getSystemService(android.hardware.display.DisplayManager::class.java)
-            dm?.createVirtualDisplay(
-                CanvasRoutingPolicy.VIRTUAL_DISPLAY_NAME,
-                width,
-                height,
-                densityDpi,
-                surface,
-                CanvasRoutingPolicy.TRUSTED_INTERACTIVE_FLAGS,
-            )
+            dm?.createVirtualDisplay(config)
         }
     }.getOrNull()
 

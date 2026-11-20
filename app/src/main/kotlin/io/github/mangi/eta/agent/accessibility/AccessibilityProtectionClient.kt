@@ -4,11 +4,9 @@ import android.app.BroadcastOptions
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import androidx.annotation.ChecksSdkIntAtLeast
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -22,11 +20,7 @@ internal object AccessibilityProtectionClient {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    @ChecksSdkIntAtLeast(api = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    fun isSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
-
     fun isEnabled(context: Context): Boolean {
-        if (!isSupported()) return false
         val appContext = context.applicationContext
         val fallback = appContext
             .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
@@ -68,7 +62,7 @@ internal object AccessibilityProtectionClient {
     }
 
     fun requestRecoveryBlocking(context: Context): ControlStatus {
-        if (!isSupported() || Looper.myLooper() == Looper.getMainLooper()) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
             return ControlStatus.UNAVAILABLE
         }
         val latch = CountDownLatch(1)
@@ -95,11 +89,6 @@ internal object AccessibilityProtectionClient {
         scheduler: Handler,
         onResult: (ControlResult) -> Unit,
     ) {
-        // 保护后端依赖 API 34 的发送者身份，旧系统不能以包名或额外字段替代 UID 校验。
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            scheduler.post { onResult(ControlResult(ControlStatus.UNAVAILABLE, enabled = false)) }
-            return
-        }
         val intent = Intent(action)
             .setPackage(AccessibilityProtectionProtocol.RECEIVER_PACKAGE)
             .putExtra(

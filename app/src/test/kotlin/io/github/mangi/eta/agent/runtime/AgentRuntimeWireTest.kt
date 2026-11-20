@@ -26,7 +26,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33, 36])
+@Config(sdk = [34, 36])
 class AgentRuntimeWireTest {
     @Test
     fun searchSuggestionsCapabilityIsOptionalAndHtmlIsNeverDurable() {

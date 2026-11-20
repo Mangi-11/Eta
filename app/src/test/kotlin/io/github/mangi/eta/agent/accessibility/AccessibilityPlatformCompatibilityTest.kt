@@ -1,9 +1,7 @@
 package io.github.mangi.eta.agent.accessibility
 
 import android.app.Application
-import android.content.Context
 import android.graphics.Rect
-import android.os.Looper
 import android.provider.Settings
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
@@ -28,12 +26,12 @@ import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33], application = Application::class)
+@Config(sdk = [34], application = Application::class)
 class AccessibilityPlatformCompatibilityTest {
     @Test
-    fun android13KeepsNodeObservationAndReportsUnavailableScreenshot() {
+    fun observationKeepsNodesWhenNoWindowCanBeCaptured() {
         withConnectedService { service ->
-            val root = AccessibilityNodeInfo.obtain().apply {
+            val root = AccessibilityNodeInfo().apply {
                 packageName = "example.app"
                 className = "android.widget.Button"
                 text = "继续"
@@ -66,13 +64,13 @@ class AccessibilityPlatformCompatibilityTest {
             val screenshot = json.getJSONObject("screenshot")
             assertFalse(screenshot.getBoolean("attached"))
             assertEquals("failed", screenshot.getString("quality"))
-            assertEquals("WINDOW_SCREENSHOT_UNSUPPORTED", screenshot.getString("code"))
+            assertEquals("SCREENSHOT_UNAVAILABLE", screenshot.getString("code"))
             assertTrue(service.globalActionResult("HOME").ok)
         }
     }
 
     @Test
-    fun android13ScreenshotUnavailabilityStillReleasesSubmissionCallback() {
+    fun emptyWindowCaptureReleasesSubmissionCallback() {
         withConnectedService { service ->
             val submissions = AtomicInteger()
             val executor = Executors.newSingleThreadExecutor()
@@ -94,29 +92,8 @@ class AccessibilityPlatformCompatibilityTest {
     }
 
     @Test
-    fun android13ProtectionIgnoresStaleEnabledStateAndDoesNotBroadcast() {
+    fun protectionUsesStoredState() {
         val context = RuntimeEnvironment.getApplication()
-        val preferences = context.getSharedPreferences("accessibility_protection", Context.MODE_PRIVATE)
-        preferences.edit().putBoolean("enabled", true).commit()
-        Settings.Global.putInt(context.contentResolver, AccessibilityProtectionProtocol.SETTING_NAME, 1)
-        val broadcastsBefore = shadowOf(context).broadcastIntents.size
-        assertFalse(AccessibilityProtectionClient.isSupported())
-        assertFalse(AccessibilityProtectionClient.isEnabled(context))
-        var result: AccessibilityProtectionClient.ControlResult? = null
-        AccessibilityProtectionClient.setEnabled(context, true) { result = it }
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(AccessibilityProtectionClient.ControlStatus.UNAVAILABLE, result?.status)
-        assertEquals(false, result?.enabled)
-        assertEquals(broadcastsBefore, shadowOf(context).broadcastIntents.size)
-        assertTrue(preferences.getBoolean("enabled", false))
-        assertEquals(1, Settings.Global.getInt(context.contentResolver, AccessibilityProtectionProtocol.SETTING_NAME))
-    }
-
-    @Test
-    @Config(sdk = [34])
-    fun android14ProtectionStillUsesStoredState() {
-        val context = RuntimeEnvironment.getApplication()
-        assertTrue(AccessibilityProtectionClient.isSupported())
         Settings.Global.putInt(context.contentResolver, AccessibilityProtectionProtocol.SETTING_NAME, 1)
         assertTrue(AccessibilityProtectionClient.isEnabled(context))
         Settings.Global.putInt(context.contentResolver, AccessibilityProtectionProtocol.SETTING_NAME, 0)

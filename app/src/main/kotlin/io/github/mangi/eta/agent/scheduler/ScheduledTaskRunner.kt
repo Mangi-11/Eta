@@ -2,7 +2,6 @@ package io.github.mangi.eta.agent.scheduler
 
 import android.app.KeyguardManager
 import android.content.Context
-import android.os.Build
 import android.os.PowerManager
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
@@ -566,13 +565,12 @@ internal object ScheduledTaskRunner {
         )
     }
 
-    /** 仅当设备处于锁屏状态，且不满足 Android 14+ 后台受信任虚拟屏条件时，避免后台强闯物理主屏。 */
+    /** 仅当设备处于锁屏状态，且不满足后台受信任虚拟屏条件时，避免后台强闯物理主屏。 */
     private fun shouldDeferLockedGuiTask(context: Context): Boolean {
         val keyguard = context.getSystemService(KeyguardManager::class.java)
         val isLocked = keyguard?.isKeyguardLocked == true
         if (!isLocked) return false
-        val virtualDisplayPossible = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
-            Prefs.isEnabled(Prefs.Keys.AGENT_VIRTUAL_DISPLAY_ENABLED) &&
+        val virtualDisplayPossible = Prefs.isEnabled(Prefs.Keys.AGENT_VIRTUAL_DISPLAY_ENABLED) &&
             (RootAccess.isGranted || EtaApp.serviceInstance != null)
         return !virtualDisplayPossible
     }

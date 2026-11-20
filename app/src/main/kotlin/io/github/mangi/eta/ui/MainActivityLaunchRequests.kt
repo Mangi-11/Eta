@@ -1,12 +1,23 @@
 package io.github.mangi.eta.ui
 
+import android.app.ActivityOptions
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.core.content.IntentCompat
 import io.github.mangi.eta.agent.voice.EtaAssistantOverlayService
 import io.github.mangi.eta.ui.app.ArchivedConversationRequest
 import io.github.mangi.eta.ui.voice.ACTION_SPEECH_SETTINGS
+
+internal fun conversationHandoffStartMode(): Int =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE
+    } else {
+        // Android 14、15 的 PendingIntent 交接仅支持旧版显式授权模式。
+        @Suppress("DEPRECATION")
+        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+    }
 
 data class IncomingShareRequest(
     val uris: List<String> = emptyList(),

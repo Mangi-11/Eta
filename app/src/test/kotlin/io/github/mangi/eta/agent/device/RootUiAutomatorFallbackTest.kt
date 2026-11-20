@@ -15,7 +15,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33], application = Application::class)
+@Config(sdk = [34], application = Application::class)
 class RootUiAutomatorFallbackTest {
     @Test
     fun reconnectedAccessibilityStopsRootDumpAtExecutionBoundary() {

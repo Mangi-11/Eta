@@ -57,9 +57,6 @@ internal object CanvasRoutingPolicy {
             FLAG_OWN_FOCUS or
             FLAG_STEAL_TOP_FOCUS_DISABLED
 
-    // Android 13 尚无独立焦点与禁止抢占顶层焦点的组合能力，后台画布从 Android 14 起启用。
-    fun supportsBackgroundDisplay(sdkInt: Int): Boolean = sdkInt >= 34
-
     fun hasRequiredDisplayFlags(flags: Int): Boolean {
         val required = DISPLAY_FLAG_TRUSTED or DISPLAY_FLAG_OWN_FOCUS or DISPLAY_FLAG_STEAL_TOP_FOCUS_DISABLED
         return flags and required == required

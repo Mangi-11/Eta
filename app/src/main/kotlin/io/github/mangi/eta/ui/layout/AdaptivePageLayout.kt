@@ -1,6 +1,5 @@
 package io.github.mangi.eta.ui.layout
 
-import android.os.Build
 import android.view.RoundedCorner
 import android.view.View
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -153,7 +152,6 @@ internal fun computeFloatingBottomExtraInsetPx(
 }
 
 private fun readBottomScreenCornerRadiusPx(view: View): Int {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return 0
     val rootInsets = view.rootWindowInsets ?: return 0
     val leftRadius = rootInsets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)?.radius ?: 0
     val rightRadius = rootInsets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_RIGHT)?.radius ?: 0
