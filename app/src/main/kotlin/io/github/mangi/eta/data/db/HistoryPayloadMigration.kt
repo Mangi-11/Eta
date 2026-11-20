@@ -25,13 +25,13 @@ internal object HistoryPayloadMigration {
                 var length = 0
                 while (true) {
                     val chunk = db.query("SELECT substr($column, ?, 8192) FROM $table WHERE $key = ?",
-                        arrayOf(index * 8192 + 1, owner)).use { cursor ->
+                        arrayOf<Any>(index * 8192 + 1, owner)).use { cursor ->
                         check(cursor.moveToFirst())
                         cursor.getString(0)
                     }
                     if (chunk.isEmpty()) break
                     db.execSQL("INSERT INTO agent_text_chunks (owner_table, owner_id, field, chunk_index, content) VALUES (?, ?, ?, ?, ?)",
-                        arrayOf(table, owner, field, index++, chunk))
+                        arrayOf<Any>(table, owner, field, index++, chunk))
                     length += chunk.length
                 }
                 val reference = "${ChunkedTextDao.REFERENCE_PREFIX}$index:$length"

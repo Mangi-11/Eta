@@ -122,6 +122,6 @@ internal object AssistantRoleHelper {
         runCatching {
             val packageManager = context.packageManager
             val appInfo = packageManager.getApplicationInfo(packageName, 0)
-            packageManager.getApplicationLabel(appInfo)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+            packageManager.getApplicationLabel(appInfo).toString().trim().takeIf { it.isNotEmpty() }
         }.getOrNull()
 }

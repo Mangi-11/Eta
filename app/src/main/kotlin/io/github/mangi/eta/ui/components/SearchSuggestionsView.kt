@@ -80,7 +80,6 @@ internal class SearchSuggestionsWebView(
             allowFileAccess = false
             allowContentAccess = false
             domStorageEnabled = false
-            databaseEnabled = false
             cacheMode = WebSettings.LOAD_NO_CACHE
             blockNetworkLoads = true
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW

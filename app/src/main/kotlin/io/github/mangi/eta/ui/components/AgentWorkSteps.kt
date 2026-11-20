@@ -44,12 +44,9 @@ internal fun List<AgentChatMessageUi>.toWorkSteps(): List<AgentWorkStep> = build
     }
 
     this@toWorkSteps.forEach { message ->
-        val groupable = message is ToolActivityMessageUi && message.toolName !in UNGROUPED_TOOLS
-        if (groupable && run.isNotEmpty() && run.first().toolName != (message as ToolActivityMessageUi).toolName) {
-            flushRun()
-        }
-        if (groupable) {
-            run += message as ToolActivityMessageUi
+        if (message is ToolActivityMessageUi && message.toolName !in UNGROUPED_TOOLS) {
+            if (run.isNotEmpty() && run.first().toolName != message.toolName) flushRun()
+            run += message
         } else {
             flushRun()
             add(AgentWorkStep.Single(message))
