@@ -2,6 +2,8 @@ package io.github.mangi.eta.agent.voice
 
 import android.app.Application
 import android.os.Looper
+import io.github.mangi.eta.R
+import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.AsrProvider
 import io.github.mangi.eta.data.model.MimoAsrConfig
 import io.github.mangi.eta.data.model.MimoAsrLanguage
@@ -41,8 +43,10 @@ class FileSpeechLifecycleTest {
     private lateinit var controller: SpeechInputController
 
     @Before fun setup() {
+        val context = RuntimeEnvironment.getApplication()
+        AppStrings.init(context)
         controller = SpeechInputController(
-            context = RuntimeEnvironment.getApplication(),
+            context = context,
             scope = scope,
             automaticEndpoint = true,
             createRecorder = { FakeCapture().also(captures::add) },
@@ -65,6 +69,7 @@ class FileSpeechLifecycleTest {
         controller.cancel()
         scope.cancel()
         idle()
+        AppStrings.resetForTest()
     }
 
     @Test fun mimoWaitsForFinishThenTranscribesRecordedWavWithItsOwnConfiguration() {
@@ -112,7 +117,10 @@ class FileSpeechLifecycleTest {
         idle()
         assertTrue(results.isEmpty())
         assertFalse(controller.state.value.active)
-        assertEquals("没有识别到语音，请重试", controller.state.value.error)
+        assertEquals(
+            RuntimeEnvironment.getApplication().getString(R.string.voice_i18n_no_speech_recognized),
+            controller.state.value.error,
+        )
         assertTrue(captures.single().canceled)
     }
 
