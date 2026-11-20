@@ -10,10 +10,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.BroadcastFrameClock
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.ComposeView
@@ -436,7 +438,7 @@ class EtaVoicePanelTouchTest {
                         EtaVoicePanel(
                             speechLevel = { 0f },
                             state = state.value,
-                            input = "",
+                            input = remember { TextFieldState() },
                             speech = speech.value,
                             recognitionEnabled = this.recognitionEnabled.value,
                             entranceComplete = entranceComplete.value,
@@ -461,7 +463,7 @@ class EtaVoicePanelTouchTest {
                                 state.value.messages.isNotEmpty(),
                             handoffRunning = false,
                             exitRequested = false,
-                            onInputChange = {},
+                            onInputEdited = {},
                             onSuggestionClick = {},
                             onSubmit = {},
                             onStop = {},

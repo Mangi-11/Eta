@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.PhotoLibrary
@@ -22,10 +23,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,8 +36,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.itos.coui.layout.CouiPageDefaults
@@ -61,6 +60,7 @@ import io.github.mangi.eta.data.model.XaiImageConfig
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.LocalChatImagePreviewer
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.MiuixSecureTextField
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.StatusWarning
@@ -76,6 +76,7 @@ import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.rememberChatImageBitmap
+import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -99,7 +100,6 @@ internal fun ImageGenSettingsScreen(
     val scope = rememberCoroutineScope()
     val store = remember { ImageGenSettingsStore(context, scope) }
     val previewer = LocalChatImagePreviewer.current
-    var apiKeyVisible by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         store.refreshGalleryStats()
@@ -110,6 +110,7 @@ internal fun ImageGenSettingsScreen(
 
     val settings = store.settings
     val backend = settings.backend
+    var apiKeyVisible by remember(backend) { mutableStateOf(false) }
     val backendList = ImageGenBackend.entries
     val ratioList = ImageGenAspectRatio.entries
     val presets = ImageGenModelPresets.forBackend(backend)
@@ -226,6 +227,9 @@ internal fun ImageGenSettingsScreen(
             },
         )
     }
+
+    val modelField = key(backend) { rememberDraftTextFieldState(currentModel, onModelChange) }
+    val apiKeyField = key(backend) { rememberDraftTextFieldState(currentApiKey, onApiKeyChange) }
 
     val presetLabels = presets.map { preset ->
         val label = preset.labelRes?.let { stringResource(it) } ?: preset.rawLabel
@@ -350,8 +354,7 @@ internal fun ImageGenSettingsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         CouiTextField(
-                            value = currentModel,
-                            onValueChange = onModelChange,
+                            state = modelField,
                             label = stringResource(
                                 if (backend == ImageGenBackend.DOUBAO) {
                                     R.string.imagegen_field_model_or_endpoint_id
@@ -383,8 +386,9 @@ internal fun ImageGenSettingsScreen(
                                         },
                                     )
                                     CouiTextField(
-                                        value = settings.gemini.baseUrl,
-                                        onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(baseUrl = it))) },
+                                        state = rememberDraftTextFieldState(settings.gemini.baseUrl) {
+                                            store.edit(settings.copy(gemini = settings.gemini.copy(baseUrl = it)))
+                                        },
                                         label = stringResource(R.string.imagegen_field_base_url_optional),
                                         placeholder = if (GeminiEndpointMode.normalize(settings.gemini.endpointMode) == GeminiEndpointMode.VERTEX_AI) {
                                             GeminiProviderSetting.DEFAULT_VERTEX_BASE_URL
@@ -395,15 +399,17 @@ internal fun ImageGenSettingsScreen(
                                     )
                                     if (GeminiEndpointMode.normalize(settings.gemini.endpointMode) == GeminiEndpointMode.VERTEX_AI) {
                                         CouiTextField(
-                                            value = settings.gemini.vertexProject,
-                                            onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(vertexProject = it))) },
+                                            state = rememberDraftTextFieldState(settings.gemini.vertexProject) {
+                                                store.edit(settings.copy(gemini = settings.gemini.copy(vertexProject = it)))
+                                            },
                                             label = stringResource(R.string.imagegen_field_vertex_project),
                                             placeholder = stringResource(R.string.imagegen_field_vertex_project_placeholder),
                                             singleLine = true,
                                         )
                                         CouiTextField(
-                                            value = settings.gemini.vertexLocation,
-                                            onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(vertexLocation = it))) },
+                                            state = rememberDraftTextFieldState(settings.gemini.vertexLocation) {
+                                                store.edit(settings.copy(gemini = settings.gemini.copy(vertexLocation = it)))
+                                            },
                                             label = stringResource(R.string.imagegen_field_vertex_location),
                                             placeholder = "global",
                                             singleLine = true,
@@ -413,8 +419,9 @@ internal fun ImageGenSettingsScreen(
 
                                 ImageGenBackend.OPENAI_COMPATIBLE -> {
                                     CouiTextField(
-                                        value = settings.openAi.baseUrl,
-                                        onValueChange = { store.edit(settings.copy(openAi = settings.openAi.copy(baseUrl = it))) },
+                                        state = rememberDraftTextFieldState(settings.openAi.baseUrl) {
+                                            store.edit(settings.copy(openAi = settings.openAi.copy(baseUrl = it)))
+                                        },
                                         label = stringResource(R.string.imagegen_field_openai_base_url),
                                         placeholder = OpenAiImageConfig.DEFAULT_BASE_URL,
                                         singleLine = true,
@@ -423,8 +430,9 @@ internal fun ImageGenSettingsScreen(
 
                                 ImageGenBackend.XAI -> {
                                     CouiTextField(
-                                        value = settings.xai.baseUrl,
-                                        onValueChange = { store.edit(settings.copy(xai = settings.xai.copy(baseUrl = it))) },
+                                        state = rememberDraftTextFieldState(settings.xai.baseUrl) {
+                                            store.edit(settings.copy(xai = settings.xai.copy(baseUrl = it)))
+                                        },
                                         label = stringResource(R.string.imagegen_field_xai_base_url),
                                         placeholder = XaiImageConfig.DEFAULT_BASE_URL,
                                         singleLine = true,
@@ -433,8 +441,9 @@ internal fun ImageGenSettingsScreen(
 
                                 ImageGenBackend.DOUBAO -> {
                                     CouiTextField(
-                                        value = settings.doubao.baseUrl,
-                                        onValueChange = { store.edit(settings.copy(doubao = settings.doubao.copy(baseUrl = it))) },
+                                        state = rememberDraftTextFieldState(settings.doubao.baseUrl) {
+                                            store.edit(settings.copy(doubao = settings.doubao.copy(baseUrl = it)))
+                                        },
                                         label = stringResource(R.string.imagegen_field_doubao_base_url),
                                         placeholder = DoubaoImageConfig.DEFAULT_BASE_URL,
                                         singleLine = true,
@@ -456,8 +465,9 @@ internal fun ImageGenSettingsScreen(
                                         },
                                     )
                                     CouiTextField(
-                                        value = settings.qwen.baseUrl,
-                                        onValueChange = { store.edit(settings.copy(qwen = settings.qwen.copy(baseUrl = it))) },
+                                        state = rememberDraftTextFieldState(settings.qwen.baseUrl) {
+                                            store.edit(settings.copy(qwen = settings.qwen.copy(baseUrl = it)))
+                                        },
                                         label = stringResource(R.string.imagegen_field_qwen_base_url),
                                         placeholder = settings.qwen.defaultEndpoint(),
                                         singleLine = true,
@@ -466,8 +476,9 @@ internal fun ImageGenSettingsScreen(
 
                                 ImageGenBackend.SILICONFLOW -> {
                                     CouiTextField(
-                                        value = settings.siliconFlow.baseUrl,
-                                        onValueChange = { store.edit(settings.copy(siliconFlow = settings.siliconFlow.copy(baseUrl = it))) },
+                                        state = rememberDraftTextFieldState(settings.siliconFlow.baseUrl) {
+                                            store.edit(settings.copy(siliconFlow = settings.siliconFlow.copy(baseUrl = it)))
+                                        },
                                         label = stringResource(R.string.imagegen_field_siliconflow_base_url),
                                         placeholder = SiliconFlowImageConfig.DEFAULT_BASE_URL,
                                         singleLine = true,
@@ -476,12 +487,11 @@ internal fun ImageGenSettingsScreen(
                             }
 
                             CouiTextField(
-                                value = currentApiKey,
-                                onValueChange = onApiKeyChange,
+                                state = apiKeyField,
                                 label = stringResource(R.string.imagegen_field_api_key),
                                 placeholder = "sk-... / AIza...",
                                 singleLine = true,
-                                visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                secretVisible = apiKeyVisible,
                                 trailingIcon = {
                                     Box(
                                         modifier = Modifier
@@ -728,8 +738,8 @@ internal fun ImageGenSettingsScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             TextField(
-                                value = currentModel,
-                                onValueChange = onModelChange,
+                                state = modelField,
+                                lineLimits = TextFieldLineLimits.SingleLine,
                                 label = stringResource(
                                     if (backend == ImageGenBackend.DOUBAO) {
                                         R.string.imagegen_field_model_or_endpoint_id
@@ -737,7 +747,6 @@ internal fun ImageGenSettingsScreen(
                                         R.string.imagegen_field_model_id
                                     },
                                 ),
-                                singleLine = true,
                             )
 
                             if (!usingLinkedProvider) {
@@ -760,51 +769,57 @@ internal fun ImageGenSettingsScreen(
                                             backdrop = currentGlassOverlayBackdrop(),
                                         )
                                         TextField(
-                                            value = settings.gemini.baseUrl,
-                                            onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(baseUrl = it))) },
+                                            state = rememberDraftTextFieldState(settings.gemini.baseUrl) {
+                                                store.edit(settings.copy(gemini = settings.gemini.copy(baseUrl = it)))
+                                            },
+                                            lineLimits = TextFieldLineLimits.SingleLine,
                                             label = stringResource(R.string.imagegen_field_base_url_optional),
-                                            singleLine = true,
                                         )
                                         if (GeminiEndpointMode.normalize(settings.gemini.endpointMode) == GeminiEndpointMode.VERTEX_AI) {
                                             TextField(
-                                                value = settings.gemini.vertexProject,
-                                                onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(vertexProject = it))) },
+                                                state = rememberDraftTextFieldState(settings.gemini.vertexProject) {
+                                                    store.edit(settings.copy(gemini = settings.gemini.copy(vertexProject = it)))
+                                                },
+                                                lineLimits = TextFieldLineLimits.SingleLine,
                                                 label = stringResource(R.string.imagegen_field_vertex_project),
-                                                singleLine = true,
                                             )
                                             TextField(
-                                                value = settings.gemini.vertexLocation,
-                                                onValueChange = { store.edit(settings.copy(gemini = settings.gemini.copy(vertexLocation = it))) },
+                                                state = rememberDraftTextFieldState(settings.gemini.vertexLocation) {
+                                                    store.edit(settings.copy(gemini = settings.gemini.copy(vertexLocation = it)))
+                                                },
+                                                lineLimits = TextFieldLineLimits.SingleLine,
                                                 label = stringResource(R.string.imagegen_field_vertex_location_default),
-                                                singleLine = true,
                                             )
                                         }
                                     }
 
                                     ImageGenBackend.OPENAI_COMPATIBLE -> {
                                         TextField(
-                                            value = settings.openAi.baseUrl,
-                                            onValueChange = { store.edit(settings.copy(openAi = settings.openAi.copy(baseUrl = it))) },
+                                            state = rememberDraftTextFieldState(settings.openAi.baseUrl) {
+                                                store.edit(settings.copy(openAi = settings.openAi.copy(baseUrl = it)))
+                                            },
+                                            lineLimits = TextFieldLineLimits.SingleLine,
                                             label = stringResource(R.string.imagegen_field_openai_base_url),
-                                            singleLine = true,
                                         )
                                     }
 
                                     ImageGenBackend.XAI -> {
                                         TextField(
-                                            value = settings.xai.baseUrl,
-                                            onValueChange = { store.edit(settings.copy(xai = settings.xai.copy(baseUrl = it))) },
+                                            state = rememberDraftTextFieldState(settings.xai.baseUrl) {
+                                                store.edit(settings.copy(xai = settings.xai.copy(baseUrl = it)))
+                                            },
+                                            lineLimits = TextFieldLineLimits.SingleLine,
                                             label = stringResource(R.string.imagegen_field_xai_base_url),
-                                            singleLine = true,
                                         )
                                     }
 
                                     ImageGenBackend.DOUBAO -> {
                                         TextField(
-                                            value = settings.doubao.baseUrl,
-                                            onValueChange = { store.edit(settings.copy(doubao = settings.doubao.copy(baseUrl = it))) },
+                                            state = rememberDraftTextFieldState(settings.doubao.baseUrl) {
+                                                store.edit(settings.copy(doubao = settings.doubao.copy(baseUrl = it)))
+                                            },
+                                            lineLimits = TextFieldLineLimits.SingleLine,
                                             label = stringResource(R.string.imagegen_field_doubao_base_url),
-                                            singleLine = true,
                                         )
                                     }
 
@@ -824,29 +839,29 @@ internal fun ImageGenSettingsScreen(
                                             backdrop = currentGlassOverlayBackdrop(),
                                         )
                                         TextField(
-                                            value = settings.qwen.baseUrl,
-                                            onValueChange = { store.edit(settings.copy(qwen = settings.qwen.copy(baseUrl = it))) },
+                                            state = rememberDraftTextFieldState(settings.qwen.baseUrl) {
+                                                store.edit(settings.copy(qwen = settings.qwen.copy(baseUrl = it)))
+                                            },
+                                            lineLimits = TextFieldLineLimits.SingleLine,
                                             label = stringResource(R.string.imagegen_field_qwen_base_url),
-                                            singleLine = true,
                                         )
                                     }
 
                                     ImageGenBackend.SILICONFLOW -> {
                                         TextField(
-                                            value = settings.siliconFlow.baseUrl,
-                                            onValueChange = { store.edit(settings.copy(siliconFlow = settings.siliconFlow.copy(baseUrl = it))) },
+                                            state = rememberDraftTextFieldState(settings.siliconFlow.baseUrl) {
+                                                store.edit(settings.copy(siliconFlow = settings.siliconFlow.copy(baseUrl = it)))
+                                            },
+                                            lineLimits = TextFieldLineLimits.SingleLine,
                                             label = stringResource(R.string.imagegen_field_siliconflow_base_url),
-                                            singleLine = true,
                                         )
                                     }
                                 }
 
-                                TextField(
-                                    value = currentApiKey,
-                                    onValueChange = onApiKeyChange,
+                                MiuixSecureTextField(
+                                    state = apiKeyField,
                                     label = stringResource(R.string.imagegen_field_api_key),
-                                    singleLine = true,
-                                    visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                    visible = apiKeyVisible,
                                     trailingIcon = {
                                         IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
                                             Icon(

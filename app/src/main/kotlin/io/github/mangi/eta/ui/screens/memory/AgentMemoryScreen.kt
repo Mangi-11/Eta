@@ -70,6 +70,7 @@ import io.github.mangi.eta.ui.components.coui.CouiScaffold
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
 import io.github.mangi.eta.ui.markdown.LazyStaticMarkdown
 import io.github.mangi.eta.ui.markdown.MarkdownTone
@@ -496,8 +497,7 @@ private fun MemoryEditor(
             )
         }
         BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+            state = rememberDraftTextFieldState(value, onValueChange),
             enabled = enabled,
             textStyle = MemoryTextStyle().copy(color = colors.onSurface),
             cursorBrush = SolidColor(colors.primary),

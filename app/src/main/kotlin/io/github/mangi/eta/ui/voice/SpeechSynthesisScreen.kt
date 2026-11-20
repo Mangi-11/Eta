@@ -2,6 +2,8 @@ package io.github.mangi.eta.ui.voice
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.maxLengthReject
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -22,6 +24,7 @@ import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.SettingsTextField
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
@@ -154,16 +157,15 @@ private fun SpeechPreviewSection(store: SpeechSettingsStore) {
     Column {
         SpeechGroupCard(title = stringResource(R.string.speech_preview_voice)) {
             SpeechFieldColumn {
-                SpeechField(
+                SettingsTextField(
                     label = stringResource(R.string.speech_preview_text),
                     value = text,
                     singleLine = false,
                     enabled = !store.saving,
+                    inputTransformation = InputTransformation.maxLengthReject(500),
                     onChange = {
-                        if (it.length <= 500) {
-                            store.playback.stop()
-                            text = it
-                        }
+                        store.playback.stop()
+                        text = it
                     },
                 )
             }

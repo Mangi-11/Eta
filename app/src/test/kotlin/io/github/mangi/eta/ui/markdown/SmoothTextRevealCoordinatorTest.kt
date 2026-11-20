@@ -5,6 +5,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.createFontFamilyResolver
+import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -28,10 +29,12 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class SmoothTextRevealCoordinatorTest {
     private val textMeasurer by lazy {
+        val context = RuntimeEnvironment.getApplication()
         TextMeasurer(
-            defaultFontFamilyResolver = createFontFamilyResolver(RuntimeEnvironment.getApplication()),
+            defaultFontFamilyResolver = createFontFamilyResolver(context),
             defaultDensity = Density(1f),
             defaultLayoutDirection = LayoutDirection.Ltr,
+            defaultLocaleList = LocaleList(context.resources.configuration.locales.toLanguageTags()),
         )
     }
 

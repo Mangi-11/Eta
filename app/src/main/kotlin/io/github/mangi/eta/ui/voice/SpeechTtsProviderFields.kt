@@ -10,6 +10,7 @@ import io.github.mangi.eta.data.model.MiniMaxTtsModel
 import io.github.mangi.eta.data.model.SpeechCredentialField
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.SettingsTextField
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
@@ -143,7 +144,7 @@ internal fun SpeechDeliveryFields(store: SpeechSettingsStore) {
             val settings = store.settings
             val mimo = settings.tts == TtsProvider.MIMO
             SpeechFieldColumn {
-                SpeechField(
+                SettingsTextField(
                     label = stringResource(R.string.speech_style),
                     value = if (mimo) settings.mimoTts.style else settings.geminiTts.style,
                     singleLine = false,

@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -78,6 +79,7 @@ import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiSegmentedTabs
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
 import io.github.mangi.eta.ui.navigation.NewProviderType
 import kotlinx.coroutines.CancellationException
@@ -565,8 +567,7 @@ private fun ProviderConfigTab(
                             .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 12.dp),
                     ) {
                         CouiTextField(
-                            value = draft.systemPrompt,
-                            onValueChange = { onDraftChange(draft.copy(systemPrompt = it)) },
+                            state = rememberDraftTextFieldState(draft.systemPrompt) { onDraftChange(draft.copy(systemPrompt = it)) },
                             placeholder = stringResource(R.string.ui_leave_blank_to_use_the_default_mobile_agent_prompt_w_21e7c8),
                             singleLine = false,
                             minLines = 4,
@@ -576,12 +577,10 @@ private fun ProviderConfigTab(
             } else {
                 SmallTitle(text = stringResource(R.string.ui_system_prompt_word_193981))
                 TextField(
-                    value = draft.systemPrompt,
-                    onValueChange = { onDraftChange(draft.copy(systemPrompt = it)) },
+                    state = rememberDraftTextFieldState(draft.systemPrompt) { onDraftChange(draft.copy(systemPrompt = it)) },
+                    lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4),
                     label = stringResource(R.string.ui_leave_blank_to_use_the_default_mobile_agent_prompt_w_21e7c8),
                     useLabelAsPlaceholder = true,
-                    singleLine = false,
-                    minLines = 4,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp)

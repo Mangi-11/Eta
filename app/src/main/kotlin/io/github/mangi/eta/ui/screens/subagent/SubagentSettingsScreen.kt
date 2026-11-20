@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.JoinLeft
@@ -92,16 +94,22 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private data class CustomSubagentDraft(
+private class CustomSubagentDraft(
     val originalName: String? = null,
-    val name: String = "",
-    val description: String = "",
-    val whenToUse: String = "",
-    val toolsText: String = "",
+    name: String = "",
+    description: String = "",
+    whenToUse: String = "",
+    toolsText: String = "",
     val disallowedTools: List<String> = emptyList(),
     val overrideBuiltin: Boolean = false,
-    val prompt: String = "",
-)
+    prompt: String = "",
+) {
+    val name = TextFieldState(name)
+    val description = TextFieldState(description)
+    val whenToUse = TextFieldState(whenToUse)
+    val toolsText = TextFieldState(toolsText)
+    val prompt = TextFieldState(prompt)
+}
 
 @Composable
 internal fun SubagentSettingsScreen(
@@ -267,14 +275,15 @@ internal fun SubagentSettingsScreen(
         }
     }
     val onSaveDraft: (CustomSubagentDraft) -> Unit = { activeDraft ->
+        val name = activeDraft.name.text.toString()
+        val description = activeDraft.description.text.toString()
+        val whenToUse = activeDraft.whenToUse.text.toString()
+        val prompt = activeDraft.prompt.text.toString()
+        val tools = activeDraft.toolsText.text.split(",").map { it.trim() }.filter { it.isNotEmpty() }
         scope.launch {
-            val tools = activeDraft.toolsText
-                .split(",")
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val normalizedNewName = activeDraft.name.trim().lowercase()
+                    val normalizedNewName = name.trim().lowercase()
                     val oldName = activeDraft.originalName
                     if (
                         normalizedNewName != oldName &&
@@ -285,13 +294,13 @@ internal fun SubagentSettingsScreen(
                         )
                     }
                     val saved = SubagentProfileCatalog.saveCustomProfile(
-                        name = activeDraft.name,
-                        description = activeDraft.description,
-                        whenToUse = activeDraft.whenToUse,
+                        name = name,
+                        description = description,
+                        whenToUse = whenToUse,
                         tools = tools,
                         disallowedTools = activeDraft.disallowedTools,
                         overrideBuiltin = activeDraft.overrideBuiltin,
-                        prompt = activeDraft.prompt,
+                        prompt = prompt,
                     )
                     if (oldName != null && oldName != saved.name) {
                         SubagentProfileCatalog.deleteCustomProfile(oldName)
@@ -408,32 +417,27 @@ internal fun SubagentSettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 CouiTextField(
-                                    value = activeDraft.name,
-                                    onValueChange = { editorDraft = activeDraft.copy(name = it) },
+                                    state = activeDraft.name,
                                     label = stringResource(R.string.subagent_settings_field_name),
                                     singleLine = true,
                                 )
                                 CouiTextField(
-                                    value = activeDraft.description,
-                                    onValueChange = { editorDraft = activeDraft.copy(description = it) },
+                                    state = activeDraft.description,
                                     label = stringResource(R.string.subagent_settings_field_description),
                                     singleLine = true,
                                 )
                                 CouiTextField(
-                                    value = activeDraft.whenToUse,
-                                    onValueChange = { editorDraft = activeDraft.copy(whenToUse = it) },
+                                    state = activeDraft.whenToUse,
                                     label = stringResource(R.string.subagent_settings_field_when_to_use),
                                     singleLine = true,
                                 )
                                 CouiTextField(
-                                    value = activeDraft.toolsText,
-                                    onValueChange = { editorDraft = activeDraft.copy(toolsText = it) },
+                                    state = activeDraft.toolsText,
                                     label = stringResource(R.string.subagent_settings_field_tools),
                                     singleLine = true,
                                 )
                                 CouiTextField(
-                                    value = activeDraft.prompt,
-                                    onValueChange = { editorDraft = activeDraft.copy(prompt = it) },
+                                    state = activeDraft.prompt,
                                     label = stringResource(R.string.subagent_settings_field_prompt),
                                     singleLine = false,
                                     minLines = 4,
@@ -619,44 +623,38 @@ internal fun SubagentSettingsScreen(
                                         .verticalScroll(rememberScrollState()),
                                 ) {
                                     TextField(
-                                        value = activeDraft.name,
-                                        onValueChange = { editorDraft = activeDraft.copy(name = it) },
+                                        state = activeDraft.name,
+                                        lineLimits = TextFieldLineLimits.SingleLine,
                                         label = stringResource(R.string.subagent_settings_field_name),
                                         colors = glassOverlayTextFieldColors(),
-                                        singleLine = true,
                                         modifier = Modifier.fillMaxWidth(),
                                     )
                                     TextField(
-                                        value = activeDraft.description,
-                                        onValueChange = { editorDraft = activeDraft.copy(description = it) },
+                                        state = activeDraft.description,
+                                        lineLimits = TextFieldLineLimits.SingleLine,
                                         label = stringResource(R.string.subagent_settings_field_description),
                                         colors = glassOverlayTextFieldColors(),
-                                        singleLine = true,
                                         modifier = Modifier.fillMaxWidth(),
                                     )
                                     TextField(
-                                        value = activeDraft.whenToUse,
-                                        onValueChange = { editorDraft = activeDraft.copy(whenToUse = it) },
+                                        state = activeDraft.whenToUse,
+                                        lineLimits = TextFieldLineLimits.SingleLine,
                                         label = stringResource(R.string.subagent_settings_field_when_to_use),
                                         colors = glassOverlayTextFieldColors(),
-                                        singleLine = true,
                                         modifier = Modifier.fillMaxWidth(),
                                     )
                                     TextField(
-                                        value = activeDraft.toolsText,
-                                        onValueChange = { editorDraft = activeDraft.copy(toolsText = it) },
+                                        state = activeDraft.toolsText,
+                                        lineLimits = TextFieldLineLimits.SingleLine,
                                         label = stringResource(R.string.subagent_settings_field_tools),
                                         colors = glassOverlayTextFieldColors(),
-                                        singleLine = true,
                                         modifier = Modifier.fillMaxWidth(),
                                     )
                                     TextField(
-                                        value = activeDraft.prompt,
-                                        onValueChange = { editorDraft = activeDraft.copy(prompt = it) },
+                                        state = activeDraft.prompt,
+                                        lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4, maxHeightInLines = 8),
                                         label = stringResource(R.string.subagent_settings_field_prompt),
                                         colors = glassOverlayTextFieldColors(),
-                                        minLines = 4,
-                                        maxLines = 8,
                                         modifier = Modifier.fillMaxWidth(),
                                     )
                                     editorError?.let { err ->

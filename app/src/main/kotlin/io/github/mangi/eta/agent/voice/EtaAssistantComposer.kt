@@ -33,8 +33,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -85,7 +86,7 @@ private val ComposerModeEasing = CubicBezierEasing(0.20f, 0f, 0f, 1f)
 @Composable
 internal fun AssistantComposer(
     state: EtaVoiceUiState,
-    input: String,
+    input: TextFieldState,
     speech: EtaSpeechState,
     speechLevel: () -> Float,
     recognitionEnabled: Boolean,
@@ -98,7 +99,7 @@ internal fun AssistantComposer(
     onKeyboard: () -> Unit,
     keyboardVisible: Boolean,
     colors: EtaVoicePanelColors,
-    onInputChange: (String) -> Unit,
+    onInputEdited: () -> Unit,
     onSubmit: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
@@ -146,7 +147,7 @@ internal fun AssistantComposer(
                     onCancelSpeech = onCancelSpeech,
                     onFinishSpeech = onFinishSpeech,
                     colors = colors,
-                    onInputChange = onInputChange,
+                    onInputEdited = onInputEdited,
                     onSubmit = onSubmit,
                     onStop = onStop,
                     modifier = Modifier.fillMaxWidth(),
@@ -159,7 +160,7 @@ internal fun AssistantComposer(
 @Composable
 private fun AssistantInputBar(
     state: EtaVoiceUiState,
-    input: String,
+    input: TextFieldState,
     speech: EtaSpeechState,
     speechLevel: () -> Float,
     recognitionEnabled: Boolean,
@@ -170,12 +171,19 @@ private fun AssistantInputBar(
     onCancelSpeech: () -> Unit,
     onFinishSpeech: () -> Unit,
     colors: EtaVoicePanelColors,
-    onInputChange: (String) -> Unit,
+    onInputEdited: () -> Unit,
     onSubmit: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val canSubmit = input.isNotBlank() && state.phase != EtaVoicePhase.PROCESSING
+    if (!speech.active && speech.hasFeedback) {
+        LaunchedEffect(input) {
+            val previous = input.text.toString()
+            snapshotFlow { input.text.toString() }.first { it != previous }
+            onInputEdited()
+        }
+    }
+    val canSubmit = input.text.isNotBlank() && state.phase != EtaVoicePhase.PROCESSING
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val windowInfo = LocalWindowInfo.current
@@ -268,8 +276,8 @@ private fun AssistantInputBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BasicTextField(
-            value = input,
-            onValueChange = onInputChange,
+            state = input,
+            lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 4),
             modifier = Modifier
                 .weight(1f)
                 .padding(end = 8.dp, top = 9.dp, bottom = 9.dp)
@@ -286,12 +294,10 @@ private fun AssistantInputBar(
             ),
             cursorBrush = SolidColor(colors.accent),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { if (canSubmit) onSubmit() }),
-            maxLines = 4,
-            minLines = 1,
-            decorationBox = { innerTextField ->
+            onKeyboardAction = { if (canSubmit) onSubmit() },
+            decorator = { innerTextField ->
                 Box(contentAlignment = Alignment.CenterStart) {
-                    if (input.isEmpty()) {
+                    if (input.text.isEmpty()) {
                         Text(
                             text = stringResource(
                                 if (speech.holdToTalk) R.string.voice_release_to_send else R.string.voice_input_hint,
@@ -438,7 +444,7 @@ private fun AssistantTrailingButton(
 private fun AssistantVoiceEntry(
     speech: EtaSpeechState,
     speechLevel: () -> Float,
-    input: String,
+    input: TextFieldState,
     colors: EtaVoicePanelColors,
     onKeyboard: () -> Unit,
     onFinishSpeech: () -> Unit,
@@ -460,7 +466,7 @@ private fun AssistantVoiceEntry(
         }
     }
 
-    val hasTranscript = input.isNotBlank()
+    val hasTranscript = input.text.isNotBlank()
     val statusLabel = stringResource(
         if (speech.phase == EtaSpeechPhase.RECOGNIZING) {
             R.string.voice_recognizing
@@ -515,7 +521,7 @@ private fun AssistantVoiceEntry(
                 Spacer(Modifier.width(8.dp))
                 if (hasTranscript) {
                     Text(
-                        text = input,
+                        text = input.text.toString(),
                         fontSize = 14.5.sp,
                         lineHeight = 20.sp,
                         fontWeight = FontWeight.Normal,

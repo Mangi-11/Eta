@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.maxLengthTrim
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -37,6 +41,7 @@ import io.github.mangi.eta.data.model.normalizeInterfaceScale
 import io.github.mangi.eta.data.repository.AppearanceSettingsRepository
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.DecimalDigits
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
@@ -67,7 +72,7 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
         mutableFloatStateOf(appearance.interfaceScale * 100f)
     }
     var showScaleDialog by remember { mutableStateOf(false) }
-    var scaleInput by remember { mutableStateOf("") }
+    val scaleInputState = remember { TextFieldState() }
 
     fun update(transform: (AppearanceSettings) -> AppearanceSettings) {
         coroutineScope.launch {
@@ -123,7 +128,7 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
         stringResource(R.string.appearance_accent_green),
         stringResource(R.string.appearance_accent_teal),
     )
-    val parsedScale = scaleInput.toIntOrNull()
+    val parsedScale = scaleInputState.text.toString().toIntOrNull()
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
@@ -186,7 +191,7 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                         onValueChangeFinished = { commitScale(scaleDraft) },
                         valueText = "${scaleDraft.roundToInt()}%",
                         onClick = {
-                            scaleInput = scaleDraft.roundToInt().toString()
+                            scaleInputState.setTextAndPlaceCursorAtEnd(scaleDraft.roundToInt().toString())
                             showScaleDialog = true
                         },
                     )
@@ -199,8 +204,8 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                 visible = showScaleDialog,
                 title = stringResource(R.string.appearance_interface_scale_dialog_title),
                 message = stringResource(R.string.appearance_interface_scale_dialog_summary),
-                value = scaleInput,
-                onValueChange = { value -> scaleInput = value.filter(Char::isDigit).take(3) },
+                state = scaleInputState,
+                inputTransformation = DecimalDigits.maxLengthTrim(3),
                 placeholder = stringResource(R.string.appearance_interface_scale_input_label),
                 confirmText = stringResource(R.string.action_confirm),
                 confirmEnabled = parsedScale != null && parsedScale in 80..110,
@@ -226,12 +231,12 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                     ) {
                         Column {
                             TextField(
-                                value = scaleInput,
-                                onValueChange = { value -> scaleInput = value.filter(Char::isDigit).take(3) },
+                                state = scaleInputState,
+                                lineLimits = TextFieldLineLimits.SingleLine,
+                                inputTransformation = DecimalDigits.maxLengthTrim(3),
                                 label = stringResource(R.string.appearance_interface_scale_input_label),
                                 colors = glassOverlayTextFieldColors(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 16.dp),
@@ -375,7 +380,7 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                             magnetThreshold = 0.01f,
                             hapticEffect = SliderDefaults.SliderHapticEffect.Step,
                             onClick = {
-                                scaleInput = scaleDraft.roundToInt().toString()
+                                scaleInputState.setTextAndPlaceCursorAtEnd(scaleDraft.roundToInt().toString())
                                 showScaleDialog = true
                             },
                             holdDownState = showScaleDialog,

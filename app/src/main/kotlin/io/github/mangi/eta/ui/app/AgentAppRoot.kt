@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -900,17 +902,16 @@ fun AgentAppRoot(
             }
 
             conversationRenameTarget?.let { conversation ->
-                var renameInput by remember(conversation.id) { mutableStateOf(conversation.title) }
+                val renameInputState = remember(conversation.id) { TextFieldState(conversation.title) }
                 CouiInputDialog(
                     visible = true,
                     title = stringResource(R.string.conversation_rename_title),
-                    value = renameInput,
-                    onValueChange = { renameInput = it },
+                    state = renameInputState,
                     placeholder = stringResource(R.string.conversation_rename_hint),
                     confirmText = stringResource(R.string.action_save),
-                    confirmEnabled = renameInput.isNotBlank(),
+                    confirmEnabled = renameInputState.text.isNotBlank(),
                     onConfirm = {
-                        agentState.renameConversation(conversation.id, renameInput)
+                        agentState.renameConversation(conversation.id, renameInputState.text.toString())
                         conversationRenameTarget = null
                     },
                     onDismissRequest = { conversationRenameTarget = null },
@@ -1017,8 +1018,8 @@ fun AgentAppRoot(
 
             var retainedRename by remember { mutableStateOf<ConversationSummaryUi?>(null) }
             conversationRenameTarget?.let { retainedRename = it }
-            var renameInput by remember(retainedRename?.id) {
-                mutableStateOf(retainedRename?.title.orEmpty())
+            val renameInputState = remember(retainedRename?.id) {
+                TextFieldState(retainedRename?.title.orEmpty())
             }
             GlassDialog(
                 show = conversationRenameTarget != null,
@@ -1029,20 +1030,19 @@ fun AgentAppRoot(
             ) {
                 Column {
                     TextField(
-                        value = renameInput,
-                        onValueChange = { renameInput = it },
+                        state = renameInputState,
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         label = stringResource(R.string.conversation_rename_hint),
                         colors = glassOverlayTextFieldColors(),
-                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     MiuixDialogActions(
                         confirmText = stringResource(R.string.action_save),
-                        confirmEnabled = renameInput.isNotBlank() && retainedRename != null,
+                        confirmEnabled = renameInputState.text.isNotBlank() && retainedRename != null,
                         onCancel = { conversationRenameTarget = null },
                         onConfirm = {
                             retainedRename?.let { conversation ->
-                                agentState.renameConversation(conversation.id, renameInput)
+                                agentState.renameConversation(conversation.id, renameInputState.text.toString())
                             }
                             conversationRenameTarget = null
                         },

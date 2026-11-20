@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,17 +29,17 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.itos.coui.layout.CouiPageDefaults
 import com.itos.coui.layout.Divider
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.MiuixSecureTextField
 import io.github.mangi.eta.ui.components.coui.CouiIcon
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -99,21 +101,23 @@ internal fun ProviderHeadersSection(
                 )
                 if (expanded) {
                     headers.forEach { row ->
-                        Divider()
-                        ProviderHeaderRow(
-                            row = row,
-                            onNameChange = { value ->
-                                onHeadersChange(headers.map {
-                                    if (it.id == row.id) it.copy(header = it.header.copy(name = value)) else it
-                                })
-                            },
-                            onValueChange = { value ->
-                                onHeadersChange(headers.map {
-                                    if (it.id == row.id) it.copy(header = it.header.copy(value = value)) else it
-                                })
-                            },
-                            onRemove = { onHeadersChange(headers.filterNot { it.id == row.id }) },
-                        )
+                        key(row.id) {
+                            Divider()
+                            ProviderHeaderRow(
+                                row = row,
+                                onNameChange = { value ->
+                                    onHeadersChange(headers.map {
+                                        if (it.id == row.id) it.copy(header = it.header.copy(name = value)) else it
+                                    })
+                                },
+                                onValueChange = { value ->
+                                    onHeadersChange(headers.map {
+                                        if (it.id == row.id) it.copy(header = it.header.copy(value = value)) else it
+                                    })
+                                },
+                                onRemove = { onHeadersChange(headers.filterNot { it.id == row.id }) },
+                            )
+                        }
                     }
                     Divider()
                     CouiPreference(
@@ -140,20 +144,22 @@ internal fun ProviderHeadersSection(
                 )
                 if (expanded) {
                     headers.forEach { row ->
-                        ProviderHeaderRow(
-                            row = row,
-                            onNameChange = { value ->
-                                onHeadersChange(headers.map {
-                                    if (it.id == row.id) it.copy(header = it.header.copy(name = value)) else it
-                                })
-                            },
-                            onValueChange = { value ->
-                                onHeadersChange(headers.map {
-                                    if (it.id == row.id) it.copy(header = it.header.copy(value = value)) else it
-                                })
-                            },
-                            onRemove = { onHeadersChange(headers.filterNot { it.id == row.id }) },
-                        )
+                        key(row.id) {
+                            ProviderHeaderRow(
+                                row = row,
+                                onNameChange = { value ->
+                                    onHeadersChange(headers.map {
+                                        if (it.id == row.id) it.copy(header = it.header.copy(name = value)) else it
+                                    })
+                                },
+                                onValueChange = { value ->
+                                    onHeadersChange(headers.map {
+                                        if (it.id == row.id) it.copy(header = it.header.copy(value = value)) else it
+                                    })
+                                },
+                                onRemove = { onHeadersChange(headers.filterNot { it.id == row.id }) },
+                            )
+                        }
                     }
                     BasicComponent(
                         title = addHeaderTitle,
@@ -181,6 +187,8 @@ private fun ProviderHeaderRow(
     onValueChange: (String) -> Unit,
     onRemove: () -> Unit,
 ) {
+    val nameState = rememberDraftTextFieldState(row.header.name, onNameChange)
+    val valueState = rememberDraftTextFieldState(row.header.value, onValueChange)
     var visible by remember(row.id) { mutableStateOf(false) }
     val nameLabel = stringResource(R.string.provider_i18n_header_name)
     val valueLabel = stringResource(R.string.provider_i18n_header_value)
@@ -196,17 +204,15 @@ private fun ProviderHeaderRow(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     CouiTextField(
-                        value = row.header.name,
-                        onValueChange = onNameChange,
+                        state = nameState,
                         label = nameLabel,
                         singleLine = true,
                     )
                     CouiTextField(
-                        value = row.header.value,
-                        onValueChange = onValueChange,
+                        state = valueState,
                         label = valueLabel,
                         singleLine = true,
-                        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+                        secretVisible = visible,
                         trailingIcon = {
                             Box(
                                 modifier = Modifier
@@ -252,18 +258,15 @@ private fun ProviderHeaderRow(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     TextField(
-                        value = row.header.name,
-                        onValueChange = onNameChange,
+                        state = nameState,
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         label = nameLabel,
-                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    TextField(
-                        value = row.header.value,
-                        onValueChange = onValueChange,
+                    MiuixSecureTextField(
+                        state = valueState,
                         label = valueLabel,
-                        singleLine = true,
-                        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+                        visible = visible,
                         trailingIcon = {
                             IconButton(onClick = { visible = !visible }) {
                                 Icon(

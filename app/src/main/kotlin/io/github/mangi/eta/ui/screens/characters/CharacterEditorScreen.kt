@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -34,6 +35,7 @@ import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
+import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -250,6 +252,7 @@ internal fun CharacterTextField(
     minLines: Int = 2,
     inGroup: Boolean = false,
 ) {
+    val fieldState = rememberDraftTextFieldState(value, onChange)
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
             val fieldContent: @Composable () -> Unit = {
@@ -259,8 +262,7 @@ internal fun CharacterTextField(
                         .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 8.dp),
                 ) {
                     CouiTextField(
-                        value = value,
-                        onValueChange = onChange,
+                        state = fieldState,
                         label = label,
                         enabled = enabled,
                         singleLine = singleLine,
@@ -279,14 +281,11 @@ internal fun CharacterTextField(
         }
         AppearanceUiStyle.MIUIX -> {
             TextField(
-                value = value,
-                onValueChange = onChange,
+                state = fieldState,
+                lineLimits = if (singleLine) TextFieldLineLimits.SingleLine else TextFieldLineLimits.MultiLine(minHeightInLines = minLines),
                 label = label,
                 useLabelAsPlaceholder = !singleLine,
                 enabled = enabled,
-                singleLine = singleLine,
-                minLines = if (singleLine) 1 else minLines,
-                maxLines = if (singleLine) 1 else Int.MAX_VALUE,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }

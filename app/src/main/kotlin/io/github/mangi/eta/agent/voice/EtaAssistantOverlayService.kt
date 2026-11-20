@@ -29,6 +29,9 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -144,7 +147,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
     private var hiddenForForegroundOperation = false
     private var handoffInProgress by mutableStateOf(false)
     private var handoffExitRequested by mutableStateOf(false)
-    private var inputText by mutableStateOf("")
+    private val inputText = TextFieldState()
     private var inputFocusRequestKey by mutableIntStateOf(-1)
     private var uiState by mutableStateOf(EtaVoiceUiState())
 
@@ -173,7 +176,9 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         scope.launch(Dispatchers.Main.immediate) {
             speechInput.state.collect { state ->
                 speechLevel = state.level
-                if (state.preview.isNotBlank()) inputText = state.preview
+                if (state.preview.isNotBlank() && state.preview != inputText.text.toString()) {
+                    inputText.setTextAndPlaceCursorAtEnd(state.preview)
+                }
                 speechState = EtaSpeechState(
                     phase = state.phase,
                     // 连接、聆听、识别中的阶段播报由语音条目与波形承担，反馈条只保留错误提示，
@@ -246,7 +251,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         entryEntranceComplete = false
         entryContentReady = false
         inputFocusRequestKey = -1
-        inputText = ""
+        inputText.clearText()
         uiState = EtaVoiceUiState()
         hiddenForForegroundOperation = false
         handoffInProgress = false
@@ -314,7 +319,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
             return
         }
         inputFocusRequestKey = -1
-        inputText = ""
+        inputText.clearText()
         updateSoftInput(visible = false)
         windowView?.let { view ->
             (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
@@ -390,8 +395,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                         onKeyboard = ::switchToKeyboard,
                         input = inputText,
                         inputFocusRequestKey = inputFocusRequestKey,
-                        onInputChange = {
-                            inputText = it
+                        onInputEdited = {
                             if (!speechState.active && speechState.hasFeedback) {
                                 speechState = EtaSpeechState()
                             }
@@ -489,7 +493,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
     }
 
     private fun submitInput() {
-        val prompt = inputText.trim()
+        val prompt = inputText.text.toString().trim()
         if (prompt.isBlank() || activeRunId != null) return
         submitPrompt(prompt)
     }
@@ -505,7 +509,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         speechState = EtaSpeechState()
         playback.stop()
         val capture = entryScreenContext
-        inputText = ""
+        inputText.clearText()
         activeRunId = UUID.randomUUID().toString()
         val runId = activeRunId ?: return
         uiState = uiState.copy(

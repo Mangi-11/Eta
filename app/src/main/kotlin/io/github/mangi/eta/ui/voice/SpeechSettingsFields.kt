@@ -1,6 +1,5 @@
 package io.github.mangi.eta.ui.voice
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,26 +9,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.itos.coui.layout.CouiPageDefaults
 import com.itos.coui.layout.Footer
 import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.AsrProvider
@@ -40,17 +30,12 @@ import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiIcon
-import io.github.mangi.eta.ui.components.coui.CouiTextField
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -143,80 +128,6 @@ internal fun SpeechFieldColumn(content: @Composable ColumnScope.() -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = content,
     )
-}
-
-@Composable
-internal fun SpeechField(
-    label: String,
-    value: String,
-    secret: Boolean = false,
-    singleLine: Boolean = true,
-    enabled: Boolean = true,
-    onChange: (String) -> Unit,
-) {
-    var visible by rememberSaveable(label) { mutableStateOf(false) }
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
-            CouiTextField(
-                value = value,
-                onValueChange = onChange,
-                label = label,
-                singleLine = singleLine,
-                maxLines = if (singleLine) 1 else Int.MAX_VALUE,
-                enabled = enabled,
-                visualTransformation = if (secret && !visible) PasswordVisualTransformation() else VisualTransformation.None,
-                trailingIcon = if (secret) {
-                    {
-                        Box(
-                            modifier = Modifier
-                                .padding(start = 8.dp)
-                                .size(28.dp)
-                                .clickable(role = Role.Button) { visible = !visible },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CouiIcon(
-                                imageVector = if (visible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                                contentDescription = stringResource(
-                                    if (visible) R.string.page_hide_bb0e7e else R.string.page_show_71b677,
-                                ),
-                                modifier = Modifier.size(20.dp),
-                                tint = colors.summary,
-                            )
-                        }
-                    }
-                } else {
-                    null
-                },
-            )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            TextField(
-                value = value,
-                onValueChange = onChange,
-                label = label,
-                singleLine = singleLine,
-                maxLines = if (singleLine) 1 else Int.MAX_VALUE,
-                enabled = enabled,
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = if (secret && !visible) PasswordVisualTransformation() else VisualTransformation.None,
-                trailingIcon = if (secret) {
-                    {
-                        IconButton(onClick = { visible = !visible }) {
-                            Icon(
-                                imageVector = if (visible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                                contentDescription = stringResource(
-                                    if (visible) R.string.page_hide_bb0e7e else R.string.page_show_71b677,
-                                ),
-                            )
-                        }
-                    }
-                } else {
-                    null
-                },
-            )
-        }
-    }
 }
 
 @Composable

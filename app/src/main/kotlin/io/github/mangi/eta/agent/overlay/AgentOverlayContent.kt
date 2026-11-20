@@ -37,6 +37,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -226,8 +228,7 @@ internal fun AgentOverlayGlow(
 
 @Composable
 internal fun OverlaySupplementInput(
-    value: String,
-    onValueChange: (String) -> Unit,
+    state: TextFieldState,
     onCancel: () -> Unit,
     onSend: () -> Unit,
 ) {
@@ -255,7 +256,7 @@ internal fun OverlaySupplementInput(
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             contentAlignment = Alignment.TopStart,
         ) {
-            if (value.isBlank()) {
+            if (state.text.isBlank()) {
                 Text(
                     text = stringResource(R.string.overlay_supplement_hint),
                     color = textColor.copy(alpha = 0.45f),
@@ -264,8 +265,8 @@ internal fun OverlaySupplementInput(
                 )
             }
             BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
+                state = state,
+                lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 4),
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester),
@@ -276,7 +277,6 @@ internal fun OverlaySupplementInput(
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                 cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
-                maxLines = 4,
             )
         }
 
@@ -296,7 +296,7 @@ internal fun OverlaySupplementInput(
                 CouiButton(
                     text = stringResource(R.string.overlay_send),
                     onClick = onSend,
-                    enabled = value.isNotBlank(),
+                    enabled = state.text.isNotBlank(),
                     role = CouiButtonRole.Primary,
                     minHeight = 32.dp,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -313,7 +313,7 @@ internal fun OverlaySupplementInput(
                 TextButton(
                     text = stringResource(R.string.overlay_send),
                     onClick = onSend,
-                    enabled = value.isNotBlank(),
+                    enabled = state.text.isNotBlank(),
                     minWidth = 44.dp,
                     minHeight = 32.dp,
                     insideMargin = PaddingValues(horizontal = 10.dp, vertical = 4.dp),

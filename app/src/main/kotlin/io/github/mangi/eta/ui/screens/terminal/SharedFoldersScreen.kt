@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
@@ -72,6 +74,7 @@ import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
+import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -480,17 +483,23 @@ private fun SharedFolderPickerBody(
     onConfirm: (sourcePath: String, name: String) -> Unit,
 ) {
     var path by remember { mutableStateOf("/sdcard") }
-    var pathInput by remember { mutableStateOf("/sdcard") }
+    val pathInputState = remember { TextFieldState("/sdcard") }
     var entries by remember { mutableStateOf<List<String>?>(null) }
     var browseError by remember { mutableStateOf<String?>(null) }
     var nameInput by remember { mutableStateOf("sdcard") }
     var nameTouched by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf<String?>(null) }
 
+    val nameState = rememberDraftTextFieldState(nameInput) {
+        nameInput = it
+        nameTouched = true
+        formError = null
+    }
+
     fun navigateTo(target: String) {
         val normalized = SharedFolderMounts.normalizeSourcePath(target) ?: "/"
         path = normalized
-        pathInput = normalized
+        pathInputState.setTextAndPlaceCursorAtEnd(normalized)
         browseError = null
         formError = null
         if (!nameTouched) nameInput = SharedFolderMounts.defaultName(normalized)
@@ -553,22 +562,20 @@ private fun SharedFolderPickerBody(
     val bodyContent: @Composable () -> Unit = {
         if (uiStyle == AppearanceUiStyle.COUI) {
             CouiTextField(
-                value = pathInput,
-                onValueChange = { pathInput = it },
+                state = pathInputState,
                 label = stringResource(R.string.shared_folders_path_label),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { navigateTo(pathInput) }),
+                onKeyboardAction = { navigateTo(pathInputState.text.toString()) },
             )
         } else {
             TextField(
-                value = pathInput,
-                onValueChange = { pathInput = it },
+                state = pathInputState,
+                lineLimits = TextFieldLineLimits.SingleLine,
                 label = stringResource(R.string.shared_folders_path_label),
                 colors = glassOverlayTextFieldColors(),
-                singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { navigateTo(pathInput) }),
+                onKeyboardAction = { navigateTo(pathInputState.text.toString()) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -629,27 +636,17 @@ private fun SharedFolderPickerBody(
         )
         if (uiStyle == AppearanceUiStyle.COUI) {
             CouiTextField(
-                value = nameInput,
-                onValueChange = {
-                    nameInput = it
-                    nameTouched = true
-                    formError = null
-                },
+                state = nameState,
                 label = stringResource(R.string.shared_folders_name_label),
                 singleLine = true,
                 modifier = Modifier.padding(top = 8.dp),
             )
         } else {
             TextField(
-                value = nameInput,
-                onValueChange = {
-                    nameInput = it
-                    nameTouched = true
-                    formError = null
-                },
+                lineLimits = TextFieldLineLimits.SingleLine,
+                state = nameState,
                 label = stringResource(R.string.shared_folders_name_label),
                 colors = glassOverlayTextFieldColors(),
-                singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),

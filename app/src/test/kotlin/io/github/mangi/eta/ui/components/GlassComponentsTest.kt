@@ -5,8 +5,13 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.maxLengthTrim
 import androidx.compose.runtime.BroadcastFrameClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Recomposer
@@ -17,10 +22,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.InterceptPlatformTextInput
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceSettings
@@ -28,6 +36,7 @@ import io.github.mangi.eta.data.model.AppearanceThemeMode
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.AppearanceSettingsScreen
 import io.github.mangi.eta.ui.app.AgentAppTheme
+import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.model.AgentToolsUiState
 import io.github.mangi.eta.ui.model.ToolGroupUi
 import io.github.mangi.eta.ui.model.ToolItemUi
@@ -36,6 +45,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
@@ -387,6 +397,102 @@ class GlassComponentsTest {
             ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
             controller.pause().stop().destroy()
             ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
+        }
+    }
+
+    @Test
+    fun draftEchoPreservesImeCompositionAndExternalReplacementDoesNotEmitAnEdit() {
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
+        val activity = controller.get()
+        val frameClock = BroadcastFrameClock()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + frameClock)
+        val recomposer = Recomposer(scope.coroutineContext)
+        var draft by mutableStateOf("14")
+        val edits = mutableListOf<String>()
+        lateinit var connection: InputConnection
+        lateinit var editor: TextFieldState
+
+        try {
+            mount(activity, scope, recomposer) {
+                editor = rememberDraftTextFieldState(draft) {
+                    edits += it
+                    draft = it
+                }
+                InterceptPlatformTextInput(interceptor = { request, _ ->
+                    connection = request.createInputConnection(EditorInfo())
+                    awaitCancellation()
+                }) {
+                    BasicTextField(state = editor, inputTransformation = DecimalDigits.maxLengthTrim(3))
+                }
+            }
+            pumpFrames(activity, frameClock)
+            fun field() = collectSemanticsNodes(activity.window.decorView).single {
+                it.config.contains(SemanticsActions.SetText)
+            }
+            controller.windowFocusChanged(true)
+            assertEquals(true, field().config[SemanticsActions.RequestFocus].action!!.invoke())
+            pumpFrames(activity, frameClock)
+            connection.setSelection(1, 1)
+            connection.setComposingText("2", 1)
+            pumpFrames(activity, frameClock)
+            assertEquals("124", draft)
+            assertEquals(TextRange(2), editor.selection)
+            assertEquals(TextRange(1, 2), editor.composition)
+            connection.finishComposingText()
+            field().config[SemanticsActions.SetText].action!!.invoke(AnnotatedString("a1b2345"))
+            pumpFrames(activity, frameClock)
+            assertEquals("123", draft)
+            draft = "85"
+            pumpFrames(activity, frameClock)
+            assertEquals("85", editor.text.toString())
+            assertEquals(TextRange(2), editor.selection)
+            assertEquals(listOf("124", "123"), edits)
+        } finally {
+            recomposer.cancel()
+            scope.cancel()
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    fun bothSecureFieldsPreserveSelectionAndExposePasswordVisibility() {
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
+        val activity = controller.get()
+        val frameClock = BroadcastFrameClock()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + frameClock)
+        val recomposer = Recomposer(scope.coroutineContext)
+        val state = TextFieldState("example", TextRange(1, 4))
+        var visible by mutableStateOf(false)
+        var style by mutableStateOf(AppearanceUiStyle.COUI)
+
+        try {
+            mount(activity, scope, recomposer) {
+                AgentAppTheme(appearance = AppearanceSettings(uiStyle = style), applyInterfaceScale = false) {
+                    if (style == AppearanceUiStyle.COUI) {
+                        CouiTextField(state = state, label = "密钥", secretVisible = visible)
+                    } else {
+                        MiuixSecureTextField(state = state, label = "密钥", visible = visible)
+                    }
+                }
+            }
+            for (uiStyle in AppearanceUiStyle.entries) {
+                style = uiStyle
+                for (reveal in listOf(false, true, false)) {
+                    visible = reveal
+                    pumpFrames(activity, frameClock)
+                    val field = collectSemanticsNodes(activity.window.decorView).single {
+                        it.config.contains(SemanticsProperties.Password)
+                    }
+                    assertEquals(!reveal, field.config[SemanticsProperties.IsPasswordObfuscated])
+                    assertFalse(field.config.contains(SemanticsActions.CopyText))
+                    assertEquals("example", state.text.toString())
+                    assertEquals(TextRange(1, 4), state.selection)
+                }
+            }
+        } finally {
+            recomposer.cancel()
+            scope.cancel()
+            controller.pause().stop().destroy()
         }
     }
 

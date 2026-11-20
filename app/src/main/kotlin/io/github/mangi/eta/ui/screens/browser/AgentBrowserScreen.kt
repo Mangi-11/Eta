@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.foundation.text.input.setTextAndSelectAll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -25,8 +28,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.core.net.toUri
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.AgentBrowserSession
@@ -58,19 +59,19 @@ internal fun AgentBrowserScreen(
     val scope = rememberCoroutineScope()
     val noExternalAppMessage = stringResource(R.string.browser_no_external_app)
     val snapshot by session.snapshots.collectAsState()
-    var address by remember(session) { mutableStateOf(TextFieldValue("")) }
+    val address = remember(session) { TextFieldState() }
     var addressFocused by remember(session) { mutableStateOf(false) }
     var actionPending by remember(session) { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
 
     // 编辑期间不覆盖用户输入；非编辑态仅显示域名，进入编辑时还原完整地址。
-    LaunchedEffect(addressFocused) {
+    LaunchedEffect(address, addressFocused) {
         if (addressFocused) {
-            address = TextFieldValue(snapshot.displayUrl, TextRange(0, snapshot.displayUrl.length))
+            address.setTextAndSelectAll(snapshot.displayUrl)
         }
     }
-    LaunchedEffect(snapshot.displayUrl, snapshot.host, addressFocused) {
-        if (!addressFocused) address = TextFieldValue(snapshot.host.ifBlank { snapshot.displayUrl })
+    LaunchedEffect(address, snapshot.displayUrl, snapshot.host, addressFocused) {
+        if (!addressFocused) address.setTextAndPlaceCursorAtEnd(snapshot.host.ifBlank { snapshot.displayUrl })
     }
     LaunchedEffect(snapshot.error) {
         snapshot.error?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
@@ -94,7 +95,7 @@ internal fun AgentBrowserScreen(
     }
 
     fun navigate() {
-        val input = address.text.trim()
+        val input = address.text.toString().trim()
         val target = if (input.isNotBlank() && input == snapshot.displayUrl) {
             snapshot.url
         } else {
@@ -118,7 +119,6 @@ internal fun AgentBrowserScreen(
             BrowserAddressBar(
                 snapshot = snapshot,
                 address = address,
-                onAddressChange = { address = it },
                 focused = addressFocused,
                 onFocusChange = { addressFocused = it },
                 actionPending = actionPending,

@@ -2,7 +2,6 @@ package io.github.mangi.eta.ui.screens.tools
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,8 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,17 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.itos.coui.layout.CouiPageDefaults
 import com.itos.coui.layout.Divider
 import com.itos.coui.layout.Footer
 import com.itos.coui.layout.Group
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.WebHttpMethod
@@ -46,6 +38,7 @@ import io.github.mangi.eta.data.model.WebToolBackend
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.SettingsTextField
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.coui.CouiButton
@@ -55,18 +48,15 @@ import io.github.mangi.eta.ui.components.coui.CouiIcon
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -221,7 +211,7 @@ private fun DeepSeekWebSection(store: WebToolsSettingsStore) {
     Column {
         WebSectionGroup(title = stringResource(R.string.web_tools_backend_deepseek)) {
             WebToolsFieldColumn {
-                WebToolsField(
+                SettingsTextField(
                     label = if (store.hasProviderDeepSeekKey) {
                         stringResource(R.string.web_tools_api_key_optional)
                     } else {
@@ -241,7 +231,7 @@ private fun DeepSeekWebSection(store: WebToolsSettingsStore) {
             )
             AnimatedVisibility(visible = advanced) {
                 WebToolsFieldColumn {
-                    WebToolsField(
+                    SettingsTextField(
                         label = "Base URL",
                         value = settings.deepSeek.baseUrl,
                         onChange = {
@@ -297,12 +287,12 @@ private fun CustomSearchSection(store: WebToolsSettingsStore) {
                 )
             }
             WebToolsFieldColumn {
-                WebToolsField(
+                SettingsTextField(
                     label = stringResource(R.string.web_tools_endpoint_url),
                     value = config.url,
                     onChange = { store.edit(settings.copy(customSearch = config.copy(url = it.trim()))) },
                 )
-                WebToolsField(
+                SettingsTextField(
                     label = stringResource(R.string.web_tools_api_key_optional),
                     value = credentials.customSearchApiKey,
                     secret = true,
@@ -319,7 +309,7 @@ private fun CustomSearchSection(store: WebToolsSettingsStore) {
             AnimatedVisibility(visible = advanced) {
                 WebToolsFieldColumn {
                     if (config.method == WebHttpMethod.POST) {
-                        WebToolsField(
+                        SettingsTextField(
                             label = stringResource(R.string.web_tools_body_template),
                             value = config.bodyTemplate,
                             singleLine = false,
@@ -328,35 +318,35 @@ private fun CustomSearchSection(store: WebToolsSettingsStore) {
                             },
                         )
                     }
-                    WebToolsField(
+                    SettingsTextField(
                         label = stringResource(R.string.web_tools_results_path),
                         value = config.resultsPath,
                         onChange = {
                             store.edit(settings.copy(customSearch = config.copy(resultsPath = it.trim())))
                         },
                     )
-                    WebToolsField(
+                    SettingsTextField(
                         label = stringResource(R.string.web_tools_title_field),
                         value = config.titleField,
                         onChange = {
                             store.edit(settings.copy(customSearch = config.copy(titleField = it.trim())))
                         },
                     )
-                    WebToolsField(
+                    SettingsTextField(
                         label = stringResource(R.string.web_tools_url_field),
                         value = config.urlField,
                         onChange = {
                             store.edit(settings.copy(customSearch = config.copy(urlField = it.trim())))
                         },
                     )
-                    WebToolsField(
+                    SettingsTextField(
                         label = stringResource(R.string.web_tools_snippet_field),
                         value = config.snippetField,
                         onChange = {
                             store.edit(settings.copy(customSearch = config.copy(snippetField = it.trim())))
                         },
                     )
-                    WebToolsField(
+                    SettingsTextField(
                         label = stringResource(R.string.web_tools_custom_headers),
                         value = config.headersText,
                         singleLine = false,
@@ -408,12 +398,12 @@ private fun CustomFetchSection(store: WebToolsSettingsStore) {
                 )
             }
             WebToolsFieldColumn {
-                WebToolsField(
+                SettingsTextField(
                     label = stringResource(R.string.web_tools_endpoint_url),
                     value = config.url,
                     onChange = { store.edit(settings.copy(customFetch = config.copy(url = it.trim()))) },
                 )
-                WebToolsField(
+                SettingsTextField(
                     label = stringResource(R.string.web_tools_api_key_optional),
                     value = credentials.customFetchApiKey,
                     secret = true,
@@ -430,7 +420,7 @@ private fun CustomFetchSection(store: WebToolsSettingsStore) {
             AnimatedVisibility(visible = advanced) {
                 WebToolsFieldColumn {
                     if (config.method == WebHttpMethod.POST) {
-                        WebToolsField(
+                        SettingsTextField(
                             label = stringResource(R.string.web_tools_body_template),
                             value = config.bodyTemplate,
                             singleLine = false,
@@ -439,21 +429,21 @@ private fun CustomFetchSection(store: WebToolsSettingsStore) {
                             },
                         )
                     }
-                    WebToolsField(
+                    SettingsTextField(
                         label = stringResource(R.string.web_tools_content_field),
                         value = config.contentField,
                         onChange = {
                             store.edit(settings.copy(customFetch = config.copy(contentField = it.trim())))
                         },
                     )
-                    WebToolsField(
+                    SettingsTextField(
                         label = stringResource(R.string.web_tools_title_field),
                         value = config.titleField,
                         onChange = {
                             store.edit(settings.copy(customFetch = config.copy(titleField = it.trim())))
                         },
                     )
-                    WebToolsField(
+                    SettingsTextField(
                         label = stringResource(R.string.web_tools_custom_headers),
                         value = config.headersText,
                         singleLine = false,
@@ -596,77 +586,6 @@ private fun WebToolsFieldColumn(content: @Composable ColumnScope.() -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = content,
     )
-}
-
-@Composable
-private fun WebToolsField(
-    label: String,
-    value: String,
-    secret: Boolean = false,
-    singleLine: Boolean = true,
-    onChange: (String) -> Unit,
-) {
-    var visible by rememberSaveable(label) { mutableStateOf(false) }
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
-            CouiTextField(
-                value = value,
-                onValueChange = onChange,
-                label = label,
-                singleLine = singleLine,
-                maxLines = if (singleLine) 1 else Int.MAX_VALUE,
-                visualTransformation = if (secret && !visible) PasswordVisualTransformation() else VisualTransformation.None,
-                trailingIcon = if (secret) {
-                    {
-                        Box(
-                            modifier = Modifier
-                                .padding(start = 8.dp)
-                                .size(28.dp)
-                                .clickable(role = Role.Button) { visible = !visible },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CouiIcon(
-                                imageVector = if (visible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                                contentDescription = stringResource(
-                                    if (visible) R.string.page_hide_bb0e7e else R.string.page_show_71b677,
-                                ),
-                                modifier = Modifier.size(20.dp),
-                                tint = colors.summary,
-                            )
-                        }
-                    }
-                } else {
-                    null
-                },
-            )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            TextField(
-                value = value,
-                onValueChange = onChange,
-                label = label,
-                singleLine = singleLine,
-                maxLines = if (singleLine) 1 else Int.MAX_VALUE,
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = if (secret && !visible) PasswordVisualTransformation() else VisualTransformation.None,
-                trailingIcon = if (secret) {
-                    {
-                        IconButton(onClick = { visible = !visible }) {
-                            Icon(
-                                imageVector = if (visible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                                contentDescription = stringResource(
-                                    if (visible) R.string.page_hide_bb0e7e else R.string.page_show_71b677,
-                                ),
-                            )
-                        }
-                    }
-                } else {
-                    null
-                },
-            )
-        }
-    }
 }
 
 @Composable

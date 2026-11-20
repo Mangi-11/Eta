@@ -21,6 +21,7 @@ import io.github.mangi.eta.data.model.AsrProvider
 import io.github.mangi.eta.data.model.SpeechSettings
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.SettingsTextField
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
@@ -90,7 +91,7 @@ internal fun SpeechRecognitionScreen(onBack: () -> Unit, onOpenOss: () -> Unit) 
                     if (showQwenLanguage) {
                         SpeechGroupCard {
                             SpeechFieldColumn {
-                                SpeechField(
+                                SettingsTextField(
                                     label = stringResource(R.string.speech_language_hint),
                                     value = settings.language,
                                     onChange = { store.edit(settings.copy(language = it.trim())) },
@@ -166,7 +167,7 @@ internal fun SpeechRecognitionScreen(onBack: () -> Unit, onOpenOss: () -> Unit) 
                         item(key = "language") {
                             SpeechGroupCard {
                                 SpeechFieldColumn {
-                                    SpeechField(
+                                    SettingsTextField(
                                         label = stringResource(R.string.speech_language_hint),
                                         value = settings.language,
                                         onChange = { store.edit(settings.copy(language = it.trim())) },

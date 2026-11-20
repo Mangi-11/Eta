@@ -21,6 +21,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -28,6 +31,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Hub
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,17 +39,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,12 +85,12 @@ import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.MiuixSecureTextField
 import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.coui.CouiIcon
-import io.github.mangi.eta.ui.components.coui.CouiInputDialog
 import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiPreference
@@ -98,6 +106,7 @@ import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.ui.navigation.AppRoute
 import io.github.mangi.eta.ui.screens.tools.GroupBatchTogglePill
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -127,9 +136,9 @@ internal fun McpServersScreen(
     val scope = rememberCoroutineScope()
     val servers by McpServerRepository.serversFlow().collectAsState(initial = emptyList())
     var showAdd by remember { mutableStateOf(false) }
-    var name by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("") }
-    var token by remember { mutableStateOf("") }
+    val nameState = remember { TextFieldState() }
+    val urlState = remember { TextFieldState() }
+    val tokenState = remember { TextFieldState() }
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -156,8 +165,9 @@ internal fun McpServersScreen(
     }
 
     val onConfirmAdd: () -> Unit = {
-        val normalizedName = name.trim()
-        val normalizedUrl = url.trim()
+        val normalizedName = nameState.text.toString().trim()
+        val normalizedUrl = urlState.text.toString().trim()
+        val token = tokenState.text.toString()
         error = when {
             normalizedName.isBlank() -> resources.getString(R.string.mcp_name_required)
             else -> runCatching { validateMcpEndpoint(normalizedUrl) }
@@ -186,9 +196,9 @@ internal fun McpServersScreen(
                 working = false
                 result.onSuccess {
                     showAdd = false
-                    name = ""
-                    url = ""
-                    token = ""
+                    nameState.clearText()
+                    urlState.clearText()
+                    tokenState.clearText()
                     error = null
                     val messageRes = if (it.toolsTruncationReason != null) {
                         R.string.mcp_server_added_truncated
@@ -284,28 +294,24 @@ internal fun McpServersScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     CouiTextField(
-                        value = name,
-                        onValueChange = { name = it },
+                        state = nameState,
                         label = stringResource(R.string.mcp_server_name),
                         singleLine = true,
                         enabled = !working,
                     )
                     CouiTextField(
-                        value = url,
-                        onValueChange = { url = it },
+                        state = urlState,
                         label = stringResource(R.string.mcp_server_url),
                         singleLine = true,
                         enabled = !working,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     )
                     CouiTextField(
-                        value = token,
-                        onValueChange = { token = it },
+                        state = tokenState,
                         label = stringResource(R.string.mcp_bearer_optional),
                         singleLine = true,
                         enabled = !working,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        secretVisible = false,
                     )
                     error?.let {
                         Text(
@@ -345,33 +351,28 @@ internal fun McpServersScreen(
                                     .verticalScroll(rememberScrollState()),
                             ) {
                                 TextField(
-                                    value = name,
-                                    onValueChange = { name = it },
+                                    state = nameState,
+                                    lineLimits = TextFieldLineLimits.SingleLine,
                                     label = stringResource(R.string.mcp_server_name),
                                     colors = glassOverlayTextFieldColors(),
-                                    singleLine = true,
                                     enabled = !working,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 TextField(
-                                    value = url,
-                                    onValueChange = { url = it },
+                                    state = urlState,
+                                    lineLimits = TextFieldLineLimits.SingleLine,
                                     label = stringResource(R.string.mcp_server_url),
                                     colors = glassOverlayTextFieldColors(),
-                                    singleLine = true,
                                     enabled = !working,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                TextField(
-                                    value = token,
-                                    onValueChange = { token = it },
+                                MiuixSecureTextField(
+                                    state = tokenState,
                                     label = stringResource(R.string.mcp_bearer_optional),
                                     colors = glassOverlayTextFieldColors(),
-                                    singleLine = true,
                                     enabled = !working,
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    visible = false,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 error?.let {
@@ -469,7 +470,7 @@ internal fun McpServerDetailScreen(
     var working by remember { mutableStateOf(false) }
     var showDelete by remember { mutableStateOf(false) }
     var showToken by remember { mutableStateOf(false) }
-    var token by remember { mutableStateOf("") }
+    val tokenState = remember { TextFieldState() }
 
     var optimisticServerEnabled by remember(server?.id, server?.enabled) {
         mutableStateOf(server?.enabled ?: true)
@@ -569,6 +570,26 @@ internal fun McpServerDetailScreen(
                 ),
                 Toast.LENGTH_SHORT,
             ).show()
+        }
+    }
+
+    val saveToken: () -> Unit = {
+        server?.let { current ->
+            val token = tokenState.text.toString()
+            scope.launch(Dispatchers.IO) {
+                McpServerRepository.update(
+                    current.copy(
+                        authorizationType = if (token.isBlank()) {
+                            McpAuthorizationType.NONE
+                        } else {
+                            McpAuthorizationType.BEARER
+                        },
+                    ),
+                    bearerToken = token,
+                )
+            }
+            tokenState.clearText()
+            showToken = false
         }
     }
 
@@ -690,34 +711,31 @@ internal fun McpServerDetailScreen(
                 }
             }
 
-            CouiInputDialog(
+            CouiConfirmDialog(
                 visible = showToken,
                 title = stringResource(R.string.mcp_update_token),
                 message = stringResource(R.string.mcp_update_token_summary),
-                value = token,
-                onValueChange = { token = it },
-                placeholder = stringResource(R.string.mcp_bearer_token),
                 confirmText = stringResource(R.string.action_save),
-                onConfirm = {
-                    server?.let { current ->
-                        scope.launch(Dispatchers.IO) {
-                            McpServerRepository.update(
-                                current.copy(
-                                    authorizationType = if (token.isBlank()) {
-                                        McpAuthorizationType.NONE
-                                    } else {
-                                        McpAuthorizationType.BEARER
-                                    },
-                                ),
-                                bearerToken = token,
-                            )
-                        }
-                        token = ""
-                        showToken = false
-                    }
-                },
+                onConfirm = saveToken,
                 onDismissRequest = { showToken = false },
-            )
+            ) {
+                val focusRequester = remember { FocusRequester() }
+                val window = LocalWindowInfo.current
+                val keyboard = LocalSoftwareKeyboardController.current
+                LaunchedEffect(showToken, window) {
+                    if (showToken) {
+                        snapshotFlow { window.isWindowFocused }.first { it }
+                        if (focusRequester.requestFocus()) keyboard?.show()
+                    }
+                }
+                CouiTextField(
+                    state = tokenState,
+                    modifier = Modifier.focusRequester(focusRequester),
+                    enabled = showToken,
+                    label = stringResource(R.string.mcp_bearer_token),
+                    secretVisible = false,
+                )
+            }
 
             CouiConfirmDialog(
                 visible = showDelete,
@@ -757,37 +775,17 @@ internal fun McpServerDetailScreen(
                         onDismissRequest = { showToken = false },
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            TextField(
-                                value = token,
-                                onValueChange = { token = it },
+                            MiuixSecureTextField(
+                                state = tokenState,
                                 label = stringResource(R.string.mcp_bearer_token),
                                 colors = glassOverlayTextFieldColors(),
-                                singleLine = true,
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                visible = false,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             MiuixDialogActions(
                                 confirmText = stringResource(R.string.action_save),
                                 onCancel = { showToken = false },
-                                onConfirm = {
-                                    server?.let { current ->
-                                        scope.launch(Dispatchers.IO) {
-                                            McpServerRepository.update(
-                                                current.copy(
-                                                    authorizationType = if (token.isBlank()) {
-                                                        McpAuthorizationType.NONE
-                                                    } else {
-                                                        McpAuthorizationType.BEARER
-                                                    },
-                                                ),
-                                                bearerToken = token,
-                                            )
-                                        }
-                                        token = ""
-                                        showToken = false
-                                    }
-                                },
+                                onConfirm = saveToken,
                             )
                         }
                     }

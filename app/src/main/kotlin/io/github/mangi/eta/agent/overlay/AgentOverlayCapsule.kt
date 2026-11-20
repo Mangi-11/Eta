@@ -37,6 +37,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Pause
@@ -115,7 +117,7 @@ internal fun AgentOverlayCapsule(
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
     var supplementMode by remember { mutableStateOf(false) }
-    var supplementText by remember { mutableStateOf("") }
+    val supplementText = remember { TextFieldState() }
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -123,7 +125,7 @@ internal fun AgentOverlayCapsule(
     fun setSupplementMode(enabled: Boolean) {
         onSupplementModeChange(enabled)
         supplementMode = enabled
-        if (!enabled) supplementText = ""
+        if (!enabled) supplementText.clearText()
     }
 
     // 收起键盘后再切换窗口焦点，避免输入法在窗口失焦瞬间闪退或残留。
@@ -312,11 +314,10 @@ internal fun AgentOverlayCapsule(
                         }
                         if (supplementMode) {
                             OverlaySupplementInput(
-                                value = supplementText,
-                                onValueChange = { supplementText = it },
+                                state = supplementText,
                                 onCancel = { leaveSupplementMode() },
                                 onSend = {
-                                    val text = supplementText.trim()
+                                    val text = supplementText.text.toString().trim()
                                     if (text.isNotBlank()) leaveSupplementMode { onSupplement(text) }
                                 },
                             )

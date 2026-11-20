@@ -18,6 +18,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.maxLengthTrim
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -122,8 +127,8 @@ internal fun ScheduledTaskEditorScreen(
 
     val presetDefaultName = preset?.let { stringResource(it.defaultNameRes) }.orEmpty()
     val presetPrompt = preset?.let { stringResource(it.promptRes) }.orEmpty()
-    var name by remember(taskId, presetId) { mutableStateOf(presetDefaultName) }
-    var prompt by remember(taskId, presetId) { mutableStateOf(presetPrompt) }
+    val nameState = remember(taskId, presetId) { TextFieldState(presetDefaultName) }
+    val promptState = remember(taskId, presetId) { TextFieldState(presetPrompt) }
     var triggerKind by remember { mutableStateOf(preset?.schedule?.kind ?: ScheduledTaskTriggerKind.DAILY) }
     var hour by remember { mutableIntStateOf(preset?.schedule?.hour ?: 9) }
     var minute by remember { mutableIntStateOf(preset?.schedule?.minute ?: 0) }
@@ -131,7 +136,7 @@ internal fun ScheduledTaskEditorScreen(
     var intervalMinutes by remember { mutableIntStateOf(preset?.schedule?.intervalMinutes ?: 120) }
     var onceDelayMinutes by remember { mutableIntStateOf(60) }
     var onceTriggerAtMs by remember { mutableLongStateOf(System.currentTimeMillis() + 60 * 60_000L) }
-    var cronExpression by remember { mutableStateOf("0 9 * * 1-5") }
+    val cronExpressionState = remember { TextFieldState("0 9 * * 1-5") }
     var deliveryMode by remember { mutableStateOf(preset?.deliveryMode ?: ScheduledTaskDeliveryMode.ALWAYS) }
     var showRunningNotification by remember { mutableStateOf(false) }
     var sessionMode by remember { mutableStateOf(preset?.sessionMode ?: ScheduledTaskSessionMode.ISOLATED) }
@@ -157,15 +162,15 @@ internal fun ScheduledTaskEditorScreen(
             }
             if (existing != null) {
                 loadedExisting = existing
-                name = existing.name
-                prompt = existing.prompt
+                nameState.setTextAndPlaceCursorAtEnd(existing.name)
+                promptState.setTextAndPlaceCursorAtEnd(existing.prompt)
                 triggerKind = existing.schedule.kind
                 hour = existing.schedule.hour
                 minute = existing.schedule.minute
                 daysOfWeek = existing.schedule.daysOfWeek
                 intervalMinutes = existing.schedule.intervalMinutes
                 existing.schedule.triggerAtEpochMs?.let { onceTriggerAtMs = it }
-                cronExpression = existing.schedule.cronExpression.ifBlank { "0 9 * * 1-5" }
+                cronExpressionState.setTextAndPlaceCursorAtEnd(existing.schedule.cronExpression.ifBlank { "0 9 * * 1-5" })
                 deliveryMode = existing.deliveryMode
                 showRunningNotification = existing.showRunningNotification
                 sessionMode = existing.sessionMode
@@ -181,7 +186,7 @@ internal fun ScheduledTaskEditorScreen(
     }
 
     val currentSchedule = remember(
-        triggerKind, hour, minute, daysOfWeek, intervalMinutes, onceTriggerAtMs, cronExpression
+        triggerKind, hour, minute, daysOfWeek, intervalMinutes, onceTriggerAtMs, cronExpressionState.text
     ) {
         ScheduledTaskSchedule(
             kind = triggerKind,
@@ -190,7 +195,7 @@ internal fun ScheduledTaskEditorScreen(
             minute = minute,
             daysOfWeek = daysOfWeek,
             intervalMinutes = intervalMinutes,
-            cronExpression = cronExpression.trim(),
+            cronExpression = cronExpressionState.text.toString().trim(),
         )
     }
 
@@ -268,7 +273,7 @@ internal fun ScheduledTaskEditorScreen(
         ).show()
     }
 
-    val canSave = initialized && !saving && name.isNotBlank() && prompt.isNotBlank() && scheduleError == null
+    val canSave = initialized && !saving && nameState.text.isNotBlank() && promptState.text.isNotBlank() && scheduleError == null
     val onSaveClick: () -> Unit = {
         if (canSave) {
             saving = true
@@ -282,11 +287,11 @@ internal fun ScheduledTaskEditorScreen(
                 }
                 val taskToSave = (existing ?: ScheduledTask(
                     id = UUID.randomUUID().toString(),
-                    name = name.trim(),
-                    prompt = prompt.trim(),
+                    name = nameState.text.toString().trim(),
+                    prompt = promptState.text.toString().trim(),
                 )).copy(
-                    name = name.trim(),
-                    prompt = prompt.trim(),
+                    name = nameState.text.toString().trim(),
+                    prompt = promptState.text.toString().trim(),
                     enabled = existing?.enabled ?: true,
                     schedule = finalSchedule,
                     misfirePolicy = misfirePolicy,
@@ -415,15 +420,15 @@ internal fun ScheduledTaskEditorScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         CouiTextField(
-                            value = name,
-                            onValueChange = { name = it.take(80) },
+                            state = nameState,
+                            inputTransformation = InputTransformation.maxLengthTrim(80),
                             label = stringResource(R.string.scheduled_editor_name_label),
                             placeholder = stringResource(R.string.scheduled_editor_name_placeholder),
                             singleLine = true,
                         )
                         CouiTextField(
-                            value = prompt,
-                            onValueChange = { prompt = it.take(8000) },
+                            state = promptState,
+                            inputTransformation = InputTransformation.maxLengthTrim(8000),
                             label = stringResource(R.string.scheduled_editor_prompt_label),
                             placeholder = stringResource(R.string.scheduled_editor_prompt_placeholder),
                             singleLine = false,
@@ -501,8 +506,8 @@ internal fun ScheduledTaskEditorScreen(
                                     .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
                             ) {
                                 CouiTextField(
-                                    value = cronExpression,
-                                    onValueChange = { cronExpression = it.take(80) },
+                                    state = cronExpressionState,
+                                    inputTransformation = InputTransformation.maxLengthTrim(80),
                                     label = stringResource(R.string.scheduled_editor_cron_label),
                                     placeholder = "0 9 * * 1-5",
                                     singleLine = true,
@@ -696,17 +701,16 @@ internal fun ScheduledTaskEditorScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             TextField(
-                                value = name,
-                                onValueChange = { name = it.take(80) },
+                                state = nameState,
+                                lineLimits = TextFieldLineLimits.SingleLine,
+                                inputTransformation = InputTransformation.maxLengthTrim(80),
                                 label = stringResource(R.string.scheduled_editor_name_label_with_example),
-                                singleLine = true,
                             )
                             TextField(
-                                value = prompt,
-                                onValueChange = { prompt = it.take(8000) },
+                                state = promptState,
+                                lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4, maxHeightInLines = 10),
+                                inputTransformation = InputTransformation.maxLengthTrim(8000),
                                 label = stringResource(R.string.scheduled_editor_prompt_label),
-                                minLines = 4,
-                                maxLines = 10,
                             )
                         }
                     }
@@ -782,10 +786,10 @@ internal fun ScheduledTaskEditorScreen(
                             ScheduledTaskTriggerKind.CRON -> {
                                 Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                     TextField(
-                                        value = cronExpression,
-                                        onValueChange = { cronExpression = it.take(80) },
+                                        state = cronExpressionState,
+                                        lineLimits = TextFieldLineLimits.SingleLine,
+                                        inputTransformation = InputTransformation.maxLengthTrim(80),
                                         label = stringResource(R.string.scheduled_editor_cron_label),
-                                        singleLine = true,
                                     )
                                 }
                             }

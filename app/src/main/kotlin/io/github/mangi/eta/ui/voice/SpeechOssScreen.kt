@@ -12,6 +12,7 @@ import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.SpeechCredentialField
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.SettingsTextField
 import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 
@@ -36,22 +37,22 @@ internal fun SpeechOssScreen(onBack: () -> Unit) {
                 SpeechNote(stringResource(R.string.speech_oss_note))
                 SpeechGroupCard(title = stringResource(R.string.speech_group_storage)) {
                     SpeechFieldColumn {
-                        SpeechField(
+                        SettingsTextField(
                             label = stringResource(R.string.speech_oss_region),
                             value = settings.oss.region,
                             onChange = { store.edit(settings.copy(oss = settings.oss.copy(region = it.trim()))) },
                         )
-                        SpeechField(
+                        SettingsTextField(
                             label = "Endpoint",
                             value = settings.oss.endpoint,
                             onChange = { store.edit(settings.copy(oss = settings.oss.copy(endpoint = it.trim()))) },
                         )
-                        SpeechField(
+                        SettingsTextField(
                             label = "Bucket",
                             value = settings.oss.bucket,
                             onChange = { store.edit(settings.copy(oss = settings.oss.copy(bucket = it.trim()))) },
                         )
-                        SpeechField(
+                        SettingsTextField(
                             label = stringResource(R.string.speech_oss_prefix),
                             value = settings.oss.prefix,
                             onChange = { store.edit(settings.copy(oss = settings.oss.copy(prefix = it.trim()))) },
@@ -60,13 +61,13 @@ internal fun SpeechOssScreen(onBack: () -> Unit) {
                 }
                 SpeechGroupCard(title = stringResource(R.string.speech_group_credentials)) {
                     SpeechFieldColumn {
-                        SpeechField(
+                        SettingsTextField(
                             label = "AccessKey ID",
                             value = store.credentials.ossAccessKeyId,
                             secret = true,
                             onChange = { store.credential(SpeechCredentialField.OSS_KEY_ID, it.trim()) },
                         )
-                        SpeechField(
+                        SettingsTextField(
                             label = "AccessKey Secret",
                             value = store.credentials.ossAccessKeySecret,
                             secret = true,
@@ -94,22 +95,22 @@ internal fun SpeechOssScreen(onBack: () -> Unit) {
                 item(key = "storage") {
                     SpeechGroupCard(title = stringResource(R.string.speech_group_storage)) {
                         SpeechFieldColumn {
-                            SpeechField(
+                            SettingsTextField(
                                 label = stringResource(R.string.speech_oss_region),
                                 value = settings.oss.region,
                                 onChange = { store.edit(settings.copy(oss = settings.oss.copy(region = it.trim()))) },
                             )
-                            SpeechField(
+                            SettingsTextField(
                                 label = "Endpoint",
                                 value = settings.oss.endpoint,
                                 onChange = { store.edit(settings.copy(oss = settings.oss.copy(endpoint = it.trim()))) },
                             )
-                            SpeechField(
+                            SettingsTextField(
                                 label = "Bucket",
                                 value = settings.oss.bucket,
                                 onChange = { store.edit(settings.copy(oss = settings.oss.copy(bucket = it.trim()))) },
                             )
-                            SpeechField(
+                            SettingsTextField(
                                 label = stringResource(R.string.speech_oss_prefix),
                                 value = settings.oss.prefix,
                                 onChange = { store.edit(settings.copy(oss = settings.oss.copy(prefix = it.trim()))) },
@@ -120,13 +121,13 @@ internal fun SpeechOssScreen(onBack: () -> Unit) {
                 item(key = "credentials") {
                     SpeechGroupCard(title = stringResource(R.string.speech_group_credentials)) {
                         SpeechFieldColumn {
-                            SpeechField(
+                            SettingsTextField(
                                 label = "AccessKey ID",
                                 value = store.credentials.ossAccessKeyId,
                                 secret = true,
                                 onChange = { store.credential(SpeechCredentialField.OSS_KEY_ID, it.trim()) },
                             )
-                            SpeechField(
+                            SettingsTextField(
                                 label = "AccessKey Secret",
                                 value = store.credentials.ossAccessKeySecret,
                                 secret = true,

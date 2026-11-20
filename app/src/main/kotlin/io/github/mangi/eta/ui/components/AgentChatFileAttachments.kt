@@ -30,6 +30,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
@@ -194,7 +197,7 @@ internal fun AgentAttachmentPickerButton(
     val context = LocalContext.current
     var showPopup by remember { mutableStateOf(false) }
     var showPathDialog by remember { mutableStateOf(false) }
-    var pathInput by remember { mutableStateOf("") }
+    val pathInputState = remember { TextFieldState() }
     var buttonTopPx by remember { mutableFloatStateOf(0f) }
     var buttonBottomPx by remember { mutableFloatStateOf(0f) }
     var measuredPopupHeightPx by remember { mutableFloatStateOf(0f) }
@@ -238,7 +241,7 @@ internal fun AgentAttachmentPickerButton(
             1 -> filePicker.launch(arrayOf("*/*"))
             2 -> folderPicker.launch(null)
             3 -> {
-                pathInput = ""
+                pathInputState.clearText()
                 showPathDialog = true
             }
         }
@@ -347,13 +350,12 @@ internal fun AgentAttachmentPickerButton(
                 visible = showPathDialog,
                 title = stringResource(R.string.ui_input_file_path_36d474),
                 message = stringResource(R.string.ui_supports_files_and_folders_under_internal_storage_or_520786),
-                value = pathInput,
-                onValueChange = { pathInput = it },
+                state = pathInputState,
                 placeholder = stringResource(R.string.ui_absolute_path_9ac6fc),
                 confirmText = stringResource(R.string.attachment_add),
-                confirmEnabled = pathInput.trim().startsWith('/'),
+                confirmEnabled = pathInputState.text.toString().trim().startsWith('/'),
                 onConfirm = {
-                    val path = pathInput.trim()
+                    val path = pathInputState.text.toString().trim()
                     showPathDialog = false
                     onAttachFilePath(path)
                 },
@@ -370,21 +372,20 @@ internal fun AgentAttachmentPickerButton(
             ) {
                 Column {
                     TextField(
-                        value = pathInput,
-                        onValueChange = { pathInput = it },
+                        state = pathInputState,
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         label = stringResource(R.string.ui_absolute_path_9ac6fc),
                         colors = glassOverlayTextFieldColors(),
                         useLabelAsPlaceholder = true,
-                        singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                         modifier = Modifier.fillMaxWidth(),
                     )
                     MiuixDialogActions(
                         confirmText = stringResource(R.string.attachment_add),
-                        confirmEnabled = pathInput.trim().startsWith('/'),
+                        confirmEnabled = pathInputState.text.toString().trim().startsWith('/'),
                         onCancel = { showPathDialog = false },
                         onConfirm = {
-                            val path = pathInput.trim()
+                            val path = pathInputState.text.toString().trim()
                             showPathDialog = false
                             onAttachFilePath(path)
                         },

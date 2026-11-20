@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -20,8 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.itos.coui.layout.CouiPageDefaults
 import com.itos.coui.layout.Divider
@@ -35,10 +34,12 @@ import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.EtaGlassSpinnerPreference
+import io.github.mangi.eta.ui.components.MiuixSecureTextField
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiIcon
 import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -59,7 +60,13 @@ internal fun ProviderConnectionFields(
     onDisconnect: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    var apiKeyVisible by remember { mutableStateOf(false) }
+    val nameState = rememberDraftTextFieldState(draft.name) { onDraftChange(draft.copy(name = it)) }
+    val baseUrlState = rememberDraftTextFieldState(draft.baseUrl) { onDraftChange(draft.copy(baseUrl = it)) }
+    val apiKeyState = rememberDraftTextFieldState(draft.apiKey) { onDraftChange(draft.copy(apiKey = it)) }
+    val vertexProjectState = rememberDraftTextFieldState(draft.vertexProject) { onDraftChange(draft.copy(vertexProject = it)) }
+    val vertexLocationState = rememberDraftTextFieldState(draft.vertexLocation) { onDraftChange(draft.copy(vertexLocation = it)) }
+    val anthropicVersionState = rememberDraftTextFieldState(draft.anthropicVersion) { onDraftChange(draft.copy(anthropicVersion = it)) }
+    var apiKeyVisible by remember(provider.id) { mutableStateOf(false) }
     val oauth = ProviderAuthModes.isOAuth(draft.authMode)
     val accountMode = providerAccountAuthMode(provider)
     val isGeminiVertex = provider is GeminiProviderSetting &&
@@ -93,8 +100,7 @@ internal fun ProviderConnectionFields(
                     .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 12.dp),
             ) {
                 CouiTextField(
-                    value = draft.name,
-                    onValueChange = { onDraftChange(draft.copy(name = it)) },
+                    state = nameState,
                     label = stringResource(R.string.ui_name_1be7ae),
                     singleLine = true,
                     enabled = enabled,
@@ -150,20 +156,18 @@ internal fun ProviderConnectionFields(
                         .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 12.dp),
                 ) {
                     CouiTextField(
-                        value = draft.baseUrl,
-                        onValueChange = { onDraftChange(draft.copy(baseUrl = it)) },
+                        state = baseUrlState,
                         label = "Base URL",
                         singleLine = true,
                         enabled = enabled,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     CouiTextField(
-                        value = draft.apiKey,
-                        onValueChange = { onDraftChange(draft.copy(apiKey = it)) },
+                        state = apiKeyState,
                         label = "API Key",
                         singleLine = true,
                         enabled = enabled,
-                        visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        secretVisible = apiKeyVisible,
                         trailingIcon = {
                             Box(
                                 modifier = Modifier
@@ -184,8 +188,7 @@ internal fun ProviderConnectionFields(
                     if (isGeminiVertex) {
                         Spacer(modifier = Modifier.height(12.dp))
                         CouiTextField(
-                            value = draft.vertexProject,
-                            onValueChange = { onDraftChange(draft.copy(vertexProject = it)) },
+                            state = vertexProjectState,
                             label = "Project ID / Number",
                             placeholder = stringResource(R.string.provider_i18n_vertex_project_placeholder),
                             singleLine = true,
@@ -193,8 +196,7 @@ internal fun ProviderConnectionFields(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         CouiTextField(
-                            value = draft.vertexLocation,
-                            onValueChange = { onDraftChange(draft.copy(vertexLocation = it)) },
+                            state = vertexLocationState,
                             label = "Location",
                             placeholder = GeminiProviderSetting.DEFAULT_VERTEX_LOCATION,
                             singleLine = true,
@@ -204,8 +206,7 @@ internal fun ProviderConnectionFields(
                     if (provider is AnthropicProviderSetting) {
                         Spacer(modifier = Modifier.height(12.dp))
                         CouiTextField(
-                            value = draft.anthropicVersion,
-                            onValueChange = { onDraftChange(draft.copy(anthropicVersion = it)) },
+                            state = anthropicVersionState,
                             label = "anthropic-version",
                             singleLine = true,
                             enabled = enabled,
@@ -249,10 +250,9 @@ internal fun ProviderConnectionFields(
         AppearanceUiStyle.MIUIX -> {
             Column(modifier = Modifier.padding(16.dp)) {
                 TextField(
-                    value = draft.name,
-                    onValueChange = { onDraftChange(draft.copy(name = it)) },
+                    state = nameState,
+                    lineLimits = TextFieldLineLimits.SingleLine,
                     label = stringResource(R.string.ui_name_1be7ae),
-                    singleLine = true,
                     enabled = enabled,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -302,21 +302,18 @@ internal fun ProviderConnectionFields(
             } else {
                 Column(modifier = Modifier.padding(16.dp)) {
                     TextField(
-                        value = draft.baseUrl,
-                        onValueChange = { onDraftChange(draft.copy(baseUrl = it)) },
+                        state = baseUrlState,
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         label = "Base URL",
-                        singleLine = true,
                         enabled = enabled,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    TextField(
-                        value = draft.apiKey,
-                        onValueChange = { onDraftChange(draft.copy(apiKey = it)) },
+                    MiuixSecureTextField(
+                        state = apiKeyState,
                         label = "API Key",
-                        singleLine = true,
                         enabled = enabled,
-                        visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        visible = apiKeyVisible,
                         trailingIcon = {
                             IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
                                 Icon(
@@ -330,19 +327,17 @@ internal fun ProviderConnectionFields(
                     if (isGeminiVertex) {
                         Spacer(modifier = Modifier.height(12.dp))
                         TextField(
-                            value = draft.vertexProject,
-                            onValueChange = { onDraftChange(draft.copy(vertexProject = it)) },
+                            state = vertexProjectState,
+                            lineLimits = TextFieldLineLimits.SingleLine,
                             label = "Project ID / Number",
-                            singleLine = true,
                             enabled = enabled,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         TextField(
-                            value = draft.vertexLocation,
-                            onValueChange = { onDraftChange(draft.copy(vertexLocation = it)) },
+                            state = vertexLocationState,
+                            lineLimits = TextFieldLineLimits.SingleLine,
                             label = "Location",
-                            singleLine = true,
                             enabled = enabled,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -350,10 +345,9 @@ internal fun ProviderConnectionFields(
                     if (provider is AnthropicProviderSetting) {
                         Spacer(modifier = Modifier.height(12.dp))
                         TextField(
-                            value = draft.anthropicVersion,
-                            onValueChange = { onDraftChange(draft.copy(anthropicVersion = it)) },
+                            state = anthropicVersionState,
+                            lineLimits = TextFieldLineLimits.SingleLine,
                             label = "anthropic-version",
-                            singleLine = true,
                             enabled = enabled,
                             modifier = Modifier.fillMaxWidth(),
                         )

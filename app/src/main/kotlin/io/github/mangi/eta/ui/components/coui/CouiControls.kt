@@ -29,9 +29,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.text.BasicSecureTextField
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.KeyboardActionHandler
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.TextObfuscationMode
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,9 +66,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -234,8 +237,7 @@ private val FieldFocusEasing = CubicBezierEasing(0f, 0f, 0.1f, 1f)
  */
 @Composable
 internal fun CouiTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
+    state: TextFieldState,
     modifier: Modifier = Modifier,
     label: String? = null,
     rightLabel: String? = null,
@@ -245,9 +247,10 @@ internal fun CouiTextField(
     singleLine: Boolean = true,
     minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
+    secretVisible: Boolean? = null,
+    inputTransformation: InputTransformation? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    onKeyboardAction: KeyboardActionHandler? = null,
     showClearButton: Boolean = singleLine,
     trailingIcon: (@Composable () -> Unit)? = null,
 ) {
@@ -325,7 +328,7 @@ internal fun CouiTextField(
                     .heightIn(min = (22 * minLines.coerceAtLeast(1)).dp),
                 contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart,
             ) {
-                if (value.isEmpty() && !effectivePlaceholder.isNullOrEmpty()) {
+                if (state.text.isEmpty() && !effectivePlaceholder.isNullOrEmpty()) {
                     Text(
                         text = effectivePlaceholder,
                         kind = CouiTextKind.Search,
@@ -335,24 +338,35 @@ internal fun CouiTextField(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    enabled = enabled,
-                    singleLine = singleLine,
-                    minLines = minLines,
-                    maxLines = maxLines,
-                    textStyle = textStyle,
-                    cursorBrush = SolidColor(colors.accent),
-                    visualTransformation = visualTransformation,
-                    keyboardOptions = keyboardOptions,
-                    keyboardActions = keyboardActions,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onFocusChanged { focused = it.isFocused },
-                )
+                val fieldModifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { focused = it.isFocused }
+                if (secretVisible != null) {
+                    BasicSecureTextField(
+                        state = state,
+                        modifier = fieldModifier,
+                        enabled = enabled,
+                        textStyle = textStyle,
+                        cursorBrush = SolidColor(colors.accent),
+                        inputTransformation = inputTransformation,
+                        onKeyboardAction = onKeyboardAction,
+                        textObfuscationMode = if (secretVisible) TextObfuscationMode.Visible else TextObfuscationMode.Hidden,
+                    )
+                } else {
+                    BasicTextField(
+                        state = state,
+                        modifier = fieldModifier,
+                        enabled = enabled,
+                        textStyle = textStyle,
+                        cursorBrush = SolidColor(colors.accent),
+                        lineLimits = if (singleLine) TextFieldLineLimits.SingleLine else TextFieldLineLimits.MultiLine(minLines, maxLines),
+                        inputTransformation = inputTransformation,
+                        keyboardOptions = keyboardOptions,
+                        onKeyboardAction = onKeyboardAction,
+                    )
+                }
             }
-            if (showClearButton && focused && enabled && value.isNotEmpty() && trailingIcon == null) {
+            if (showClearButton && focused && enabled && state.text.isNotEmpty() && trailingIcon == null) {
                 val clearLabel = stringResource(R.string.page_clear_84fcd7)
                 Box(modifier = Modifier.padding(start = 8.dp)) {
                     CouiClearGlyph(
@@ -360,7 +374,7 @@ internal fun CouiTextField(
                             .size(20.dp)
                             .semantics { contentDescription = clearLabel }
                             .clickable(interactionSource = null, indication = null, role = Role.Button) {
-                                onValueChange("")
+                                state.clearText()
                             },
                         color = colors.summary,
                     )
@@ -754,8 +768,8 @@ internal fun CouiInputDialog(
     visible: Boolean,
     title: String?,
     message: String? = null,
-    value: String,
-    onValueChange: (String) -> Unit,
+    state: TextFieldState,
+    inputTransformation: InputTransformation? = null,
     placeholder: String? = null,
     counter: String? = null,
     counterIsError: Boolean = false,
@@ -769,26 +783,12 @@ internal fun CouiInputDialog(
     val dark = CouiTheme.isDark
     val backdrop = rememberCouiWindowBackdrop()
     val material = rememberCouiDialogMaterial(dark)
-    var fieldValue by remember {
-        mutableStateOf(TextFieldValue(text = value, selection = TextRange(value.length)))
-    }
-    if (fieldValue.text != value) {
-        fieldValue = fieldValue.copy(
-            text = value,
-            selection = TextRange(value.length.coerceAtLeast(0)),
-        )
-    }
     InputDialog(
         visible = visible,
         title = title,
         message = message,
-        value = fieldValue,
-        onValueChange = { next ->
-            fieldValue = next
-            if (next.text != value) {
-                onValueChange(next.text)
-            }
-        },
+        state = state,
+        inputTransformation = inputTransformation,
         placeholder = placeholder,
         counter = counter,
         counterIsError = counterIsError,

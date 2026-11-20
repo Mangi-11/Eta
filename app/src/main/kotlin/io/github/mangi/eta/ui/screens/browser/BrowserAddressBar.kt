@@ -19,8 +19,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -47,7 +48,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
@@ -73,8 +73,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun BrowserAddressBar(
     snapshot: BrowserSessionSnapshot,
-    address: TextFieldValue,
-    onAddressChange: (TextFieldValue) -> Unit,
+    address: TextFieldState,
     focused: Boolean,
     onFocusChange: (Boolean) -> Unit,
     actionPending: Boolean,
@@ -140,13 +139,12 @@ internal fun BrowserAddressBar(
                     )
                 }
                 BasicTextField(
-                    value = address,
-                    onValueChange = onAddressChange,
-                    singleLine = true,
+                    state = address,
+                    lineLimits = TextFieldLineLimits.SingleLine,
                     textStyle = MiuixTheme.textStyles.body2.copy(color = colors.onSurface),
                     cursorBrush = SolidColor(colors.primary),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Go),
-                    keyboardActions = KeyboardActions(onGo = { onGo() }),
+                    onKeyboardAction = { onGo() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .semantics { contentDescription = addressLabel }

@@ -19,8 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Stop
@@ -103,7 +106,7 @@ internal fun UserTerminalScreen(
     onOpenConsole: (() -> Unit)? = null,
 ) {
     val state by store.uiState.collectAsState()
-    var input by remember { mutableStateOf("") }
+    val input = remember { TextFieldState() }
     var showTasks by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -123,7 +126,7 @@ internal fun UserTerminalScreen(
     val showLinuxGuide = state.environment.isLinux && !state.linuxReady
 
     fun submit() {
-        val command = input.trim()
+        val command = input.text.toString().trim()
         if (command.isEmpty()) return
         // 运行中输入发给前台进程 stdin，否则作为新命令执行。
         if (state.running) {
@@ -131,7 +134,7 @@ internal fun UserTerminalScreen(
         } else {
             store.send(command)
         }
-        input = ""
+        input.clearText()
     }
 
     Column(
@@ -165,7 +168,7 @@ internal fun UserTerminalScreen(
                 state.blocks.isEmpty() -> EmptyHint(state.failMessage)
                 else -> BlockList(
                     blocks = state.blocks,
-                    onReinput = { input = it },
+                    onReinput = { input.setTextAndPlaceCursorAtEnd(it) },
                 )
             }
         }
@@ -174,7 +177,6 @@ internal fun UserTerminalScreen(
                 input = input,
                 cwd = state.cwd,
                 running = state.running,
-                onInputChange = { input = it },
                 onSubmit = ::submit,
                 onStop = store::stop,
             )
@@ -445,15 +447,14 @@ private fun SystemBlock(block: TerminalBlockUi) {
  */
 @Composable
 private fun InputPanel(
-    input: String,
+    input: TextFieldState,
     cwd: String,
     running: Boolean,
-    onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onStop: () -> Unit,
 ) {
     val colors = MiuixTheme.colorScheme
-    val canSend = input.isNotBlank()
+    val canSend = input.text.isNotBlank()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -470,19 +471,18 @@ private fun InputPanel(
             )
         }
         TextField(
-            value = input,
-            onValueChange = onInputChange,
+            state = input,
+            lineLimits = TextFieldLineLimits.SingleLine,
             modifier = Modifier.fillMaxWidth(),
             label = stringResource(
                 if (running) R.string.terminal_input_running_hint else R.string.terminal_input_hint,
             ),
             useLabelAsPlaceholder = true,
-            singleLine = true,
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Send,
                 autoCorrectEnabled = false,
             ),
-            keyboardActions = KeyboardActions(onSend = { onSubmit() }),
+            onKeyboardAction = { onSubmit() },
             textStyle = MiuixTheme.textStyles.body2.copy(fontFamily = EtaMonospace),
             trailingIcon = {
                 val stopMode = running && !canSend

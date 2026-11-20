@@ -26,6 +26,7 @@ import io.github.mangi.eta.data.model.SpeechCredentialField
 import io.github.mangi.eta.data.model.SpeechRegion
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.SettingsTextField
 import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.coui.CouiIcon
 import io.github.mangi.eta.ui.components.coui.CouiPreference
@@ -71,8 +72,8 @@ internal fun SpeechApiKeyConnectionSection(
         SpeechGroupCard(title = stringResource(R.string.speech_group_connection)) {
             options()
             SpeechFieldColumn {
-                SpeechField("API Key", apiKey, secret = true, onChange = { onApiKey(it.trim()) })
-                SpeechField(stringResource(R.string.speech_base_url), baseUrl, onChange = { onBaseUrl(it.trim()) })
+                SettingsTextField("API Key", apiKey, secret = true, onChange = { onApiKey(it.trim()) })
+                SettingsTextField(stringResource(R.string.speech_base_url), baseUrl, onChange = { onBaseUrl(it.trim()) })
             }
         }
         SpeechNote(note)
@@ -132,7 +133,7 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                     )
                 }
                 SpeechFieldColumn {
-                    SpeechField(
+                    SettingsTextField(
                         label = "API Key",
                         value = secret,
                         secret = true,
@@ -145,7 +146,7 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                     store.edit(if (synthesis) settings.copy(doubaoTts = it) else settings.copy(doubaoAsr = it))
                 }
                 SpeechFieldColumn {
-                    SpeechField(
+                    SettingsTextField(
                         label = stringResource(
                             if (config.legacyAuth) R.string.speech_access_token else R.string.speech_api_key,
                         ),
@@ -154,7 +155,7 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                         onChange = { store.credential(keyField, it.trim()) },
                     )
                     if (config.legacyAuth) {
-                        SpeechField(
+                        SettingsTextField(
                             label = stringResource(R.string.speech_app_id),
                             value = config.appId,
                             onChange = { change(config.copy(appId = it.trim())) },
@@ -205,7 +206,7 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                     if (qwen) {
                         val config = if (synthesis) settings.qwenTts else settings.qwenAsr
                         SpeechFieldColumn {
-                            SpeechField(
+                            SettingsTextField(
                                 label = stringResource(R.string.speech_qwen_base_url_hint),
                                 value = config.baseUrl,
                                 onChange = { value ->
@@ -239,7 +240,7 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                             )
                         }
                         SpeechFieldColumn {
-                            SpeechField(
+                            SettingsTextField(
                                 label = stringResource(R.string.speech_base_url),
                                 value = config.baseUrl,
                                 onChange = { value ->
@@ -249,7 +250,7 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                                     )
                                 },
                             )
-                            SpeechField(
+                            SettingsTextField(
                                 label = stringResource(R.string.speech_resource_id_hint),
                                 value = config.resourceId,
                                 onChange = { value ->
