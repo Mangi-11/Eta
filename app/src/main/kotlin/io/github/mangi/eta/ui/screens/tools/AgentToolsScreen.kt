@@ -264,12 +264,18 @@ fun AgentToolsScreen(
             val currentTopBarState = rememberTopAppBarState()
             val allTopBarState = rememberTopAppBarState()
             val activeListState = if (currentPage == 1) allListState else currentListState
-            val isContentScrolled by remember(activeListState) {
-                derivedStateOf { activeListState.canScrollBackward }
-            }
             val scrollBehavior = MiuixScrollBehavior(
                 state = if (currentPage == 1) allTopBarState else currentTopBarState,
             )
+            val isContentScrolled by remember(activeListState) {
+                derivedStateOf { activeListState.canScrollBackward }
+            }
+            val contentUnderTopBar by remember(activeListState, scrollBehavior) {
+                derivedStateOf {
+                    activeListState.canScrollBackward ||
+                        scrollBehavior.state.overscrollOffset < -1f
+                }
+            }
             MiuixScaffold(
                 title = stringResource(R.string.ui_tool_ability_9f0f80),
                 onBack = { onAction(AgentToolsAction.NavigateBack) },
@@ -289,7 +295,7 @@ fun AgentToolsScreen(
                             coroutineScope.launch { pagerState.springAnimateToPage(index) }
                         },
                         backdrop = backdrop ?: fallbackBackdrop,
-                        surfaceAlpha = if (backdrop != null) 1f else 0f,
+                        surfaceAlpha = if (backdrop != null && contentUnderTopBar) 1f else 0f,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = GlassTopAppBarDefaults.HorizontalPadding)

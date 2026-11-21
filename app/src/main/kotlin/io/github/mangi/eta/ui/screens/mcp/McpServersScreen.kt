@@ -113,8 +113,8 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Add
 import top.yukonga.miuix.kmp.icon.glass.Refresh
@@ -348,19 +348,17 @@ internal fun McpServersScreen(
                                     .weight(1f, fill = false)
                                     .verticalScroll(rememberScrollState()),
                             ) {
-                                TextField(
+                                GlassTextField(
                                     state = nameState,
                                     lineLimits = TextFieldLineLimits.SingleLine,
                                     label = stringResource(R.string.mcp_server_name),
-                                    colors = glassOverlayTextFieldColors(),
                                     enabled = !working,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                TextField(
+                                GlassTextField(
                                     state = urlState,
                                     lineLimits = TextFieldLineLimits.SingleLine,
                                     label = stringResource(R.string.mcp_server_url),
-                                    colors = glassOverlayTextFieldColors(),
                                     enabled = !working,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                                     modifier = Modifier.fillMaxWidth(),

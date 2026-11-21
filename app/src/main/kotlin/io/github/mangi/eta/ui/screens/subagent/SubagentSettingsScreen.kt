@@ -66,7 +66,6 @@ import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import io.github.suqi8.coui.kmp.icon.COUIIcons
 import io.github.suqi8.coui.kmp.icon.extended.Add
@@ -78,10 +77,10 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
 import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Add
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -605,39 +604,34 @@ internal fun SubagentSettingsScreen(
                                         .weight(1f, fill = false)
                                         .verticalScroll(rememberScrollState()),
                                 ) {
-                                    TextField(
+                                    GlassTextField(
                                         state = activeDraft.name,
                                         lineLimits = TextFieldLineLimits.SingleLine,
                                         label = stringResource(R.string.subagent_settings_field_name),
-                                        colors = glassOverlayTextFieldColors(),
                                         modifier = Modifier.fillMaxWidth(),
                                     )
-                                    TextField(
+                                    GlassTextField(
                                         state = activeDraft.description,
                                         lineLimits = TextFieldLineLimits.SingleLine,
                                         label = stringResource(R.string.subagent_settings_field_description),
-                                        colors = glassOverlayTextFieldColors(),
                                         modifier = Modifier.fillMaxWidth(),
                                     )
-                                    TextField(
+                                    GlassTextField(
                                         state = activeDraft.whenToUse,
                                         lineLimits = TextFieldLineLimits.SingleLine,
                                         label = stringResource(R.string.subagent_settings_field_when_to_use),
-                                        colors = glassOverlayTextFieldColors(),
                                         modifier = Modifier.fillMaxWidth(),
                                     )
-                                    TextField(
+                                    GlassTextField(
                                         state = activeDraft.toolsText,
                                         lineLimits = TextFieldLineLimits.SingleLine,
                                         label = stringResource(R.string.subagent_settings_field_tools),
-                                        colors = glassOverlayTextFieldColors(),
                                         modifier = Modifier.fillMaxWidth(),
                                     )
-                                    TextField(
+                                    GlassTextField(
                                         state = activeDraft.prompt,
                                         lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4, maxHeightInLines = 8),
                                         label = stringResource(R.string.subagent_settings_field_prompt),
-                                        colors = glassOverlayTextFieldColors(),
                                         modifier = Modifier.fillMaxWidth(),
                                     )
                                     editorError?.let { err ->

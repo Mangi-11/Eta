@@ -24,12 +24,12 @@ import io.github.mangi.eta.ui.app.LocalGlassPageBackdrop
 import io.github.mangi.eta.ui.app.LocalGlassSceneBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.TextFieldColors
-import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassIconButton
+import top.yukonga.miuix.kmp.glass.GlassTextFieldDefaults
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -147,19 +147,18 @@ internal fun MiuixTopBarActionButton(
 }
 
 /**
- * 玻璃弹窗 / 底部抽屉内输入框的提亮底色：Miuix 默认 `DialogGlassLight` 叠加遮罩后呈浅灰，
- * 若仍使用 `secondaryContainer`/`surfaceContainerHigh` 会与面板底色融在一起；半透白能自然拉开层次。
+ * 玻璃弹窗 / 底部抽屉内输入框与嵌套容器的通透底色：与 `GlassTextFieldDefaults`
+ * 共用 `onBackground` 半透明体系，兼顾浅/深色与动态取色下的层次与对比度。
  */
 @Composable
 internal fun glassOverlayFieldBackgroundColor(): Color {
-    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    return if (isDark) Color.White.copy(alpha = 0.09f) else Color.White.copy(alpha = 0.80f)
+    val scheme = MiuixTheme.colorScheme
+    val isDark = scheme.background.luminance() < 0.5f
+    return scheme.onBackground.copy(alpha = if (isDark) 36f / 255f else 15f / 255f)
 }
 
 @Composable
-internal fun glassOverlayTextFieldColors(): TextFieldColors = TextFieldDefaults.textFieldColors(
-    backgroundColor = glassOverlayFieldBackgroundColor(),
-    labelColor = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-)
+internal fun glassOverlayTextFieldColors(): TextFieldColors =
+    GlassTextFieldDefaults.textFieldColors()
 
 internal val MiuixSheetZeroMargin = PaddingValues(0.dp)

@@ -106,7 +106,6 @@ import io.github.mangi.eta.ui.components.coui.CouiText
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.coui.CouiTextKind
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.components.rememberGlassBackdrop
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
@@ -131,11 +130,11 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassFloatingToolbar
 import top.yukonga.miuix.kmp.glass.GlassFloatingToolbarDefaults
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Tune
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -1305,20 +1304,18 @@ private fun ModelEditDialog(
                             .scrollEndHaptic()
                             .verticalScroll(rememberScrollState()),
                     ) {
-                        TextField(
+                        GlassTextField(
                             state = displayNameState,
                             lineLimits = TextFieldLineLimits.SingleLine,
                             label = stringResource(R.string.ui_display_name_ed16be),
-                            colors = glassOverlayTextFieldColors(),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        TextField(
+                        GlassTextField(
                             state = modelIdState,
                             lineLimits = TextFieldLineLimits.SingleLine,
                             label = "Model ID",
-                            colors = glassOverlayTextFieldColors(),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Ascii,
                                 imeAction = ImeAction.Next,
@@ -1326,12 +1323,11 @@ private fun ModelEditDialog(
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        TextField(
+                        GlassTextField(
                             state = contextWindowOverrideTextState,
                             lineLimits = TextFieldLineLimits.SingleLine,
                             inputTransformation = DecimalDigits,
                             label = stringResource(R.string.ui_context_length_tokens_227860),
-                            colors = glassOverlayTextFieldColors(),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Number,
                                 imeAction = ImeAction.Done,

@@ -74,8 +74,8 @@ fun MiuixScaffoldPage(
     val isTopBarGlassActive by remember(listState, scrollState) {
         derivedStateOf {
             listState.canScrollBackward ||
-                scrollState.contentOffset < -0.5f ||
-                scrollState.overscrollOffset != 0f
+                scrollState.contentOffset < -1f ||
+                scrollState.overscrollOffset < -1f
         }
     }
     val captureActive = isTopBarGlassActive || demandPageBackdrop?.isActive == true
@@ -172,8 +172,8 @@ fun MiuixScaffold(
     val isTopBarGlassActive by remember(scrollState, isContentScrolled) {
         derivedStateOf {
             isContentScrolled == true ||
-                scrollState.contentOffset < -0.5f ||
-                scrollState.overscrollOffset != 0f
+                scrollState.contentOffset < -1f ||
+                scrollState.overscrollOffset < -1f
         }
     }
     val captureActive = isTopBarGlassActive || demandPageBackdrop?.isActive == true

@@ -71,7 +71,6 @@ import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlinx.coroutines.Dispatchers
@@ -84,8 +83,8 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -575,11 +574,10 @@ private fun SharedFolderPickerBody(
                 onKeyboardAction = { navigateTo(pathInputState.text.toString()) },
             )
         } else {
-            TextField(
+            GlassTextField(
                 state = pathInputState,
                 lineLimits = TextFieldLineLimits.SingleLine,
                 label = stringResource(R.string.shared_folders_path_label),
-                colors = glassOverlayTextFieldColors(),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                 onKeyboardAction = { navigateTo(pathInputState.text.toString()) },
                 modifier = Modifier.fillMaxWidth(),
@@ -648,11 +646,10 @@ private fun SharedFolderPickerBody(
                 modifier = Modifier.padding(top = 8.dp),
             )
         } else {
-            TextField(
+            GlassTextField(
                 lineLimits = TextFieldLineLimits.SingleLine,
                 state = nameState,
                 label = stringResource(R.string.shared_folders_name_label),
-                colors = glassOverlayTextFieldColors(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
