@@ -1,7 +1,6 @@
 package io.github.mangi.eta.agent.tool
 
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
-import io.github.mangi.eta.agent.media.MAX_AGENT_IMAGE_BYTES
 import io.github.mangi.eta.agent.model.AgentModelClient
 import java.util.Locale
 import org.json.JSONArray
@@ -133,6 +132,6 @@ internal class ChatImageSearchTools(private val root: BoundedRootCommandExecutor
         const val WECHAT_CHAT_IMAGES_DIRECTORY =
             "/storage/emulated/0/Android/data/com.tencent.mm/MicroMsg"
         const val CHAT_IMAGE_CANDIDATE_LIMIT = 120
-        const val CHAT_IMAGE_MAX_FILE_BYTES = MAX_AGENT_IMAGE_BYTES.toLong()
+        const val CHAT_IMAGE_MAX_FILE_BYTES = 128L * 1024 * 1024
     }
 }

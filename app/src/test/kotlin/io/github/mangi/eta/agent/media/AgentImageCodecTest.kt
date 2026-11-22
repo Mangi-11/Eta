@@ -14,6 +14,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.util.Base64
+import io.github.mangi.eta.data.model.ProviderTypes
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileNotFoundException
@@ -270,6 +271,124 @@ class AgentImageCodecTest {
             sourceFile.delete()
         }
     }
+
+    @Test
+    fun stageAttachmentPersistsLocalFileOutsidePickerLifecycleAndGeneratesPreview() {
+        val context = RuntimeEnvironment.getApplication()
+        val sourceFile = File(context.cacheDir, "stage-src-${System.nanoTime()}.png")
+        val bitmap = patternedBitmap(width = 2_400, height = 1_600)
+        FileOutputStream(sourceFile).use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+        bitmap.recycle()
+
+        val result = AgentImageCodec.stageAttachment(
+            context = context,
+            value = sourceFile.absolutePath,
+            source = "user_attach",
+        ) as AgentImageCodec.StageResult.Success
+        assertTrue(sourceFile.delete())
+
+        val stagedFile = File(result.image.reference)
+        try {
+            assertTrue("暂存引用应为本地文件路径而非 Base64", result.image.reference.startsWith("/"))
+            assertTrue(stagedFile.isFile)
+            assertEquals(2_400, result.image.width)
+            assertEquals(1_600, result.image.height)
+
+            val preview = AgentImageCodec.previewFromReference(context, result.image)
+                ?: error("无法从暂存文件生成预览")
+            assertEquals("image/jpeg", preview.mimeType)
+            assertTrue(preview.reference.startsWith("data:image/jpeg;base64,"))
+            assertTrue(maxOf(preview.width!!, preview.height!!) <= CHAT_PREVIEW_MAX_LONG_EDGE)
+        } finally {
+            stagedFile.delete()
+        }
+    }
+
+    @Test
+    fun adaptiveBudgetMonotonicallyConvergesNoisyImageWithinByteLimit() {
+        val bitmap = noisyBitmap(width = 1_200, height = 900)
+        val rawPng = ByteArrayOutputStream().use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            output.toByteArray()
+        }
+        bitmap.recycle()
+
+        val tightBudget = ModelImageBudget(maxEncodedBytes = 48 * 1024)
+        val image = AgentImageCodec.fromAttachmentBytes(
+            bytes = rawPng,
+            source = "user_attach",
+            mimeHint = "image/png",
+            budget = tightBudget,
+        )
+        assertEquals("image/jpeg", image.mimeType)
+        assertTrue(
+            "编码结果应单调收敛到预算以内，实际=${image.bytes}",
+            image.bytes <= tightBudget.maxEncodedBytes,
+        )
+        val decoded = BitmapFactory.decodeByteArray(image.reference.decodeDataUrl(), 0, image.bytes)
+            ?: error("收敛后的图片应可正常解码")
+        try {
+            assertEquals(image.width, decoded.width)
+            assertEquals(image.height, decoded.height)
+        } finally {
+            decoded.recycle()
+        }
+    }
+
+    @Test
+    fun providerBudgetsRespectAnthropicBase64Ceiling() {
+        val anthropic = ModelImageBudget.forProviderType(ProviderTypes.ANTHROPIC)
+        val openAi = ModelImageBudget.forProviderType(ProviderTypes.OPENAI_COMPATIBLE)
+        assertTrue(anthropic.maxEncodedBytes < openAi.maxEncodedBytes)
+        // Base64 膨胀约 4/3，确保仍在 Anthropic / Bedrock 5 MB 硬上限以内
+        val estimatedBase64Bytes = (anthropic.maxEncodedBytes.toLong() * 4L) / 3L + 4L
+        assertTrue(estimatedBase64Bytes < 5L * 1024L * 1024L)
+    }
+
+    @Test
+    fun attachmentDescriptorStreamsSeekableFdWithoutFullByteRead() {
+        val context = RuntimeEnvironment.getApplication()
+        val sourceFile = File(context.cacheDir, "fd-stream-${System.nanoTime()}.png")
+        val bitmap = patternedBitmap(width = 640, height = 480)
+        FileOutputStream(sourceFile).use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+        bitmap.recycle()
+
+        try {
+            val pfd = ParcelFileDescriptor.open(sourceFile, ParcelFileDescriptor.MODE_READ_ONLY)
+            val image = ParcelFileDescriptor.AutoCloseInputStream(pfd).use { fis ->
+                AgentImageCodec.fromAttachmentDescriptor(
+                    inputStream = fis,
+                    source = "user_attach",
+                    mimeHint = "image/png",
+                    budget = ModelImageBudget.ANTHROPIC,
+                )
+            }
+            assertEquals("image/jpeg", image.mimeType)
+            assertEquals(640, image.width)
+            assertEquals(480, image.height)
+            assertTrue(image.bytes <= ModelImageBudget.ANTHROPIC.maxEncodedBytes)
+        } finally {
+            sourceFile.delete()
+        }
+    }
+
+    private fun noisyBitmap(width: Int, height: Int): Bitmap =
+        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
+            val pixels = IntArray(width * height)
+            var state = 0x1234567
+            for (index in pixels.indices) {
+                state = state * 1664525 + 1013904223
+                val r = (state ushr 16) and 0xFF
+                val g = (state ushr 8) and 0xFF
+                val b = state and 0xFF
+                pixels[index] = Color.rgb(r, g, b)
+            }
+            bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+        }
 
     private fun patternedBitmap(width: Int, height: Int): Bitmap =
         Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->

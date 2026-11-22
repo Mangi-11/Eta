@@ -81,6 +81,31 @@ internal class AgentLoop(
         transcript.put(message)
     }
 
+    /**
+     * 运行中插话等持久消息必须落在瞬态工具观察截图（`_eta_observation`）之前，
+     * 避免下轮摘除尾部截图时改变该消息的前缀位置并击穿提示缓存断点。
+     */
+    private fun appendMessageBeforePendingObservation(message: JSONObject) {
+        val pending = pendingToolImageMessage
+        var inserted = false
+        if (pending != null) {
+            for (index in messages.length() - 1 downTo 0) {
+                if (messages.optJSONObject(index) === pending) {
+                    for (shift in messages.length() downTo index + 1) {
+                        messages.put(shift, messages.get(shift - 1))
+                    }
+                    messages.put(index, message)
+                    inserted = true
+                    break
+                }
+            }
+        }
+        if (!inserted) {
+            messages.put(message)
+        }
+        transcript.put(message)
+    }
+
     private var publishedTranscriptSize = 0
 
     private fun publishTranscript() {
@@ -365,7 +390,7 @@ internal class AgentLoop(
 
     private fun appendPendingSteeringMessage(): Boolean {
         val supplement = runController.pollSteeringMessage() ?: return false
-        appendMessage(steeringMessage(supplement))
+        appendMessageBeforePendingObservation(steeringMessage(supplement))
         context.userAppended()
         turnMetrics.reset()
         return true
@@ -373,7 +398,7 @@ internal class AgentLoop(
 
     private fun appendPendingSteeringOrSeal(): Boolean {
         val supplement = runController.pollSteeringOrSeal() ?: return false
-        appendMessage(steeringMessage(supplement))
+        appendMessageBeforePendingObservation(steeringMessage(supplement))
         context.userAppended()
         turnMetrics.reset()
         return true

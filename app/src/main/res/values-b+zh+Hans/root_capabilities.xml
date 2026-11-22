@@ -33,7 +33,7 @@
     <string name="capability_optional_root">可选增强权限</string>
     <string name="capability_import_denied">没有权限读取该路径，请选择文件导入或授权共享目录</string>
     <string name="capability_import_failed">文件导入失败，请重试</string>
-    <string name="capability_import_too_large">文件超过 32 MiB，无法导入</string>
+    <string name="capability_import_insufficient_storage">设备可用存储空间不足，无法导入该文件</string>
     <string name="capability_provider_created">已创建并设为当前模型服务商</string>
     <string name="capability_provider_saved">已保存并设为当前模型服务商</string>
     <string name="capability_linux_backend">运行方式</string>

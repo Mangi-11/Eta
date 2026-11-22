@@ -5,9 +5,11 @@ import android.graphics.BitmapFactory
 import android.os.Parcel
 import android.util.Base64
 import io.github.mangi.eta.agent.media.AgentImageCodec
+import io.github.mangi.eta.agent.media.ModelImageBudget
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ProviderAuthModes
+import io.github.mangi.eta.data.model.ProviderTypes
 import io.github.mangi.eta.data.model.ReasoningEffort
 import java.io.File
 import java.io.FileOutputStream
@@ -434,6 +436,59 @@ class AgentRuntimeWireTest {
             }
         } finally {
             sourceFile.delete()
+        }
+    }
+
+    @Test
+    fun stagedAttachmentUsesZeroCopyDescriptorAndRespectsAnthropicBudget() {
+        val context = RuntimeEnvironment.getApplication()
+        val sourceFile = File(context.cacheDir, "anthropic-stage-src-${System.nanoTime()}.png")
+        val random = kotlin.random.Random(19)
+        val bitmap = Bitmap.createBitmap(
+            IntArray(512 * 512) { random.nextInt() or 0xff000000.toInt() },
+            512,
+            512,
+            Bitmap.Config.ARGB_8888,
+        )
+        try {
+            FileOutputStream(sourceFile).use { output ->
+                assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+            }
+        } finally {
+            bitmap.recycle()
+        }
+        val staged = AgentImageCodec.stageAttachment(context, sourceFile.absolutePath, "user_attach")
+            as AgentImageCodec.StageResult.Success
+        sourceFile.delete()
+        val stagedFile = File(staged.image.reference)
+        try {
+            val request = AgentRuntimeWire.RunRequest(
+                runId = "run-anthropic-image",
+                prompt = "分析图片",
+                config = AgentModelClient.ModelConfig(
+                    providerType = ProviderTypes.ANTHROPIC,
+                    baseUrl = "https://example.invalid/v1",
+                    apiKey = "test-key",
+                    model = "claude-sonnet-5",
+                    systemPrompt = "",
+                ),
+                images = listOf(staged.image),
+            )
+            AgentRuntimeImageTransfer.prepare(context, request.images).use { prepared ->
+                assertTrue(prepared.images.single().fileDescriptor != null)
+                val materialized = AgentRuntimeImageTransfer.materialize(
+                    AgentRuntimeWire.incomingRunRequestFromBundle(
+                        AgentRuntimeWire.toBundle(request, prepared.images),
+                    ),
+                )
+                val received = materialized.images.single()
+                assertEquals("image/jpeg", received.mimeType)
+                assertEquals(512, received.width)
+                assertEquals(512, received.height)
+                assertTrue(received.bytes <= ModelImageBudget.ANTHROPIC.maxEncodedBytes)
+            }
+        } finally {
+            stagedFile.delete()
         }
     }
 

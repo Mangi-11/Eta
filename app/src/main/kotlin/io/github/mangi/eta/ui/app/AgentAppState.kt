@@ -76,6 +76,7 @@ import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.UserMessageUi
 import io.github.mangi.eta.ui.model.contentMatches
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
@@ -2154,12 +2155,37 @@ internal class AgentAppState(
     fun attachImage(uri: String) {
         scope.launch(Dispatchers.IO) {
             try {
-                val image = AgentImageCodec.fromReference(
+                val staged = AgentImageCodec.stageAttachment(
                     context = appContext,
                     value = uri,
                     source = "user_attach",
                 )
-                if (image == null) {
+                val image = when (staged) {
+                    is AgentImageCodec.StageResult.Success -> staged.image
+                    AgentImageCodec.StageResult.InsufficientStorage -> {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                appContext,
+                                appContext.getString(R.string.capability_import_insufficient_storage),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                        return@launch
+                    }
+                    AgentImageCodec.StageResult.InvalidImage -> {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                appContext,
+                                appContext.getString(R.string.state_ui_unable_to_read_this_image_please_try_again_or_us_d94978),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                        return@launch
+                    }
+                }
+                val preview = AgentImageCodec.previewFromReference(appContext, image)
+                if (preview == null) {
+                    deleteStagedAttachmentIfLocal(image.reference)
                     withContext(Dispatchers.Main) {
                         Toast.makeText(
                             appContext,
@@ -2169,10 +2195,10 @@ internal class AgentAppState(
                     }
                     return@launch
                 }
-                val preview = AgentImageCodec.previewFromReference(appContext, image) ?: image
                 val pending = PendingImageUi(
                     id = "img-${UUID.randomUUID()}",
-                    // 后续发送使用首次读取后的稳定引用，不再依赖 ROM Photo Picker URI 的授权生命周期。
+                    // 后续发送直接对私有暂存文件开只读 fd 零拷贝传输，既脱离 Photo Picker URI 生命周期，
+                    // 也不在 UI 堆内存中囤积整张原图的 Base64。
                     uri = image.reference,
                     dataUrl = preview.reference,
                     mimeType = image.mimeType,
@@ -2191,6 +2217,12 @@ internal class AgentAppState(
                     }
                 }
             }
+        }
+    }
+
+    private fun deleteStagedAttachmentIfLocal(reference: String) {
+        if (reference.startsWith("/")) {
+            runCatching { File(reference).delete() }
         }
     }
 
@@ -2277,20 +2309,31 @@ internal class AgentAppState(
             request.uris.forEach { rawUri ->
                 val uri = Uri.parse(rawUri)
                 if (isSharedImageCandidate(uri, request.mimeType, isSingleUri = request.uris.size == 1)) {
-                    val image = AgentImageCodec.fromReference(
-                        context = appContext,
-                        value = rawUri,
-                        source = "user_attach",
-                    )
-                    if (image != null) {
-                        val preview = AgentImageCodec.previewFromReference(appContext, image) ?: image
-                        resolvedImages += PendingImageUi(
-                            id = "img-${UUID.randomUUID()}",
-                            uri = image.reference,
-                            dataUrl = preview.reference,
-                            mimeType = image.mimeType,
+                    when (
+                        val staged = AgentImageCodec.stageAttachment(
+                            context = appContext,
+                            value = rawUri,
+                            source = "user_attach",
                         )
-                        return@forEach
+                    ) {
+                        is AgentImageCodec.StageResult.Success -> {
+                            val preview = AgentImageCodec.previewFromReference(appContext, staged.image)
+                            if (preview != null) {
+                                resolvedImages += PendingImageUi(
+                                    id = "img-${UUID.randomUUID()}",
+                                    uri = staged.image.reference,
+                                    dataUrl = preview.reference,
+                                    mimeType = staged.image.mimeType,
+                                )
+                                return@forEach
+                            }
+                            deleteStagedAttachmentIfLocal(staged.image.reference)
+                        }
+                        AgentImageCodec.StageResult.InsufficientStorage -> {
+                            failures += AgentFileReferenceGateway.Error.InsufficientStorage
+                            return@forEach
+                        }
+                        AgentImageCodec.StageResult.InvalidImage -> Unit
                     }
                 }
                 when (val resolution = resolveSharedFileUri(gateway, uri)) {
@@ -2444,7 +2487,7 @@ internal class AgentAppState(
             AgentFileReferenceGateway.Error.RootUnavailable -> appContext.getString(R.string.state_ui_root_is_not_available_and_the_path_cannot_be_ver_fc4c81)
             AgentFileReferenceGateway.Error.AccessDenied -> appContext.getString(R.string.capability_import_denied)
             AgentFileReferenceGateway.Error.ImportFailed -> appContext.getString(R.string.capability_import_failed)
-            AgentFileReferenceGateway.Error.ImportTooLarge -> appContext.getString(R.string.capability_import_too_large)
+            AgentFileReferenceGateway.Error.InsufficientStorage -> appContext.getString(R.string.capability_import_insufficient_storage)
             AgentFileReferenceGateway.Error.ValidationTimedOut -> appContext.getString(R.string.state_ui_path_verification_timed_out_please_try_again_703687)
         }
 

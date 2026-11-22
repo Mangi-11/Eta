@@ -33,7 +33,7 @@
     <string name="capability_optional_root">可選的增強權限</string>
     <string name="capability_import_denied">沒有權限讀取此路徑，請選擇檔案匯入或授權共用目錄</string>
     <string name="capability_import_failed">檔案匯入失敗，請重試</string>
-    <string name="capability_import_too_large">檔案超過 32 MiB，無法匯入</string>
+    <string name="capability_import_insufficient_storage">裝置可用儲存空間不足，無法匯入該檔案</string>
     <string name="capability_provider_created">已建立並設為目前的模型服務商</string>
     <string name="capability_provider_saved">已儲存並設為目前的模型服務商</string>
     <string name="capability_linux_backend">執行方式</string>

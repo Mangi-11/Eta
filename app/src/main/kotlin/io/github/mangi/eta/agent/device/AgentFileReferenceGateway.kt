@@ -174,7 +174,7 @@ internal class AgentFileReferenceGateway(
         RootUnavailable,
         AccessDenied,
         ImportFailed,
-        ImportTooLarge,
+        InsufficientStorage,
         ValidationTimedOut,
     }
 
@@ -188,22 +188,31 @@ internal class AgentFileReferenceGateway(
         const val SHARED_STORAGE_ROOT = "/storage/emulated/0"
 
         private const val MEDIA_DOCUMENTS_AUTHORITY = "com.android.providers.media.documents"
-        internal const val MAX_IMPORT_BYTES = 32L * 1024 * 1024
+
+        private data class DocumentMetadata(
+            val displayName: String?,
+            val declaredSize: Long,
+        )
 
         internal fun importDocumentUri(context: Context, uri: Uri): Resolution {
             val workspace = TerminalPrivateStorage.workspace(context.filesDir)
             val importDirectory = File(workspace, "imports/${UUID.randomUUID()}")
             var completed = false
             return try {
-                val name = documentDisplayName(context, uri)
-                val displayName = safeImportName(name)
+                val metadata = documentMetadata(context, uri)
+                val displayName = safeImportName(metadata.displayName)
                 if (!importDirectory.mkdirs()) return Resolution.Failure(Error.ImportFailed)
                 val importedFile = File(importDirectory, displayName)
                 val input = context.contentResolver.openInputStream(uri)
                     ?: return Resolution.Failure(Error.ImportFailed)
                 input.use { source ->
                     importedFile.outputStream().use { destination ->
-                        BoundedFileCopy.copy(source, destination, MAX_IMPORT_BYTES)
+                        BoundedFileCopy.copyWithStorageReserve(
+                            input = source,
+                            output = destination,
+                            targetDirectory = importDirectory,
+                            declaredBytes = metadata.declaredSize,
+                        )
                     }
                 }
                 completed = true
@@ -214,8 +223,8 @@ internal class AgentFileReferenceGateway(
                         kind = AgentFileReferenceKind.File,
                     ),
                 )
-            } catch (_: BoundedFileCopy.TooLargeException) {
-                Resolution.Failure(Error.ImportTooLarge)
+            } catch (_: BoundedFileCopy.InsufficientStorageException) {
+                Resolution.Failure(Error.InsufficientStorage)
             } catch (_: SecurityException) {
                 Resolution.Failure(Error.AccessDenied)
             } catch (_: IOException) {
@@ -227,16 +236,27 @@ internal class AgentFileReferenceGateway(
             }
         }
 
-        private fun documentDisplayName(context: Context, uri: Uri): String? = try {
+        private fun documentMetadata(context: Context, uri: Uri): DocumentMetadata = try {
             context.contentResolver.query(
-                uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null,
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                null,
+                null,
+                null,
             )?.use { cursor ->
-                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
-            }
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    val name = if (nameIndex >= 0 && !cursor.isNull(nameIndex)) cursor.getString(nameIndex) else null
+                    val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else -1L
+                    DocumentMetadata(name, size)
+                } else {
+                    DocumentMetadata(null, -1L)
+                }
+            } ?: DocumentMetadata(null, -1L)
         } catch (_: RuntimeException) {
-            // 名称是可选元数据；实际读取授权仍由 openInputStream 校验。
-            null
+            // 元数据是可选提示；实际读取授权与剩余空间在流式拷贝时实时校验。
+            DocumentMetadata(null, -1L)
         }
 
         internal fun safeImportName(name: String?): String = name.orEmpty()

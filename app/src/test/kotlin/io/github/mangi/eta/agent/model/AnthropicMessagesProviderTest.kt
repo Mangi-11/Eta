@@ -386,6 +386,53 @@ class AnthropicMessagesProviderTest {
     }
 
     @Test
+    fun cacheBreakpointLandsOnSteeringBeforeTrailingObservationImage() {
+        val toolAssistant = JSONObject()
+            .put("role", "assistant")
+            .put("content", "")
+            .put("tool_calls", JSONArray().put(JSONObject().put("id", "toolu_obs").put("type", "function")
+                .put("function", JSONObject().put("name", "observe_screen").put("arguments", "{}"))))
+        val messages = JSONArray()
+            .put(JSONObject().put("role", "system").put("content", "系统"))
+            .put(AgentConversationCodec.userTextMessage("操作"))
+            .put(toolAssistant)
+            .put(JSONObject().put("role", "tool").put("tool_call_id", "toolu_obs").put("content", """{"ok":true}"""))
+            .put(AgentConversationCodec.userTextMessage("顺便点确认").put("_eta_steering", true))
+            .put(
+                AgentConversationCodec.userMessage(
+                    text = "Latest observation image(s) returned by tool(s): observe_screen.",
+                    images = listOf(
+                        AgentModelClient.ModelImage(
+                            reference = "data:image/png;base64,iVBORw0KGgo=",
+                            mimeType = "image/png",
+                            bytes = 8,
+                            source = "screen",
+                            preserveOriginal = true,
+                        ),
+                    ),
+                ).put("_eta_observation", true),
+            )
+        val requestBody = AtomicReference<String>()
+        withAnthropicServer(event("message_stop", JSONObject()), onRequest = requestBody::set) { baseUrl ->
+            AnthropicMessagesProvider.complete(
+                providerRequest(baseUrl).copy(messages = messages),
+                AgentRunController(),
+            )
+        }
+
+        val sentMessages = JSONObject(requestBody.get()).getJSONArray("messages")
+        val lastContent = sentMessages.getJSONObject(sentMessages.length() - 1).getJSONArray("content")
+        // 顺序：[tool_result, steering(带 cache_control), obs_text, obs_image]
+        assertEquals("tool_result", lastContent.getJSONObject(0).getString("type"))
+        assertFalse(lastContent.getJSONObject(0).has("cache_control"))
+        assertEquals("text", lastContent.getJSONObject(1).getString("type"))
+        assertTrue(lastContent.getJSONObject(1).getString("text").contains("顺便点确认"))
+        assertTrue(lastContent.getJSONObject(1).has("cache_control"))
+        assertFalse(lastContent.getJSONObject(2).has("cache_control"))
+        assertFalse(lastContent.getJSONObject(3).has("cache_control"))
+    }
+
+    @Test
     fun thinkingStreamsThroughToolBoundariesAndCompletesBeforeConnectionCloses() {
         val firstDelta = CountDownLatch(1)
         val completed = CountDownLatch(1)

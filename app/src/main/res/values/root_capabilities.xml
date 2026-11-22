@@ -33,7 +33,7 @@
     <string name="capability_optional_root">Optional enhancement permissions</string>
     <string name="capability_import_denied">Cannot read this path. Import the file or authorize a shared directory.</string>
     <string name="capability_import_failed">File import failed. Try again.</string>
-    <string name="capability_import_too_large">Files larger than 32 MiB cannot be imported</string>
+    <string name="capability_import_insufficient_storage">Not enough available storage space to import this file</string>
     <string name="capability_provider_created">Created and selected as the current model provider</string>
     <string name="capability_provider_saved">Saved and selected as the current model provider</string>
     <string name="capability_linux_backend">Execution mode</string>

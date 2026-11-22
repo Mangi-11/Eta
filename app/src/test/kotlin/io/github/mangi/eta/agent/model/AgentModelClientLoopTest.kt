@@ -1004,4 +1004,70 @@ class AgentModelClientLoopTest {
         val projected = OpenAiRequestMessages.forChatCompletions(provider.requests[1])
         assertFalse(projected.toString().contains("_eta_steering"))
     }
+
+    @Test
+    fun steeringDuringScreenshotObservationStaysBeforeTransientImageForPrefixCache() {
+        val controller = AgentRunController()
+        val screenshot = AgentModelClient.ModelImage(
+            reference = "data:image/png;base64,iVBORw0KGgo=",
+            mimeType = "image/png",
+            bytes = 8,
+            width = 1,
+            height = 1,
+            source = "screen",
+            preserveOriginal = true,
+        )
+        val provider = ScriptedProvider(
+            responses = listOf(
+                { _, _ ->
+                    assistant(
+                        finishReason = "tool_calls",
+                        toolCalls = listOf(toolCall("obs_1", "observe_screen", """{"include_screenshot":true}""")),
+                    )
+                },
+                { _, _ ->
+                    assistant(
+                        finishReason = "tool_calls",
+                        toolCalls = listOf(toolCall("tap_1", "tap", """{"x":100,"y":200,"coordinate_space":"normalized"}""")),
+                    )
+                },
+                { _, _ -> assistant(content = "操作完成", finishReason = "stop") },
+            ),
+        )
+
+        AgentModelClient.complete(
+            config = modelConfig(),
+            prompt = "帮我看屏幕",
+            toolExecutor = AgentModelClient.ToolExecutor { call ->
+                if (call.name == "observe_screen") {
+                    controller.steer("顺便点一下确认按钮")
+                    AgentModelClient.ToolResult(
+                        content = """{"ok":true,"observation_id":"o1"}""",
+                        images = listOf(screenshot),
+                    )
+                } else {
+                    AgentModelClient.ToolResult(content = """{"ok":true}""")
+                }
+            },
+            provider = provider,
+            runController = controller,
+        )
+
+        val round2 = provider.requests[1]
+        val round3 = provider.requests[2]
+        // Round 2 尾部顺序必须为 [tool, _eta_steering, _eta_observation]，瞬态截图留在最末位。
+        assertEquals("tool", round2.getJSONObjectFromEnd(3).getString("role"))
+        assertTrue(round2.getJSONObjectFromEnd(2).optBoolean("_eta_steering"))
+        assertTrue(round2.getJSONObjectFromEnd(1).optBoolean("_eta_observation"))
+        // Round 3 摘除瞬态截图后，到 _eta_steering 为止的整个前缀与 Round 2 逐条完全一致。
+        val stablePrefixLength = round2.length() - 1
+        assertTrue(round3.length() > stablePrefixLength)
+        for (index in 0 until stablePrefixLength) {
+            assertEquals(
+                "第 $index 条消息前缀应保持逐字节稳定以命中缓存",
+                round2.getJSONObject(index).toString(),
+                round3.getJSONObject(index).toString(),
+            )
+        }
+    }
 }

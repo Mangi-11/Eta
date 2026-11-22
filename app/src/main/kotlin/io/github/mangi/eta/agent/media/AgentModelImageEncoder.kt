@@ -10,28 +10,65 @@ import android.graphics.Rect
 import android.net.Uri
 import android.util.Base64
 import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.data.model.ProviderTypes
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FilterInputStream
 import java.io.InputStream
 import kotlin.math.min
 import kotlin.math.sqrt
 
-internal const val MAX_AGENT_IMAGE_BYTES = 12 * 1024 * 1024
+internal const val MAX_SCREEN_IMAGE_BYTES = 32 * 1024 * 1024
 internal const val CHAT_PREVIEW_MAX_LONG_EDGE = 1_920
 
-/** 仅负责为工具截图和聊天预览生成独立的图片副本。 */
-internal object AgentModelImageEncoder {
-    private const val MODEL_JPEG_QUALITY = 95
-    private const val PREVIEW_JPEG_QUALITY = 88
+/**
+ * 模型发送前的图片预算约束：将「用户原图大小」与「模型协议上限」解耦。
+ *
+ * - 使用总像素预算 + 单边硬顶，避免普通照片无谓降采样，也避免手机长截图被压成细条。
+ * - 按渠道区分字节预算：Anthropic / Bedrock / Vertex Claude 要求 Base64 <= 5 MB（raw 约 3.75 MB），
+ *   取 3.5 MiB 留足协议余量；OpenAI / Gemini 兼容端点取 8 MiB。
+ */
+internal data class ModelImageBudget(
+    val maxEncodedBytes: Int,
+    val maxPixels: Long = DEFAULT_MAX_PIXELS,
+    val maxEdgePx: Int = DEFAULT_MAX_EDGE_PX,
+    val initialQuality: Int = DEFAULT_JPEG_QUALITY,
+) {
+    init {
+        require(maxEncodedBytes > 0)
+        require(maxPixels > 0L)
+        require(maxEdgePx > 0)
+        require(initialQuality in 1..100)
+    }
 
-    private data class EncodingProfile(
-        val format: Bitmap.CompressFormat,
-        val mimeType: String,
-        val quality: Int,
-        val maxLongEdge: Int? = null,
-        val maxPixels: Long? = null,
-    )
+    companion object {
+        const val DEFAULT_MAX_PIXELS = 8_000_000L
+        const val DEFAULT_MAX_EDGE_PX = 7_680
+        const val DEFAULT_JPEG_QUALITY = 95
+        const val ANTHROPIC_MAX_BYTES = 3_670_016
+        const val STANDARD_MAX_BYTES = 8 * 1024 * 1024
+
+        val ANTHROPIC = ModelImageBudget(maxEncodedBytes = ANTHROPIC_MAX_BYTES)
+        val STANDARD = ModelImageBudget(maxEncodedBytes = STANDARD_MAX_BYTES)
+        val DEFAULT = STANDARD
+
+        fun forProviderType(providerType: String?): ModelImageBudget =
+            if (providerType == ProviderTypes.ANTHROPIC) ANTHROPIC else STANDARD
+    }
+}
+
+/** 负责将任意来源的图片流式解码并编码为符合目标预算的模型图片或聊天预览。 */
+internal object AgentModelImageEncoder {
+    private const val PREVIEW_JPEG_QUALITY = 88
+    private const val PREVIEW_MAX_BYTES = 2 * 1024 * 1024
+    private const val PREVIEW_MAX_PIXELS = 1_800_000L
+    private const val HEADER_MAGIC_BYTES = 16
+    private const val MAX_SHRINK_ROUNDS = 6
+    private const val SHRINK_FACTOR = 0.75
+    private const val MIN_SHRINK_EDGE_PX = 256
+    private const val MIN_EMERGENCY_EDGE_PX = 32
 
     private data class ImageBounds(
         val width: Int,
@@ -41,77 +78,111 @@ internal object AgentModelImageEncoder {
 
     private data class TargetSize(val width: Int, val height: Int)
 
-    private val screenProfile = EncodingProfile(
-        format = Bitmap.CompressFormat.PNG,
-        mimeType = "image/png",
-        quality = 100,
-    )
-    private val attachmentProfile = EncodingProfile(
-        format = Bitmap.CompressFormat.JPEG,
-        mimeType = "image/jpeg",
-        quality = MODEL_JPEG_QUALITY,
-    )
-    // 聊天图片支持点击全屏缩放查看文字细节（如聊天记录与终端长截图），保留高清边长上限。
-    private val previewProfile = EncodingProfile(
-        maxLongEdge = CHAT_PREVIEW_MAX_LONG_EDGE,
-        maxPixels = 1_800_000L,
-        format = Bitmap.CompressFormat.JPEG,
-        mimeType = "image/jpeg",
-        quality = PREVIEW_JPEG_QUALITY,
-    )
-    private val toolVisionProfile = EncodingProfile(
-        format = Bitmap.CompressFormat.JPEG,
-        mimeType = "image/jpeg",
-        quality = MODEL_JPEG_QUALITY,
+    private val previewBudget = ModelImageBudget(
+        maxEncodedBytes = PREVIEW_MAX_BYTES,
+        maxPixels = PREVIEW_MAX_PIXELS,
+        maxEdgePx = CHAT_PREVIEW_MAX_LONG_EDGE,
+        initialQuality = PREVIEW_JPEG_QUALITY,
     )
 
     fun attachment(
         bytes: ByteArray,
         source: String,
         mimeHint: String,
+        budget: ModelImageBudget = ModelImageBudget.DEFAULT,
+    ): AgentModelClient.ModelImage? = encodeStreamForModel(
+        openStream = { ByteArrayInputStream(bytes) },
+        source = source,
+        mimeHint = mimeHint,
+        budget = budget,
+    )
+
+    fun encodeFileForModel(
+        file: File,
+        source: String,
+        mimeHint: String = "image/jpeg",
+        budget: ModelImageBudget = ModelImageBudget.DEFAULT,
     ): AgentModelClient.ModelImage? {
-        if (!bytes.hasSupportedImageMagic()) return null
-        val bounds = inspectBounds(bytes, mimeHint)
-        val encoded = transcodeBytes(
-            bytes = bytes,
+        if (!file.isFile || file.length() <= 0L) return null
+        return encodeStreamForModel(
+            openStream = { file.inputStream() },
             source = source,
-            bounds = bounds,
-            profile = attachmentProfile,
+            mimeHint = mimeHint,
+            budget = budget,
         )
-        // 普通附件保持 JPEG 兼容路径；截图不经过这里的解码与重编码。
-        return encoded
     }
+
+    /** 针对可 seek 的文件描述符（如跨进程传入的本地原图）直接流式采样解码，避免整图读入堆内存。 */
+    fun encodeSeekableDescriptorForModel(
+        inputStream: FileInputStream,
+        source: String,
+        mimeHint: String = "image/jpeg",
+        budget: ModelImageBudget = ModelImageBudget.DEFAULT,
+    ): AgentModelClient.ModelImage? = encodeStreamForModel(
+        openStream = {
+            inputStream.channel.position(0L)
+            NonClosingInputStream(inputStream)
+        },
+        source = source,
+        mimeHint = mimeHint,
+        budget = budget,
+    )
 
     fun screen(
         bitmap: Bitmap,
         source: String,
-    ): AgentModelClient.ModelImage =
+    ): AgentModelClient.ModelImage {
         // Bitmap 尚无文件编码，仅序列化一次 PNG；不缩放、不铺底、不转换像素。
-        encodeBitmap(bitmap, source, screenProfile, flattenAlpha = false).copy(preserveOriginal = true)
+        require(!bitmap.isRecycled && bitmap.width > 0 && bitmap.height > 0) { "图片位图不可用" }
+        val initialCapacity = minOf(
+            bitmap.width * bitmap.height / 4,
+            2 * 1024 * 1024,
+        ).coerceAtLeast(32 * 1024)
+        val output = ByteArrayOutputStream(initialCapacity)
+        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "图片编码失败" }
+        val encoded = output.toByteArray()
+        require(encoded.isNotEmpty() && encoded.size <= MAX_SCREEN_IMAGE_BYTES) {
+            "图片数据过大：${encoded.size}"
+        }
+        return AgentModelClient.ModelImage(
+            reference = "data:image/png;base64,${Base64.encodeToString(encoded, Base64.NO_WRAP)}",
+            mimeType = "image/png",
+            bytes = encoded.size,
+            width = bitmap.width,
+            height = bitmap.height,
+            source = source,
+            preserveOriginal = true,
+        )
+    }
 
-    /** 文件工具图片在发送模型前统一编码为 JPEG。 */
+    /** 文件工具图片在发送模型前流式采样并按目标渠道预算编码为 JPEG。 */
+    fun toolVision(
+        file: File,
+        source: String,
+        mimeHint: String = "image/jpeg",
+        budget: ModelImageBudget = ModelImageBudget.DEFAULT,
+    ): AgentModelClient.ModelImage? = runCatching {
+        encodeFileForModel(file, source, mimeHint, budget)
+    }.getOrNull()
+
     fun toolVision(
         bytes: ByteArray,
         source: String,
         mimeHint: String = "image/jpeg",
+        budget: ModelImageBudget = ModelImageBudget.DEFAULT,
     ): AgentModelClient.ModelImage? = runCatching {
-        if (!bytes.hasSupportedImageMagic()) return@runCatching null
-        transcodeBytes(
-            bytes = bytes,
-            source = source,
-            bounds = inspectBounds(bytes, mimeHint),
-            profile = toolVisionProfile,
-        )
+        attachment(bytes, source, mimeHint, budget)
     }.getOrNull()
 
     fun preview(
         context: Context,
         image: AgentModelClient.ModelImage,
     ): AgentModelClient.ModelImage? = runCatching {
-        val width = image.width ?: return@runCatching null
-        val height = image.height ?: return@runCatching null
-        val target = targetSize(width, height, previewProfile)
         val openStream = referenceStreamFactory(context, image.reference) ?: return@runCatching null
+        val bounds = inspectBounds(openStream, image.mimeType) ?: return@runCatching null
+        val width = image.width?.takeIf { it > 0 } ?: bounds.width
+        val height = image.height?.takeIf { it > 0 } ?: bounds.height
+        val target = targetSize(width, height, previewBudget)
         val options = BitmapFactory.Options().apply {
             inPreferredConfig = Bitmap.Config.ARGB_8888
             inSampleSize = sampleSize(width, height, target)
@@ -120,77 +191,137 @@ internal object AgentModelImageEncoder {
             BitmapFactory.decodeStream(input, null, options)
         } ?: return@runCatching null
         try {
-            encodeBitmap(decoded, image.source, previewProfile, flattenAlpha = true)
+            encodeBitmapWithinBudget(
+                bitmap = decoded,
+                source = image.source,
+                budget = previewBudget,
+                flattenAlpha = true,
+            )
         } finally {
             if (!decoded.isRecycled) decoded.recycle()
         }
     }.getOrNull()
 
-    private fun transcodeBytes(
-        bytes: ByteArray,
+    internal fun encodeStreamForModel(
+        openStream: () -> InputStream,
         source: String,
-        bounds: ImageBounds,
-        profile: EncodingProfile,
+        mimeHint: String,
+        budget: ModelImageBudget,
     ): AgentModelClient.ModelImage? {
-        if (bounds.width <= 0 || bounds.height <= 0) return null
-        val target = bounds.targetSize(profile)
+        val header = readHeaderMagic(openStream) ?: return null
+        if (!header.hasSupportedImageMagic()) return null
+        val bounds = inspectBounds(openStream, mimeHint) ?: return null
+        val target = targetSize(bounds.width, bounds.height, budget)
         val options = BitmapFactory.Options().apply {
             inPreferredConfig = Bitmap.Config.ARGB_8888
             inSampleSize = sampleSize(bounds.width, bounds.height, target)
         }
-        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+        val decoded = openStream().use { input ->
+            BitmapFactory.decodeStream(input, null, options)
+        } ?: return null
         return try {
-            encodeBitmap(
-                bitmap = bitmap,
+            encodeBitmapWithinBudget(
+                bitmap = decoded,
                 source = source,
-                profile = profile,
-                flattenAlpha = profile.format == Bitmap.CompressFormat.JPEG &&
-                    !bounds.mimeType.equals("image/jpeg", ignoreCase = true),
+                budget = budget,
+                flattenAlpha = !bounds.mimeType.equals("image/jpeg", ignoreCase = true),
             )
         } finally {
-            if (!bitmap.isRecycled) bitmap.recycle()
+            if (!decoded.isRecycled) decoded.recycle()
         }
     }
 
-    private fun encodeBitmap(
+    private fun encodeBitmapWithinBudget(
         bitmap: Bitmap,
         source: String,
-        profile: EncodingProfile,
+        budget: ModelImageBudget,
         flattenAlpha: Boolean,
     ): AgentModelClient.ModelImage {
         require(!bitmap.isRecycled && bitmap.width > 0 && bitmap.height > 0) { "图片位图不可用" }
-        val encodedBitmap = renderBitmap(
+        var current = renderBitmap(
             bitmap = bitmap,
-            target = targetSize(bitmap.width, bitmap.height, profile),
+            target = targetSize(bitmap.width, bitmap.height, budget),
             flattenAlpha = flattenAlpha,
         )
         try {
-            val initialCapacity = minOf(
-                encodedBitmap.width * encodedBitmap.height / 4,
-                2 * 1024 * 1024,
-            ).coerceAtLeast(32 * 1024)
-            val output = ByteArrayOutputStream(initialCapacity)
-            check(encodedBitmap.compress(profile.format, profile.quality, output)) {
-                "图片编码失败"
+            val initialQualities = listOf(budget.initialQuality, 88, 80, 72, 62, 50)
+                .filter { it <= budget.initialQuality }
+                .distinct()
+            var lastEncoded = compressJpeg(current, initialQualities.first())
+            if (lastEncoded.size <= budget.maxEncodedBytes) {
+                return buildJpegModelImage(lastEncoded, current.width, current.height, source)
             }
-            val encoded = output.toByteArray()
-            require(encoded.isNotEmpty() && encoded.size <= MAX_AGENT_IMAGE_BYTES) {
-                "图片数据过大：${encoded.size}"
+            for (quality in initialQualities.drop(1)) {
+                lastEncoded = compressJpeg(current, quality)
+                if (lastEncoded.size <= budget.maxEncodedBytes) {
+                    return buildJpegModelImage(lastEncoded, current.width, current.height, source)
+                }
             }
-            return AgentModelClient.ModelImage(
-                reference = "data:${profile.mimeType};base64,${Base64.encodeToString(encoded, Base64.NO_WRAP)}",
-                mimeType = profile.mimeType,
-                bytes = encoded.size,
-                width = encodedBitmap.width,
-                height = encodedBitmap.height,
-                source = source,
-            )
+
+            // 极端高噪点图像在最低常规质量下仍超字节预算时，逐步等比缩小直至单调收敛。
+            val shrinkQualities = listOf(72, 58, 45)
+            for (round in 0 until MAX_SHRINK_ROUNDS) {
+                val minWidth = minOf(MIN_SHRINK_EDGE_PX, current.width)
+                val minHeight = minOf(MIN_SHRINK_EDGE_PX, current.height)
+                val nextWidth = (current.width * SHRINK_FACTOR).toInt().coerceAtLeast(minWidth)
+                val nextHeight = (current.height * SHRINK_FACTOR).toInt().coerceAtLeast(minHeight)
+                if (nextWidth == current.width && nextHeight == current.height) break
+                val resized = renderBitmap(current, TargetSize(nextWidth, nextHeight), flattenAlpha = false)
+                if (current !== bitmap && !current.isRecycled) current.recycle()
+                current = resized
+                for (quality in shrinkQualities) {
+                    lastEncoded = compressJpeg(current, quality)
+                    if (lastEncoded.size <= budget.maxEncodedBytes) {
+                        return buildJpegModelImage(lastEncoded, current.width, current.height, source)
+                    }
+                }
+            }
+
+            // 兜底一步缩放，确保在极严苛预算下依然收敛。
+            val emergencyRatio = sqrt(budget.maxEncodedBytes.toDouble() / lastEncoded.size.coerceAtLeast(1)) * 0.9
+            val emergencyWidth = (current.width * emergencyRatio).toInt()
+                .coerceIn(minOf(MIN_EMERGENCY_EDGE_PX, current.width), current.width)
+            val emergencyHeight = (current.height * emergencyRatio).toInt()
+                .coerceIn(minOf(MIN_EMERGENCY_EDGE_PX, current.height), current.height)
+            if (emergencyWidth < current.width || emergencyHeight < current.height) {
+                val resized = renderBitmap(current, TargetSize(emergencyWidth, emergencyHeight), flattenAlpha = false)
+                if (current !== bitmap && !current.isRecycled) current.recycle()
+                current = resized
+                lastEncoded = compressJpeg(current, 40)
+            }
+            return buildJpegModelImage(lastEncoded, current.width, current.height, source)
         } finally {
-            if (encodedBitmap !== bitmap && !encodedBitmap.isRecycled) {
-                encodedBitmap.recycle()
+            if (current !== bitmap && !current.isRecycled) {
+                current.recycle()
             }
         }
     }
+
+    private fun compressJpeg(bitmap: Bitmap, quality: Int): ByteArray {
+        val initialCapacity = minOf(
+            bitmap.width * bitmap.height / 4,
+            2 * 1024 * 1024,
+        ).coerceAtLeast(32 * 1024)
+        val output = ByteArrayOutputStream(initialCapacity)
+        check(bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)) { "图片编码失败" }
+        val encoded = output.toByteArray()
+        require(encoded.isNotEmpty()) { "图片内容为空" }
+        return encoded
+    }
+
+    private fun buildJpegModelImage(
+        encoded: ByteArray,
+        width: Int,
+        height: Int,
+        source: String,
+    ): AgentModelClient.ModelImage = AgentModelClient.ModelImage(
+        reference = "data:image/jpeg;base64,${Base64.encodeToString(encoded, Base64.NO_WRAP)}",
+        mimeType = "image/jpeg",
+        bytes = encoded.size,
+        width = width,
+        height = height,
+        source = source,
+    )
 
     private fun renderBitmap(
         bitmap: Bitmap,
@@ -217,11 +348,23 @@ internal object AgentModelImageEncoder {
         }
     }
 
-    private fun inspectBounds(bytes: ByteArray, mimeHint: String): ImageBounds {
-        require(bytes.isNotEmpty()) { "图片内容为空" }
-        require(bytes.size <= MAX_AGENT_IMAGE_BYTES) { "图片数据过大：${bytes.size}" }
+    private fun readHeaderMagic(openStream: () -> InputStream): ByteArray? = openStream().use { input ->
+        val header = ByteArray(HEADER_MAGIC_BYTES)
+        var offset = 0
+        while (offset < header.size) {
+            val read = input.read(header, offset, header.size - offset)
+            if (read < 0) break
+            offset += read
+        }
+        if (offset == 0) null else header.copyOf(offset)
+    }
+
+    private fun inspectBounds(openStream: () -> InputStream, mimeHint: String): ImageBounds? {
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        openStream().use { input ->
+            BitmapFactory.decodeStream(input, null, options)
+        }
+        if (options.outWidth <= 0 || options.outHeight <= 0) return null
         return ImageBounds(
             width = options.outWidth,
             height = options.outHeight,
@@ -231,23 +374,16 @@ internal object AgentModelImageEncoder {
         )
     }
 
-    private fun ImageBounds.targetSize(profile: EncodingProfile): TargetSize =
-        targetSize(width, height, profile)
-
     private fun targetSize(
         width: Int,
         height: Int,
-        profile: EncodingProfile,
+        budget: ModelImageBudget,
     ): TargetSize {
         if (width <= 0 || height <= 0) return TargetSize(width, height)
-        var scale = profile.maxLongEdge
-            ?.let { limit -> min(1.0, limit.toDouble() / maxOf(width, height)) }
-            ?: 1.0
+        var scale = min(1.0, budget.maxEdgePx.toDouble() / maxOf(width, height))
         val scaledPixels = width.toDouble() * height * scale * scale
-        profile.maxPixels?.let { limit ->
-            if (scaledPixels > limit) {
-                scale *= sqrt(limit / scaledPixels)
-            }
+        if (scaledPixels > budget.maxPixels) {
+            scale *= sqrt(budget.maxPixels.toDouble() / scaledPixels)
         }
         return TargetSize(
             width = (width * scale).toInt().coerceIn(1, width),
@@ -285,7 +421,7 @@ internal object AgentModelImageEncoder {
             val marker = trimmed.indexOf("base64,", ignoreCase = true)
             if (marker < 0) return null
             val decoded = Base64.decode(trimmed.substring(marker + "base64,".length), Base64.DEFAULT)
-            if (decoded.isEmpty() || decoded.size > MAX_AGENT_IMAGE_BYTES) return null
+            if (decoded.isEmpty() || decoded.size > MAX_SCREEN_IMAGE_BYTES) return null
             return { ByteArrayInputStream(decoded) }
         }
         val uri = Uri.parse(trimmed)
@@ -302,6 +438,10 @@ internal object AgentModelImageEncoder {
         } ?: return null
         if (!file.isFile) return null
         return { file.inputStream() }
+    }
+
+    private class NonClosingInputStream(delegate: InputStream) : FilterInputStream(delegate) {
+        override fun close() = Unit
     }
 }
 
