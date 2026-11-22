@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FolderZip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -340,13 +341,15 @@ fun AgentSkillsScreen(
                                 .padding(bottom = 12.dp),
                         ) {
                             builtinInstalled.forEach { skill ->
-                                SkillSwitchRow(
-                                    skill = skill,
-                                    enabled = !operationPending,
-                                    onToggle = { enabled ->
-                                        onAction(AgentSkillsAction.ToggleSkill(skill.id, enabled))
-                                    },
-                                )
+                                key(skill.id) {
+                                    SkillSwitchRow(
+                                        skill = skill,
+                                        enabled = !operationPending,
+                                        onToggle = { enabled ->
+                                            onAction(AgentSkillsAction.ToggleSkill(skill.id, enabled))
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -361,14 +364,16 @@ fun AgentSkillsScreen(
                                 .padding(bottom = 12.dp),
                         ) {
                             userInstalled.forEach { skill ->
-                                SkillSwitchRow(
-                                    skill = skill,
-                                    enabled = !operationPending,
-                                    onToggle = { enabled ->
-                                        onAction(AgentSkillsAction.ToggleSkill(skill.id, enabled))
-                                    },
-                                    onDelete = { deleteTarget = skill },
-                                )
+                                key(skill.id) {
+                                    SkillSwitchRow(
+                                        skill = skill,
+                                        enabled = !operationPending,
+                                        onToggle = { enabled ->
+                                            onAction(AgentSkillsAction.ToggleSkill(skill.id, enabled))
+                                        },
+                                        onDelete = { deleteTarget = skill },
+                                    )
+                                }
                             }
                         }
                     }
@@ -383,14 +388,16 @@ fun AgentSkillsScreen(
                                 .padding(bottom = 12.dp),
                         ) {
                             removed.forEach { skill ->
-                                BasicComponent(
-                                    title = skill.name,
-                                    summary = stringResource(R.string.ui_click_to_reinstall_dc60de),
-                                    enabled = !operationPending,
-                                    onClick = {
-                                        onAction(AgentSkillsAction.ReinstallBuiltin(skill.id))
-                                    },
-                                )
+                                key(skill.id) {
+                                    BasicComponent(
+                                        title = skill.name,
+                                        summary = stringResource(R.string.ui_click_to_reinstall_dc60de),
+                                        enabled = !operationPending,
+                                        onClick = {
+                                            onAction(AgentSkillsAction.ReinstallBuiltin(skill.id))
+                                        },
+                                    )
+                                }
                             }
                         }
                     }

@@ -4,14 +4,14 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.gestures.AnchoredDraggableDefaults
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.gestures.animateTo
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastRoundToInt
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigationevent.NavigationEventInfo
@@ -49,7 +50,6 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.app.LocalEtaTopLayer
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
-import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -277,7 +277,7 @@ fun ConversationSidePaneScaffold(
                 },
             ) { measurables, constraints ->
                 val panel = measurables[0].measure(
-                    Constraints.fixed(paneWidthPx.roundToInt(), constraints.maxHeight),
+                    Constraints.fixed(paneWidthPx.fastRoundToInt(), constraints.maxHeight),
                 )
                 val page = measurables[1].measure(
                     Constraints.fixed(constraints.maxWidth, constraints.maxHeight),
@@ -285,7 +285,7 @@ fun ConversationSidePaneScaffold(
                 layout(constraints.maxWidth, constraints.maxHeight) {
                     // 物理左侧是会话区；不随 RTL 改变两个槽位的关系。
                     val motion = conversationPaneMotion(paneDragState.offset, paneWidthPx)
-                    val offset = motion.foregroundOffset.roundToInt()
+                    val offset = motion.foregroundOffset.fastRoundToInt()
                     panel.placeWithLayer(offset - panel.width, 0)
                     page.placeWithLayer(offset, 0)
                 }

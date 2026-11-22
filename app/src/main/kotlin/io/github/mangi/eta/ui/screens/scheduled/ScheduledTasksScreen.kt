@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,7 +28,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -52,7 +50,6 @@ import io.github.mangi.eta.data.model.ScheduledTaskPreset
 import io.github.mangi.eta.data.model.ScheduledTaskPresets
 import io.github.mangi.eta.data.repository.ScheduledTaskRepository
 import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.coui.CouiButton
@@ -69,14 +66,13 @@ import io.github.mangi.eta.ui.components.coui.CouiTextKind
 import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
 import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
 import io.github.mangi.eta.ui.navigation.AppRoute
-import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
 import io.github.suqi8.coui.kmp.icon.COUIIcons
 import io.github.suqi8.coui.kmp.icon.extended.Add
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
@@ -86,6 +82,8 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Add
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 
 @Composable
 internal fun ScheduledTasksScreen(
@@ -314,7 +312,8 @@ private fun MiuixHealthBannerCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp)
+            .padding(top = 8.dp, bottom = 12.dp),
     ) {
         Column(
             modifier = Modifier
@@ -337,6 +336,8 @@ private fun MiuixHealthBannerCard(
             TextButton(
                 text = actionText,
                 onClick = onFix,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
             )
         }
     }
