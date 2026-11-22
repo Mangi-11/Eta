@@ -56,6 +56,7 @@ import io.github.mangi.eta.ui.components.AgentTopBarChatHeader
 import io.github.mangi.eta.ui.components.ChatImagePreviewHost
 import io.github.mangi.eta.ui.components.ConversationSidePaneScaffold
 import io.github.mangi.eta.ui.components.EtaTopLayer
+import io.github.mangi.eta.ui.components.LocalChatImagePreviewer
 import io.github.mangi.eta.ui.components.MiuixBackButton
 import io.github.mangi.eta.ui.components.MiuixTopBarBackdrop
 import io.github.mangi.eta.ui.components.RoleplayChatUi
@@ -277,7 +278,7 @@ internal fun AgentAppShell(
         }
     }
 
-    ChatImagePreviewHost(modifier = modifier) {
+    val shellContent: @Composable () -> Unit = {
         if (conversationPaneState != null && currentRoute is AppRoute.Home) {
             ConversationSidePaneScaffold(
                 state = conversationPaneState,
@@ -306,6 +307,16 @@ internal fun AgentAppShell(
             }
         } else {
             pageContent()
+        }
+    }
+
+    if (LocalChatImagePreviewer.current != null) {
+        Box(modifier = modifier.fillMaxSize()) {
+            shellContent()
+        }
+    } else {
+        ChatImagePreviewHost(modifier = modifier) {
+            shellContent()
         }
     }
 }

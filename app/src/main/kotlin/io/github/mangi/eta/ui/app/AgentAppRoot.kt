@@ -60,6 +60,8 @@ import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.AppearanceSettingsScreen
 import io.github.mangi.eta.ui.IncomingShareRequest
 import io.github.mangi.eta.ui.SettingsScreen
+import io.github.mangi.eta.ui.components.ChatImagePreviewHost
+import io.github.mangi.eta.ui.components.LocalChatImagePreviewer
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
@@ -401,16 +403,24 @@ fun AgentAppRoot(
     } else {
         NavSwipeDirection.LeftToRight
     }
-    key(navigationResetKey) {
-        val activeSwipeDismiss = LocalAppearanceSettings.current.swipeDismissEnabled
-            .let { enabled -> swipeBackDirection.takeIf { enabled } }
-        NavDisplay(
-            backStack = backStack,
-            onBack = { popRoute() },
-            effects = NavDisplayEffects(
-                cornerClipRadius = rememberNavSystemCornerRadius(),
-            ),
-        ) {
+    ChatImagePreviewHost {
+        val previewer = LocalChatImagePreviewer.current
+        val activeRoute = backStack.lastOrNull()
+        LaunchedEffect(activeRoute, navigationResetKey) {
+            if (previewer?.request != null) {
+                previewer.closeImmediately()
+            }
+        }
+        key(navigationResetKey) {
+            val activeSwipeDismiss = LocalAppearanceSettings.current.swipeDismissEnabled
+                .let { enabled -> swipeBackDirection.takeIf { enabled } }
+            NavDisplay(
+                backStack = backStack,
+                onBack = { popRoute() },
+                effects = NavDisplayEffects(
+                    cornerClipRadius = rememberNavSystemCornerRadius(),
+                ),
+            ) {
                     entry<AppRoute.Home>(swipeDismiss = activeSwipeDismiss) {
                         RoutedShell(route = AppRoute.Home, applyShellPadding = false) { shellPadding ->
                             AgentHomeScreen(
@@ -885,6 +895,7 @@ fun AgentAppRoot(
                             onBack = ::popRoute
                         )
                     }
+            }
         }
     }
 

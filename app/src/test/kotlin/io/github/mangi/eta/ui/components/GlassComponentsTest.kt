@@ -741,6 +741,84 @@ class GlassComponentsTest {
         }
     }
 
+    @Test
+    @Config(application = EtaApp::class, sdk = [36])
+    fun globalImagePreviewHostServesNonShellRoutesAndClosesOnRouteChange() {
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
+        val activity = controller.get()
+        val frameClock = BroadcastFrameClock()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + frameClock)
+        val recomposer = Recomposer(scope.coroutineContext)
+
+        var galleryPreviewer: ChatImagePreviewer? = null
+        lateinit var backStack: top.yukonga.miuix.kmp.nav.core.NavBackStack
+
+        try {
+            mount(activity, scope, recomposer) {
+                AgentAppTheme(
+                    appearance = AppearanceSettings(
+                        uiStyle = AppearanceUiStyle.COUI,
+                        blurEnabled = false,
+                    ),
+                    provideGlassHost = true,
+                ) {
+                    backStack = top.yukonga.miuix.kmp.nav.core.rememberNavBackStack<io.github.mangi.eta.ui.navigation.AppRoute>(
+                        io.github.mangi.eta.ui.navigation.AppRoute.Home,
+                        io.github.mangi.eta.ui.navigation.AppRoute.ImageGenGallery,
+                    )
+                    ChatImagePreviewHost {
+                        val hostPreviewer = LocalChatImagePreviewer.current
+                        val activeRoute = backStack.lastOrNull()
+                        androidx.compose.runtime.LaunchedEffect(activeRoute) {
+                            if (hostPreviewer?.request != null) {
+                                hostPreviewer.closeImmediately()
+                            }
+                        }
+                        top.yukonga.miuix.kmp.nav.core.NavDisplay(
+                            backStack = backStack,
+                            onBack = {},
+                        ) {
+                            entry<io.github.mangi.eta.ui.navigation.AppRoute.Home> {
+                                top.yukonga.miuix.kmp.basic.Text("Home")
+                            }
+                            entry<io.github.mangi.eta.ui.navigation.AppRoute.ImageGenGallery> {
+                                galleryPreviewer = LocalChatImagePreviewer.current
+                                top.yukonga.miuix.kmp.basic.Text("Gallery")
+                            }
+                        }
+                    }
+                }
+            }
+            pumpFrames(activity, frameClock)
+
+            val previewer = requireNotNull(galleryPreviewer) {
+                "Non-shell route inside global ChatImagePreviewHost must receive LocalChatImagePreviewer"
+            }
+            previewer.open(images = listOf("/tmp/eta_preview_test.png"))
+            repeat(4) { pumpFrames(activity, frameClock) }
+
+            val saveLabel = activity.getString(R.string.action_save)
+            val shareLabel = activity.getString(R.string.ui_misc_share)
+            val textsWhileOpen = collectAllTexts(activity)
+            assertTrue("Expected Save pill in fullscreen image viewer: $textsWhileOpen", saveLabel in textsWhileOpen)
+            assertTrue("Expected Share pill in fullscreen image viewer: $textsWhileOpen", shareLabel in textsWhileOpen)
+
+            backStack.removeLastOrNull()
+            pumpFrames(activity, frameClock)
+
+            assertEquals(null, previewer.request)
+            assertFalse(previewer.targetOpen)
+            val textsAfterPop = collectAllTexts(activity)
+            assertFalse("Viewer overlay should close immediately after route change", saveLabel in textsAfterPop)
+        } finally {
+            recomposer.cancel()
+            scope.cancel()
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
+            controller.pause().stop().destroy()
+            ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
+        }
+    }
+
     private fun mount(
         activity: ComponentActivity,
         scope: CoroutineScope,
