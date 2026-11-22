@@ -16,7 +16,10 @@ import io.github.mangi.eta.ui.model.canDeleteUserSkill
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicLong
 
 /** Skills 管理页状态：列表、开关、删除与本地 ZIP 安装的二次确认流程。 */
 internal class AgentSkillsStore(
@@ -29,11 +32,15 @@ internal class AgentSkillsStore(
     private var skillNoticeSequence = 0L
     private var pendingSkillZipUri: Uri? = null
     private var pendingSkillZipSha256: String? = null
+    private val toggleMutex = Mutex()
+    private val toggleGeneration = HashMap<String, Long>()
+    private val toggleRevision = AtomicLong(0L)
 
     var skillsState by mutableStateOf(AgentSkillsUiState(isLoading = true))
         private set
 
     fun refreshSkills() {
+        val startRevision = toggleRevision.get()
         scope.launch(Dispatchers.IO) {
             val entries = runCatching {
                 SkillRuntime.createIndexService(appContext)
@@ -69,33 +76,48 @@ internal class AgentSkillsStore(
                 )
             }
             withContext(Dispatchers.Main) {
-                skillsState = skillsState.copy(skills = items, isLoading = false)
+                if (toggleRevision.get() != startRevision) {
+                    refreshSkills()
+                } else {
+                    skillsState = skillsState.copy(skills = items, isLoading = false)
+                }
             }
         }
     }
 
     fun toggleSkill(skillId: String, enabled: Boolean) {
         if (skillsState.isImporting || skillsState.busySkillId != null) return
-        skillsState = skillsState.copy(busySkillId = skillId)
-        scope.launch(Dispatchers.IO) {
-            val succeeded = runCatching {
-                SkillRuntime.createIndexService(appContext).setSkillEnabled(skillId, enabled)
-            }.isSuccess
-            withContext(Dispatchers.Main) {
-                skillsState = skillsState.copy(
-                    busySkillId = null,
-                    notice = if (succeeded) {
-                        skillsState.notice
-                    } else {
-                        newSkillNotice(
+        val current = skillsState.skills.firstOrNull { it.id == skillId && it.installed } ?: return
+        if (current.enabled == enabled) return
+        val generation = (toggleGeneration[skillId] ?: 0L) + 1L
+        toggleGeneration[skillId] = generation
+        toggleRevision.incrementAndGet()
+        skillsState = skillsState.copy(
+            skills = skillsState.skills.map { item ->
+                if (item.id == skillId) item.copy(enabled = enabled) else item
+            },
+        )
+        scope.launch(Dispatchers.Main.immediate) {
+            toggleMutex.withLock {
+                val succeeded = withContext(Dispatchers.IO) {
+                    runCatching {
+                        SkillRuntime.createIndexService(appContext).setSkillEnabled(skillId, enabled)
+                    }.isSuccess
+                }
+                if (!succeeded && toggleGeneration[skillId] == generation) {
+                    skillsState = skillsState.copy(
+                        skills = skillsState.skills.map { item ->
+                            if (item.id == skillId) item.copy(enabled = !enabled) else item
+                        },
+                        notice = newSkillNotice(
                             title = appContext.getString(R.string.state_unable_to_update_skills_04e56c),
                             message = appContext.getString(R.string.state_the_skill_switch_has_not_changed_please_try_again_la_fa262f),
                             isError = true,
-                        )
-                    },
-                )
+                        ),
+                    )
+                    refreshSkills()
+                }
             }
-            refreshSkills()
         }
     }
 

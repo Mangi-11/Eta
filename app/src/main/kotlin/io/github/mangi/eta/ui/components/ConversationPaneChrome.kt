@@ -42,6 +42,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
@@ -60,6 +61,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.fastCoerceIn
+import androidx.compose.ui.util.fastRoundToInt
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
@@ -74,15 +77,7 @@ import io.github.mangi.eta.ui.components.coui.ProvideCouiMaterial
 import io.github.mangi.eta.ui.layout.rememberFloatingBottomBarInsets
 import io.github.suqi8.coui.kmp.anim.couiSpring
 import io.github.suqi8.coui.kmp.basic.CancelButton
-import io.github.suqi8.coui.kmp.basic.IconButton as CouiIconButton
-import io.github.suqi8.coui.kmp.basic.InputField as CouiInputField
-import io.github.suqi8.coui.kmp.basic.SearchBar as CouiSearchBar
-import io.github.suqi8.coui.kmp.blur.LayerBackdrop as CouiBackdrop
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
-import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.InputField as MiuixInputField
-import top.yukonga.miuix.kmp.basic.SearchBar as MiuixSearchBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
@@ -99,13 +94,19 @@ import top.yukonga.miuix.kmp.icon.glass.Close
 import top.yukonga.miuix.kmp.icon.glass.NewMessage
 import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.icon.glass.SecurityStatus
-import top.yukonga.miuix.kmp.icon.glass.SettingsOutline
+import top.yukonga.miuix.kmp.icon.glass.SettingsFill
 import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.material.GlassShadows
 import top.yukonga.miuix.kmp.material.GlassShape
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.graphics.lerp
+import io.github.suqi8.coui.kmp.basic.IconButton as CouiIconButton
+import io.github.suqi8.coui.kmp.basic.InputField as CouiInputField
+import io.github.suqi8.coui.kmp.basic.SearchBar as CouiSearchBar
+import io.github.suqi8.coui.kmp.blur.LayerBackdrop as CouiBackdrop
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
+import top.yukonga.miuix.kmp.basic.InputField as MiuixInputField
+import top.yukonga.miuix.kmp.basic.SearchBar as MiuixSearchBar
 
 internal object ConversationPanelMetrics {
     val PaneHorizontalPadding = 16.dp
@@ -652,11 +653,11 @@ private fun CoordinatedDockSearchLayout(
     ) { measurables, constraints ->
         val marginPx = horizontalMargin.roundToPx()
         val gapPx = buttonGap.roundToPx()
-        val progress = buttonsProgress().coerceIn(0f, 1f)
+        val progress = buttonsProgress().fastCoerceIn(0f, 1f)
         val buttonsPlaceable = measurables[1].measure(
             constraints.copy(minWidth = 0, minHeight = 0),
         )
-        val reservedEndPx = ((buttonsPlaceable.width + gapPx) * progress).roundToInt().coerceAtLeast(0)
+        val reservedEndPx = ((buttonsPlaceable.width + gapPx) * progress).fastRoundToInt().coerceAtLeast(0)
         val searchWidth = (constraints.maxWidth - 2 * marginPx - reservedEndPx).coerceAtLeast(1)
         val searchPlaceable = measurables[0].measure(
             Constraints.fixedWidth(searchWidth).copy(
@@ -671,7 +672,7 @@ private fun CoordinatedDockSearchLayout(
                 y = (layoutHeight - searchPlaceable.height) / 2,
             )
             if (progress > 0.01f) {
-                val slideOutPx = ((1f - progress) * (buttonsPlaceable.width + marginPx) * 0.35f).roundToInt()
+                val slideOutPx = ((1f - progress) * (buttonsPlaceable.width + marginPx) * 0.35f).fastRoundToInt()
                 buttonsPlaceable.placeRelativeWithLayer(
                     x = constraints.maxWidth - marginPx - buttonsPlaceable.width + slideOutPx,
                     y = (layoutHeight - buttonsPlaceable.height) / 2,
@@ -699,7 +700,7 @@ private fun PaneDockActionButtons(
 ) {
     val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val permissionsIcon = if (isCoui) ConversationPaneIcons.Permissions else MiuixIcons.Glass.SecurityStatus
-    val settingsIcon = if (isCoui) ConversationPaneIcons.Settings else MiuixIcons.Glass.SettingsOutline
+    val settingsIcon = if (isCoui) ConversationPaneIcons.Settings else MiuixIcons.Glass.SettingsFill
     Row(verticalAlignment = Alignment.CenterVertically) {
         PaneDockCircleButton(
             icon = permissionsIcon,

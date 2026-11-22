@@ -15,9 +15,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -39,23 +36,26 @@ import io.github.mangi.eta.ui.components.coui.couiMenuAnchor
 import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.SkillItemUi
-import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
 import io.github.suqi8.coui.kmp.icon.COUIIcons
 import io.github.suqi8.coui.kmp.icon.extended.More
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.glass.GlassPopup
 import top.yukonga.miuix.kmp.glass.GlassPopupDefaults
 import top.yukonga.miuix.kmp.glass.GlassPopupItem
+import top.yukonga.miuix.kmp.glass.GlassTransformPopup
+import top.yukonga.miuix.kmp.glass.glassPopupAnchor
+import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 
 @Composable
 internal fun SkillSwitchRow(
@@ -153,7 +153,7 @@ internal fun SkillSwitchRow(
         }
         AppearanceUiStyle.MIUIX -> {
             var showMenu by remember { mutableStateOf(false) }
-            var moreBounds by remember { mutableStateOf(Rect.Zero) }
+            val moreAnchor = rememberGlassPopupAnchor()
             val overlayBackdrop = currentGlassOverlayBackdrop()
             BasicComponent(
                 enabled = enabled,
@@ -162,7 +162,10 @@ internal fun SkillSwitchRow(
                     Box(
                         modifier = Modifier
                             .align(Alignment.CenterVertically)
-                            .onGloballyPositioned { moreBounds = it.boundsInWindow() }
+                            .glassPopupAnchor(
+                                anchor = moreAnchor,
+                                cornerRadius = 16.dp,
+                            )
                             .size(32.dp)
                             .clip(CircleShape)
                             .clickable(role = Role.Button) { showMenu = true },
@@ -171,7 +174,9 @@ internal fun SkillSwitchRow(
                         Icon(
                             imageVector = MiuixIcons.Glass.More,
                             contentDescription = stringResource(R.string.skills_more_named, skill.name),
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier
+                                .size(20.dp)
+                                .glassPopupAnchorContent(moreAnchor),
                             tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
                         )
                     }
@@ -200,11 +205,19 @@ internal fun SkillSwitchRow(
                 )
             }
             EtaTopLayer {
-                GlassPopup(
+                GlassTransformPopup(
                     show = showMenu,
                     onDismissRequest = { showMenu = false },
-                    anchorBounds = moreBounds,
+                    anchor = moreAnchor,
                     backdrop = overlayBackdrop,
+                    anchorContent = {
+                        Icon(
+                            imageVector = MiuixIcons.Glass.More,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        )
+                    },
                 ) {
                     GlassPopupItem(
                         text = stringResource(R.string.ui_view_description),
