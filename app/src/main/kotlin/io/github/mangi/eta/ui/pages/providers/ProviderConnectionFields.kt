@@ -30,6 +30,8 @@ import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSetting
+import io.github.mangi.eta.data.model.ProviderSourceTypes
+import io.github.mangi.eta.data.provider.ProviderSourceRegistry
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.EtaGlassSpinnerPreference
 import io.github.mangi.eta.ui.components.MiuixSecureTextField
@@ -68,12 +70,13 @@ internal fun ProviderConnectionFields(
     val anthropicVersionState = rememberDraftTextFieldState(draft.anthropicVersion) { onDraftChange(draft.copy(anthropicVersion = it)) }
     var apiKeyVisible by remember(provider.id) { mutableStateOf(false) }
     val oauth = ProviderAuthModes.isOAuth(draft.authMode)
+    val opencodeFree = ProviderSourceRegistry.resolve(provider) == ProviderSourceTypes.OPENCODE_FREE
     val accountMode = providerAccountAuthMode(provider)
     val isGeminiVertex = provider is GeminiProviderSetting &&
         GeminiEndpointMode.normalize(draft.endpointMode) == GeminiEndpointMode.VERTEX_AI
     val showWebSearchSwitch =
         (provider is GeminiProviderSetting && !isGeminiVertex) ||
-            (draft.endpointMode == OpenAiEndpointMode.RESPONSES && provider !is AnthropicProviderSetting)
+            (draft.endpointMode == OpenAiEndpointMode.RESPONSES && provider !is AnthropicProviderSetting && !opencodeFree)
     val geminiPlatformTitle = stringResource(R.string.provider_i18n_gemini_platform)
     val geminiPlatformSummary = stringResource(
         if (isGeminiVertex) R.string.provider_i18n_gemini_vertex_summary else R.string.provider_i18n_gemini_ai_studio_summary,
@@ -213,7 +216,7 @@ internal fun ProviderConnectionFields(
                         )
                     }
                 }
-                if (provider !is AnthropicProviderSetting && provider !is GeminiProviderSetting) {
+                if (provider !is AnthropicProviderSetting && provider !is GeminiProviderSetting && !opencodeFree) {
                     CouiDivider()
                     CouiDropdownPreference(
                         title = stringResource(R.string.ui_endpoint_mode_3c8546),
@@ -353,7 +356,7 @@ internal fun ProviderConnectionFields(
                         )
                     }
                 }
-                if (provider !is AnthropicProviderSetting && provider !is GeminiProviderSetting) {
+                if (provider !is AnthropicProviderSetting && provider !is GeminiProviderSetting && !opencodeFree) {
                     EtaGlassSpinnerPreference(
                         title = stringResource(R.string.ui_endpoint_mode_3c8546),
                         items = listOf(DropdownItem(text = "Chat Completions API"), DropdownItem(text = "Responses API")),

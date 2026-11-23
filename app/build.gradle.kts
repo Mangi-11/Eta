@@ -152,6 +152,9 @@ androidComponents {
 }
 
 dependencies {
+    implementation("org.bouncycastle:bcprov-jdk18on:1.80.2")
+    implementation("org.brotli:dec:0.1.2")
+    implementation("com.github.luben:zstd-jni:1.5.7-6@aar")
     coreLibraryDesugaring(libs.desugar.jdk.libs.nio)
     implementation(libs.jsoup)
     implementation(libs.commons.compress)

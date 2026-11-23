@@ -4,6 +4,9 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.auth.ProviderAuthException
 import io.github.mangi.eta.agent.auth.ProviderCredentialBinding
 import io.github.mangi.eta.agent.model.AgentHttpClient
+import io.github.mangi.eta.agent.model.OpencodeClient
+import io.github.mangi.eta.data.model.ProviderSourceTypes
+import io.github.mangi.eta.data.provider.ProviderSourceRegistry
 import io.github.mangi.eta.agent.model.AgentModelFailure
 import io.github.mangi.eta.agent.model.AuthorizedProviderHttp
 import io.github.mangi.eta.agent.model.ProviderRequestHeaders
@@ -94,6 +97,7 @@ internal object RemoteModelFetcher {
                 val profile = ProviderConnectionProfile.forAuthMode(provider.authMode)
                 val binding = profile?.let { credentials.binding(provider.id, provider.authMode) }
                 val fetched = when {
+                    ProviderSourceRegistry.resolve(provider) == ProviderSourceTypes.OPENCODE_FREE -> OpencodeClient.fetchModels(controller)
                     provider is GeminiProviderSetting -> GeminiModelCatalog.fetch(
                         provider, controller, maxBytes = MAX_CATALOG_BYTES,
                     ) { request, maxBytes ->
@@ -102,7 +106,9 @@ internal object RemoteModelFetcher {
                     profile == null && provider is AnthropicProviderSetting -> fetchAnthropic(provider, controller, client, credentials)
                     else -> fetchOpenAiCompatible(provider, controller, client, credentials)
                 }
-                val models = if (profile == ProviderConnectionProfile.OPENAI_CODEX) fetched else fetched.filter(::isChatCapableModel)
+                val models = if (profile == ProviderConnectionProfile.OPENAI_CODEX ||
+                    ProviderSourceRegistry.resolve(provider) == ProviderSourceTypes.OPENCODE_FREE
+                ) fetched else fetched.filter(::isChatCapableModel)
                 controller.throwIfCancelled()
                 if (binding != null && !credentials.isCurrent(binding)) {
                     throw ProviderAuthException(

@@ -2,6 +2,7 @@ package io.github.mangi.eta.data.provider
 
 import androidx.annotation.StringRes
 import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.model.OpencodeClient
 import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
@@ -16,6 +17,7 @@ internal object BuiltinProviders {
             "回答使用用户的语言，简洁、直接、自然。"
 
     const val OPENAI_ID = "builtin-openai"
+    const val OPENCODE_FREE_ID = "builtin-opencodefree"
     const val ANTHROPIC_ID = "builtin-anthropic"
     const val BAILIAN_ID = "builtin-dashscope"
     const val DEEPSEEK_ID = "builtin-deepseek"
@@ -29,6 +31,16 @@ internal object BuiltinProviders {
     const val GEMINI_ID = "builtin-gemini"
 
     val PROVIDERS: List<ProviderSetting> = listOf(
+        OpenAiCompatibleProviderSetting(
+            id = OPENCODE_FREE_ID,
+            name = "opencodefree",
+            baseUrl = OpencodeClient.BASE_URL,
+            sourceType = ProviderSourceTypes.OPENCODE_FREE,
+            apiKey = "public",
+            isBuiltIn = true,
+            sortOrder = 12,
+            systemPrompt = DEFAULT_SYSTEM_PROMPT,
+        ),
         OpenAiCompatibleProviderSetting(
             id = OPENAI_ID,
             name = "OpenAI",

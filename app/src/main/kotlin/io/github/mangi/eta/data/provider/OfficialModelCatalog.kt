@@ -1,6 +1,7 @@
 package io.github.mangi.eta.data.provider
 
 import io.github.mangi.eta.agent.model.ProviderUrls
+import io.github.mangi.eta.agent.model.OpencodeClient
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.CustomProviderSetting
@@ -32,6 +33,7 @@ internal object OfficialModelCatalog {
     )
 
     private val modelsByCatalogId: Map<String, List<Model>> = mapOf(
+        ProviderSourceTypes.OPENCODE_FREE to OpencodeClient.defaultModels(),
         ProviderSourceTypes.OPENAI to listOf(
             officialModel(
                 id = "builtin-openai-gpt-6-1-sol",

@@ -12,6 +12,8 @@ import org.json.JSONTokener
 /** Provider JSON 与 Eta 稳定会话 DTO 之间的转换；脱敏不改变普通文本与工具批次。 */
 internal object AgentConversationCodec {
 
+    const val PROVIDER_STATE_KEY = "_eta_provider_state"
+
     private const val IMAGE_OMITTED_TEXT = "[图片观察已在当前回合使用，未写入持久会话]"
     private const val SENSITIVE_TOOL_OMITTED_TEXT =
         "[敏感工具参数与原始结果仅供当前回合使用，未写入持久会话]"
@@ -41,6 +43,9 @@ internal object AgentConversationCodec {
         JSONObject()
             .put("role", message.role)
             .also { target ->
+                if (message.providerStateJson.isNotBlank()) {
+                    target.put(PROVIDER_STATE_KEY, JSONObject(message.providerStateJson))
+                }
                 if (message.messageId.isNotBlank()) target.put("_eta_message_id", message.messageId)
                 if (message.contextSummary) target.put("_eta_context_summary", true)
                 if (message.compactedUserTurns > 0) target.put("_eta_compacted_users", message.compactedUserTurns)
@@ -86,6 +91,7 @@ internal object AgentConversationCodec {
             toolCallId = message.optString("tool_call_id"),
             reasoningContent = message.optString("reasoning_content"),
             toolCallsJson = message.optJSONArray("tool_calls")?.toString().orEmpty(),
+            providerStateJson = message.optJSONObject(PROVIDER_STATE_KEY)?.toString().orEmpty(),
         )
     }
 
@@ -145,6 +151,9 @@ internal object AgentConversationCodec {
                     message.put("reasoning_content", source.optString("reasoning_content"))
                 }
                 ResponsesEphemeralState.copyOutputItems(source, message)
+                source.optJSONObject(PROVIDER_STATE_KEY)?.let {
+                    message.put(PROVIDER_STATE_KEY, JSONObject(it.toString()))
+                }
                 AnthropicEphemeralState.copyContentBlocks(source, message)
                 GeminiEphemeralState.copyAssistantState(source, message)
             }
