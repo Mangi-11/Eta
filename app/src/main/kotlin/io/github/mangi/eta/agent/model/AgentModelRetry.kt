@@ -54,7 +54,7 @@ internal class AgentModelRetry(
                     )
                 }
                 retries += 1
-                val delayMs = BASE_DELAY_MS shl (retries - 1)
+                val delayMs = classified.retryAfterMs ?: (BASE_DELAY_MS shl (retries - 1))
                 onEvent(AgentEvent.ModelRetryScheduled(round, retries, MAX_RETRIES, delayMs.toInt(), classified.code))
                 waitBeforeRetry(controller, delayMs)
                 controller.throwIfCancelled()

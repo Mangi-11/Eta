@@ -8,6 +8,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 internal object ProviderSourceRegistry {
     private val knownSourceTypes = setOf(
+        ProviderSourceTypes.OPENCODE_FREE,
         ProviderSourceTypes.CUSTOM,
         ProviderSourceTypes.OPENAI,
         ProviderSourceTypes.XAI,
@@ -57,6 +58,7 @@ internal object ProviderSourceRegistry {
 
     private fun sourceTypeFromProviderId(providerId: String?): String? =
         when (providerId) {
+            BuiltinProviders.OPENCODE_FREE_ID -> ProviderSourceTypes.OPENCODE_FREE
             BuiltinProviders.OPENAI_ID -> ProviderSourceTypes.OPENAI
             BuiltinProviders.XAI_ID -> ProviderSourceTypes.XAI
             BuiltinProviders.GEMINI_ID -> ProviderSourceTypes.GEMINI

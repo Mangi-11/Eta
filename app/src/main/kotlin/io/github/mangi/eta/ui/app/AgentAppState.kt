@@ -2759,6 +2759,7 @@ internal class AgentAppState(
                     userPrompt = firstUserPrompt,
                     assistantReply = assistantReply,
                     conversationModelId = conversationModelId,
+                    sessionId = conversationId,
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled

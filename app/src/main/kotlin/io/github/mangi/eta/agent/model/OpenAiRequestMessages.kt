@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 /** 将 Eta 会话消息投影为 OpenAI-compatible 请求所需的系统指令结构。 */
 internal object OpenAiRequestMessages {
-    fun forChatCompletions(source: JSONArray): JSONArray {
+    fun forChatCompletions(source: JSONArray, includeProviderState: Boolean = false): JSONArray {
         val system = collectInstructions(source, SYSTEM_ROLES)
         val copied = JSONArray().also { messages ->
             for (index in 0 until source.length()) {
@@ -22,6 +22,7 @@ internal object OpenAiRequestMessages {
             for (index in 0 until copied.length()) {
                 val message = copied.optJSONObject(index) ?: continue
                 if (message.optString("role") !in SYSTEM_ROLES) messages.put(message.apply {
+                    if (!includeProviderState) remove(AgentConversationCodec.PROVIDER_STATE_KEY)
                     remove("_eta_context_summary")
                     remove("_eta_compacted_users")
                     remove("_eta_summary_through_user")

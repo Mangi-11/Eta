@@ -4,6 +4,8 @@ import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.ProviderTypes
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.provider.ProviderConnectionProfile
+import io.github.mangi.eta.data.provider.ProviderSourceRegistry
+import io.github.mangi.eta.data.model.ProviderSourceTypes
 
 internal object ProviderClientFactory {
 
@@ -14,6 +16,10 @@ internal object ProviderClientFactory {
                 else -> OpenAiChatCompletionsProvider
             }
         }
+        if (config.providerType == ProviderTypes.OPENAI_COMPATIBLE && ProviderSourceRegistry.resolve(
+                config.providerId, config.providerSourceType, config.baseUrl, config.providerType,
+            ) == ProviderSourceTypes.OPENCODE_FREE
+        ) return OpencodeClient
         return when (config.providerType) {
             ProviderTypes.OPENAI_COMPATIBLE -> when (config.openAiEndpointMode) {
                 OpenAiEndpointMode.RESPONSES -> OpenAiResponsesProvider

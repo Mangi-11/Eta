@@ -27,16 +27,19 @@ internal class ConversationTitleGenerator(
         userPrompt: String,
         assistantReply: String,
         conversationModelId: String? = null,
+        sessionId: String = java.util.UUID.randomUUID().toString(),
     ): String? {
         val snippet = buildUserInputSnippet(userPrompt, assistantReply) ?: return null
         val config = loadConfig(conversationModelId) ?: return null
-        val raw = withTimeout(timeoutMs) { request(config, snippet) }
+        val titleRequest = providerFor(config).titleRequest(config, userPrompt, sessionId)
+        val raw = withTimeout(timeoutMs) { request(config, snippet, titleRequest) }
         return raw?.let(::sanitizeTitle)
     }
 
     private suspend fun request(
         config: AgentModelClient.ModelConfig,
         snippet: String,
+        titleRequest: ProviderRequest?,
     ): String? = coroutineScope {
         val controller = AgentRunController()
         val messages = JSONArray()
@@ -45,7 +48,7 @@ internal class ConversationTitleGenerator(
         // Provider 请求阻塞在 HTTP 流读取上，超时或上层取消时通过 controller 中止底层连接。
         val work = async(Dispatchers.IO) {
             val response = providerFor(config).complete(
-                ProviderRequest(
+                titleRequest ?: ProviderRequest(
                     config = config,
                     messages = messages,
                     tools = JSONArray(),

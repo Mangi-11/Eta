@@ -34,6 +34,7 @@ internal object ProviderAuthModes {
 }
 
 internal object ProviderSourceTypes {
+    const val OPENCODE_FREE = "opencodefree"
     const val CUSTOM = "custom"
     const val OPENAI = "openai"
     const val XAI = "xai"

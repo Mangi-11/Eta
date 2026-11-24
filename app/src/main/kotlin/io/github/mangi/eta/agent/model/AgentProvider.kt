@@ -10,6 +10,12 @@ internal interface AgentProviderClient {
     val id: String
     val capabilities: ProviderCapabilities
 
+    fun titleRequest(
+        config: AgentModelClient.ModelConfig,
+        userPrompt: String,
+        sessionId: String,
+    ): ProviderRequest? = null
+
     fun complete(
         request: ProviderRequest,
         runController: AgentRunController,
