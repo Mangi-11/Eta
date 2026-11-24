@@ -32,6 +32,7 @@ import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.WebHttpMethod
 import io.github.mangi.eta.data.model.WebToolBackend
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.MiuixFooterHint
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.SettingsTextField
@@ -557,12 +558,7 @@ private fun WebToolsNote(text: String, modifier: Modifier = Modifier) {
             CouiPreferenceFooter(text = text, modifier = modifier)
         }
         AppearanceUiStyle.MIUIX -> {
-            Text(
-                text = text,
-                style = MiuixTheme.textStyles.footnote2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = modifier.padding(horizontal = 28.dp).padding(bottom = 12.dp),
-            )
+            MiuixFooterHint(text = text, modifier = modifier)
         }
     }
 }

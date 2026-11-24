@@ -20,6 +20,11 @@ import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.ui.app.LocalUiStyle
+import top.yukonga.miuix.kmp.glass.glassPopupAnchor
+import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 
 @Composable
 internal fun AgentContextUsageButton(
@@ -56,36 +61,55 @@ internal fun AgentContextUsageButton(
         summary.replace('\n', ' '),
     )
     var showPopover by remember { mutableStateOf(false) }
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
+    val popupAnchor = rememberGlassPopupAnchor()
+    val indicatorContent: @Composable () -> Unit = {
+        CircularProgressIndicator(
+            progress = progress ?: 0f,
+            colors = ProgressIndicatorDefaults.progressIndicatorColors(
+                foregroundColor = progressColor,
+                disabledForegroundColor = progressColor,
+                backgroundColor = trackColor,
+            ),
+            strokeWidth = 1.8.dp,
+            size = 16.dp,
+            modifier = Modifier.semantics {
+                contentDescription = usageDescription
+            },
+        )
+    }
 
     Box(modifier = modifier) {
         IconButton(
             onClick = { showPopover = !showPopover },
             minWidth = 34.dp,
             minHeight = 34.dp,
+            modifier = if (!isCoui) {
+                Modifier.glassPopupAnchor(anchor = popupAnchor, cornerRadius = 17.dp)
+            } else {
+                Modifier
+            },
         ) {
-            CircularProgressIndicator(
-                progress = progress ?: 0f,
-                colors = ProgressIndicatorDefaults.progressIndicatorColors(
-                    foregroundColor = progressColor,
-                    disabledForegroundColor = progressColor,
-                    backgroundColor = trackColor,
-                ),
-                strokeWidth = 1.8.dp,
-                size = 16.dp,
-                modifier = Modifier.semantics {
-                    contentDescription = usageDescription
+            Box(
+                modifier = if (!isCoui) {
+                    Modifier.glassPopupAnchorContent(popupAnchor)
+                } else {
+                    Modifier
                 },
-            )
+            ) {
+                indicatorContent()
+            }
         }
-        if (showPopover) {
-            ContextUsageStatsPopoverPopup(
-                usage = usage,
-                summaryText = summary,
-                detailText = detail,
-                canCompact = canCompact,
-                onCompact = onCompact,
-                onDismissRequest = { showPopover = false },
-            )
-        }
+        ContextUsageStatsPopoverPopup(
+            usage = usage,
+            summaryText = summary,
+            detailText = detail,
+            canCompact = canCompact,
+            onCompact = onCompact,
+            onDismissRequest = { showPopover = false },
+            show = showPopover,
+            anchor = if (!isCoui) popupAnchor else null,
+            anchorContent = if (!isCoui) indicatorContent else null,
+        )
     }
 }

@@ -83,12 +83,12 @@ internal fun CharacterDetailScreen(
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) store.changeAvatar(id, uri)
     }
-    val profile = store.selected?.takeIf { it.id == id }
+    val profile = store.profileFor(id)
     val defaultUserName = stringResource(R.string.character_default_user_name)
     val userName = if (store.usePersona) store.persona.name.ifBlank { defaultUserName } else defaultUserName
     val exportFallbackName = stringResource(R.string.character_export_default_basename)
     val loadStateText = stringResource(
-        if (store.busy) R.string.character_detail_loading else R.string.character_detail_load_failed,
+        if (store.isLoadingDetail) R.string.character_detail_loading else R.string.character_detail_load_failed,
     )
     val usePersonaTitle = stringResource(R.string.character_detail_use_persona)
     val personaNameSummary = store.persona.name.ifBlank { stringResource(R.string.character_persona_name_unset) }
@@ -196,7 +196,7 @@ internal fun CharacterDetailScreen(
                             title = editCharacterTitle,
                             enabled = !store.busy,
                             onClick = {
-                                store.discardEditor()
+                                store.prepareEditor(id)
                                 onNavigate(AppRoute.CharacterEditor(id))
                             },
                         )
@@ -356,7 +356,7 @@ internal fun CharacterDetailScreen(
                             .padding(bottom = 12.dp),
                     ) {
                         ArrowPreference(title = editCharacterTitle, enabled = !store.busy, onClick = {
-                            store.discardEditor()
+                            store.prepareEditor(id)
                             onNavigate(AppRoute.CharacterEditor(id))
                         })
                         ArrowPreference(title = memoryTitle, summary = memorySummary, onClick = {

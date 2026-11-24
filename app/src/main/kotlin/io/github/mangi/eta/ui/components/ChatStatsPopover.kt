@@ -68,6 +68,12 @@ import kotlin.math.roundToLong
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.GlassPopupAnchor
+import top.yukonga.miuix.kmp.glass.GlassPopupSizing
+import top.yukonga.miuix.kmp.glass.GlassTransformPopup
+import top.yukonga.miuix.kmp.glass.glassPopupAnchor
+import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleSurface
@@ -115,26 +121,12 @@ internal fun TurnStatsPill(
     } else {
         Color.Transparent
     }
-
-    Box(modifier = modifier) {
+    val popupAnchor = rememberGlassPopupAnchor()
+    val overlayBackdrop = currentGlassOverlayBackdrop()
+    val pillContent: @Composable () -> Unit = {
         Row(
             modifier = Modifier
                 .height(AnswerActionSize)
-                .clip(RoundedCornerShape(8.dp))
-                .background(activeBg, RoundedCornerShape(8.dp))
-                .then(
-                    if (isCoui) {
-                        Modifier.couiButtonFeedback(couiDark, interactionSource, enabled = true)
-                    } else {
-                        Modifier
-                    },
-                )
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    role = Role.Button,
-                    onClick = { open = !open },
-                )
                 .padding(horizontal = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -157,42 +149,94 @@ internal fun TurnStatsPill(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-
-        if (open) {
-            ChatStatsPopoverPopup(onDismissRequest = { open = false }) {
-                StatsSectionHeader(
-                    icon = ChatActionIcons.Gauge,
-                    title = stringResource(R.string.stats_session_title),
-                    value = formatTurnsAndSteps(turns = 1, steps = steps),
+    }
+    val statsBody: @Composable ColumnScope.() -> Unit = {
+        StatsSectionHeader(
+            icon = ChatActionIcons.Gauge,
+            title = stringResource(R.string.stats_session_title),
+            value = formatTurnsAndSteps(turns = 1, steps = steps),
+        )
+        StatsSectionDivider()
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (llmMs > 0L) {
+                StatsDetailRow(
+                    label = stringResource(R.string.stats_llm_time),
+                    value = statDurationText(llmMs),
                 )
-                StatsSectionDivider()
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (llmMs > 0L) {
-                        StatsDetailRow(
-                            label = stringResource(R.string.stats_llm_time),
-                            value = statDurationText(llmMs),
-                        )
-                    }
-                    if (toolMs > 0L) {
-                        StatsDetailRow(
-                            label = stringResource(R.string.stats_tool_time),
-                            value = statDurationText(toolMs),
-                        )
-                    }
-                    if (avgTtftMs != null && avgTtftMs > 0L) {
-                        StatsDetailRow(
-                            label = stringResource(R.string.stats_avg_ttft),
-                            value = statDurationText(avgTtftMs),
-                        )
-                    }
-                    if (speedText != null) {
-                        StatsDetailRow(
-                            label = stringResource(R.string.stats_output_speed),
-                            value = speedText,
-                        )
-                    }
-                }
             }
+            if (toolMs > 0L) {
+                StatsDetailRow(
+                    label = stringResource(R.string.stats_tool_time),
+                    value = statDurationText(toolMs),
+                )
+            }
+            if (avgTtftMs != null && avgTtftMs > 0L) {
+                StatsDetailRow(
+                    label = stringResource(R.string.stats_avg_ttft),
+                    value = statDurationText(avgTtftMs),
+                )
+            }
+            if (speedText != null) {
+                StatsDetailRow(
+                    label = stringResource(R.string.stats_output_speed),
+                    value = speedText,
+                )
+            }
+        }
+    }
+
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .then(
+                    if (!isCoui) {
+                        Modifier.glassPopupAnchor(anchor = popupAnchor, cornerRadius = 8.dp)
+                    } else {
+                        Modifier
+                    },
+                )
+                .clip(RoundedCornerShape(8.dp))
+                .background(activeBg, RoundedCornerShape(8.dp))
+                .then(
+                    if (isCoui) {
+                        Modifier.couiButtonFeedback(couiDark, interactionSource, enabled = true)
+                    } else {
+                        Modifier
+                    },
+                )
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    role = Role.Button,
+                    onClick = { open = !open },
+                )
+                .then(
+                    if (!isCoui) {
+                        Modifier.glassPopupAnchorContent(popupAnchor)
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
+            pillContent()
+        }
+
+        if (!isCoui && overlayBackdrop != null) {
+            EtaTopLayer {
+                GlassTransformPopup(
+                    show = open,
+                    onDismissRequest = { open = false },
+                    anchor = popupAnchor,
+                    backdrop = overlayBackdrop,
+                    sizing = GlassPopupSizing(minWidth = 256.dp, maxWidth = 328.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                    anchorContent = { pillContent() },
+                    content = statsBody,
+                )
+            }
+        } else if (open) {
+            ChatStatsPopoverPopup(onDismissRequest = { open = false }, content = statsBody)
         }
     }
 }
@@ -209,6 +253,9 @@ internal fun ContextUsageStatsPopoverPopup(
     canCompact: Boolean,
     onCompact: () -> Unit,
     onDismissRequest: () -> Unit,
+    show: Boolean = true,
+    anchor: GlassPopupAnchor? = null,
+    anchorContent: (@Composable () -> Unit)? = null,
 ) {
     val stats = usage.sessionStats
     val cacheHit = if (stats.promptTokens > 0 && stats.cachedTokens > 0) {
@@ -223,7 +270,7 @@ internal fun ContextUsageStatsPopoverPopup(
         null
     }
 
-    ChatStatsPopoverPopup(onDismissRequest = onDismissRequest) {
+    val body: @Composable ColumnScope.() -> Unit = {
         StatsSectionHeader(
             icon = ChatActionIcons.Database,
             title = stringResource(if (stats.hasTokenUsage) R.string.stats_token_usage else R.string.ui_contextual_usage_d12810),
@@ -409,6 +456,25 @@ internal fun ContextUsageStatsPopoverPopup(
                 )
             }
         }
+    }
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
+    val overlayBackdrop = currentGlassOverlayBackdrop()
+    if (!isCoui && anchor != null && anchorContent != null && overlayBackdrop != null) {
+        EtaTopLayer {
+            GlassTransformPopup(
+                show = show,
+                onDismissRequest = onDismissRequest,
+                anchor = anchor,
+                backdrop = overlayBackdrop,
+                sizing = GlassPopupSizing(minWidth = 256.dp, maxWidth = 328.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                anchorContent = anchorContent,
+                content = body,
+            )
+        }
+    } else if (show) {
+        ChatStatsPopoverPopup(onDismissRequest = onDismissRequest, content = body)
     }
 }
 

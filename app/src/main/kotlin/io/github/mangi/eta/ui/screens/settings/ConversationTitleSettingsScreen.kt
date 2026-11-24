@@ -21,6 +21,7 @@ import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
+import io.github.mangi.eta.ui.components.MiuixFooterHint
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.components.OptionalModelPickerContent
@@ -270,14 +271,7 @@ internal fun ConversationTitleSettingsScreen(
                             )
                         }
                     }
-                    Text(
-                        text = noteText,
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier
-                            .padding(horizontal = 28.dp)
-                            .padding(bottom = 12.dp),
-                    )
+                    MiuixFooterHint(text = noteText)
                 }
             }
         }

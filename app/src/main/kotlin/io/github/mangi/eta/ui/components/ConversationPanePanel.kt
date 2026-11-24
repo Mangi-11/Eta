@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,7 +34,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -57,7 +62,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -81,16 +85,8 @@ import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
 import io.github.mangi.eta.ui.components.coui.rememberCouiPageBackdrop
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
-import io.github.suqi8.coui.kmp.basic.Card as CouiCard
-import io.github.suqi8.coui.kmp.basic.CardDefaults as CouiCardDefaults
-import io.github.suqi8.coui.kmp.basic.CardListGroup as CouiCardListGroup
 import io.github.suqi8.coui.kmp.blur.layerBackdrop
-import io.github.suqi8.coui.kmp.preference.ArrowPreference as CouiArrowPreference
-import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
-import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
 import io.github.suqi8.coui.kmp.utils.rememberCOUIFlingBehavior
-import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
@@ -100,21 +96,28 @@ import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.glass.GlassPopup
 import top.yukonga.miuix.kmp.glass.GlassPopupDefaults
 import top.yukonga.miuix.kmp.glass.GlassPopupItem
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.PushPin
+import top.yukonga.miuix.kmp.glass.GlassTransformPopup
+import top.yukonga.miuix.kmp.glass.glassPopupAnchor
+import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.icon.glass.Download
 import top.yukonga.miuix.kmp.icon.glass.Edit
 import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.icon.glass.Pin
-import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import io.github.suqi8.coui.kmp.basic.Card as CouiCard
+import io.github.suqi8.coui.kmp.basic.CardDefaults as CouiCardDefaults
+import io.github.suqi8.coui.kmp.basic.CardListGroup as CouiCardListGroup
+import io.github.suqi8.coui.kmp.preference.ArrowPreference as CouiArrowPreference
+import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
+import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
+import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
+import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 
 @Stable
 private class PaneBarInsets {
@@ -542,9 +545,8 @@ private fun ConversationHistoryRow(
 ) {
     var showActionMenu by remember { mutableStateOf(false) }
     var rowBounds by remember { mutableStateOf(Rect.Zero) }
-    var moreButtonBounds by remember { mutableStateOf(Rect.Zero) }
-    var popupAnchorBounds by remember { mutableStateOf(Rect.Zero) }
     val hapticFeedback = LocalHapticFeedback.current
+    val moreAnchor = rememberGlassPopupAnchor()
     val anchor = rememberCouiMenuAnchor()
     val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val couiDark = CouiTheme.isDark
@@ -619,7 +621,6 @@ private fun ConversationHistoryRow(
                     onClick = onClick,
                     onLongClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                        popupAnchorBounds = rowBounds
                         anchor.open { showActionMenu = true }
                     },
                 )
@@ -700,14 +701,22 @@ private fun ConversationHistoryRow(
                 Box(
                     modifier = Modifier
                         .padding(start = 4.dp)
+                        .then(
+                            if (isCoui) {
+                                Modifier
+                            } else {
+                                Modifier.glassPopupAnchor(
+                                    anchor = moreAnchor,
+                                    cornerRadius = 14.dp,
+                                )
+                            },
+                        )
                         .size(28.dp)
-                        .onGloballyPositioned { moreButtonBounds = it.boundsInWindow() }
                         .clip(CircleShape)
                         .clickable(
                             role = Role.Button,
                             onClickLabel = moreLabel,
                         ) {
-                            popupAnchorBounds = moreButtonBounds
                             anchor.open { showActionMenu = true }
                         },
                     contentAlignment = Alignment.Center,
@@ -715,7 +724,9 @@ private fun ConversationHistoryRow(
                     Icon(
                         imageVector = if (isCoui) Icons.Outlined.MoreHoriz else MiuixIcons.Glass.More,
                         contentDescription = moreLabel,
-                        modifier = Modifier.size(if (isCoui) 17.dp else 20.dp),
+                        modifier = Modifier
+                            .size(if (isCoui) 17.dp else 20.dp)
+                            .then(if (isCoui) Modifier else Modifier.glassPopupAnchorContent(moreAnchor)),
                         tint = summaryColor,
                     )
                 }
@@ -780,52 +791,72 @@ private fun ConversationHistoryRow(
             }
             AppearanceUiStyle.MIUIX -> {
                 val overlayBackdrop = currentGlassOverlayBackdrop() ?: miuixBackdrop
+                val menuContent: @Composable ColumnScope.() -> Unit = {
+                    GlassPopupItem(
+                        text = pinText,
+                        icon = MiuixIcons.Glass.Pin,
+                        onClick = {
+                            showActionMenu = false
+                            onTogglePin()
+                        },
+                    )
+                    GlassPopupItem(
+                        text = renameText,
+                        icon = MiuixIcons.Glass.Edit,
+                        onClick = {
+                            showActionMenu = false
+                            onRename()
+                        },
+                    )
+                    GlassPopupItem(
+                        text = exportText,
+                        icon = MiuixIcons.Glass.Download,
+                        onClick = {
+                            showActionMenu = false
+                            onExport()
+                        },
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(
+                            horizontal = GlassPopupDefaults.DividerPaddingHorizontal,
+                            vertical = GlassPopupDefaults.DividerPaddingVertical,
+                        ),
+                        thickness = GlassPopupDefaults.DividerThickness,
+                    )
+                    GlassPopupItem(
+                        text = deleteText,
+                        icon = MiuixIcons.Glass.Delete,
+                        contentColor = MiuixTheme.colorScheme.error,
+                        onClick = {
+                            showActionMenu = false
+                            onDelete()
+                        },
+                    )
+                }
                 EtaTopLayer {
-                    GlassPopup(
-                        show = showActionMenu,
-                        onDismissRequest = { showActionMenu = false },
-                        anchorBounds = popupAnchorBounds,
-                        backdrop = overlayBackdrop,
-                    ) {
-                        GlassPopupItem(
-                            text = pinText,
-                            icon = MiuixIcons.Glass.Pin,
-                            onClick = {
-                                showActionMenu = false
-                                onTogglePin()
+                    if (selected) {
+                        GlassTransformPopup(
+                            show = showActionMenu,
+                            onDismissRequest = { showActionMenu = false },
+                            anchor = moreAnchor,
+                            backdrop = overlayBackdrop,
+                            anchorContent = {
+                                Icon(
+                                    imageVector = MiuixIcons.Glass.More,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = summaryColor,
+                                )
                             },
+                            content = menuContent,
                         )
-                        GlassPopupItem(
-                            text = renameText,
-                            icon = MiuixIcons.Glass.Edit,
-                            onClick = {
-                                showActionMenu = false
-                                onRename()
-                            },
-                        )
-                        GlassPopupItem(
-                            text = exportText,
-                            icon = MiuixIcons.Glass.Download,
-                            onClick = {
-                                showActionMenu = false
-                                onExport()
-                            },
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(
-                                horizontal = GlassPopupDefaults.DividerPaddingHorizontal,
-                                vertical = GlassPopupDefaults.DividerPaddingVertical,
-                            ),
-                            thickness = GlassPopupDefaults.DividerThickness,
-                        )
-                        GlassPopupItem(
-                            text = deleteText,
-                            icon = MiuixIcons.Glass.Delete,
-                            contentColor = MiuixTheme.colorScheme.error,
-                            onClick = {
-                                showActionMenu = false
-                                onDelete()
-                            },
+                    } else {
+                        GlassPopup(
+                            show = showActionMenu,
+                            onDismissRequest = { showActionMenu = false },
+                            anchorBounds = rowBounds,
+                            backdrop = overlayBackdrop,
+                            content = menuContent,
                         )
                     }
                 }

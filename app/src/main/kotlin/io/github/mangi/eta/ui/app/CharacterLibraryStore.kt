@@ -62,16 +62,22 @@ internal class CharacterLibraryStore(
         private set
     var busy by mutableStateOf(false)
         private set
+    var isLoadingLibrary by mutableStateOf(false)
+        private set
+    var isLoadingDetail by mutableStateOf(false)
+        private set
+    var isLoadingEditor by mutableStateOf(false)
+        private set
     var notice by mutableStateOf<String?>(null)
         private set
     private var operation: Job? = null
     private var pendingLoad: (() -> Unit)? = null
+    private var editingProfile: CharacterProfile? = null
     private var editorKey: String? = null
     private var editorLoaded = false
     private var personaLoaded = false
     private var memoryCharacterId: String? = null
     private var memorySnapshot: AgentMemorySnapshot? = null
-
     /** 收藏置顶，其余按最近更新排列；搜索同时匹配名称与标签。 */
     val filteredCharacters: List<CharacterProfile>
         get() {
@@ -83,43 +89,100 @@ internal class CharacterLibraryStore(
             }.sortedWith(compareByDescending<CharacterProfile> { it.card.favorite }.thenByDescending { it.updatedAt })
         }
 
-    fun loadLibrary() = runOperation(
-        R.string.character_error_load_library,
-        "角色库读取失败，请重试",
-        queueIfBusy = true,
-    ) {
-        io { CharacterRepository.ensureDefaultCharacter() }
-        characters = io { CharacterRepository.list() }
+    fun loadLibrary() {
+        isLoadingLibrary = true
+        runOperation(
+            R.string.character_error_load_library,
+            "角色库读取失败，请重试",
+            queueIfBusy = true,
+            lockUi = false,
+            onFinally = { isLoadingLibrary = false },
+        ) {
+            io { CharacterRepository.ensureDefaultCharacter() }
+            characters = io { CharacterRepository.list() }
+            if (!personaLoaded) {
+                val loadedPersona = io { CharacterRepository.persona() }
+                persona = loadedPersona
+                personaDraft = loadedPersona
+                personaLoaded = true
+            }
+        }
     }
 
     fun dismissNotice() { notice = null }
 
-    fun loadDetail(id: String) = runOperation(
-        R.string.character_error_load_detail,
-        "角色读取失败，请返回角色库重试",
-        queueIfBusy = true,
-    ) {
-        val profile = io { CharacterRepository.get(id) } ?: error("CHARACTER_NOT_FOUND")
-        val warnings = io { CharacterCardCompatibility.warnings(profile.card) }
-        if (selected?.id != id) greetingIndex = 0
-        selected = profile
-        compatibilityWarnings = warnings
-        persona = io { CharacterRepository.persona() }
+    fun profileFor(id: String): CharacterProfile? =
+        selected?.takeIf { it.id == id } ?: characters.firstOrNull { it.id == id }
+
+    fun loadDetail(id: String) {
+        if (selected?.id != id) {
+            characters.firstOrNull { it.id == id }?.let { selected = it }
+        }
+        isLoadingDetail = selected?.id != id
+        runOperation(
+            R.string.character_error_load_detail,
+            "角色读取失败，请返回角色库重试",
+            queueIfBusy = true,
+            lockUi = false,
+            onFinally = { isLoadingDetail = false },
+        ) {
+            val profile = io { CharacterRepository.get(id) } ?: error("CHARACTER_NOT_FOUND")
+            val warnings = io { CharacterCardCompatibility.warnings(profile.card) }
+            if (selected?.id != id) greetingIndex = 0
+            selected = profile
+            compatibilityWarnings = warnings
+            val loadedPersona = io { CharacterRepository.persona() }
+            persona = loadedPersona
+            if (!personaLoaded) {
+                personaDraft = loadedPersona
+                personaLoaded = true
+            }
+        }
+    }
+
+    fun prepareEditor(id: String?) {
+        if (id == null) {
+            editingProfile = null
+            draft = CharacterCardCodec.create(
+                AppStrings.get(R.string.character_draft_default_name, "新角色"),
+            )
+            draftName = ""
+            editorKey = null
+            editorLoaded = true
+            return
+        }
+        val cached = selected?.takeIf { it.id == id } ?: characters.firstOrNull { it.id == id }
+        if (cached != null) {
+            editingProfile = cached
+            draft = cached.card
+            draftName = cached.card.name
+            editorKey = id
+            editorLoaded = true
+        } else {
+            discardEditor()
+        }
     }
 
     fun loadEditor(id: String?) {
-        if (editorLoaded && editorKey == id) return
+        if (editorLoaded && editorKey == id && draft != null) return
+        if (id == null) {
+            prepareEditor(null)
+            return
+        }
+        prepareEditor(id)
+        if (editorLoaded && editorKey == id && draft != null) return
+        isLoadingEditor = true
         runOperation(
             R.string.character_error_load_editor,
             "角色读取失败，请重试",
             queueIfBusy = true,
+            lockUi = false,
+            onFinally = { isLoadingEditor = false },
         ) {
-            val profile = id?.let { io { CharacterRepository.get(it) } ?: error("CHARACTER_NOT_FOUND") }
-            selected = profile
-            draft = profile?.card ?: CharacterCardCodec.create(
-                AppStrings.get(R.string.character_draft_default_name, "新角色"),
-            )
-            draftName = profile?.card?.name.orEmpty()
+            val profile = io { CharacterRepository.get(id) } ?: error("CHARACTER_NOT_FOUND")
+            editingProfile = profile
+            draft = profile.card
+            draftName = profile.card.name
             editorKey = id
             editorLoaded = true
         }
@@ -128,9 +191,9 @@ internal class CharacterLibraryStore(
     fun discardEditor() {
         editorLoaded = false
         editorKey = null
+        editingProfile = null
         draft = null
     }
-
     fun updateDraft(update: (CharacterCard) -> CharacterCard) {
         if (!busy) draft = draft?.let(update)
     }
@@ -171,7 +234,7 @@ internal class CharacterLibraryStore(
             return
         }
         val card = originalDraft.withEdits(name = draftName)
-        val original = selected
+        val original = editingProfile ?: selected?.takeIf { it.id == editorKey }
         runOperation(R.string.character_error_save, "角色保存失败，请重试") {
             val profile = io {
                 if (original == null) CharacterRepository.create(card)
@@ -188,8 +251,12 @@ internal class CharacterLibraryStore(
     fun duplicate(id: String, onDuplicated: (String) -> Unit) = runOperation(
         R.string.character_error_duplicate,
         "角色复制失败，请重试",
+        lockUi = false,
     ) {
         val profile = io { CharacterRepository.duplicate(id) }
+        val warnings = io { CharacterCardCompatibility.warnings(profile.card) }
+        selected = profile
+        compatibilityWarnings = warnings
         characters = io { CharacterRepository.list() }
         onDuplicated(profile.id)
     }
@@ -267,9 +334,13 @@ internal class CharacterLibraryStore(
             R.string.character_error_load_persona,
             "用户人设读取失败，请重试",
             queueIfBusy = true,
+            lockUi = false,
         ) {
-            persona = io { CharacterRepository.persona() }
-            personaDraft = persona
+            val loaded = io { CharacterRepository.persona() }
+            persona = loaded
+            if (personaDraft == UserPersona() || !personaLoaded || personaDraft == loaded) {
+                personaDraft = loaded
+            }
             personaLoaded = true
         }
     }
@@ -297,6 +368,7 @@ internal class CharacterLibraryStore(
             R.string.character_error_load_memory,
             "剧情记忆读取失败，请重试",
             queueIfBusy = true,
+            lockUi = false,
         ) {
             val snapshot = io { CharacterMemoryRepository.snapshot(context, id) }
             memoryCharacterId = id
@@ -335,7 +407,9 @@ internal class CharacterLibraryStore(
         @StringRes failureRes: Int,
         failureFallback: String,
         queueIfBusy: Boolean = false,
+        lockUi: Boolean = true,
         diagnoseCardImport: Boolean = false,
+        onFinally: () -> Unit = {},
         block: suspend () -> Unit,
     ) {
         if (operation?.isActive == true) {
@@ -345,6 +419,8 @@ internal class CharacterLibraryStore(
                         failureRes = failureRes,
                         failureFallback = failureFallback,
                         queueIfBusy = true,
+                        lockUi = lockUi,
+                        onFinally = onFinally,
                         block = block,
                     )
                 }
@@ -352,7 +428,7 @@ internal class CharacterLibraryStore(
             return
         }
         operation = scope.launch {
-            busy = true
+            if (lockUi) busy = true
             try {
                 io { CharacterRepository.initialize(context) }
                 block()
@@ -365,7 +441,8 @@ internal class CharacterLibraryStore(
                     characterCardImportMessage((error as? CharacterCardException)?.code) ?: failureMessage
                 } else failureMessage
             } finally {
-                busy = false
+                if (lockUi) busy = false
+                onFinally()
                 operation = null
                 val next = pendingLoad
                 pendingLoad = null

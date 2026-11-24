@@ -32,9 +32,9 @@ internal fun CharacterPersonaScreen(store: CharacterLibraryStore, onBack: () -> 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
             CouiScaffoldPage(title = personaTitle, onBack = onBack) {
-                CharacterPageMessage(personaHint)
                 CharacterTextField(nameLabel, store.personaDraft.name, { store.updatePersona(name = it) }, !store.busy, singleLine = true)
                 CharacterTextField(identityLabel, store.personaDraft.description, { store.updatePersona(description = it) }, !store.busy, minLines = 6)
+                CharacterPageMessage(personaHint)
                 CouiButton(
                     text = saveLabel,
                     onClick = { store.savePersona(onBack) },
@@ -49,15 +49,15 @@ internal fun CharacterPersonaScreen(store: CharacterLibraryStore, onBack: () -> 
         }
         AppearanceUiStyle.MIUIX -> {
             MiuixScaffoldPage(title = personaTitle, onBack = onBack, modifier = Modifier.imePadding()) {
-                item { CharacterPageMessage(personaHint) }
                 item(key = "name") { CharacterTextField(nameLabel, store.personaDraft.name, { store.updatePersona(name = it) }, !store.busy, singleLine = true) }
                 item(key = "persona") { CharacterTextField(identityLabel, store.personaDraft.description, { store.updatePersona(description = it) }, !store.busy, minLines = 6) }
+                item(key = "hint") { CharacterPageMessage(personaHint) }
                 item(key = "save") {
                     TextButton(
                         text = saveLabel,
                         onClick = { store.savePersona(onBack) },
                         enabled = !store.busy,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 12.dp),
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                     )
                 }
@@ -109,7 +109,7 @@ internal fun CharacterMemoryScreen(id: String, store: CharacterLibraryStore, onB
                 }
                 item(key = "actions") {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         TextButton(

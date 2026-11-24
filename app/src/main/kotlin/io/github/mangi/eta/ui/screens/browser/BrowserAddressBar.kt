@@ -13,11 +13,11 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -38,19 +38,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.BrowserSessionSnapshot
 import io.github.mangi.eta.data.model.AppearanceUiStyle
@@ -65,8 +62,11 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.glass.GlassPopup
 import top.yukonga.miuix.kmp.glass.GlassPopupItem
+import top.yukonga.miuix.kmp.glass.GlassTransformPopup
+import top.yukonga.miuix.kmp.glass.glassPopupAnchor
+import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -251,7 +251,8 @@ private fun BrowserSubmitAction(
 @Composable
 private fun BrowserOverflowMenu(items: List<DropdownItem>) {
     var expanded by remember { mutableStateOf(false) }
-    var buttonBounds by remember { mutableStateOf(Rect.Zero) }
+    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
+    val moreAnchor = rememberGlassPopupAnchor()
     val anchor = rememberCouiMenuAnchor()
     Box {
         BrowserControlButton(
@@ -259,8 +260,18 @@ private fun BrowserOverflowMenu(items: List<DropdownItem>) {
             description = stringResource(R.string.action_more),
             onClick = { anchor.open { expanded = true } },
             modifier = Modifier
-                .onGloballyPositioned { buttonBounds = it.boundsInWindow() }
+                .then(
+                    if (isCoui) {
+                        Modifier
+                    } else {
+                        Modifier.glassPopupAnchor(
+                            anchor = moreAnchor,
+                            cornerRadius = 20.dp,
+                        )
+                    },
+                )
                 .couiMenuAnchor(anchor),
+            iconModifier = if (isCoui) Modifier else Modifier.glassPopupAnchorContent(moreAnchor),
         )
         when (LocalUiStyle.current) {
             AppearanceUiStyle.COUI -> {
@@ -287,11 +298,19 @@ private fun BrowserOverflowMenu(items: List<DropdownItem>) {
             AppearanceUiStyle.MIUIX -> {
                 val overlayBackdrop = currentGlassOverlayBackdrop()
                 EtaTopLayer {
-                    GlassPopup(
+                    GlassTransformPopup(
                         show = expanded,
                         onDismissRequest = { expanded = false },
-                        anchorBounds = buttonBounds,
+                        anchor = moreAnchor,
                         backdrop = overlayBackdrop,
+                        anchorContent = {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                            )
+                        },
                     ) {
                         items.forEach { item ->
                             GlassPopupItem(
@@ -318,12 +337,13 @@ private fun BrowserControlButton(
     onClick: () -> Unit,
     size: Dp = 40.dp,
     modifier: Modifier = Modifier,
+    iconModifier: Modifier = Modifier,
 ) {
     IconButton(onClick = onClick, enabled = enabled, minWidth = size, minHeight = size, modifier = modifier) {
         Icon(
             imageVector = icon,
             contentDescription = description,
-            modifier = Modifier.size(20.dp),
+            modifier = iconModifier.size(20.dp),
             tint = if (enabled) MiuixTheme.colorScheme.onSurface else MiuixTheme.colorScheme.disabledOnSecondaryVariant,
         )
     }

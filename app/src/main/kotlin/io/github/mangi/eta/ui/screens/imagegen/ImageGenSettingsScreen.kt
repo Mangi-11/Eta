@@ -977,7 +977,7 @@ internal fun ImageGenSettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp)
-                            .padding(top = 4.dp, bottom = 12.dp),
+                            .padding(bottom = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         TextButton(

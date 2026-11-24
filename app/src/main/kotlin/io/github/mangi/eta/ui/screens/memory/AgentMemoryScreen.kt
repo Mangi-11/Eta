@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -85,6 +86,8 @@ import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
 import top.yukonga.miuix.kmp.glass.GlassDialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -517,6 +520,32 @@ private fun MemoryModeSwitch(
     enabled: Boolean,
     onModeChange: (MemoryViewMode) -> Unit,
 ) {
+    if (LocalUiStyle.current == AppearanceUiStyle.MIUIX) {
+        val backdrop = rememberLayerBackdrop()
+        val colors = MiuixTheme.colorScheme
+        val previewLabel = stringResource(R.string.memory_mode_preview)
+        val editLabel = stringResource(R.string.memory_mode_edit)
+        val tabs = remember(previewLabel, editLabel) { listOf(previewLabel, editLabel) }
+        GlassSegmentedTabRow(
+            tabs = tabs,
+            selectedIndex = mode.ordinal,
+            onSelect = { index ->
+                if (enabled) {
+                    onModeChange(MemoryViewMode.entries[index])
+                }
+            },
+            backdrop = backdrop,
+            modifier = Modifier.width(156.dp),
+            surfaceAlpha = 0f,
+            shadow = null,
+            height = 34.dp,
+            trackColor = colors.surfaceContainerHigh,
+            indicatorColor = colors.surface,
+            selectedContentColor = colors.onSurface,
+            contentColor = colors.onSurfaceVariantSummary,
+        )
+        return
+    }
     val colors = MiuixTheme.colorScheme
     Row(
         modifier = Modifier

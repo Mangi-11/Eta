@@ -3,22 +3,22 @@
 package io.github.mangi.eta.ui.pages.providers
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -57,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
@@ -64,9 +65,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -77,13 +78,13 @@ import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.auth.ProviderAuthException
 import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ProviderAuthModes
-import io.github.mangi.eta.data.model.GeminiProviderSetting
-import io.github.mangi.eta.data.provider.GeminiModelCapabilities
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.provider.GeminiModelCapabilities
 import io.github.mangi.eta.data.repository.ModelRepository
 import io.github.mangi.eta.data.repository.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
@@ -109,12 +110,7 @@ import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.rememberGlassBackdrop
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
-import io.github.suqi8.coui.kmp.basic.Checkbox as CouiCheckbox
-import io.github.suqi8.coui.kmp.basic.HorizontalDivider as CouiDivider
-import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
-import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
 import io.github.suqi8.coui.kmp.utils.rememberCOUIFlingBehavior
-import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -141,9 +137,11 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import androidx.compose.animation.core.tween
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import io.github.suqi8.coui.kmp.basic.Checkbox as CouiCheckbox
+import io.github.suqi8.coui.kmp.basic.HorizontalDivider as CouiDivider
+import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
+import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
+import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 
 private val editableReasoningEfforts = listOf(
     ReasoningEffort.OFF,
@@ -375,27 +373,27 @@ internal fun ProviderModelsTab(
                             CouiPreference(
                                 title = pullTitle,
                                 summary = pullSummary,
-                                enabled = !isFetching && !isMutatingModel,
+                                enabled = !isFetching,
                                 onClick = onPullRemoteModels,
                             )
                             CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
                             CouiPreference(
                                 title = customTitle,
                                 summary = customSummary,
-                                enabled = !isFetching && !isMutatingModel,
+                                enabled = !isFetching,
                                 onClick = onOpenAddCustomModel,
                             )
                         } else {
                             ArrowPreference(
                                 title = pullTitle,
                                 summary = pullSummary,
-                                enabled = !isFetching && !isMutatingModel,
+                                enabled = !isFetching,
                                 onClick = onPullRemoteModels,
                             )
                             ArrowPreference(
                                 title = customTitle,
                                 summary = customSummary,
-                                enabled = !isFetching && !isMutatingModel,
+                                enabled = !isFetching,
                                 onClick = onOpenAddCustomModel,
                             )
                         }
@@ -483,7 +481,7 @@ internal fun ProviderModelsTab(
                                 SelectionHeaderAction(
                                     text = actionLabel,
                                     color = MiuixTheme.colorScheme.primary,
-                                    enabled = !isFetching && !isMutatingModel && visibleIds.isNotEmpty(),
+                                    enabled = !isFetching && visibleIds.isNotEmpty(),
                                     onClick = onToggleSelectAll,
                                 )
                             }
@@ -501,7 +499,7 @@ internal fun ProviderModelsTab(
                                 SelectionHeaderAction(
                                     text = actionLabel,
                                     color = MiuixTheme.colorScheme.primary,
-                                    enabled = !isFetching && !isMutatingModel && visibleIds.isNotEmpty(),
+                                    enabled = !isFetching && visibleIds.isNotEmpty(),
                                     onClick = onToggleSelectAll,
                                 )
                             }
@@ -523,7 +521,7 @@ internal fun ProviderModelsTab(
                     ) {
                         ModelListItem(
                             model = model,
-                            enabled = !isFetching && !isMutatingModel,
+                            enabled = !isFetching,
                             isSelected = model.id == selectedModelId,
                             selectionMode = selectionMode,
                             checked = model.id in selectedModelIds,
@@ -589,7 +587,7 @@ internal fun ProviderModelsTab(
         ) {
             ModelDeleteBar(
                 selectedCount = selectedModelIds.size,
-                enabled = !isFetching && !isMutatingModel,
+                enabled = !isFetching,
                 backdrop = tabBackdrop,
                 onCancel = { selectionMode = false },
                 onDelete = { showBatchDeleteDialog = true },
