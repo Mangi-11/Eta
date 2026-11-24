@@ -50,12 +50,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
@@ -94,12 +91,14 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
-import top.yukonga.miuix.kmp.glass.GlassPopup
 import top.yukonga.miuix.kmp.glass.GlassPopupDefaults
 import top.yukonga.miuix.kmp.glass.GlassPopupSizing
 import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
+import top.yukonga.miuix.kmp.glass.GlassTransformPopup
 import top.yukonga.miuix.kmp.glass.glassPanel
+import top.yukonga.miuix.kmp.glass.glassPopupAnchor
 import top.yukonga.miuix.kmp.glass.glassPress
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.glass.Ok
@@ -130,7 +129,6 @@ internal fun AgentTopBarChatHeader(
     var showPopup by remember { mutableStateOf(false) }
     var showSheet by remember { mutableStateOf(false) }
     var sheetSession by remember { mutableIntStateOf(0) }
-    var headerAnchorBounds by remember { mutableStateOf(Rect.Zero) }
     val selected = state.selectedModel
     val enabled = !isStreaming && state.providerGroups.isNotEmpty()
     val canTriggerPicker = enabled && !state.isChanging
@@ -144,6 +142,7 @@ internal fun AgentTopBarChatHeader(
     val currentModel = selected?.displayName ?: stringResource(R.string.model_not_selected)
     val switchModelDescription = stringResource(R.string.model_switch_current, currentModel)
     val anchor = rememberCouiMenuAnchor()
+    val popupAnchor = rememberGlassPopupAnchor()
     val uiStyle = LocalUiStyle.current
     val isCoui = uiStyle == AppearanceUiStyle.COUI
     val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
@@ -206,8 +205,16 @@ internal fun AgentTopBarChatHeader(
                     Column(
                         modifier = Modifier
                             .weight(1f, fill = false)
-                            .onGloballyPositioned { headerAnchorBounds = it.boundsInWindow() }
-                            .couiMenuAnchor(anchor)
+                            .then(
+                                if (isCoui) {
+                                    Modifier.couiMenuAnchor(anchor)
+                                } else {
+                                    Modifier.glassPopupAnchor(
+                                        anchor = popupAnchor,
+                                        cornerRadius = 10.dp,
+                                    )
+                                },
+                            )
                             .clip(RoundedCornerShape(10.dp))
                             .then(
                                 if (isCoui) {
@@ -252,8 +259,16 @@ internal fun AgentTopBarChatHeader(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .onGloballyPositioned { headerAnchorBounds = it.boundsInWindow() }
-                        .couiMenuAnchor(anchor)
+                        .then(
+                            if (isCoui) {
+                                Modifier.couiMenuAnchor(anchor)
+                            } else {
+                                Modifier.glassPopupAnchor(
+                                    anchor = popupAnchor,
+                                    cornerRadius = 12.dp,
+                                )
+                            },
+                        )
                         .clip(RoundedCornerShape(12.dp))
                         .then(
                             if (isCoui) {
@@ -330,8 +345,17 @@ internal fun AgentTopBarChatHeader(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .onGloballyPositioned { headerAnchorBounds = it.boundsInWindow() }
-                        .couiMenuAnchor(anchor)
+                        .then(
+                            if (isCoui) {
+                                Modifier.couiMenuAnchor(anchor)
+                            } else {
+                                Modifier.glassPopupAnchor(
+                                    anchor = popupAnchor,
+                                    cornerRadius = 20.dp,
+                                    floating = true,
+                                )
+                            },
+                        )
                         .then(
                             if (isCoui) {
                                 miuixCapsuleModifier
@@ -433,16 +457,104 @@ internal fun AgentTopBarChatHeader(
                 val showGroupLabels = state.providerGroups.size > 1
 
                 EtaTopLayer {
-                    GlassPopup(
+                    GlassTransformPopup(
                         show = showPopup,
                         onDismissRequest = { showPopup = false },
-                        anchorBounds = headerAnchorBounds,
+                        anchor = popupAnchor,
                         backdrop = overlayBackdrop,
                         sizing = GlassPopupSizing(
                             minWidth = ModelPopupWidth,
                             maxWidth = 300.dp,
                             maxHeight = 380.dp,
                         ),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        anchorContent = {
+                            when {
+                                character != null -> {
+                                    Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)) {
+                                        Text(
+                                            text = character.characterName,
+                                            style = MiuixTheme.textStyles.body1.copy(
+                                                fontSize = 15.5.sp,
+                                                lineHeight = 19.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                            ),
+                                            color = MiuixTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        ModelSubtitleRow(
+                                            selected = selected,
+                                            modelName = currentModel,
+                                            textColor = subtitleColor,
+                                            chevronColor = chevronColor,
+                                            showChevron = enabled,
+                                        )
+                                    }
+                                }
+                                !conversationTitle.isNullOrBlank() -> {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                                    ) {
+                                        Text(
+                                            text = conversationTitle,
+                                            style = MiuixTheme.textStyles.body1.copy(
+                                                fontSize = 15.5.sp,
+                                                lineHeight = 19.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                            ),
+                                            color = MiuixTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        ModelSubtitleRow(
+                                            selected = selected,
+                                            modelName = currentModel,
+                                            textColor = subtitleColor,
+                                            chevronColor = chevronColor,
+                                            showChevron = enabled,
+                                        )
+                                    }
+                                }
+                                else -> {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .heightIn(min = 40.dp)
+                                            .padding(start = 13.dp, end = if (enabled) 10.dp else 14.dp, top = 8.dp, bottom = 8.dp),
+                                    ) {
+                                        ModelBrandMark(
+                                            modelId = selected?.modelId,
+                                            sourceType = selected?.providerSourceType,
+                                            size = 15.dp,
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = currentModel,
+                                            style = MiuixTheme.textStyles.body2.copy(
+                                                fontSize = 14.sp,
+                                                lineHeight = 18.sp,
+                                                fontWeight = FontWeight.Medium,
+                                            ),
+                                            color = MiuixTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.widthIn(max = 180.dp),
+                                        )
+                                        if (enabled) {
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Icon(
+                                                imageVector = Icons.Rounded.KeyboardArrowDown,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = chevronColor,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        },
                     ) {
                         state.providerGroups.forEachIndexed { groupIndex, group ->
                             if (showGroupLabels && groupIndex > 0) {

@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FileUpload
+import androidx.compose.runtime.remember
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.SportsBar
 import androidx.compose.runtime.Composable
@@ -68,12 +70,14 @@ internal fun CharacterLibraryScreen(
         importer.launch(arrayOf("image/png", "application/json", "text/plain", "application/octet-stream"))
     }
     val createCharacter = {
-        store.discardEditor()
+        store.prepareEditor(null)
         onNavigate(AppRoute.CharacterEditor())
     }
-    val showAddTile = store.query.isBlank() && store.characters.isNotEmpty()
-    val tiles: List<CharacterProfile?> = store.filteredCharacters + if (showAddTile) listOf(null) else emptyList()
-    val rows = tiles.chunked(2)
+    val rows = remember(store.characters, store.query) {
+        val showAddTile = store.query.isBlank() && store.characters.isNotEmpty()
+        val tiles: List<CharacterProfile?> = store.filteredCharacters + if (showAddTile) listOf(null) else emptyList()
+        tiles.chunked(2)
+    }
 
     val libraryTitle = stringResource(R.string.character_library_title)
     val importCardDesc = stringResource(R.string.character_action_import_card)
@@ -110,7 +114,7 @@ internal fun CharacterLibraryScreen(
                 },
             ) { searching ->
                 when {
-                    store.busy && store.characters.isEmpty() -> {
+                    (store.isLoadingLibrary || store.busy) && store.characters.isEmpty() -> {
                         item(key = "loading") {
                             Box(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
@@ -206,6 +210,7 @@ internal fun CharacterLibraryScreen(
                         enabled = !store.busy,
                         onClick = importCard,
                     )
+                    Spacer(Modifier.width(8.dp))
                     MiuixTopBarActionButton(
                         icon = MiuixIcons.Glass.Add,
                         contentDescription = createCharacterText,
@@ -237,7 +242,7 @@ internal fun CharacterLibraryScreen(
                     )
                 }
                 when {
-                    store.busy && store.characters.isEmpty() -> {
+                    (store.isLoadingLibrary || store.busy) && store.characters.isEmpty() -> {
                         item(key = "loading") {
                             Box(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
@@ -337,7 +342,7 @@ internal fun CharacterPageMessage(text: String) {
             Text(
                 text = text,
                 style = MiuixTheme.textStyles.body2,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp),
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
         }

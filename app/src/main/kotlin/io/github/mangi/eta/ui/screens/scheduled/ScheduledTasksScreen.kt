@@ -221,20 +221,12 @@ internal fun ScheduledTasksScreen(
                     item(key = "empty_intro") {
                         SmallTitle(text = stringResource(R.string.scheduled_section_quick_start))
                     }
-                    item(key = "empty_hint") {
-                        Text(
-                            text = stringResource(R.string.scheduled_empty_hint),
-                            fontSize = 13.sp,
-                            lineHeight = 19.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
-                        )
-                    }
                     item(key = "presets_card") {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(horizontal = 12.dp)
+                                .padding(bottom = 12.dp),
                         ) {
                             ScheduledTaskPresets.all.forEach { preset ->
                                 ArrowPreference(
@@ -244,6 +236,15 @@ internal fun ScheduledTasksScreen(
                                 )
                             }
                         }
+                    }
+                    item(key = "empty_hint") {
+                        Text(
+                            text = stringResource(R.string.scheduled_empty_hint),
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+                        )
                     }
                 } else {
                     item(key = "tasks_header") {

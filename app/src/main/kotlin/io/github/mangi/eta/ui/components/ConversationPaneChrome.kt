@@ -587,7 +587,13 @@ internal fun ConversationPaneBottomDock(
                                     )
                                 },
                                 outsideEndAction = {
-                                    Box(modifier = Modifier.padding(start = ConversationPanelMetrics.BottomDockGap)) {
+                                    Box(
+                                        modifier = Modifier.padding(
+                                            start = ConversationPanelMetrics.BottomDockGap,
+                                            top = 16.dp,
+                                            bottom = 16.dp,
+                                        ),
+                                    ) {
                                         GlassIconButton(
                                             onClick = { setSearchExpanded(false) },
                                             backdrop = activeMiuixBackdrop,
@@ -647,40 +653,48 @@ private fun CoordinatedDockSearchLayout(
                     .focusProperties { canFocus = !searchExpanded }
                     .then(if (searchExpanded) Modifier.clearAndSetSemantics {} else Modifier),
             ) {
-                trailingButtons()
+                Box(modifier = Modifier.padding(16.dp)) {
+                    trailingButtons()
+                }
             }
         },
     ) { measurables, constraints ->
         val marginPx = horizontalMargin.roundToPx()
         val gapPx = buttonGap.roundToPx()
         val progress = buttonsProgress().fastCoerceIn(0f, 1f)
+        val shadowPadPx = 16.dp.roundToPx()
         val buttonsPlaceable = measurables[1].measure(
             constraints.copy(minWidth = 0, minHeight = 0),
         )
-        val reservedEndPx = ((buttonsPlaceable.width + gapPx) * progress).fastRoundToInt().coerceAtLeast(0)
+        val buttonsWidth = (buttonsPlaceable.width - 2 * shadowPadPx).coerceAtLeast(0)
+        val buttonsHeight = (buttonsPlaceable.height - 2 * shadowPadPx).coerceAtLeast(0)
+        val reservedEndPx = ((buttonsWidth + gapPx) * progress).fastRoundToInt().coerceAtLeast(0)
         val searchWidth = (constraints.maxWidth - 2 * marginPx - reservedEndPx).coerceAtLeast(1)
         val searchPlaceable = measurables[0].measure(
             Constraints.fixedWidth(searchWidth).copy(
                 minHeight = 0,
-                maxHeight = constraints.maxHeight,
+                maxHeight = Constraints.Infinity,
             ),
         )
-        val layoutHeight = maxOf(searchPlaceable.height, buttonsPlaceable.height)
+        val layoutHeight = buttonsHeight.coerceAtLeast(ConversationPanelMetrics.BottomDockHeight.roundToPx())
         layout(constraints.maxWidth, layoutHeight) {
             searchPlaceable.placeRelative(
                 x = marginPx,
                 y = (layoutHeight - searchPlaceable.height) / 2,
             )
             if (progress > 0.01f) {
-                val slideOutPx = ((1f - progress) * (buttonsPlaceable.width + marginPx) * 0.35f).fastRoundToInt()
-                buttonsPlaceable.placeRelativeWithLayer(
-                    x = constraints.maxWidth - marginPx - buttonsPlaceable.width + slideOutPx,
-                    y = (layoutHeight - buttonsPlaceable.height) / 2,
-                ) {
-                    alpha = progress
-                    val scale = 0.8f + 0.2f * progress
-                    scaleX = scale
-                    scaleY = scale
+                val slideOutPx = ((1f - progress) * (buttonsWidth + marginPx) * 0.35f).fastRoundToInt()
+                val x = constraints.maxWidth - marginPx - buttonsWidth - shadowPadPx + slideOutPx
+                val y = (layoutHeight - buttonsPlaceable.height) / 2
+                if (progress >= 0.999f) {
+                    buttonsPlaceable.placeRelative(x = x, y = y)
+                } else {
+                    buttonsPlaceable.placeRelativeWithLayer(x = x, y = y) {
+                        alpha = progress
+                        val scale = 0.8f + 0.2f * progress
+                        scaleX = scale
+                        scaleY = scale
+                    }
                 }
             }
         }

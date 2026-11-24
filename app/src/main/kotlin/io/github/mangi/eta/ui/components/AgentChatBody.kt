@@ -260,6 +260,7 @@ internal fun AgentChatBody(
             modelPickerState = modelPickerState,
             isCompacting = isCompacting,
             isBranching = isBranching,
+            isDrawerOpen = isDrawerOpen,
             contextUsage = contextUsage,
             isStreaming = isStreaming,
             reasoningEffort = reasoningEffort,
@@ -333,6 +334,7 @@ private fun AgentChatScaffold(
     modelPickerState: AgentModelPickerUiState,
     isCompacting: Boolean,
     isBranching: Boolean,
+    isDrawerOpen: Boolean,
     contextUsage: AgentContextUsageUi,
     isStreaming: Boolean,
     reasoningEffort: ReasoningEffort,
@@ -397,6 +399,7 @@ private fun AgentChatScaffold(
         bottomBar = {
             AgentChatBottomBar(
                 input = input,
+                imeAvoidanceEnabled = !isDrawerOpen,
                 isCompacting = isCompacting,
                 contextUsage = contextUsage,
                 showContextUsage = hasMessages,
@@ -463,7 +466,7 @@ private fun AgentChatScaffold(
                     onBranchMessage = onBranchMessage,
                     onSelectReplyCandidate = onSelectReplyCandidate,
                     onEditGeneratedImage = onAttachImage,
-                    messageActionsEnabled = !isStreaming && !isCompacting && !isBranching && messageEdit == null,
+                    messageActionsEnabled = !isStreaming && !isCompacting && messageEdit == null,
                     editTargetMessageId = messageEdit?.targetMessageId,
                     currentBrowserMessageId = currentBrowserMessageId,
                     hasEarlierMessages = hasEarlierMessages,
@@ -1075,6 +1078,7 @@ internal fun resolveFinalResultMessageIds(
 
 @Composable
 private fun AgentChatBottomBar(
+    imeAvoidanceEnabled: Boolean,
     input: String,
     isCompacting: Boolean,
     contextUsage: AgentContextUsageUi,
@@ -1115,7 +1119,7 @@ private fun AgentChatBottomBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .imePadding(),
+            .then(if (imeAvoidanceEnabled) Modifier.imePadding() else Modifier),
     ) {
         // 底部以连续垂直渐隐承接悬浮输入胶囊，避免一整块不透明实心矩形把消息流生硬截断。
         Box(
