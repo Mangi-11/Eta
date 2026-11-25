@@ -5,9 +5,9 @@ import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.enabledModel
-import io.github.mangi.eta.ui.components.formatCacheHitPercent
-import io.github.mangi.eta.ui.components.formatStatDuration
-import io.github.mangi.eta.ui.components.formatTokensPerSecond
+import io.github.mangi.eta.ui.components.chat.formatCacheHitPercent
+import io.github.mangi.eta.ui.components.chat.formatStatDuration
+import io.github.mangi.eta.ui.components.chat.formatTokensPerSecond
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

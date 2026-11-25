@@ -1,6 +1,6 @@
 package io.github.mangi.eta.hook.system
 
-import io.github.mangi.eta.core.HookSupport
+import io.github.mangi.eta.hook.support.HookSupport
 import io.github.mangi.eta.core.ModuleConfig
 import io.github.mangi.eta.core.ModuleLogger
 

@@ -8,7 +8,6 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import org.json.JSONArray
-import org.json.JSONObject
 
 /**
  * 守护任务（detached task）宿主：启动脱离任何命令会话进程组的长驻进程，并托管其生命周期。
@@ -48,7 +47,6 @@ internal class DetachedTaskSupervisor(
         fun defaultRecordsFile(context: Context): File =
             File(context.filesDir, "terminal-daemons.json")
     }
-
 
     /** command/cwd/identity/environment 必须已由调用方归一化。 */
     fun start(

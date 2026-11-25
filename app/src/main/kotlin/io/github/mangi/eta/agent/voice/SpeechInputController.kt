@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import io.github.mangi.eta.agent.voice.ui.EtaSpeechPhase
 
 internal data class SpeechInputState(
     val phase: EtaSpeechPhase = EtaSpeechPhase.IDLE,

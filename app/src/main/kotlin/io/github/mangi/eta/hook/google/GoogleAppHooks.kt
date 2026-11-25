@@ -2,8 +2,8 @@ package io.github.mangi.eta.hook.google
 
 import android.os.Build
 import io.github.libxposed.api.XposedModule
-import io.github.mangi.eta.core.HookInstallation
-import io.github.mangi.eta.core.HookRegistrar
+import io.github.mangi.eta.hook.support.HookInstallation
+import io.github.mangi.eta.hook.support.HookRegistrar
 import io.github.mangi.eta.core.ModuleConfig
 import io.github.mangi.eta.core.ModuleLogger
 import io.github.mangi.eta.core.safeLogType

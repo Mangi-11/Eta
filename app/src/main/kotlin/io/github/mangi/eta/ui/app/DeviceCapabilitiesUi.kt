@@ -4,10 +4,8 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -19,6 +17,8 @@ import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.device.RootAccessState
 import io.github.mangi.eta.agent.device.RootAccessStatus
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 internal data class DeviceCapabilitiesUi(
     val root: RootAccessState,
@@ -28,7 +28,6 @@ internal data class DeviceCapabilitiesUi(
 ) {
     val accessibilityAvailable: Boolean get() = tools.accessibilityAvailable
 }
-
 
 @Composable
 internal fun rememberDeviceCapabilities(): DeviceCapabilitiesUi {

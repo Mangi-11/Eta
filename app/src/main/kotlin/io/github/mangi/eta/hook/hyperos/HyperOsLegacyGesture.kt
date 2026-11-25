@@ -3,8 +3,8 @@ package io.github.mangi.eta.hook.hyperos
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
-import io.github.mangi.eta.core.HookRegistrar
-import io.github.mangi.eta.core.HookSupport
+import io.github.mangi.eta.hook.support.HookRegistrar
+import io.github.mangi.eta.hook.support.HookSupport
 import io.github.mangi.eta.core.safeLogType
 import java.util.WeakHashMap
 

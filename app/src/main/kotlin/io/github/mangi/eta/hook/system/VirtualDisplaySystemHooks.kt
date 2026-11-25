@@ -6,9 +6,9 @@ import android.view.Display
 import io.github.libxposed.api.XposedModule
 import io.github.mangi.eta.agent.virtualdisplay.CanvasRoutingPolicy
 import io.github.mangi.eta.config.Prefs
-import io.github.mangi.eta.core.HookInstallation
-import io.github.mangi.eta.core.HookRegistrar
-import io.github.mangi.eta.core.HookSupport
+import io.github.mangi.eta.hook.support.HookInstallation
+import io.github.mangi.eta.hook.support.HookRegistrar
+import io.github.mangi.eta.hook.support.HookSupport
 import io.github.mangi.eta.core.ModuleConfig
 import io.github.mangi.eta.core.ModuleLogger
 import java.util.concurrent.ConcurrentHashMap

@@ -638,7 +638,6 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             cacheWriteTokens?.let { json.put("cache_write_tokens", it) }
         }
 
-
 }
 
 /** 只在当前 Agent run 的工具回合保留 Anthropic 签名块；稳定会话 DTO 不序列化该字段。 */

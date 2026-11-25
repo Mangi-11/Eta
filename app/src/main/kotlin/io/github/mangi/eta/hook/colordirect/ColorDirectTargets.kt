@@ -1,7 +1,7 @@
 package io.github.mangi.eta.hook.colordirect
 
 import android.content.Intent
-import io.github.mangi.eta.core.DexKitTargets
+import io.github.mangi.eta.hook.support.DexKitTargets
 import io.github.mangi.eta.core.ModuleConfig
 import org.luckypray.dexkit.query.matchers.MethodMatcher
 import java.lang.reflect.Method

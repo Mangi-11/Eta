@@ -19,10 +19,8 @@ import androidx.compose.runtime.BroadcastFrameClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Recomposer
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -41,7 +39,7 @@ import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceSettings
 import io.github.mangi.eta.data.model.AppearanceThemeMode
-import io.github.mangi.eta.ui.AppearanceSettingsScreen
+import io.github.mangi.eta.ui.screens.settings.AppearanceSettingsScreen
 import io.github.mangi.eta.ui.app.AgentAppTheme
 import io.github.mangi.eta.ui.layout.TopBarBackdropLayout
 import io.github.mangi.eta.ui.model.AgentToolsUiState
@@ -75,6 +73,8 @@ import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [36])

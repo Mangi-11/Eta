@@ -1,9 +1,9 @@
 package io.github.mangi.eta.hook.system
 
-import io.github.mangi.eta.core.HookSupport
+import io.github.mangi.eta.hook.support.HookSupport
 import io.github.mangi.eta.core.AssistantContextFlags
-import io.github.mangi.eta.core.HookInstallation
-import io.github.mangi.eta.core.HookRegistrar
+import io.github.mangi.eta.hook.support.HookInstallation
+import io.github.mangi.eta.hook.support.HookRegistrar
 import io.github.mangi.eta.core.ModuleConfig
 import io.github.mangi.eta.core.ModuleLogger
 import io.github.mangi.eta.core.safeLogType

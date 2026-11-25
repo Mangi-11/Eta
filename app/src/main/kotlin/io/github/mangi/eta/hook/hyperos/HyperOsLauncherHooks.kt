@@ -3,9 +3,9 @@ package io.github.mangi.eta.hook.hyperos
 import android.content.Context
 import android.view.MotionEvent
 import io.github.libxposed.api.XposedModule
-import io.github.mangi.eta.core.HookInstallation
-import io.github.mangi.eta.core.HookRegistrar
-import io.github.mangi.eta.core.HookSupport
+import io.github.mangi.eta.hook.support.HookInstallation
+import io.github.mangi.eta.hook.support.HookRegistrar
+import io.github.mangi.eta.hook.support.HookSupport
 import io.github.mangi.eta.core.ModuleLogger
 import java.lang.reflect.Modifier
 

@@ -19,10 +19,10 @@ import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.ProviderTypes
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.provider.BuiltinProviders
-import io.github.mangi.eta.ui.pages.providers.ProviderConfigDraft
-import io.github.mangi.eta.ui.pages.providers.providerAccountAuthMode
-import io.github.mangi.eta.ui.pages.providers.toProvider
-import io.github.mangi.eta.ui.pages.providers.withGeminiEndpointMode
+import io.github.mangi.eta.ui.screens.providers.ProviderConfigDraft
+import io.github.mangi.eta.ui.screens.providers.providerAccountAuthMode
+import io.github.mangi.eta.ui.screens.providers.toProvider
+import io.github.mangi.eta.ui.screens.providers.withGeminiEndpointMode
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.runBlocking

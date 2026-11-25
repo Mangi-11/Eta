@@ -11,13 +11,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.BroadcastFrameClock
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Recomposer
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.AbstractComposeView
@@ -35,11 +33,11 @@ import io.github.mangi.eta.agent.browser.BrowserSessionRegistry
 import io.github.mangi.eta.agent.overlay.AgentOverlayPhase
 import io.github.mangi.eta.agent.overlay.AgentOverlayState
 import io.github.mangi.eta.agent.overlay.AgentOverlayStatus
-import io.github.mangi.eta.agent.overlay.AgentResultCard
+import io.github.mangi.eta.agent.overlay.ui.AgentResultCard
 import io.github.mangi.eta.data.model.AppearanceSettings
 import io.github.mangi.eta.data.model.AppearanceThemeMode
-import io.github.mangi.eta.ui.AppearanceSettingsScreen
-import io.github.mangi.eta.ui.SettingsScreen
+import io.github.mangi.eta.ui.screens.settings.AppearanceSettingsScreen
+import io.github.mangi.eta.ui.screens.settings.SettingsScreen
 import io.github.mangi.eta.ui.model.AgentMemoryUiState
 import io.github.mangi.eta.ui.model.AgentSkillsUiState
 import io.github.mangi.eta.ui.model.AgentToolsUiState
@@ -50,9 +48,9 @@ import io.github.mangi.eta.ui.model.SkillItemUi
 import io.github.mangi.eta.ui.model.ToolGroupUi
 import io.github.mangi.eta.ui.model.ToolItemUi
 import io.github.mangi.eta.ui.navigation.NewProviderType
-import io.github.mangi.eta.ui.pages.providers.CommunityCatalogScreen
-import io.github.mangi.eta.ui.pages.providers.ModelProviderDetailScreen
-import io.github.mangi.eta.ui.pages.providers.ModelProviderListScreen
+import io.github.mangi.eta.ui.screens.providers.CommunityCatalogScreen
+import io.github.mangi.eta.ui.screens.providers.ModelProviderDetailScreen
+import io.github.mangi.eta.ui.screens.providers.ModelProviderListScreen
 import io.github.mangi.eta.ui.screens.backup.DataBackupScreen
 import io.github.mangi.eta.ui.screens.browser.AgentBrowserScreen
 import io.github.mangi.eta.ui.screens.characters.CharacterLibraryScreen
@@ -72,10 +70,10 @@ import io.github.mangi.eta.ui.screens.terminal.SharedFoldersScreen
 import io.github.mangi.eta.ui.screens.terminal.WorkspaceScreen
 import io.github.mangi.eta.ui.screens.tools.AgentToolsScreen
 import io.github.mangi.eta.ui.screens.tools.WebToolsSettingsScreen
-import io.github.mangi.eta.ui.voice.SpeechOssScreen
-import io.github.mangi.eta.ui.voice.SpeechRecognitionScreen
-import io.github.mangi.eta.ui.voice.SpeechSettingsScreen
-import io.github.mangi.eta.ui.voice.SpeechSynthesisScreen
+import io.github.mangi.eta.ui.screens.voice.SpeechOssScreen
+import io.github.mangi.eta.ui.screens.voice.SpeechRecognitionScreen
+import io.github.mangi.eta.ui.screens.voice.SpeechSettingsScreen
+import io.github.mangi.eta.ui.screens.voice.SpeechSynthesisScreen
 import java.time.Duration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +90,8 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
 import org.robolectric.util.ReflectionHelpers
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = EtaApp::class, sdk = [36])

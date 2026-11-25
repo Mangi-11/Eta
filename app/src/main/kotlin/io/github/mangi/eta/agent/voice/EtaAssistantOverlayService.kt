@@ -3,10 +3,10 @@ package io.github.mangi.eta.agent.voice
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.data.model.SpeechSettings
 import io.github.mangi.eta.data.repository.SpeechSettingsRepository
-import io.github.mangi.eta.ui.voice.openSpeechSettings
-import io.github.mangi.eta.ui.voice.SpeechPlaybackErrors
-import io.github.mangi.eta.ui.voice.LocalSpeechPlayback
-import io.github.mangi.eta.ui.voice.LocalSpeechPlaybackEnabled
+import io.github.mangi.eta.ui.components.openSpeechSettings
+import io.github.mangi.eta.ui.components.SpeechPlaybackErrors
+import io.github.mangi.eta.ui.components.LocalSpeechPlayback
+import io.github.mangi.eta.ui.components.LocalSpeechPlaybackEnabled
 import android.os.PowerManager
 import android.Manifest
 import android.app.ActivityOptions
@@ -35,11 +35,9 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.Lifecycle
@@ -83,6 +81,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.squircle.LocalSquircleEnabled
+import io.github.mangi.eta.agent.voice.ui.EtaSpeechPhase
+import io.github.mangi.eta.agent.voice.ui.EtaSpeechState
+import io.github.mangi.eta.agent.voice.ui.EtaVoicePanel
+import io.github.mangi.eta.agent.voice.ui.EtaVoicePhase
+import io.github.mangi.eta.agent.voice.ui.EtaVoiceUiState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 /**
  * Eta 数字助理的用户界面窗口。

@@ -26,7 +26,7 @@ import io.github.mangi.eta.agent.model.AgentTerminalToolCatalog
 import io.github.mangi.eta.agent.model.AgentFileToolCatalog
 import io.github.mangi.eta.agent.overlay.AgentHapticFeedback
 import io.github.mangi.eta.agent.overlay.AgentOverlayClearance
-import io.github.mangi.eta.agent.overlay.GestureIndicator
+import io.github.mangi.eta.agent.overlay.ui.GestureIndicator
 import io.github.mangi.eta.agent.runtime.AgentAppContext
 import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
 import io.github.mangi.eta.agent.runtime.GuiControlCoordinator
@@ -54,7 +54,6 @@ import io.github.mangi.eta.agent.terminal.RootShellTerminalController
 import io.github.mangi.eta.agent.terminal.SharedFolderMounts
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.core.AgentLogger
-import io.github.mangi.eta.core.HookSupport
 import io.github.mangi.eta.data.repository.AgentMemoryException
 import io.github.mangi.eta.data.repository.AgentMemoryMutation
 import io.github.mangi.eta.data.repository.AgentMemoryRepository
@@ -1058,13 +1057,12 @@ internal class AgentLocalTools(
         val context = requireContext()
         val intent = Intent(Intent.ACTION_VIEW, uri)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (!HookSupport.resolvesActivity(context, intent)) {
-            return errorResult("NO_ACTIVITY", "没有应用可以处理该 URI")
-        }
+        val resolvedActivity = context.packageManager.resolveActivity(intent, 0)
+            ?: return errorResult("NO_ACTIVITY", "没有应用可以处理该 URI")
         if (virtualDisplayEnabled() && !rootAvailable()) {
             io.github.mangi.eta.agent.device.RootAccess.awaitOrRetryIfPreviouslyGranted(context)
         }
-        val resolvedPkg = context.packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName
+        val resolvedPkg = resolvedActivity.activityInfo?.packageName
         val mainForegroundPkg = AgentAccessibilityService.current()?.currentPackageName(Display.DEFAULT_DISPLAY)
         val launchPlan = CanvasRoutingPolicy.decideLaunchPlan(
             virtualDisplayEnabled = virtualDisplayEnabled(),

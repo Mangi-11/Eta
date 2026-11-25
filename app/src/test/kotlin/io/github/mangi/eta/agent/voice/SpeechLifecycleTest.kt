@@ -20,6 +20,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import io.github.mangi.eta.agent.voice.ui.EtaSpeechPhase
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = Application::class)
