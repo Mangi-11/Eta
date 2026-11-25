@@ -21,7 +21,7 @@ import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -93,7 +93,7 @@ internal fun ModelProviderDetailScreen(
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val providers by ProviderRepository.providersFlow().collectAsState(initial = emptyList())
+    val providers by ProviderRepository.providersFlow().collectAsStateWithLifecycle(initialValue = emptyList())
     var createdId by remember { mutableStateOf<String?>(null) }
     val effectiveId = providerId ?: createdId
     val provider = remember(providers, effectiveId) {
@@ -292,7 +292,7 @@ private fun ProviderConfigTab(
     var loginInProgress by rememberSaveable(provider.id) { mutableStateOf(false) }
     var pendingInterruption by remember(provider.id) { mutableStateOf(loginInProgress) }
     val loginStore = remember(provider.id, scope) { ProviderLoginStore(provider.id, scope) }
-    val loginState by loginStore.state.collectAsState()
+    val loginState by loginStore.state.collectAsStateWithLifecycle()
     var browserError by remember(loginState.prompt) { mutableStateOf<String?>(null) }
     val openBrowser: () -> Unit = {
         loginState.prompt?.let { browserError = openProviderAccountLink(context, it.authorizationUrl) }

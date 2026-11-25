@@ -3,7 +3,7 @@ package io.github.mangi.eta.ui.state
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -32,7 +32,7 @@ internal data class DeviceCapabilitiesUi(
 @Composable
 internal fun rememberDeviceCapabilities(): DeviceCapabilitiesUi {
     val context = LocalContext.current.applicationContext
-    val root by RootAccess.state.collectAsState()
+    val root by RootAccess.state.collectAsStateWithLifecycle()
     var xposedConnected by remember { mutableStateOf(EtaApp.serviceInstance != null) }
     var tools by remember { mutableStateOf(AgentToolCapabilities.capture(context)) }
     val owner = LocalLifecycleOwner.current

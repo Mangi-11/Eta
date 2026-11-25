@@ -19,7 +19,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -172,7 +172,7 @@ fun AgentAppRoot(
     var navigationResetKey by rememberSaveable { mutableIntStateOf(0) }
     val appViewModel = viewModel<AgentAppViewModel>()
     val agentState = appViewModel.state
-    val keepScreenOn by AgentRuntimeService.keepScreenOn.collectAsState()
+    val keepScreenOn by AgentRuntimeService.keepScreenOn.collectAsStateWithLifecycle()
     val view = LocalView.current
     DisposableEffect(view, keepScreenOn) {
         view.keepScreenOn = keepScreenOn

@@ -34,7 +34,7 @@ import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -356,7 +356,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         val wm = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
         val view = createComposeView {
             val appearance by AppearanceSettingsRepository.settingsFlow()
-                .collectAsState(initial = AppearanceSettings())
+                .collectAsStateWithLifecycle(initialValue = AppearanceSettings())
             AgentAppTheme(
                 appearance = appearance,
             ) {

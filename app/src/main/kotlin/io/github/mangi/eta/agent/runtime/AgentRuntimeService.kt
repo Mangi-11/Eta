@@ -30,7 +30,7 @@ import android.window.OnBackInvokedDispatcher
 import android.window.OnBackInvokedCallback
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
@@ -1460,7 +1460,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             setViewTreeSavedStateRegistryOwner(this@AgentRuntimeService)
             setContent {
                 val appearance by AppearanceSettingsRepository.settingsFlow()
-                    .collectAsState(initial = AppearanceSettings())
+                    .collectAsStateWithLifecycle(initialValue = AppearanceSettings())
                 AgentAppTheme(
                     appearance = appearance,
                 ) {

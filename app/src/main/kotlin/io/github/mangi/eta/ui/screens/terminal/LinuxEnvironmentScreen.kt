@@ -6,7 +6,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -111,14 +111,12 @@ internal fun LinuxEnvironmentScreen(
     val selectionFlow = remember(appContext) {
         LinuxEnvironmentSettingsRepository.selectedFlow(appContext)
     }
-    val selectedDistribution by selectionFlow.collectAsState(
-        initial = LinuxEnvironmentSettingsRepository.current(appContext),
+    val selectedDistribution by selectionFlow.collectAsStateWithLifecycle(initialValue = LinuxEnvironmentSettingsRepository.current(appContext),
     )
     val backendFlow = remember(appContext, selectedDistribution, capabilities.root.isGranted) {
         LinuxEnvironmentSettingsRepository.backendFlow(appContext, selectedDistribution)
     }
-    val backend by backendFlow.collectAsState(
-        initial = LinuxEnvironmentSettingsRepository.backend(appContext, selectedDistribution),
+    val backend by backendFlow.collectAsStateWithLifecycle(initialValue = LinuxEnvironmentSettingsRepository.backend(appContext, selectedDistribution),
     )
     val requiresRoot = backend == LinuxExecutionBackend.CHROOT && !capabilities.root.isGranted
     val installer = remember(appContext, backend) { AlpineEnvironmentInstaller(appContext) }

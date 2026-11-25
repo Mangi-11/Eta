@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,11 +68,11 @@ internal fun ScheduledTaskDetailScreen(
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val task by remember(context, taskId) { ScheduledTaskRepository.observeTask(taskId, context) }
-        .collectAsState(initial = null)
+        .collectAsStateWithLifecycle(initialValue = null)
     val runs by remember(context, taskId) { ScheduledTaskRepository.observeRuns(taskId, limit = 50, context = context) }
-        .collectAsState(initial = emptyList())
-    val activeTaskIds by ScheduledTaskRunner.activeTaskIds.collectAsState()
-    val providers by ProviderRepository.providersFlow().collectAsState(initial = emptyList())
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    val activeTaskIds by ScheduledTaskRunner.activeTaskIds.collectAsStateWithLifecycle()
+    val providers by ProviderRepository.providersFlow().collectAsStateWithLifecycle(initialValue = emptyList())
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showClearMemoConfirm by remember { mutableStateOf(false) }
 

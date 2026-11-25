@@ -7,7 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.lifecycleScope
 import io.github.mangi.eta.agent.browser.BrowserSessionRegistry
@@ -29,7 +29,7 @@ class AgentBrowserActivity : ComponentActivity() {
         lifecycleScope.launch {
             val initialAppearance = AppearanceSettingsRepository.settings()
             setContent {
-                val appearance by AppearanceSettingsRepository.settingsFlow().collectAsState(initialAppearance)
+                val appearance by AppearanceSettingsRepository.settingsFlow().collectAsStateWithLifecycle(initialValue = initialAppearance)
                 AgentAppTheme(
                     appearance = appearance,
                     provideGlassHost = true,

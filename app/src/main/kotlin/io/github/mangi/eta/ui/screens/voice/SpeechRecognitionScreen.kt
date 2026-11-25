@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -173,7 +173,7 @@ private fun SpeechResultSection(store: SpeechSettingsStore) {
 
 @Composable
 private fun SpeechRecognitionTestSection(store: SpeechSettingsStore) {
-    val state by store.recognition.state.collectAsState()
+    val state by store.recognition.state.collectAsStateWithLifecycle()
     val request = rememberSpeechPermission { store.recognition.start(store.settings, store.credentials) }
     val summary = state.error
         ?: state.preview.take(200).ifBlank { state.progress }.ifBlank { null }

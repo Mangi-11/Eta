@@ -17,7 +17,7 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.text.input.setTextAndSelectAll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,7 +55,7 @@ internal fun AgentBrowserScreen(
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val noExternalAppMessage = stringResource(R.string.browser_no_external_app)
-    val snapshot by session.snapshots.collectAsState()
+    val snapshot by session.snapshots.collectAsStateWithLifecycle()
     val address = remember(session) { TextFieldState() }
     var addressFocused by remember(session) { mutableStateOf(false) }
     var actionPending by remember(session) { mutableStateOf(false) }

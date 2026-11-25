@@ -45,7 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -211,7 +211,7 @@ internal fun SpeechDictationButton(
     onHoldCancellingChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val state by controller.state.collectAsState()
+    val state by controller.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
@@ -521,7 +521,7 @@ internal fun SpeechInputFeedback(
     controller: SpeechInputController,
     holdCancelling: Boolean = false,
 ) {
-    val state by controller.state.collectAsState()
+    val state by controller.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val isHold = state.active && state.holdToTalk
     val isHoldCancel = isHold && holdCancelling
@@ -760,7 +760,7 @@ internal val LocalSpeechPlaybackEnabled = compositionLocalOf { false }
 @Composable
 internal fun SpeechAutoReadAloud(messages: List<AgentChatMessageUi>, isStreaming: Boolean) {
     val controller = LocalSpeechPlayback.current ?: return
-    val settings by remember { SpeechSettingsRepository.settingsFlow() }.collectAsState(initial = null)
+    val settings by remember { SpeechSettingsRepository.settingsFlow() }.collectAsStateWithLifecycle(initialValue = null)
     val enabled = settings?.let { it.chatAutoSpeak && it.tts != TtsProvider.NONE } == true
     var watchedId by remember { mutableStateOf<String?>(null) }
     val currentMessages by rememberUpdatedState(messages)
@@ -811,7 +811,7 @@ internal fun SpeechPlaybackHost(content: @Composable () -> Unit) {
         )
         created
     }
-    val settings by remember { SpeechSettingsRepository.settingsFlow() }.collectAsState(initial = null)
+    val settings by remember { SpeechSettingsRepository.settingsFlow() }.collectAsStateWithLifecycle(initialValue = null)
     DisposableEffect(controller) { onDispose { controller.stop() } }
     SpeechPlaybackErrors(controller)
     CompositionLocalProvider(
@@ -824,7 +824,7 @@ internal fun SpeechPlaybackHost(content: @Composable () -> Unit) {
 @Composable
 internal fun SpeechPlaybackErrors(controller: SpeechPlaybackController) {
     val context = LocalContext.current
-    val state by controller.state.collectAsState()
+    val state by controller.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.error) {
         state.error?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
     }
@@ -835,7 +835,7 @@ internal fun SpeechPlaybackErrors(controller: SpeechPlaybackController) {
 internal fun SpeechReadAloudButton(messageId: String, text: String) {
     val controller = LocalSpeechPlayback.current ?: return
     if (!LocalSpeechPlaybackEnabled.current) return
-    val state by controller.state.collectAsState()
+    val state by controller.state.collectAsStateWithLifecycle()
     val active = state.messageId == messageId
     AnswerActionButton(
         icon = if (active) ChatActionIcons.Stop else ChatActionIcons.Volume,

@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -69,8 +69,8 @@ internal fun ScheduledTasksScreen(
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val tasks by remember(context) { ScheduledTaskRepository.observeTasks(context) }
-        .collectAsState(initial = emptyList())
-    val activeTaskIds by ScheduledTaskRunner.activeTaskIds.collectAsState()
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    val activeTaskIds by ScheduledTaskRunner.activeTaskIds.collectAsStateWithLifecycle()
     var health by remember(context) { mutableStateOf(ScheduledTaskHealthChecker.inspect(context)) }
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
 

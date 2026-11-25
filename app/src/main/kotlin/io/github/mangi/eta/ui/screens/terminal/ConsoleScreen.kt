@@ -21,7 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,7 +57,7 @@ internal fun TerminalEntryScreen(
     consoleStore: ConsoleStore,
     onOpenEnvironment: () -> Unit,
 ) {
-    val consoleState by consoleStore.uiState.collectAsState()
+    val consoleState by consoleStore.uiState.collectAsStateWithLifecycle()
     var consoleMode by rememberSaveable { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         terminalStore.refreshLinuxReady()
@@ -101,8 +101,8 @@ internal fun ConsoleScreen(
     onExitConsole: () -> Unit,
     onOpenEnvironment: () -> Unit,
 ) {
-    val state by store.uiState.collectAsState()
-    val terminalState by terminalStore.uiState.collectAsState()
+    val state by store.uiState.collectAsStateWithLifecycle()
+    val terminalState by terminalStore.uiState.collectAsStateWithLifecycle()
     var showTasks by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }
     var composing by remember { mutableStateOf("") }

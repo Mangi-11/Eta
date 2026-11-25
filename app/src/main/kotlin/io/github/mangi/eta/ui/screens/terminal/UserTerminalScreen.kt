@@ -31,7 +31,7 @@ import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -96,7 +96,7 @@ internal fun UserTerminalScreen(
     onOpenEnvironment: () -> Unit,
     onOpenConsole: (() -> Unit)? = null,
 ) {
-    val state by store.uiState.collectAsState()
+    val state by store.uiState.collectAsStateWithLifecycle()
     val input = remember { TextFieldState() }
     var showTasks by remember { mutableStateOf(false) }
     var showSessions by remember { mutableStateOf(false) }

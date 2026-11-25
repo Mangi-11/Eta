@@ -49,7 +49,7 @@ import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -223,11 +223,11 @@ private fun SettingsPageContent(
     val initialProviders = remember { ProviderRepository.cachedProviders() }
     val initialProviderId = remember { RuntimeConfigRepository.cachedSelectedProviderId() }
     val initialModelId = remember { RuntimeConfigRepository.cachedSelectedModelId() }
-    val providers by ProviderRepository.providersFlow().collectAsState(initial = initialProviders)
+    val providers by ProviderRepository.providersFlow().collectAsStateWithLifecycle(initialValue = initialProviders)
     val selectedProviderId by RuntimeConfigRepository.selectedProviderIdFlow()
-        .collectAsState(initial = initialProviderId)
+        .collectAsStateWithLifecycle(initialValue = initialProviderId)
     val selectedModelId by RuntimeConfigRepository.selectedModelIdFlow()
-        .collectAsState(initial = initialModelId)
+        .collectAsStateWithLifecycle(initialValue = initialModelId)
     val selectedProvider = remember(providers, selectedProviderId) {
         providers.find { it.id == selectedProviderId }
     }
@@ -692,7 +692,7 @@ private fun SettingsPageContent(
                     onClick = { onNavigate(AppRoute.WebToolsSettings) },
                 )
                 val imageGenSettings by remember { ImageGenSettingsRepository.settingsFlow() }
-                    .collectAsState(initial = ImageGenSettings())
+                    .collectAsStateWithLifecycle(initialValue = ImageGenSettings())
                 ArrowPreference(
                     title = stringResource(R.string.image_gen_settings_title),
                     summary = if (imageGenSettings.enabled) {

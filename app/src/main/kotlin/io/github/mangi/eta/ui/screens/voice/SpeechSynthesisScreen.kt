@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.maxLengthReject
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -86,7 +86,7 @@ internal fun SpeechSynthesisScreen(onBack: () -> Unit) {
 
 @Composable
 private fun SpeechPreviewSection(store: SpeechSettingsStore) {
-    val playback by store.playback.state.collectAsState()
+    val playback by store.playback.state.collectAsStateWithLifecycle()
     val playing = playback.messageId != null
     val defaultText = stringResource(R.string.speech_preview_default_text)
     var text by rememberSaveable { mutableStateOf(defaultText) }

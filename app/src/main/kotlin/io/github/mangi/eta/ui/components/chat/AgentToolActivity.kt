@@ -27,7 +27,7 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -141,7 +141,7 @@ internal fun ToolActivityRow(
     // 只有「当前浏览器」条目订阅实时会话快照，避免每个工具行都跟随快照重组。
     val browser = LocalAgentBrowserSession.current
     val browserSnapshot = if (showBrowserShortcut && browser != null) {
-        browser.snapshots.collectAsState().value
+        browser.snapshots.collectAsStateWithLifecycle().value
     } else {
         null
     }

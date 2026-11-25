@@ -2,7 +2,7 @@ package io.github.mangi.eta.ui.screens.voice
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.stringResource
 import io.github.mangi.eta.R
@@ -18,7 +18,7 @@ import androidx.compose.runtime.getValue
 @Composable
 internal fun SpeechSettingsScreen(onBack: () -> Unit, onNavigate: (AppRoute) -> Unit) {
     val scope = rememberCoroutineScope()
-    val settings by SpeechSettingsRepository.settingsFlow().collectAsState(initial = null)
+    val settings by SpeechSettingsRepository.settingsFlow().collectAsStateWithLifecycle(initialValue = null)
     val current = settings
 
     ScaffoldPage(

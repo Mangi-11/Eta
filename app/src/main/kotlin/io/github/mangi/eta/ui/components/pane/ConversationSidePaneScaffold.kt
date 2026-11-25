@@ -92,6 +92,7 @@ fun ConversationSidePaneScaffold(
     hasPermissionAttention: Boolean = false,
     content: @Composable () -> Unit,
 ) {
+    // 直接观察当前场景生命周期状态本身，需在进入 CREATED/STOPPED 时仍能收到变更，故不使用 collectAsStateWithLifecycle。
     val sceneLifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
     val navigationEventState = rememberNavigationEventState(NavigationEventInfo.None)
     val existingTopLayer = LocalTopLayer.current
