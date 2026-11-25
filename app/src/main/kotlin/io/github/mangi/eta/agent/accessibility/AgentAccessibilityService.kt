@@ -8,13 +8,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Path
-import android.graphics.Paint
 import android.graphics.Point
 import android.graphics.Rect
-import android.graphics.RectF
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -22,19 +18,17 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.os.PersistableBundle
 import android.os.SystemClock
-import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import io.github.mangi.eta.agent.device.ScrollAxis
-import io.github.mangi.eta.agent.device.ScrollAxisContract
 import io.github.mangi.eta.agent.device.ScrollAmount
 import io.github.mangi.eta.agent.device.ScrollDirection
 import io.github.mangi.eta.agent.device.ScrollEvidence
 import io.github.mangi.eta.agent.device.ScrollEvidenceContract
 import io.github.mangi.eta.agent.device.ScrollMovementSource
-import io.github.mangi.eta.agent.device.RootScrollMotionContract
+import io.github.mangi.eta.agent.accessibility.AccessibilityScrollHeuristics.exposesOnlyOppositeAxis
 import io.github.mangi.eta.core.AndroidAgentLogger
 import java.util.ArrayDeque
 import java.util.concurrent.ArrayBlockingQueue
@@ -51,24 +45,8 @@ import org.json.JSONObject
 
 class AgentAccessibilityService : AccessibilityService() {
 
-    private data class ScreenshotWindow(
-        val id: Int,
-        val layer: Int,
-        val type: Int,
-        val bounds: Rect,
-        val active: Boolean,
-        val focused: Boolean,
-    )
-
-    private data class NodeTraversalState(
-        val maxVisitedNodes: Int,
-        val activePath: MutableSet<AccessibilityNodeInfo> = hashSetOf(),
-        var visitedNodes: Int = 0,
-        var truncated: Boolean = false,
-    )
-
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val screenshotExecutor: ExecutorService = SCREENSHOT_EXECUTOR
+    private val screenshotCapturer = AccessibilityScreenshotCapturer(this, SCREENSHOT_EXECUTOR)
     private val windowChangeLock = ReentrantLock()
     private val windowChanged = windowChangeLock.newCondition()
     private val scrollEventLock = ReentrantLock()
@@ -240,7 +218,14 @@ class AgentAccessibilityService : AccessibilityService() {
             maxVisitedNodes = (nodeLimit * UI_TREE_VISIT_MULTIPLIER)
                 .coerceIn(MIN_UI_TREE_VISITED_NODES, MAX_UI_TREE_VISITED_NODES),
         )
-        collectNodes(root, indexedNodes, nodeLimit, depth = 0, traversal = traversal)
+        AccessibilityNodeTreeCollector.collectNodes(
+            node = root,
+            out = indexedNodes,
+            maxNodes = nodeLimit,
+            depth = 0,
+            traversal = traversal,
+            ensureActive = queryExecutor::ensureActive,
+        )
         val snapshot = NodeSnapshot(
             id = "o${SNAPSHOT_IDS.incrementAndGet()}",
             serviceToken = connectionToken,
@@ -444,7 +429,7 @@ class AgentAccessibilityService : AccessibilityService() {
             sourceUniqueId = source.uniqueId.orEmpty(),
             sourceViewId = source.viewIdResourceName.orEmpty(),
             sourceClassName = source.className?.toString().orEmpty(),
-            sourceBounds = source.bounds(),
+            sourceBounds = source.boundsInScreenRect(),
         )
     }
 
@@ -645,7 +630,14 @@ class AgentAccessibilityService : AccessibilityService() {
     ): ScrollActionResult {
         val connectionToken = serviceToken
         val target = runAccessibilityQuery {
-            activeRootOnDisplay(displayId)?.let { root -> findBestScrollableNode(root, direction, displayId) }
+            activeRootOnDisplay(displayId)?.let { root ->
+                AccessibilityScrollHeuristics.findBestScrollableNode(
+                    root = root,
+                    direction = direction,
+                    ensureActive = queryExecutor::ensureActive,
+                    clippedBounds = { node -> clippedNodeBounds(node, displayId) },
+                )
+            }
         } ?: return ScrollActionResult.failure(
             direction = direction,
             code = "NO_ACTIVE_WINDOW",
@@ -686,11 +678,11 @@ class AgentAccessibilityService : AccessibilityService() {
         }
         val packageName = target.packageName?.toString().orEmpty()
         val windowId = target.windowId
-        val beforeAnchors = scrollContentAnchors(target)
+        val beforeAnchors = AccessibilityScrollHeuristics.scrollContentAnchors(target, queryExecutor::ensureActive)
         val targetIdentity = ScrollTargetIdentity.from(target)
         val beforeSequence = currentScrollEventSequence()
         // 节点滚动动作固定翻约一屏；小幅滚动只能用手势控制位移。
-        val method = if (amount == ScrollAmount.PAGE) chooseScrollMethod(target, direction) else null
+        val method = if (amount == ScrollAmount.PAGE) AccessibilityScrollHeuristics.chooseScrollMethod(target, direction) else null
         var methodName = method?.name.orEmpty()
         return withScrollEventObservation(packageName, windowId) {
             val nodeDispatch = method?.let { selected ->
@@ -713,7 +705,7 @@ class AgentAccessibilityService : AccessibilityService() {
 
             if (!accepted) {
                 val boundaryBeforeGesture = runAccessibilityQuery {
-                    target.refresh() && isAtScrollBoundary(target, direction)
+                    target.refresh() && AccessibilityScrollHeuristics.isAtScrollBoundary(target, direction)
                 } == true
                 if (boundaryBeforeGesture) {
                     return ScrollActionResult.boundary(
@@ -755,7 +747,7 @@ class AgentAccessibilityService : AccessibilityService() {
             }
             if (!accepted) {
                 val boundary = runAccessibilityQuery {
-                    target.refresh() && isAtScrollBoundary(target, direction)
+                    target.refresh() && AccessibilityScrollHeuristics.isAtScrollBoundary(target, direction)
                 } == true
                 if (boundary) {
                     return ScrollActionResult.boundary(
@@ -783,10 +775,10 @@ class AgentAccessibilityService : AccessibilityService() {
                 timeoutMillis = SCROLL_VERIFY_TIMEOUT_MS,
             )
             val afterAnchors = runAccessibilityQuery {
-                if (target.refresh()) scrollContentAnchors(target) else emptyList()
+                if (target.refresh()) AccessibilityScrollHeuristics.scrollContentAnchors(target, queryExecutor::ensureActive) else emptyList()
             }.orEmpty()
             val eventDelta = signal?.axisDelta(direction.axis)?.takeIf { delta -> delta != 0 }
-            val anchorDelta = inferScrollAnchorDelta(beforeAnchors, afterAnchors, direction)
+            val anchorDelta = AccessibilityScrollHeuristics.inferScrollAnchorDelta(beforeAnchors, afterAnchors, direction)
             val delta = eventDelta ?: anchorDelta
             val movementSource = when {
                 eventDelta != null -> ScrollMovementSource.EVENT
@@ -794,7 +786,7 @@ class AgentAccessibilityService : AccessibilityService() {
                 else -> null
             }
             val boundary = runAccessibilityQuery {
-                target.refresh() && isAtScrollBoundary(target, direction, signal)
+                target.refresh() && AccessibilityScrollHeuristics.isAtScrollBoundary(target, direction, signal)
             } == true
             val evidence = ScrollEvidenceContract.classify(
                 direction = direction,
@@ -1127,317 +1119,17 @@ class AgentAccessibilityService : AccessibilityService() {
      * 截取指定 displayId 的完整画面（用于虚拟屏的无障碍截图回退）。
      * 虚拟屏本身不挂载 Eta 系统浮层，无需逐窗口排除。
      */
-    fun captureDisplayScreenshot(displayId: Int): ScreenshotCaptureResult {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            return ScreenshotCaptureResult.unavailable()
-        }
-        val latch = CountDownLatch(1)
-        var bitmap: Bitmap? = null
-        var failureCode: Int? = null
-        runCatching {
-            takeScreenshot(displayId, screenshotExecutor, object : TakeScreenshotCallback {
-                override fun onSuccess(screenshot: ScreenshotResult) {
-                    try {
-                        bitmap = convertToSoftwareBitmap(screenshot)
-                    } finally {
-                        latch.countDown()
-                    }
-                }
-
-                override fun onFailure(errorCode: Int) {
-                    failureCode = errorCode
-                    latch.countDown()
-                }
-            })
-        }.onFailure {
-            failureCode = ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR
-            latch.countDown()
-        }
-        val completed = try {
-            latch.await(2, TimeUnit.SECONDS)
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
-            false
-        }
-        val captured = bitmap
-        return ScreenshotCaptureResult(
-            bitmap = captured,
-            complete = completed && captured != null,
-            expectedWindows = 1,
-            capturedWindows = if (captured != null) 1 else 0,
-            missingWindowIds = if (captured != null) emptyList() else listOf(displayId),
-            failureCodes = failureCode?.let { mapOf(displayId to it) }.orEmpty(),
-            timedOut = !completed,
-            criticalWindowMissing = captured == null,
-        )
-    }
+    fun captureDisplayScreenshot(displayId: Int): ScreenshotCaptureResult =
+        screenshotCapturer.captureDisplayScreenshot(displayId)
 
     /**
      * 截取当前屏幕，排除 TYPE_ACCESSIBILITY_OVERLAY 浮层（glow/orb/bubble/resultCard/GestureIndicator）。
-     * 从 agent-runtime 子线程调用；takeScreenshotOfWindow 内部 post 到主线程，
-     * callback 在有界后台线程执行位图复制，latch 只阻塞 agent-runtime 工作线程。
      */
     fun captureScreenshotExcludingOverlays(
         excludedPackages: Set<String> = emptySet(),
         onWindowsSubmitted: (() -> Unit)? = null,
-    ): ScreenshotCaptureResult {
-        val windowsSubmitted = AtomicBoolean(false)
-        fun signalWindowsSubmitted() {
-            if (windowsSubmitted.compareAndSet(false, true)) {
-                runCatching { onWindowsSubmitted?.invoke() }
-            }
-        }
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            return ScreenshotCaptureResult.unavailable().also { signalWindowsSubmitted() }
-        }
-        val startedAt = SystemClock.elapsedRealtime()
-        val allWindows = windows
-            ?: return ScreenshotCaptureResult.unavailable().also { signalWindowsSubmitted() }
-        val wm = getSystemService(Context.WINDOW_SERVICE) as? WindowManager
-            ?: return ScreenshotCaptureResult.unavailable().also {
-                allWindows.forEach { window -> runCatching { window.recycle() } }
-                signalWindowsSubmitted()
-            }
-        val point = Point()
-        @Suppress("DEPRECATION")
-        wm.defaultDisplay.getRealSize(point)
-        val screenW = point.x
-        val screenH = point.y
-        if (screenW <= 0 || screenH <= 0) {
-            allWindows.forEach { window -> runCatching { window.recycle() } }
-            return ScreenshotCaptureResult.unavailable().also { signalWindowsSubmitted() }
-        }
-        val screenBounds = Rect(0, 0, screenW, screenH)
-
-        // 只过滤能确认属于 Eta 的无障碍 overlay；第三方 overlay 必须保留，
-        // 否则截图与实际接收坐标手势的窗口会不一致。
-        val windowPackages = allWindows.associate { window ->
-            window.id to window.root?.packageName?.toString()
-        }
-        val windowDecisions = allWindows.associate { window ->
-            window.id to ScreenshotWindowPolicy.decide(
-                isAccessibilityOverlay =
-                    window.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY,
-                isApplicationWindow = window.type == AccessibilityWindowInfo.TYPE_APPLICATION,
-                active = window.isActive,
-                focused = window.isFocused,
-                resolvedPackage = windowPackages[window.id],
-                ownPackage = packageName,
-                excludedPackages = excludedPackages,
-            )
-        }
-        val unknownRelevantWindowIds = windowDecisions
-            .filterValues { decision ->
-                decision == ScreenshotWindowPolicy.Decision.BLOCK_UNKNOWN
-            }
-            .keys
-            .toList()
-        if (unknownRelevantWindowIds.isNotEmpty()) {
-            val expectedWindows = allWindows.size
-            allWindows.forEach { window -> runCatching { window.recycle() } }
-            AndroidAgentLogger.warn(
-                "Agent accessibility action=capture_screenshot outcome=failed " +
-                    "reason=unknown_relevant_window_during_exclusion " +
-                    "windows=${unknownRelevantWindowIds.size}"
-            )
-            return ScreenshotCaptureResult.blockedByUnknownWindow(
-                expectedWindows = expectedWindows,
-                windowIds = unknownRelevantWindowIds,
-            ).also { signalWindowsSubmitted() }
-        }
-        val captureWindows = allWindows.mapNotNull { window ->
-            if (windowDecisions[window.id] == ScreenshotWindowPolicy.Decision.EXCLUDE) {
-                return@mapNotNull null
-            }
-            val bounds = Rect().also(window::getBoundsInScreen)
-            if (
-                bounds.width() <= 0 ||
-                bounds.height() <= 0 ||
-                !Rect.intersects(bounds, screenBounds)
-            ) {
-                return@mapNotNull null
-            }
-            ScreenshotWindow(
-                id = window.id,
-                layer = window.layer,
-                type = window.type,
-                bounds = bounds,
-                active = window.isActive,
-                focused = window.isFocused,
-            )
-        }.distinctBy { window -> window.id }.sortedBy { window -> window.layer }
-        if (captureWindows.isEmpty()) {
-            allWindows.forEach { window -> runCatching { window.recycle() } }
-            return ScreenshotCaptureResult.unavailable().also { signalWindowsSubmitted() }
-        }
-        val topApplicationWindowId = captureWindows
-            .filter { window -> window.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-            .maxByOrNull(ScreenshotWindow::layer)
-            ?.id
-            ?: captureWindows.maxByOrNull(ScreenshotWindow::layer)?.id
-        val criticalWindowIds = captureWindows
-            .asSequence()
-            .filter { window ->
-                window.id == topApplicationWindowId || window.active || window.focused
-            }
-            .map(ScreenshotWindow::id)
-            .toSet()
-
-        val latch = CountDownLatch(captureWindows.size)
-        val screenshots = mutableMapOf<Int, Pair<Bitmap, Rect>>()
-        val failures = mutableMapOf<Int, Int>()
-        val lock = Any()
-        val acceptingResults = AtomicBoolean(true)
-
-        for (window in captureWindows) {
-            runCatching {
-                takeScreenshotOfWindow(window.id, screenshotExecutor, object : TakeScreenshotCallback {
-                    override fun onSuccess(screenshot: ScreenshotResult) {
-                        try {
-                            val sw = convertToSoftwareBitmap(screenshot)
-                                ?: throw IllegalStateException("screenshot bitmap unavailable")
-                            var retained = false
-                            synchronized(lock) {
-                                if (acceptingResults.get()) {
-                                    screenshots[window.id] = sw to Rect(window.bounds)
-                                    retained = true
-                                }
-                            }
-                            if (!retained && !sw.isRecycled) sw.recycle()
-                        } catch (_: Exception) {
-                            synchronized(lock) {
-                                if (acceptingResults.get()) {
-                                    failures[window.id] = ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR
-                                }
-                            }
-                        } finally {
-                            latch.countDown()
-                        }
-                    }
-
-                    override fun onFailure(errorCode: Int) {
-                        synchronized(lock) {
-                            if (acceptingResults.get()) failures[window.id] = errorCode
-                        }
-                        latch.countDown()
-                    }
-                })
-            }.onFailure {
-                synchronized(lock) {
-                    if (acceptingResults.get()) {
-                        failures[window.id] = ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR
-                    }
-                }
-                latch.countDown()
-            }
-        }
-        // 窗口 ID 已固定并全部提交后即可显示 Eta；后续合并和编码不会再把入口浮层拍进去。
-        signalWindowsSubmitted()
-        val completed = try {
-            latch.await(2, TimeUnit.SECONDS)
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
-            false
-        }
-        acceptingResults.set(false)
-        val captured = synchronized(lock) {
-            screenshots.toMap().also { screenshots.clear() }
-        }
-        val capturedIds = captured.keys
-        val missingIds = captureWindows.map(ScreenshotWindow::id).filterNot(capturedIds::contains)
-        val criticalWindowMissing = missingIds.any(criticalWindowIds::contains)
-        val merged = if (captured.isEmpty() || criticalWindowMissing) {
-            null
-        } else {
-            mergeScreenshots(captured, captureWindows, screenW, screenH)
-        }
-        val failureCodes = synchronized(lock) { failures.toMap() }
-        val complete = completed && missingIds.isEmpty() && merged != null
-        AndroidAgentLogger.debug {
-            "Agent accessibility action=capture_screenshot outcome=merged " +
-                "allWindows=${allWindows.size} validWindows=${captureWindows.size} " +
-                "excludedPackages=${excludedPackages.size} " +
-                "completed=$completed screenshots=${captured.size} " +
-                "complete=$complete criticalMissing=$criticalWindowMissing " +
-                "screen=${screenW}x${screenH} merged=${merged?.width}x${merged?.height} " +
-                "elapsed_ms=${SystemClock.elapsedRealtime() - startedAt}"
-        }
-        captured.values.forEach { (bitmap, _) ->
-            if (!bitmap.isRecycled) bitmap.recycle()
-        }
-        allWindows.forEach { window -> runCatching { window.recycle() } }
-        return ScreenshotCaptureResult(
-            bitmap = merged,
-            complete = complete,
-            expectedWindows = captureWindows.size,
-            capturedWindows = captured.size,
-            missingWindowIds = missingIds,
-            failureCodes = failureCodes,
-            timedOut = !completed,
-            criticalWindowMissing = criticalWindowMissing,
-        )
-    }
-
-    private fun convertToSoftwareBitmap(screenshot: ScreenshotResult): Bitmap? =
-        screenshot.hardwareBuffer.use { hardwareBuffer ->
-            val wrapped = Bitmap.wrapHardwareBuffer(hardwareBuffer, screenshot.colorSpace)
-                ?: return@use null
-            try {
-                if (wrapped.config == Bitmap.Config.HARDWARE) {
-                    wrapped.copy(Bitmap.Config.ARGB_8888, false)
-                } else {
-                    wrapped
-                }
-            } finally {
-                if (wrapped.config == Bitmap.Config.HARDWARE && !wrapped.isRecycled) {
-                    wrapped.recycle()
-                }
-            }
-        }
-
-    private fun mergeScreenshots(
-        screenshots: Map<Int, Pair<Bitmap, Rect>>,
-        sortedWindows: List<ScreenshotWindow>,
-        screenWidth: Int,
-        screenHeight: Int
-    ): Bitmap? {
-        var merged: Bitmap? = null
-        return try {
-            val output = Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888)
-            merged = output
-            val canvas = Canvas(output)
-            canvas.drawColor(Color.BLACK)
-            val occlusionPaint = Paint().apply {
-                color = Color.BLACK
-                style = Paint.Style.FILL
-            }
-            for (window in sortedWindows) {
-                val pair = screenshots[window.id]
-                if (pair == null) {
-                    // 上层窗口抓取失败时必须遮住其区域，不能向模型暴露实际已被遮挡的底层界面。
-                    canvas.drawRect(RectF(window.bounds), occlusionPaint)
-                } else {
-                    val (bmp, bounds) = pair
-                    if (bmp.isRecycled) continue
-                    // 把窗口 bitmap 缩放到其 bounds 尺寸绘制，处理 takeScreenshotOfWindow
-                    // 返回尺寸与 bounds 不一致（逻辑像素 vs 物理像素）的情况。
-                    val src = Rect(0, 0, bmp.width, bmp.height)
-                    canvas.drawBitmap(bmp, src, RectF(bounds), null)
-                }
-            }
-            output
-        } catch (_: Exception) {
-            merged?.takeUnless(Bitmap::isRecycled)?.recycle()
-            null
-        }
-    }
-
-    /**
-     * 输入框的真实内容。空框显示提示文字时 text 返回的是提示语，若当作已有内容，
-     * 追加输入会把提示拼进结果，清空后读回校验也会误报失败。
-     */
-    private fun AccessibilityNodeInfo.realText(): String =
-        if (isShowingHintText) "" else text?.toString().orEmpty()
+    ): ScreenshotCaptureResult =
+        screenshotCapturer.captureScreenshotExcludingOverlays(excludedPackages, onWindowsSubmitted)
 
     private fun setNodeText(
         node: AccessibilityNodeInfo,
@@ -1488,321 +1180,21 @@ class AgentAccessibilityService : AccessibilityService() {
             root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
         }.getOrNull()
         if (inputFocus?.isUsableInputTarget() == true) return inputFocus
-        return findNode(root) { node -> node.isFocused && node.isUsableInputTarget() }
-    }
-
-    private fun AccessibilityNodeInfo.isUsableInputTarget(): Boolean =
-        isEditable && isEnabled && isVisibleToUser
-
-    private fun AccessibilityNodeInfo.incrementalTextValidationError(): NodeActionResult? {
-        val currentText = text
-        if (isPassword || currentText == null) {
-            return NodeActionResult.failure(
-                "TEXT_CONTENT_UNAVAILABLE",
-                "当前输入框不允许可靠读取已有文本；请用 replace_text 提供完整值",
-            )
+        return AccessibilityNodeTreeCollector.findNode(root, queryExecutor::ensureActive) { node ->
+            node.isFocused && node.isUsableInputTarget()
         }
-        if (
-            !TextEditPlanner.canSafelyReconstruct(
-                password = false,
-                textAvailable = true,
-                textLength = currentText.length,
-                selectionStart = textSelectionStart,
-                selectionEnd = textSelectionEnd,
-            )
-        ) {
-            return NodeActionResult.failure(
-                "TEXT_SELECTION_UNAVAILABLE",
-                "当前输入框未提供可靠光标或选区；请用 replace_text 提供完整值",
-            )
-        }
-        return null
-    }
-
-    private fun findBestScrollableNode(
-        root: AccessibilityNodeInfo,
-        direction: ScrollDirection,
-        displayId: Int = android.view.Display.DEFAULT_DISPLAY,
-    ): AccessibilityNodeInfo {
-        val candidates = mutableListOf<ScrollCandidate>()
-        val activePath = hashSetOf<AccessibilityNodeInfo>()
-        var visitedNodes = 0
-
-        fun visit(node: AccessibilityNodeInfo, depth: Int) {
-            queryExecutor.ensureActive()
-            if (
-                depth > MAX_UI_TREE_DEPTH ||
-                visitedNodes >= MAX_SCROLL_SEARCH_NODES ||
-                !activePath.add(node)
-            ) return
-            visitedNodes++
-            try {
-                if (!node.isVisibleToUser) return
-                if (node.isEnabled && node.hasScrollCapability()) {
-                    val bounds = clippedNodeBounds(node, displayId)
-                    val supportRank = node.directionSupportRank(direction)
-                    if (
-                        !node.exposesOnlyOppositeAxis(direction) &&
-                        !bounds.isEmpty &&
-                        direction.gestureWithin(bounds) != null
-                    ) {
-                        candidates += ScrollCandidate(
-                            node = node,
-                            supportRank = supportRank,
-                            depth = depth,
-                            area = bounds.width().toLong() * bounds.height().toLong(),
-                        )
-                    }
-                }
-                for (childIndex in 0 until node.childCount) {
-                    queryExecutor.ensureActive()
-                    val child = runCatching { node.getChild(childIndex) }.getOrNull() ?: continue
-                    visit(child, depth + 1)
-                }
-            } finally {
-                activePath.remove(node)
-            }
-        }
-
-        visit(root, 0)
-        return candidates.maxWithOrNull(
-            compareBy<ScrollCandidate> { it.area }
-                .thenBy { it.supportRank }
-                .thenBy { -it.depth },
-        )?.node ?: root
-    }
-
-    private fun AccessibilityNodeInfo.directionSupportRank(direction: ScrollDirection): Int {
-        val actions = supportedActionIds()
-        val hasVertical = VERTICAL_DIRECTION_ACTION_IDS.any(actions::contains)
-        val hasHorizontal = HORIZONTAL_DIRECTION_ACTION_IDS.any(actions::contains)
-        return when {
-            direction.exactScrollActionId() in actions -> 4
-            direction.pageActionId() in actions -> 3
-            ScrollAxisContract.mayTreatLegacyActionsAsVertical(
-                requestedAxis = direction.axis,
-                hasVerticalActions = hasVertical,
-                hasHorizontalActions = hasHorizontal,
-            ) && (
-                AccessibilityNodeInfo.ACTION_SCROLL_FORWARD in actions ||
-                    AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD in actions
-                ) -> 2
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_IN_DIRECTION.id in actions -> 1
-            else -> 0
-        }
-    }
-
-    private fun AccessibilityNodeInfo.exposesOnlyOppositeAxis(
-        direction: ScrollDirection,
-    ): Boolean {
-        val actions = supportedActionIds()
-        val hasVertical = VERTICAL_DIRECTION_ACTION_IDS.any(actions::contains)
-        val hasHorizontal = HORIZONTAL_DIRECTION_ACTION_IDS.any(actions::contains)
-        return ScrollAxisContract.exposesOnlyOppositeAxis(
-            requestedAxis = direction.axis,
-            hasVerticalActions = hasVertical,
-            hasHorizontalActions = hasHorizontal,
-        )
-    }
-
-    private fun AccessibilityNodeInfo.hasScrollCapability(): Boolean {
-        if (isScrollable) return true
-        val actions = supportedActionIds()
-        return SCROLL_ACTION_IDS.any(actions::contains)
-    }
-
-    private fun AccessibilityNodeInfo.supportedActionIds(): Set<Int> =
-        actionList.mapTo(hashSetOf()) { action -> action.id }
-
-    private fun chooseScrollMethod(
-        node: AccessibilityNodeInfo,
-        direction: ScrollDirection,
-    ): ScrollMethod? {
-        if (node.exposesOnlyOppositeAxis(direction)) return null
-        val actionIds = node.supportedActionIds()
-        val hasVertical = VERTICAL_DIRECTION_ACTION_IDS.any(actionIds::contains)
-        val hasHorizontal = HORIZONTAL_DIRECTION_ACTION_IDS.any(actionIds::contains)
-        val exactAction = direction.exactScrollActionId()
-        if (exactAction in actionIds) {
-            return ScrollMethod(exactAction, "ACTION_SCROLL_${direction.name}")
-        }
-        val pageAction = direction.pageActionId()
-        if (pageAction in actionIds) {
-            return ScrollMethod(pageAction, "ACTION_PAGE_${direction.name}")
-        }
-        if (
-            ScrollAxisContract.mayTreatLegacyActionsAsVertical(
-                requestedAxis = direction.axis,
-                hasVerticalActions = hasVertical,
-                hasHorizontalActions = hasHorizontal,
-            )
-        ) {
-            val fallback = if (direction == ScrollDirection.DOWN) {
-                AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-            } else {
-                AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-            }
-            if (fallback in actionIds) {
-                return ScrollMethod(
-                    actionId = fallback,
-                    name = if (direction == ScrollDirection.DOWN) {
-                        "ACTION_SCROLL_FORWARD"
-                    } else {
-                        "ACTION_SCROLL_BACKWARD"
-                    },
-                )
-            }
-        }
-        val inDirection = AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_IN_DIRECTION.id
-        if (inDirection in actionIds) {
-            val args = Bundle().apply {
-                putInt(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_DIRECTION_INT,
-                    direction.focusDirection(),
-                )
-            }
-            return ScrollMethod(inDirection, "ACTION_SCROLL_IN_DIRECTION", args)
-        }
-        return null
-    }
-
-    private fun isAtScrollBoundary(
-        node: AccessibilityNodeInfo,
-        direction: ScrollDirection,
-        signal: ScrollSignal? = null,
-    ): Boolean {
-        if (signal != null && signal.axisDelta(direction.axis) != null) {
-            when (direction) {
-                ScrollDirection.UP -> if (
-                    signal.maxScrollY > 0 && signal.scrollY <= 0
-                ) return true
-                ScrollDirection.DOWN -> if (
-                    signal.maxScrollY > 0 && signal.scrollY >= signal.maxScrollY
-                ) return true
-                ScrollDirection.LEFT -> if (
-                    signal.maxScrollX > 0 && signal.scrollX <= 0
-                ) return true
-                ScrollDirection.RIGHT -> if (
-                    signal.maxScrollX > 0 && signal.scrollX >= signal.maxScrollX
-                ) return true
-            }
-        }
-        if (chooseScrollMethod(node, direction) != null) return false
-        return chooseScrollMethod(node, direction.opposite()) != null
     }
 
     private fun clippedNodeBounds(
         node: AccessibilityNodeInfo,
         displayId: Int = android.view.Display.DEFAULT_DISPLAY,
     ): Rect {
-        val bounds = node.bounds()
+        val bounds = node.boundsInScreenRect()
         val size = displaySize(displayId)
         if (size != null) {
             if (!bounds.intersect(0, 0, size.first, size.second)) bounds.setEmpty()
         }
         return bounds
-    }
-
-    private fun scrollContentAnchors(root: AccessibilityNodeInfo): List<ScrollAnchor> {
-        val anchors = ArrayList<ScrollAnchor>(SCROLL_ANCHOR_NODE_LIMIT)
-        val activePath = hashSetOf<AccessibilityNodeInfo>()
-        val rootBounds = root.bounds()
-
-        fun visit(node: AccessibilityNodeInfo, depth: Int) {
-            queryExecutor.ensureActive()
-            if (
-                depth > MAX_UI_TREE_DEPTH ||
-                anchors.size >= SCROLL_ANCHOR_NODE_LIMIT ||
-                !activePath.add(node)
-            ) return
-            try {
-                if (!node.isVisibleToUser) return
-                val bounds = node.bounds()
-                val key = buildString {
-                    append(node.uniqueId.orEmpty())
-                    append('|')
-                    append(node.className?.toString().orEmpty())
-                    append('|')
-                    append(node.viewIdResourceName.orEmpty())
-                    append('|')
-                    append(node.text?.toString().orEmpty().take(80))
-                    append('|')
-                    append(node.contentDescription?.toString().orEmpty().take(80))
-                }
-                if (
-                    node.uniqueId?.isNotBlank() == true ||
-                    node.viewIdResourceName?.isNotBlank() == true ||
-                    node.text?.isNotBlank() == true ||
-                    node.contentDescription?.isNotBlank() == true
-                ) {
-                    anchors += ScrollAnchor(
-                        key = key,
-                        centerX = bounds.centerX() - rootBounds.left,
-                        centerY = bounds.centerY() - rootBounds.top,
-                    )
-                }
-                for (childIndex in 0 until node.childCount) {
-                    queryExecutor.ensureActive()
-                    val child = runCatching { node.getChild(childIndex) }.getOrNull() ?: continue
-                    visit(child, depth + 1)
-                }
-            } finally {
-                activePath.remove(node)
-            }
-        }
-
-        visit(root, 0)
-        return anchors
-    }
-
-    private fun inferScrollAnchorDelta(
-        before: List<ScrollAnchor>,
-        after: List<ScrollAnchor>,
-        direction: ScrollDirection,
-    ): Int? {
-        fun unique(anchors: List<ScrollAnchor>): Map<String, ScrollAnchor> = anchors
-            .groupBy(ScrollAnchor::key)
-            .mapNotNull { (key, matches) -> matches.singleOrNull()?.let { anchor -> key to anchor } }
-            .toMap()
-        val beforeUnique = unique(before)
-        val afterUnique = unique(after)
-        val contentDeltas = beforeUnique.mapNotNull { (key, oldAnchor) ->
-            val newAnchor = afterUnique[key] ?: return@mapNotNull null
-            if (direction.axis == ScrollAxis.VERTICAL) {
-                newAnchor.centerY - oldAnchor.centerY
-            } else {
-                newAnchor.centerX - oldAnchor.centerX
-            }
-        }
-        return RootScrollMotionContract.inferScrollDelta(contentDeltas)
-    }
-
-    private fun ScrollDirection.exactScrollActionId(): Int = when (this) {
-        ScrollDirection.UP -> AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id
-        ScrollDirection.DOWN -> AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id
-        ScrollDirection.LEFT -> AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id
-        ScrollDirection.RIGHT -> AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id
-    }
-
-    private fun ScrollDirection.pageActionId(): Int = when (this) {
-        ScrollDirection.UP -> AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_UP.id
-        ScrollDirection.DOWN -> AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_DOWN.id
-        ScrollDirection.LEFT -> AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_LEFT.id
-        ScrollDirection.RIGHT -> AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_RIGHT.id
-    }
-
-    private fun ScrollDirection.focusDirection(): Int = when (this) {
-        ScrollDirection.UP -> View.FOCUS_UP
-        ScrollDirection.DOWN -> View.FOCUS_DOWN
-        ScrollDirection.LEFT -> View.FOCUS_LEFT
-        ScrollDirection.RIGHT -> View.FOCUS_RIGHT
-    }
-
-    private fun ScrollDirection.opposite(): ScrollDirection = when (this) {
-        ScrollDirection.UP -> ScrollDirection.DOWN
-        ScrollDirection.DOWN -> ScrollDirection.UP
-        ScrollDirection.LEFT -> ScrollDirection.RIGHT
-        ScrollDirection.RIGHT -> ScrollDirection.LEFT
     }
 
     private fun withValidatedNode(
@@ -1873,154 +1265,6 @@ class AgentAccessibilityService : AccessibilityService() {
         }
         return NodeValidation.Valid(indexed)
     }
-
-    private fun findNode(
-        node: AccessibilityNodeInfo,
-        predicate: (AccessibilityNodeInfo) -> Boolean,
-    ): AccessibilityNodeInfo? {
-        val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
-        val visited = hashSetOf<AccessibilityNodeInfo>()
-        queue.addLast(node to 0)
-        while (queue.isNotEmpty() && visited.size < MAX_FOCUS_SEARCH_NODES) {
-            queryExecutor.ensureActive()
-            val (current, depth) = queue.removeFirst()
-            if (!visited.add(current)) continue
-            if (predicate(current)) return current
-            if (depth >= MAX_UI_TREE_DEPTH) continue
-            for (childIndex in 0 until current.childCount) {
-                queryExecutor.ensureActive()
-                val child = runCatching { current.getChild(childIndex) }.getOrNull() ?: continue
-                queue.addLast(child to depth + 1)
-            }
-        }
-        return null
-    }
-
-    private fun collectNodes(
-        node: AccessibilityNodeInfo,
-        out: MutableList<IndexedNode>,
-        maxNodes: Int,
-        depth: Int,
-        traversal: NodeTraversalState,
-        clickableAncestor: NodeActionTarget? = null,
-        longClickableAncestor: NodeActionTarget? = null,
-        scrollableAncestor: NodeActionTarget? = null,
-    ) {
-        queryExecutor.ensureActive()
-        if (out.size >= maxNodes) {
-            traversal.truncated = true
-            return
-        }
-        if (depth > MAX_UI_TREE_DEPTH || traversal.visitedNodes >= traversal.maxVisitedNodes) {
-            traversal.truncated = true
-            return
-        }
-        if (!traversal.activePath.add(node)) {
-            traversal.truncated = true
-            return
-        }
-        traversal.visitedNodes++
-        try {
-            // 不可见父节点的后代不会成为可操作目标，尽早裁掉这类大分支。
-            val visible = node.isVisibleToUser
-            if (depth > 0 && !visible) return
-
-            val bounds = node.bounds()
-            val text = node.realText().take(120)
-            val hint = node.hintText?.toString().orEmpty().take(60)
-            val desc = node.contentDescription?.toString().orEmpty().take(120)
-            val clickable = node.isClickable
-            val longClickable = node.isLongClickable
-            val scrollable = node.isScrollable
-            val focused = node.isFocused
-            val editable = node.isEditable
-            val password = node.isPassword
-            val enabled = node.isEnabled
-            val clickTarget = if (clickable && enabled) {
-                NodeActionTarget.capture(node)
-            } else {
-                clickableAncestor
-            }
-            val longClickTarget = if (longClickable && enabled) {
-                NodeActionTarget.capture(node)
-            } else {
-                longClickableAncestor
-            }
-            val hasScrollCapability = enabled && node.hasScrollCapability()
-            val scrollTarget = if (hasScrollCapability) {
-                NodeActionTarget.capture(node)
-            } else {
-                scrollableAncestor
-            }
-            val useful = text.isNotBlank() ||
-                desc.isNotBlank() ||
-                clickable ||
-                longClickable ||
-                hasScrollCapability ||
-                focused ||
-                editable
-            if (visible && bounds.width() > 2 && bounds.height() > 2 && useful) {
-                out += IndexedNode(
-                    index = out.size,
-                    node = node,
-                    uniqueId = node.uniqueId.orEmpty(),
-                    windowId = node.windowId,
-                    text = text,
-                    desc = desc,
-                    className = node.className?.toString().orEmpty(),
-                    packageName = node.packageName?.toString().orEmpty(),
-                    viewId = node.viewIdResourceName.orEmpty(),
-                    bounds = Rect(bounds),
-                    clickable = clickable,
-                    longClickable = longClickable,
-                    scrollable = scrollTarget != null,
-                    focused = focused,
-                    editable = editable,
-                    password = password,
-                    enabled = enabled,
-                    checked = node.isCheckable.takeIf { it }?.let {
-                        if (Build.VERSION.SDK_INT >= 36) {
-                            node.checked == AccessibilityNodeInfo.CHECKED_STATE_TRUE
-                        } else {
-                            @Suppress("DEPRECATION")
-                            node.isChecked
-                        }
-                    },
-                    selected = node.isSelected,
-                    hint = hint,
-                    clickTarget = clickTarget,
-                    longClickTarget = longClickTarget,
-                    scrollTarget = scrollTarget,
-                )
-            }
-            for (index in 0 until node.childCount) {
-                queryExecutor.ensureActive()
-                if (
-                    out.size >= maxNodes ||
-                    traversal.visitedNodes >= traversal.maxVisitedNodes
-                ) {
-                    traversal.truncated = true
-                    return
-                }
-                val child = runCatching { node.getChild(index) }.getOrNull() ?: continue
-                collectNodes(
-                    node = child,
-                    out = out,
-                    maxNodes = maxNodes,
-                    depth = depth + 1,
-                    traversal = traversal,
-                    clickableAncestor = clickTarget,
-                    longClickableAncestor = longClickTarget,
-                    scrollableAncestor = scrollTarget,
-                )
-            }
-        } finally {
-            traversal.activePath.remove(node)
-        }
-    }
-
-    private fun AccessibilityNodeInfo.bounds(): Rect =
-        Rect().also { getBoundsInScreen(it) }
 
     private fun performNodeAction(
         node: AccessibilityNodeInfo,
@@ -2551,76 +1795,6 @@ class AgentAccessibilityService : AccessibilityService() {
         }
     }
 
-    private data class ScrollCandidate(
-        val node: AccessibilityNodeInfo,
-        val supportRank: Int,
-        val depth: Int,
-        val area: Long,
-    )
-
-    private data class ScrollAnchor(
-        val key: String,
-        val centerX: Int,
-        val centerY: Int,
-    )
-
-    private data class ScrollMethod(
-        val actionId: Int,
-        val name: String,
-        val args: Bundle? = null,
-    )
-
-    private data class ScrollSignal(
-        val sequence: Long,
-        val packageName: String,
-        val windowId: Int,
-        val deltaX: Int,
-        val deltaY: Int,
-        val scrollX: Int,
-        val scrollY: Int,
-        val maxScrollX: Int,
-        val maxScrollY: Int,
-        val fromIndex: Int,
-        val toIndex: Int,
-        val sourceUniqueId: String,
-        val sourceViewId: String,
-        val sourceClassName: String,
-        val sourceBounds: Rect,
-    ) {
-        fun axisDelta(axis: ScrollAxis): Int? = ScrollEvidenceContract.normalizeAccessibilityDelta(
-            when (axis) {
-            ScrollAxis.HORIZONTAL -> deltaX
-            ScrollAxis.VERTICAL -> deltaY
-            },
-        )
-
-        fun matchesTarget(target: ScrollTargetIdentity): Boolean {
-            if (target.uniqueId.isNotBlank() && sourceUniqueId.isNotBlank()) {
-                return target.uniqueId == sourceUniqueId
-            }
-            if (target.viewId.isNotBlank() && sourceViewId.isNotBlank()) {
-                return target.viewId == sourceViewId && target.className == sourceClassName
-            }
-            return target.className == sourceClassName && target.bounds == sourceBounds
-        }
-    }
-
-    private data class ScrollTargetIdentity(
-        val uniqueId: String,
-        val viewId: String,
-        val className: String,
-        val bounds: Rect,
-    ) {
-        companion object {
-            fun from(node: AccessibilityNodeInfo): ScrollTargetIdentity = ScrollTargetIdentity(
-                uniqueId = node.uniqueId.orEmpty(),
-                viewId = node.viewIdResourceName.orEmpty(),
-                className = node.className?.toString().orEmpty(),
-                bounds = Rect().also(node::getBoundsInScreen),
-            )
-        }
-    }
-
     companion object {
         private const val CLIP_LABEL = "eta_agent"
         private const val WINDOW_POLL_FALLBACK_MS = 80L
@@ -2628,9 +1802,6 @@ class AgentAccessibilityService : AccessibilityService() {
         private const val UI_TREE_VISIT_MULTIPLIER = 8
         private const val MIN_UI_TREE_VISITED_NODES = 128
         private const val MAX_UI_TREE_VISITED_NODES = 960
-        private const val MAX_FOCUS_SEARCH_NODES = 512
-        private const val MAX_SCROLL_SEARCH_NODES = 512
-        private const val SCROLL_ANCHOR_NODE_LIMIT = 48
         private const val SCROLL_GESTURE_DURATION_MS = 300L
         private const val SCROLL_VERIFY_TIMEOUT_MS = 520L
         private const val GESTURE_CALLBACK_GRACE_MS = 1_500L
@@ -2657,32 +1828,6 @@ class AgentAccessibilityService : AccessibilityService() {
             Executors.newFixedThreadPool(2) { runnable ->
                 Thread(runnable, "agent-screenshot-callback").apply { isDaemon = true }
             }
-
-        private val SCROLL_ACTION_IDS = setOf(
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_UP.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_DOWN.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_LEFT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_RIGHT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_IN_DIRECTION.id,
-        )
-        private val VERTICAL_DIRECTION_ACTION_IDS = setOf(
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_UP.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_DOWN.id,
-        )
-        private val HORIZONTAL_DIRECTION_ACTION_IDS = setOf(
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_LEFT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_RIGHT.id,
-        )
 
         private val SERVICE_TOKENS = AtomicLong(0)
         private val SNAPSHOT_IDS = AtomicLong(0)
