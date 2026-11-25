@@ -109,7 +109,8 @@ internal object ConversationPanelMetrics {
 
     val WorkbenchCornerRadius = 22.dp
     val WorkbenchRowMinHeight = 46.dp
-    val WorkbenchIconSize = 19.dp
+    // MiuixIcons.Glass 视口四周带安全边距，24.dp 渲染对应约 18.dp 光学主体，匹配 15.sp 标题。
+    val WorkbenchIconSize = 24.dp
     val WorkbenchRowHorizontalPadding = 16.dp
     val WorkbenchIconGap = 12.dp
 

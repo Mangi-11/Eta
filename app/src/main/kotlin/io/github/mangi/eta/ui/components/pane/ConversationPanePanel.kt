@@ -30,9 +30,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -79,11 +76,18 @@ import top.yukonga.miuix.kmp.glass.glassPopupAnchor
 import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
 import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.BookOutline
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.icon.glass.ClockOutline
+import top.yukonga.miuix.kmp.icon.glass.Contacts
 import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.icon.glass.Download
 import top.yukonga.miuix.kmp.icon.glass.Edit
+import top.yukonga.miuix.kmp.icon.glass.GridView
 import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.icon.glass.Pin
+import top.yukonga.miuix.kmp.icon.glass.Processor
+import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -293,28 +297,28 @@ private fun PaneWorkbenchSection(
         ?: stringResource(R.string.conversation_model_unconfigured)
     val entries = listOf(
         WorkbenchEntry(
-            icon = ConversationPaneIcons.Model,
+            icon = MiuixIcons.Glass.Processor,
             title = stringResource(R.string.conversation_dock_models),
             trailingValue = modelSummary,
             onClick = onOpenModelProviders,
         ),
         WorkbenchEntry(
-            icon = ConversationPaneIcons.Character,
+            icon = MiuixIcons.Glass.Contacts,
             title = stringResource(R.string.conversation_dock_characters),
             onClick = onOpenCharacters,
         ),
         WorkbenchEntry(
-            icon = ConversationPaneIcons.Tools,
+            icon = MiuixIcons.Glass.GridView,
             title = stringResource(R.string.route_tools),
             onClick = onOpenTools,
         ),
         WorkbenchEntry(
-            icon = ConversationPaneIcons.Skills,
+            icon = MiuixIcons.Glass.BookOutline,
             title = stringResource(R.string.route_skills),
             onClick = onOpenSkills,
         ),
         WorkbenchEntry(
-            icon = ConversationPaneIcons.Schedule,
+            icon = MiuixIcons.Glass.ClockOutline,
             title = stringResource(R.string.route_scheduled_tasks),
             onClick = onOpenScheduledTasks,
         ),
@@ -390,11 +394,11 @@ private fun WorkbenchRow(entry: WorkbenchEntry) {
             )
         }
         Icon(
-            imageVector = ConversationPaneIcons.ChevronRight,
+            imageVector = MiuixIcons.Glass.ChevronForward,
             contentDescription = null,
             modifier = Modifier
                 .padding(start = 4.dp)
-                .size(14.dp),
+                .size(15.dp),
             tint = colors.onSurfaceVariantActions,
         )
     }
@@ -708,9 +712,9 @@ private fun EmptyConversations(isSearching: Boolean) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = if (isSearching) ConversationPaneIcons.Search else ConversationPaneIcons.BrandEta,
+                imageVector = if (isSearching) MiuixIcons.Glass.Search else ConversationPaneIcons.BrandEta,
                 contentDescription = null,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(if (isSearching) 24.dp else 20.dp),
                 tint = primaryTextColor.copy(alpha = 0.72f),
             )
         }
