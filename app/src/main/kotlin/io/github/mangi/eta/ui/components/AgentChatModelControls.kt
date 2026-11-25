@@ -19,12 +19,10 @@ import io.github.mangi.eta.ui.model.formatContextUsage
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
 import top.yukonga.miuix.kmp.glass.glassPopupAnchor
 import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
 import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun AgentContextUsageButton(
@@ -61,7 +59,6 @@ internal fun AgentContextUsageButton(
         summary.replace('\n', ' '),
     )
     var showPopover by remember { mutableStateOf(false) }
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val popupAnchor = rememberGlassPopupAnchor()
     val indicatorContent: @Composable () -> Unit = {
         CircularProgressIndicator(
@@ -84,19 +81,9 @@ internal fun AgentContextUsageButton(
             onClick = { showPopover = !showPopover },
             minWidth = 34.dp,
             minHeight = 34.dp,
-            modifier = if (!isCoui) {
-                Modifier.glassPopupAnchor(anchor = popupAnchor, cornerRadius = 17.dp)
-            } else {
-                Modifier
-            },
+            modifier = Modifier.glassPopupAnchor(anchor = popupAnchor, cornerRadius = 17.dp),
         ) {
-            Box(
-                modifier = if (!isCoui) {
-                    Modifier.glassPopupAnchorContent(popupAnchor)
-                } else {
-                    Modifier
-                },
-            ) {
+            Box(modifier = Modifier.glassPopupAnchorContent(popupAnchor)) {
                 indicatorContent()
             }
         }
@@ -108,8 +95,8 @@ internal fun AgentContextUsageButton(
             onCompact = onCompact,
             onDismissRequest = { showPopover = false },
             show = showPopover,
-            anchor = if (!isCoui) popupAnchor else null,
-            anchorContent = if (!isCoui) indicatorContent else null,
+            anchor = popupAnchor,
+            anchorContent = indicatorContent,
         )
     }
 }

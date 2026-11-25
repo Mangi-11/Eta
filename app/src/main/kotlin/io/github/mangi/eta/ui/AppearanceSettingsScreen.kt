@@ -8,7 +8,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,16 +18,9 @@ import io.github.mangi.eta.data.model.AppearanceAccentColor
 import io.github.mangi.eta.data.model.AppearancePaletteStyle
 import io.github.mangi.eta.data.model.AppearanceSettings
 import io.github.mangi.eta.data.model.AppearanceThemeMode
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.repository.AppearanceSettingsRepository
 import io.github.mangi.eta.ui.app.LocalAppearanceSettings
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
-import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
-import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
+import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
@@ -48,19 +40,6 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    fun selectUiStyle(uiStyle: AppearanceUiStyle) {
-        coroutineScope.launch {
-            AppearanceSettingsRepository.selectUiStyle(uiStyle)
-        }
-    }
-
-    val uiStyles = remember { AppearanceUiStyle.entries.sortedBy { it != AppearanceUiStyle.Default } }
-    val uiStyleLabels = uiStyles.map { style ->
-        when (style) {
-            AppearanceUiStyle.MIUIX -> stringResource(R.string.appearance_ui_style_miuix)
-            AppearanceUiStyle.COUI -> stringResource(R.string.appearance_ui_style_coui)
-        }
-    }
     val themeModes = AppearanceThemeMode.entries
     val themeModeLabels = listOf(
         stringResource(R.string.appearance_theme_system),
@@ -93,180 +72,110 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
         stringResource(R.string.appearance_accent_teal),
     )
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiScaffoldPage(
-                title = stringResource(R.string.appearance_title),
-                onBack = onBack,
+    ScaffoldPage(
+        title = stringResource(R.string.appearance_title),
+        onBack = onBack,
+    ) {
+        item(key = "appearance_color") {
+            val backdrop = currentGlassOverlayBackdrop()
+            SmallTitle(text = stringResource(R.string.appearance_group_color))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
             ) {
-                CouiPreferenceGroup(title = stringResource(R.string.appearance_group_color)) {
-                    item {
-                        CouiDropdownPreference(
-                            title = stringResource(R.string.appearance_ui_style),
-                            items = uiStyleLabels,
-                            selectedIndex = uiStyles.indexOf(appearance.uiStyle),
+                GlassDropdownPreference(
+                    title = stringResource(R.string.appearance_theme_mode),
+                    items = themeModeLabels,
+                    selectedIndex = appearance.themeMode.ordinal,
+                    backdrop = backdrop,
+                    onSelectedIndexChange = { index ->
+                        themeModes.getOrNull(index)?.let { mode ->
+                            update { current -> current.copy(themeMode = mode) }
+                        }
+                    },
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.appearance_monet),
+                    summary = stringResource(R.string.appearance_monet_summary),
+                    checked = appearance.monetEnabled,
+                    onCheckedChange = { enabled ->
+                        update { current -> current.copy(monetEnabled = enabled) }
+                    },
+                )
+                AnimatedVisibility(
+                    visible = appearance.monetEnabled,
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                ) {
+                    Column {
+                        GlassDropdownPreference(
+                            title = stringResource(R.string.appearance_palette_style),
+                            items = paletteLabels,
+                            selectedIndex = appearance.paletteStyle.ordinal,
+                            backdrop = backdrop,
                             onSelectedIndexChange = { index ->
-                                uiStyles.getOrNull(index)?.let(::selectUiStyle)
-                            },
-                        )
-                    }
-                    item {
-                        CouiDropdownPreference(
-                            title = stringResource(R.string.appearance_theme_mode),
-                            items = themeModeLabels,
-                            selectedIndex = appearance.themeMode.ordinal,
-                            onSelectedIndexChange = { index ->
-                                themeModes.getOrNull(index)?.let { mode ->
-                                    update { current -> current.copy(themeMode = mode) }
+                                paletteStyles.getOrNull(index)?.let { style ->
+                                    update { current -> current.copy(paletteStyle = style) }
                                 }
                             },
                         )
-                    }
-                }
-
-                CouiPreferenceGroup(title = stringResource(R.string.appearance_group_interface)) {
-                    item {
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.appearance_swipe_dismiss),
-                            summary = stringResource(R.string.appearance_swipe_dismiss_summary),
-                            checked = appearance.swipeDismissEnabled,
-                            onCheckedChange = { enabled ->
-                                update { current -> current.copy(swipeDismissEnabled = enabled) }
+                        GlassDropdownPreference(
+                            title = stringResource(R.string.appearance_accent_color),
+                            items = accentLabels,
+                            selectedIndex = appearance.accentColor.ordinal,
+                            backdrop = backdrop,
+                            onSelectedIndexChange = { index ->
+                                accentColors.getOrNull(index)?.let { accent ->
+                                    update { current -> current.copy(accentColor = accent) }
+                                }
                             },
                         )
-                    }
-                    item {
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.appearance_predictive_back),
-                            summary = stringResource(R.string.appearance_predictive_back_summary),
-                            checked = appearance.predictiveBackEnabled,
+                        SwitchPreference(
+                            title = stringResource(R.string.appearance_pure_black),
+                            summary = stringResource(R.string.appearance_pure_black_summary),
+                            checked = appearance.pureBlackEnabled,
                             onCheckedChange = { enabled ->
-                                update { current -> current.copy(predictiveBackEnabled = enabled) }
+                                update { current -> current.copy(pureBlackEnabled = enabled) }
                             },
                         )
                     }
                 }
-
-                CouiPageBottomSpacer()
             }
         }
 
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = stringResource(R.string.appearance_title),
-                onBack = onBack,
+        item(key = "appearance_interface") {
+            SmallTitle(text = stringResource(R.string.appearance_group_interface))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
             ) {
-                item(key = "appearance_color") {
-                    val backdrop = currentGlassOverlayBackdrop()
-                    SmallTitle(text = stringResource(R.string.appearance_group_color))
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        GlassDropdownPreference(
-                            title = stringResource(R.string.appearance_ui_style),
-                            items = uiStyleLabels,
-                            selectedIndex = uiStyles.indexOf(appearance.uiStyle),
-                            backdrop = backdrop,
-                            onSelectedIndexChange = { index ->
-                                uiStyles.getOrNull(index)?.let(::selectUiStyle)
-                            },
-                        )
-                        GlassDropdownPreference(
-                            title = stringResource(R.string.appearance_theme_mode),
-                            items = themeModeLabels,
-                            selectedIndex = appearance.themeMode.ordinal,
-                            backdrop = backdrop,
-                            onSelectedIndexChange = { index ->
-                                themeModes.getOrNull(index)?.let { mode ->
-                                    update { current -> current.copy(themeMode = mode) }
-                                }
-                            },
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.appearance_monet),
-                            summary = stringResource(R.string.appearance_monet_summary),
-                            checked = appearance.monetEnabled,
-                            onCheckedChange = { enabled ->
-                                update { current -> current.copy(monetEnabled = enabled) }
-                            },
-                        )
-                        AnimatedVisibility(
-                            visible = appearance.monetEnabled,
-                            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
-                        ) {
-                            Column {
-                                GlassDropdownPreference(
-                                    title = stringResource(R.string.appearance_palette_style),
-                                    items = paletteLabels,
-                                    selectedIndex = appearance.paletteStyle.ordinal,
-                                    backdrop = backdrop,
-                                    onSelectedIndexChange = { index ->
-                                        paletteStyles.getOrNull(index)?.let { style ->
-                                            update { current -> current.copy(paletteStyle = style) }
-                                        }
-                                    },
-                                )
-                                GlassDropdownPreference(
-                                    title = stringResource(R.string.appearance_accent_color),
-                                    items = accentLabels,
-                                    selectedIndex = appearance.accentColor.ordinal,
-                                    backdrop = backdrop,
-                                    onSelectedIndexChange = { index ->
-                                        accentColors.getOrNull(index)?.let { accent ->
-                                            update { current -> current.copy(accentColor = accent) }
-                                        }
-                                    },
-                                )
-                                SwitchPreference(
-                                    title = stringResource(R.string.appearance_pure_black),
-                                    summary = stringResource(R.string.appearance_pure_black_summary),
-                                    checked = appearance.pureBlackEnabled,
-                                    onCheckedChange = { enabled ->
-                                        update { current -> current.copy(pureBlackEnabled = enabled) }
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item(key = "appearance_interface") {
-                    SmallTitle(text = stringResource(R.string.appearance_group_interface))
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        SwitchPreference(
-                            title = stringResource(R.string.appearance_swipe_dismiss),
-                            summary = stringResource(R.string.appearance_swipe_dismiss_summary),
-                            checked = appearance.swipeDismissEnabled,
-                            onCheckedChange = { enabled ->
-                                update { current -> current.copy(swipeDismissEnabled = enabled) }
-                            },
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.appearance_predictive_back),
-                            summary = stringResource(R.string.appearance_predictive_back_summary),
-                            checked = appearance.predictiveBackEnabled,
-                            onCheckedChange = { enabled ->
-                                update { current -> current.copy(predictiveBackEnabled = enabled) }
-                            },
-                        )
-                        if (isRuntimeShaderSupported()) {
-                            SwitchPreference(
-                                title = stringResource(R.string.appearance_progressive_blur),
-                                summary = stringResource(R.string.appearance_progressive_blur_summary),
-                                checked = appearance.progressiveBlurEnabled,
-                                onCheckedChange = { enabled ->
-                                    update { current -> current.copy(progressiveBlurEnabled = enabled) }
-                                },
-                            )
-                        }
-                    }
+                SwitchPreference(
+                    title = stringResource(R.string.appearance_swipe_dismiss),
+                    summary = stringResource(R.string.appearance_swipe_dismiss_summary),
+                    checked = appearance.swipeDismissEnabled,
+                    onCheckedChange = { enabled ->
+                        update { current -> current.copy(swipeDismissEnabled = enabled) }
+                    },
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.appearance_predictive_back),
+                    summary = stringResource(R.string.appearance_predictive_back_summary),
+                    checked = appearance.predictiveBackEnabled,
+                    onCheckedChange = { enabled ->
+                        update { current -> current.copy(predictiveBackEnabled = enabled) }
+                    },
+                )
+                if (isRuntimeShaderSupported()) {
+                    SwitchPreference(
+                        title = stringResource(R.string.appearance_progressive_blur),
+                        summary = stringResource(R.string.appearance_progressive_blur_summary),
+                        checked = appearance.progressiveBlurEnabled,
+                        onCheckedChange = { enabled ->
+                            update { current -> current.copy(progressiveBlurEnabled = enabled) }
+                        },
+                    )
                 }
             }
         }

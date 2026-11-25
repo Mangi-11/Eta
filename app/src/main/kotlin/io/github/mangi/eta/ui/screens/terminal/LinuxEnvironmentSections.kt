@@ -14,15 +14,7 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.LinuxDistribution
 import io.github.mangi.eta.agent.terminal.LinuxExecutionBackend
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.EtaGlassSpinnerPreference
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
+import io.github.mangi.eta.ui.components.GlassSpinnerPreference
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -43,14 +35,13 @@ internal fun LinuxEnvironmentStatusCard(
     actionEnabled: Boolean,
     onAction: () -> Unit,
 ) {
-    val uiStyle = LocalUiStyle.current
-    val body: @Composable () -> Unit = {
+    Card(
+        modifier = Modifier
+            .padding(horizontal = 12.dp)
+            .padding(top = 8.dp, bottom = 12.dp),
+        insideMargin = PaddingValues(16.dp),
+    ) {
         Column(
-            modifier = if (uiStyle == AppearanceUiStyle.COUI) {
-                Modifier.padding(horizontal = CouiPageDefaults.rowPadding, vertical = 16.dp)
-            } else {
-                Modifier
-            },
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -81,43 +72,13 @@ internal fun LinuxEnvironmentStatusCard(
                 )
             }
             actionText?.let {
-                if (uiStyle == AppearanceUiStyle.COUI) {
-                    CouiButton(
-                        text = it,
-                        enabled = actionEnabled,
-                        role = CouiButtonRole.Primary,
-                        onClick = onAction,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                } else {
-                    TextButton(
-                        text = it,
-                        enabled = actionEnabled,
-                        onClick = onAction,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                    )
-                }
-            }
-        }
-    }
-
-    when (uiStyle) {
-        AppearanceUiStyle.COUI -> {
-            CouiPreferenceGroup {
-                item {
-                    body()
-                }
-            }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(top = 8.dp, bottom = 12.dp),
-                insideMargin = PaddingValues(16.dp),
-            ) {
-                body()
+                TextButton(
+                    text = it,
+                    enabled = actionEnabled,
+                    onClick = onAction,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
             }
         }
     }
@@ -134,99 +95,58 @@ internal fun LinuxEnvironmentConfiguration(
 ) {
     val distributions = LinuxDistribution.entries
     val backends = listOf(LinuxExecutionBackend.PROOT, LinuxExecutionBackend.CHROOT)
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiPreferenceGroup(title = stringResource(R.string.linux_environment_configuration)) {
-                item {
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.linux_distribution_title),
-                        items = distributions.map { it.displayName() },
-                        selectedIndex = distributions.indexOf(distribution),
-                        enabled = enabled,
-                        onSelectedIndexChange = { onDistributionSelected(distributions[it]) },
-                    )
-                }
-                if (rootGranted || backend == LinuxExecutionBackend.CHROOT) {
-                    item {
-                        CouiDropdownPreference(
-                            title = stringResource(R.string.capability_linux_backend),
-                            items = backends.map { it.displayName() },
-                            selectedIndex = backends.indexOf(backend),
-                            enabled = enabled,
-                            onSelectedIndexChange = { index ->
-                                val chosen = backends.getOrNull(index) ?: return@CouiDropdownPreference
-                                if (chosen == LinuxExecutionBackend.PROOT || rootGranted) {
-                                    onBackendSelected(chosen)
-                                }
-                            },
-                        )
-                    }
-                } else {
-                    item {
-                        CouiPreference(
-                            title = stringResource(R.string.capability_linux_backend),
-                            value = backend.displayName(),
-                            showChevron = false,
-                        )
-                    }
-                }
-            }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-            ) {
-                EtaGlassSpinnerPreference(
-                    title = stringResource(R.string.linux_distribution_title),
-                    items = distributions.map {
-                        DropdownItem(
-                            text = it.displayName(),
-                            summary = stringResource(
-                                when (it) {
-                                    LinuxDistribution.ALPINE -> R.string.linux_distribution_alpine_summary
-                                    LinuxDistribution.DEBIAN -> R.string.linux_distribution_debian_summary
-                                },
-                            ),
-                        )
-                    },
-                    selectedIndex = distributions.indexOf(distribution),
-                    enabled = enabled,
-                    onSelectedIndexChange = { onDistributionSelected(distributions[it]) },
+    Card(
+        modifier = Modifier
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 12.dp),
+    ) {
+        GlassSpinnerPreference(
+            title = stringResource(R.string.linux_distribution_title),
+            items = distributions.map {
+                DropdownItem(
+                    text = it.displayName(),
+                    summary = stringResource(
+                        when (it) {
+                            LinuxDistribution.ALPINE -> R.string.linux_distribution_alpine_summary
+                            LinuxDistribution.DEBIAN -> R.string.linux_distribution_debian_summary
+                        },
+                    ),
                 )
-                if (rootGranted || backend == LinuxExecutionBackend.CHROOT) {
-                    EtaGlassSpinnerPreference(
-                        title = stringResource(R.string.capability_linux_backend),
-                        items = backends.map {
-                            DropdownItem(
-                                text = it.displayName(),
-                                summary = stringResource(
-                                    when (it) {
-                                        LinuxExecutionBackend.PROOT -> R.string.capability_linux_proot_summary
-                                        LinuxExecutionBackend.CHROOT -> R.string.capability_linux_chroot_summary
-                                    },
-                                ),
-                                enabled = it == LinuxExecutionBackend.PROOT || rootGranted,
-                            )
-                        },
-                        selectedIndex = backends.indexOf(backend),
-                        enabled = enabled,
-                        onSelectedIndexChange = { onBackendSelected(backends[it]) },
+            },
+            selectedIndex = distributions.indexOf(distribution),
+            enabled = enabled,
+            onSelectedIndexChange = { onDistributionSelected(distributions[it]) },
+        )
+        if (rootGranted || backend == LinuxExecutionBackend.CHROOT) {
+            GlassSpinnerPreference(
+                title = stringResource(R.string.capability_linux_backend),
+                items = backends.map {
+                    DropdownItem(
+                        text = it.displayName(),
+                        summary = stringResource(
+                            when (it) {
+                                LinuxExecutionBackend.PROOT -> R.string.capability_linux_proot_summary
+                                LinuxExecutionBackend.CHROOT -> R.string.capability_linux_chroot_summary
+                            },
+                        ),
+                        enabled = it == LinuxExecutionBackend.PROOT || rootGranted,
                     )
-                } else {
-                    BasicComponent(
-                        title = stringResource(R.string.capability_linux_backend),
-                        endActions = {
-                            Text(
-                                text = backend.displayName(),
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            )
-                        },
+                },
+                selectedIndex = backends.indexOf(backend),
+                enabled = enabled,
+                onSelectedIndexChange = { onBackendSelected(backends[it]) },
+            )
+        } else {
+            BasicComponent(
+                title = stringResource(R.string.capability_linux_backend),
+                endActions = {
+                    Text(
+                        text = backend.displayName(),
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                     )
-                }
-            }
+                },
+            )
         }
     }
 }

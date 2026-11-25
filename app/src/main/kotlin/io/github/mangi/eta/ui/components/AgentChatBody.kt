@@ -83,13 +83,9 @@ import androidx.compose.ui.util.fastCoerceIn
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.BrowserSessionSnapshot
 import io.github.mangi.eta.agent.imagegen.ImageGenToolCatalog
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.repository.ConversationBranchBoundary
 import io.github.mangi.eta.ui.app.AgentConversationRevisionReducer
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
-import io.github.mangi.eta.ui.components.coui.rememberCouiPageBackdrop
 import io.github.mangi.eta.ui.layout.rememberFloatingBottomBarInsets
 import io.github.mangi.eta.ui.markdown.StreamingMarkdownStateCache
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
@@ -109,7 +105,6 @@ import io.github.mangi.eta.ui.model.branchMessageOutline
 import io.github.mangi.eta.ui.model.latestContextUsage
 import io.github.mangi.eta.ui.voice.SpeechAutoReadAloud
 import io.github.mangi.eta.ui.voice.SpeechPlaybackHost
-import io.github.suqi8.coui.kmp.blur.layerBackdrop
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
@@ -132,10 +127,6 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.math.exp
 import kotlin.math.min
-import io.github.suqi8.coui.kmp.basic.IconButton as CouiIconButton
-import io.github.suqi8.coui.kmp.blur.LayerBackdrop as CouiLayerBackdrop
-import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 
 /**
  * 聊天主体：消息流 + 底部输入框。
@@ -382,10 +373,7 @@ private fun AgentChatScaffold(
     topInset: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-    val chatBackdrop = if (isCoui) null else rememberGlassBackdrop()
-    val couiChatBackdrop = if (isCoui) rememberCouiPageBackdrop(CouiTheme.colorScheme.backgroundWithCard) else null
-    val couiCapture = if (couiChatBackdrop == null) Modifier else Modifier.layerBackdrop(couiChatBackdrop)
+    val chatBackdrop = rememberGlassBackdrop()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -413,7 +401,6 @@ private fun AgentChatScaffold(
                 focusInputOnSync = focusInputOnSync,
                 messageEdit = messageEdit,
                 glassBackdrop = chatBackdrop,
-                couiBackdrop = couiChatBackdrop,
                 onSubmit = onSubmit,
                 onInterruptAndSubmit = onInterruptAndSubmit,
                 onSteerQueuedMessage = onSteerQueuedMessage,
@@ -437,8 +424,7 @@ private fun AgentChatScaffold(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .captureGlassBackdrop(chatBackdrop)
-                .then(couiCapture),
+                .captureGlassBackdrop(chatBackdrop),
         ) {
             if (!hasMessages) {
                 EmptyChatState(
@@ -780,8 +766,7 @@ internal fun AgentConversationMessages(
 
     // 滚动层保持整屏，输入器作为后绘制浮层；输入器高度进入列表的
     // afterContentPadding，确保跟到底部时最后一行停在输入器上方。
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-    val messagesBackdrop = if (isCoui || assistantOverlay) null else rememberGlassBackdrop()
+    val messagesBackdrop = if (assistantOverlay) null else rememberGlassBackdrop()
     CompositionLocalProvider(LocalOnChatItemExpand provides onExpandItem) {
         Box(modifier = modifier.clipToBounds()) {
             LazyColumn(
@@ -891,49 +876,17 @@ internal fun AgentConversationMessages(
                         scrollState.animateScrollToItem(bottomItemIndex)
                     }
                 }
-                if (isCoui) {
-                    val couiDark = CouiTheme.isDark
-                    CouiIconButton(
-                        modifier = Modifier
-                            .dropShadow(
-                                shape = CircleShape,
-                                shadow = Shadow(
-                                    radius = 10.dp,
-                                    color = Color.Black,
-                                    alpha = if (couiDark) 0.24f else 0.08f,
-                                ),
-                            )
-                            .border(
-                                width = 0.5.dp,
-                                color = if (couiDark) Color(0x22FFFFFF) else Color(0x10000000),
-                                shape = CircleShape,
-                            ),
-                        onClick = scrollToBottom,
-                        backgroundColor = CouiTheme.colorScheme.surface,
-                        material = false,
-                        minWidth = 36.dp,
-                        minHeight = 36.dp,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ArrowDownward,
-                            contentDescription = stringResource(R.string.ui_back_to_bottom_32282e),
-                            modifier = Modifier.size(16.dp),
-                            tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.78f),
-                        )
-                    }
-                } else {
-                    GlassIconButton(
-                        onClick = scrollToBottom,
-                        backdrop = messagesBackdrop,
-                        size = 40.dp,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ArrowDownward,
-                            contentDescription = stringResource(R.string.ui_back_to_bottom_32282e),
-                            modifier = Modifier.size(18.dp),
-                            tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                        )
-                    }
+                GlassIconButton(
+                    onClick = scrollToBottom,
+                    backdrop = messagesBackdrop,
+                    size = 40.dp,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ArrowDownward,
+                        contentDescription = stringResource(R.string.ui_back_to_bottom_32282e),
+                        modifier = Modifier.size(18.dp),
+                        tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                    )
                 }
             }
         }
@@ -1093,7 +1046,6 @@ private fun AgentChatBottomBar(
     focusInputOnSync: Boolean,
     messageEdit: MessageEditUiState?,
     glassBackdrop: Backdrop?,
-    couiBackdrop: CouiLayerBackdrop?,
     onSubmit: (String) -> Unit,
     onInterruptAndSubmit: (String) -> Unit,
     onSteerQueuedMessage: (String) -> Unit,
@@ -1173,7 +1125,6 @@ private fun AgentChatBottomBar(
                 onRemoveFileReference = onRemoveFileReference,
                 onCancelMessageEdit = onCancelMessageEdit,
                 glassBackdrop = glassBackdrop,
-                couiBackdrop = couiBackdrop,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -1343,31 +1294,20 @@ private fun SuggestionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
     val ink = MiuixTheme.colorScheme.onSurface.copy(alpha = 1f)
     val fill = ink.copy(alpha = if (isDark) 0.055f else 0.028f)
     val border = ink.copy(alpha = if (isDark) 0.10f else 0.065f)
     val interactionSource = remember { MutableInteractionSource() }
-    val shapeModifier = if (isCoui) {
-        val shape = CouiShape(15.dp, 2.2f)
-        Modifier
-            .couiButtonFeedback(isDark, interactionSource, enabled = true)
-            .clip(shape)
-            .background(fill, shape)
-            .border(0.5.dp, border, shape)
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-    } else {
-        Modifier
-            .glassPress(interactionSource)
-            .squircleSurface(color = fill, cornerRadius = 15.dp)
-            .squircleBorder(width = 0.5.dp, color = border, cornerRadius = 15.dp)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
-    }
+    val shapeModifier = Modifier
+        .glassPress(interactionSource)
+        .squircleSurface(color = fill, cornerRadius = 15.dp)
+        .squircleBorder(width = 0.5.dp, color = border, cornerRadius = 15.dp)
+        .clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick,
+        )
     Row(
         modifier = modifier
             .then(shapeModifier)

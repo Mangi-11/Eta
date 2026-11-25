@@ -38,8 +38,8 @@
     <string name="scheduled_session_badge_dedicated">Dedicated channel</string>
     <string name="scheduled_session_badge_isolated">Isolated archive</string>
     <string name="scheduled_detail_field_capabilities">Capabilities</string>
-    <string name="scheduled_detail_miuix_model_meta">Model: %1$s · %2$s · %3$s</string>
-    <string name="scheduled_detail_miuix_capabilities_meta">Capabilities: %1$s</string>
+    <string name="scheduled_detail_model_meta">Model: %1$s · %2$s · %3$s</string>
+    <string name="scheduled_detail_capabilities_meta">Capabilities: %1$s</string>
     <string name="scheduled_detail_memo_title">Task memo</string>
     <string name="scheduled_detail_memo_title_with_hint">Task memo (used for next-run comparison)</string>
     <string name="scheduled_action_clear_memo">Clear memo</string>

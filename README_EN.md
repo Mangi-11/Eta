@@ -71,7 +71,7 @@ Bring your own **API key (BYOK)** or sign in with a **Codex (ChatGPT) / Grok sub
 - **Model Ecosystem**: Supports OpenAI (Chat Completions / Responses), Anthropic, and Gemini (including Google Cloud Vertex AI) protocols; includes 12 built-in providers, custom endpoints, `models.dev` catalog import, and **Codex (ChatGPT) / Grok subscription sign-in**.
 - **Emotional Companionship & Tavern Ecosystem**: Create custom characters and stay compatible with the SillyTavern ecosystem—supporting PNG / JSON character card import & export, user personas, embedded worldbooks, isolated story memory, and in-place editing/regeneration—while still accessing your phone's personal context and tools.
 - **Memory & Extensions**: Local `MEMORY.md` long-term memory, Skills from GitHub or ZIP, and remote Streamable HTTP MCP tools.
-- **Native Polish**: Mid-run queuing and steering, conversation branching, native LaTeX math rendering, **Miuix / COUI** dual native UI styles, and English / Simplified / Traditional Chinese UI.
+- **Native Polish**: Mid-run queuing and steering, conversation branching, native LaTeX math rendering, a native **Miuix** UI, and English / Simplified / Traditional Chinese localization.
 
 ## Where Eta Fits
 
@@ -138,7 +138,7 @@ For feature requests, bug reports, or contributions, feel free to share your ide
 - [Pi Coding Agent](https://github.com/earendil-works/pi): the main reference for Eta's agent runtime, including the agent loop, tool calling, steering, and transcript state management.
 - [OmniBot](https://github.com/omnimind-ai/OmniBot): a reference project for AI agents on Android.
 - [libxposed API](https://github.com/libxposed/api): the modern Xposed API.
-- [Miuix](https://github.com/compose-miuix-ui/miuix) and [COUI](https://github.com/suqi8/coui): UI component libraries.
+- [Miuix](https://github.com/compose-miuix-ui/miuix): UI component library.
 
 ## License
 

@@ -1,19 +1,15 @@
 package io.github.mangi.eta.ui.app
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -21,13 +17,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ShortText
-import androidx.compose.material.icons.automirrored.rounded.VolumeOff
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.MapsUgc
-import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -39,55 +28,33 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.data.repository.SpeechSettingsRepository
 import io.github.mangi.eta.ui.components.AdaptiveTopAppBar
 import io.github.mangi.eta.ui.components.AgentTopBarChatHeader
 import io.github.mangi.eta.ui.components.ChatImagePreviewHost
 import io.github.mangi.eta.ui.components.ConversationSidePaneScaffold
-import io.github.mangi.eta.ui.components.EtaTopLayer
 import io.github.mangi.eta.ui.components.LocalChatImagePreviewer
-import io.github.mangi.eta.ui.components.MiuixBackButton
-import io.github.mangi.eta.ui.components.MiuixTopBarBackdrop
 import io.github.mangi.eta.ui.components.RoleplayChatUi
+import io.github.mangi.eta.ui.components.TopBarBackButton
+import io.github.mangi.eta.ui.components.TopBarBackdrop
+import io.github.mangi.eta.ui.components.TopLayer
 import io.github.mangi.eta.ui.components.captureGlassBackdrop
-import io.github.mangi.eta.ui.components.coui.CouiBackButton
-import io.github.mangi.eta.ui.components.coui.CouiBackdropContent
-import io.github.mangi.eta.ui.components.coui.CouiFixedTopBar
-import io.github.mangi.eta.ui.components.coui.CouiMenu
-import io.github.mangi.eta.ui.components.coui.CouiMenuItem
-import io.github.mangi.eta.ui.components.coui.CouiPageColors
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiText
-import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
-import io.github.mangi.eta.ui.components.coui.ProvideCouiMaterial
-import io.github.mangi.eta.ui.components.coui.couiMenuAnchor
-import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
-import io.github.mangi.eta.ui.components.coui.rememberCouiPageBackdrop
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.miuixProgressiveTopBarBackdrop
+import io.github.mangi.eta.ui.components.progressiveTopBarBackdrop
 import io.github.mangi.eta.ui.components.rememberGlassBackdrop
 import io.github.mangi.eta.ui.layout.rememberIsWideScreen
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import io.github.mangi.eta.ui.navigation.AppRoute
-import io.github.suqi8.coui.kmp.basic.Scaffold as CouiLayoutScaffold
-import io.github.suqi8.coui.kmp.basic.SmallTopAppBar
-import io.github.suqi8.coui.kmp.basic.TopAppBarDefaults
-import io.github.suqi8.coui.kmp.icon.COUIIcons
-import io.github.suqi8.coui.kmp.icon.extended.More
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -156,123 +123,48 @@ internal fun AgentAppShell(
     onOpenCharacter: () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    val uiStyle = LocalUiStyle.current
     val pageContent: @Composable () -> Unit = {
-        when (uiStyle) {
-            AppearanceUiStyle.COUI -> {
-                val dark = CouiTheme.isDark
-                val colors = CouiPageDefaults.themeColors()
-                val backdrop = rememberCouiPageBackdrop(colors.background)
-                CouiLayoutScaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    containerColor = colors.background,
-                    contentWindowInsets = WindowInsets.safeDrawing.only(
-                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
-                    ),
-                    topBar = {
-                        when (currentRoute) {
-                            AppRoute.Settings -> Unit
-                            AppRoute.Home -> CouiFixedTopBar(backdrop, colors.background) {
-                                val windowSize = LocalWindowInfo.current.containerDpSize
-                                Row(
-                                    modifier = Modifier.fillMaxWidth()
-                                        .windowInsetsPadding(WindowInsets.safeDrawing.only(
-                                            WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
-                                        ))
-                                        .padding(horizontal = TopAppBarDefaults.horizontalPadding(
-                                            windowSize.width, windowSize.height,
-                                        ))
-                                        .heightIn(min = TopAppBarDefaults.CollapsedHeight),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    CouiTopAppBarIconButton(
-                                        icon = Icons.AutoMirrored.Outlined.ShortText,
-                                        contentDescription = stringResource(R.string.action_conversation_history),
-                                        onClick = onOpenConversationPane,
-                                    )
-                                    Box(
-                                        modifier = Modifier.weight(1f),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        if (homeModelPickerState != null) {
-                                            AgentTopBarChatHeader(
-                                                conversationTitle = homeTitle,
-                                                character = homeCharacter,
-                                                state = homeModelPickerState,
-                                                isStreaming = isHomeStreaming,
-                                                onModelSelected = onHomeModelSelected,
-                                                onOpenCharacter = onOpenCharacter,
-                                            )
-                                        } else {
-                                            CouiText(titleForRoute(currentRoute), maxLines = 1)
-                                        }
-                                    }
-                                    CouiTopBarOverflowMenu(
-                                        dark = dark,
-                                        colors = colors,
-                                        onNewConversation = onNewConversation,
-                                        onOpenTerminal = onOpenTerminal,
-                                        onOpenBrowser = onOpenBrowser,
-                                    )
-                                }
-                            }
-                            else -> ProvideCouiMaterial(backdrop) {
-                                SmallTopAppBar(
-                                    title = titleForRoute(currentRoute),
-                                    navigationIcon = { CouiBackButton(onClick = onBack) },
-                                    color = colors.background,
-                                )
-                            }
-                        }
-                    },
-                ) { padding ->
-                    CouiBackdropContent(backdrop) { content(padding) }
+        // 首页顶栏高度固定，不参与折叠；未绑定顶栏的滚动行为会吞掉聊天列表的单向滑动。
+        val scrollBehavior = if (currentRoute is AppRoute.Home) null else MiuixScrollBehavior()
+        val pageBackdrop = rememberGlassBackdrop()
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            contentWindowInsets = WindowInsets.safeDrawing.only(
+                WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+            ),
+            topBar = {
+                if (currentRoute !is AppRoute.Settings) {
+                    AgentTopBar(
+                        route = currentRoute,
+                        isCurrentRoute = isCurrentRoute,
+                        scrollBehavior = scrollBehavior,
+                        backdrop = pageBackdrop,
+                        onBack = onBack,
+                        onOpenConversationPane = onOpenConversationPane,
+                        onNewConversation = onNewConversation,
+                        onOpenTerminal = onOpenTerminal,
+                        onOpenBrowser = onOpenBrowser,
+                        homeTitle = homeTitle,
+                        homeCharacter = homeCharacter,
+                        homeModelPickerState = homeModelPickerState,
+                        isHomeStreaming = isHomeStreaming,
+                        onHomeModelSelected = onHomeModelSelected,
+                        onOpenCharacter = onOpenCharacter,
+                    )
                 }
-            }
-            AppearanceUiStyle.MIUIX -> {
-                // 首页顶栏高度固定，不参与折叠；未绑定顶栏的滚动行为会吞掉聊天列表的单向滑动。
-                val scrollBehavior = if (currentRoute is AppRoute.Home) null else MiuixScrollBehavior()
-                val pageBackdrop = rememberGlassBackdrop()
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    contentWindowInsets = WindowInsets.safeDrawing.only(
-                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
-                    ),
-                    topBar = {
-                        if (currentRoute !is AppRoute.Settings) {
-                            AgentTopBar(
-                                route = currentRoute,
-                                isCurrentRoute = isCurrentRoute,
-                                scrollBehavior = scrollBehavior,
-                                backdrop = pageBackdrop,
-                                onBack = onBack,
-                                onOpenConversationPane = onOpenConversationPane,
-                                onNewConversation = onNewConversation,
-                                onOpenTerminal = onOpenTerminal,
-                                onOpenBrowser = onOpenBrowser,
-                                homeTitle = homeTitle,
-                                homeCharacter = homeCharacter,
-                                homeModelPickerState = homeModelPickerState,
-                                isHomeStreaming = isHomeStreaming,
-                                onHomeModelSelected = onHomeModelSelected,
-                                onOpenCharacter = onOpenCharacter,
-                            )
-                        }
-                    },
-                ) { padding ->
-                    CompositionLocalProvider(LocalGlassPageBackdrop provides pageBackdrop) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .captureGlassBackdrop(pageBackdrop)
-                                .then(
-                                    if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
-                                    else Modifier,
-                                ),
-                        ) {
-                            content(padding)
-                        }
-                    }
+            },
+        ) { padding ->
+            CompositionLocalProvider(LocalGlassPageBackdrop provides pageBackdrop) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .captureGlassBackdrop(pageBackdrop)
+                        .then(
+                            if (scrollBehavior != null) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                            else Modifier,
+                        ),
+                ) {
+                    content(padding)
                 }
             }
         }
@@ -322,84 +214,6 @@ internal fun AgentAppShell(
 }
 
 @Composable
-private fun CouiTopBarOverflowMenu(
-    dark: Boolean,
-    colors: CouiPageColors,
-    onNewConversation: () -> Unit,
-    onOpenTerminal: () -> Unit,
-    onOpenBrowser: () -> Unit,
-) {
-    var showMenu by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val speechSettings by remember { SpeechSettingsRepository.settingsFlow() }.collectAsState(initial = null)
-    val hasSpeechPlayback = speechSettings?.let { it.tts != TtsProvider.NONE } == true
-    val autoReadEnabled = speechSettings?.chatAutoSpeak == true
-    val anchor = rememberCouiMenuAnchor()
-
-    val newConversationText = stringResource(R.string.action_new_conversation)
-    val openTerminalText = stringResource(R.string.action_open_terminal)
-    val openBrowserText = stringResource(R.string.action_open_browser)
-    val autoReadText = stringResource(
-        if (autoReadEnabled) R.string.speech_disable_auto_read else R.string.speech_enable_auto_read,
-    )
-    val menuItems = remember(
-        newConversationText,
-        openTerminalText,
-        openBrowserText,
-        autoReadText,
-        hasSpeechPlayback,
-        autoReadEnabled,
-    ) {
-        buildList {
-            add(CouiMenuItem(value = 0, text = newConversationText, icon = Icons.Rounded.MapsUgc))
-            add(CouiMenuItem(value = 1, text = openTerminalText, icon = Icons.Rounded.Terminal))
-            add(CouiMenuItem(value = 2, text = openBrowserText, icon = Icons.Rounded.Language))
-            if (hasSpeechPlayback) {
-                add(
-                    CouiMenuItem(
-                        value = 3,
-                        text = autoReadText,
-                        icon = if (autoReadEnabled) Icons.AutoMirrored.Rounded.VolumeUp else Icons.AutoMirrored.Rounded.VolumeOff,
-                    ),
-                )
-            }
-        }
-    }
-
-    Box {
-        CouiTopAppBarIconButton(
-            icon = COUIIcons.More,
-            contentDescription = stringResource(R.string.action_more),
-            modifier = Modifier.couiMenuAnchor(anchor),
-            dark = dark,
-            colors = colors,
-            onClick = {
-                anchor.open { showMenu = true }
-            },
-        )
-        CouiMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-            items = menuItems,
-            onItemClick = { item ->
-                showMenu = false
-                when (item.value) {
-                    0 -> onNewConversation()
-                    1 -> onOpenTerminal()
-                    2 -> onOpenBrowser()
-                    3 -> speechSettings?.let { current ->
-                        scope.launch {
-                            SpeechSettingsRepository.save(current.copy(chatAutoSpeak = !current.chatAutoSpeak))
-                        }
-                    }
-                }
-            },
-            anchor = anchor,
-        )
-    }
-}
-
-@Composable
 private fun AgentTopBar(
     route: AppRoute?,
     isCurrentRoute: Boolean,
@@ -419,7 +233,7 @@ private fun AgentTopBar(
 ) {
     val isHome = route is AppRoute.Home
     if (isHome && homeModelPickerState != null) {
-        HomeMiuixTopBar(
+        HomeTopBar(
             backdrop = backdrop,
             isCurrentRoute = isCurrentRoute,
             onOpenConversationPane = onOpenConversationPane,
@@ -444,13 +258,13 @@ private fun AgentTopBar(
         backdrop = backdrop,
         expandable = route !is AppRoute.Terminal && !rememberIsWideScreen(),
         scrollBehavior = scrollBehavior,
-        navigationIcon = { MiuixBackButton(onClick = onBack) },
+        navigationIcon = { TopBarBackButton(onClick = onBack) },
         actions = {},
     )
 }
 
 @Composable
-private fun HomeMiuixTopBar(
+private fun HomeTopBar(
     backdrop: Backdrop?,
     isCurrentRoute: Boolean,
     onOpenConversationPane: () -> Unit,
@@ -460,7 +274,7 @@ private fun HomeMiuixTopBar(
     centerContent: @Composable () -> Unit,
 ) {
     val surfaceColor = MiuixTheme.colorScheme.surface
-    val progressiveSource = miuixProgressiveTopBarBackdrop(backdrop)
+    val progressiveSource = progressiveTopBarBackdrop(backdrop)
     val bandBrush = remember(surfaceColor) { GlassTopAppBarDefaults.bandBrush(surfaceColor) }
     var backgroundCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val progressiveBackdrop = if (progressiveSource != null) {
@@ -481,7 +295,7 @@ private fun HomeMiuixTopBar(
         Modifier
     }
 
-    MiuixTopBarBackdrop(
+    TopBarBackdrop(
         progressiveBackdrop = progressiveSource,
         backgroundColor = surfaceColor,
         fallbackBrush = bandBrush,
@@ -575,7 +389,7 @@ private fun TopBarOverflowMenu(
     }
 
     if (isCurrentRoute) {
-        EtaTopLayer {
+        TopLayer {
             GlassTransformPopup(
                 show = showMenu,
                 onDismissRequest = { showMenu = false },

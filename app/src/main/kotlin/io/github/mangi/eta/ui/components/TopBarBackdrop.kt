@@ -19,11 +19,11 @@ import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 
 @Composable
-internal fun miuixProgressiveTopBarBackdrop(backdrop: Backdrop?): Backdrop? =
+internal fun progressiveTopBarBackdrop(backdrop: Backdrop?): Backdrop? =
     backdrop.takeIf { LocalAppearanceSettings.current.progressiveBlurEnabled && isRuntimeShaderSupported() }
 
 @Composable
-internal fun MiuixTopBarBackdrop(
+internal fun TopBarBackdrop(
     progressiveBackdrop: Backdrop?,
     backgroundColor: Color,
     fallbackBrush: Brush,

@@ -38,37 +38,20 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.subagent.SubagentProfile
 import io.github.mangi.eta.agent.subagent.SubagentProfileCatalog
 import io.github.mangi.eta.config.Prefs
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.SubagentSettings
 import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
-import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.ListEmptyState
-import io.github.mangi.eta.ui.components.MiuixDialogActions
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
 import io.github.mangi.eta.ui.components.OptionalModelPickerContent
+import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.components.StatusError
-import io.github.mangi.eta.ui.components.coui.CouiBottomSheet
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
-import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
-import io.github.mangi.eta.ui.components.coui.CouiPanelDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
-import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
-import io.github.mangi.eta.ui.components.coui.CouiTextField
-import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
+import io.github.mangi.eta.ui.components.TopBarActionButton
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
-import io.github.suqi8.coui.kmp.icon.COUIIcons
-import io.github.suqi8.coui.kmp.icon.extended.Add
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -320,448 +303,241 @@ internal fun SubagentSettingsScreen(
         stringResource(R.string.subagent_settings_follow_primary_current, it)
     } ?: stringResource(R.string.subagent_settings_follow_primary_hint)
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiScaffoldPage(
-                title = stringResource(R.string.ui_misc_route_subagents),
-                onBack = onBack,
-                actions = {
-                    CouiTopAppBarIconButton(
-                        icon = COUIIcons.Add,
-                        contentDescription = stringResource(R.string.subagent_settings_create),
-                        onClick = {
-                            editorError = null
-                            editorDraft = CustomSubagentDraft()
-                        },
-                    )
+    ScaffoldPage(
+        title = stringResource(R.string.ui_misc_route_subagents),
+        onBack = onBack,
+        actions = {
+            TopBarActionButton(
+                icon = MiuixIcons.Glass.Add,
+                contentDescription = stringResource(R.string.subagent_settings_create),
+                onClick = {
+                    editorError = null
+                    editorDraft = CustomSubagentDraft()
                 },
-                overlay = {
-                    CouiBottomSheet(
-                        show = showModelSheet,
-                        onDismissRequest = { showModelSheet = false },
-                        title = stringResource(R.string.subagent_settings_model),
-                    ) {
-                        OptionalModelPickerContent(
-                            pickerState = pickerState,
-                            selectedSecondaryModelId = resolvedSecondary?.model?.id,
-                            followTitle = followPrimaryTitle,
-                            followSubtitle = followPrimarySubtitle,
-                            onSelectModel = onSelectModel,
-                        )
-                    }
-
-                    val currentProfile = inspectedProfile ?: retainedProfile
-                    CouiBottomSheet(
-                        show = inspectedProfile != null,
-                        onDismissRequest = { inspectedProfile = null },
-                        title = currentProfile?.name.orEmpty(),
-                        onDismissFinished = { if (inspectedProfile == null) retainedProfile = null },
-                    ) {
-                        if (currentProfile != null) {
-                            SubagentProfileDetailContent(
-                                profile = currentProfile,
-                                onEdit = if (!currentProfile.builtin) {
-                                    { onStartEditProfile(currentProfile) }
-                                } else {
-                                    null
-                                },
-                                onDelete = if (!currentProfile.builtin) {
-                                    { onRequestDeleteProfile(currentProfile) }
-                                } else {
-                                    null
-                                },
-                            )
-                        }
-                    }
-
-                    val activeDraft = editorDraft ?: retainedDraft
-                    CouiConfirmDialog(
-                        visible = editorDraft != null,
-                        title = stringResource(
-                            if (activeDraft?.originalName != null) {
-                                R.string.subagent_settings_edit
-                            } else {
-                                R.string.subagent_settings_create
-                            },
-                        ),
-                        message = null,
-                        confirmText = stringResource(R.string.action_save),
-                        onConfirm = { editorDraft?.let(onSaveDraft) },
-                        onDismissRequest = { editorDraft = null },
-                    ) {
-                        if (activeDraft != null) {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                CouiTextField(
-                                    state = activeDraft.name,
-                                    label = stringResource(R.string.subagent_settings_field_name),
-                                    singleLine = true,
-                                )
-                                CouiTextField(
-                                    state = activeDraft.description,
-                                    label = stringResource(R.string.subagent_settings_field_description),
-                                    singleLine = true,
-                                )
-                                CouiTextField(
-                                    state = activeDraft.whenToUse,
-                                    label = stringResource(R.string.subagent_settings_field_when_to_use),
-                                    singleLine = true,
-                                )
-                                CouiTextField(
-                                    state = activeDraft.toolsText,
-                                    label = stringResource(R.string.subagent_settings_field_tools),
-                                    singleLine = true,
-                                )
-                                CouiTextField(
-                                    state = activeDraft.prompt,
-                                    label = stringResource(R.string.subagent_settings_field_prompt),
-                                    singleLine = false,
-                                    minLines = 4,
-                                    maxLines = 8,
-                                )
-                                editorError?.let { err ->
-                                    Text(
-                                        text = err,
-                                        style = MiuixTheme.textStyles.footnote1,
-                                        color = StatusError,
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    val pendingDelete = deleteTargetProfile ?: retainedDeleteTarget
-                    CouiConfirmDialog(
-                        visible = deleteTargetProfile != null,
-                        title = stringResource(R.string.subagent_settings_delete_title),
-                        message = pendingDelete?.let {
-                            stringResource(R.string.subagent_settings_delete_confirm, it.name)
-                        },
-                        confirmText = stringResource(R.string.action_delete),
-                        destructive = true,
-                        onConfirm = { deleteTargetProfile?.let(onConfirmDeleteProfile) },
-                        onDismissRequest = { deleteTargetProfile = null },
-                    )
-                },
+            )
+        },
+        overlay = {
+            val overlayBackdrop = currentGlassOverlayBackdrop()
+            GlassBottomSheet(
+                show = showModelSheet,
+                backdrop = overlayBackdrop,
+                title = stringResource(R.string.subagent_settings_model),
+                onDismissRequest = { showModelSheet = false },
+                insideMargin = DpSize(0.dp, 0.dp),
             ) {
-                CouiPreferenceGroup(title = stringResource(R.string.subagent_settings_group_general)) {
-                    item {
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.subagent_settings_enable),
-                            checked = subagentEnabled,
-                            enabled = agentPrefs != null,
-                            onCheckedChange = onToggleSubagent,
-                        )
-                    }
-                    item {
-                        CouiPreference(
-                            title = stringResource(R.string.subagent_settings_model),
-                            summary = secondarySummary,
-                            enabled = subagentEnabled,
-                            onClick = { showModelSheet = true },
-                        )
-                    }
-                    if (effortOptions.size > 1) {
-                        item {
-                            CouiDropdownPreference(
-                                title = stringResource(R.string.subagent_settings_reasoning),
-                                items = effortLabels,
-                                selectedIndex = selectedEffortIndex,
-                                enabled = subagentEnabled,
-                                onSelectedIndexChange = onEffortChange,
-                            )
-                        }
-                    }
-                }
+                OptionalModelPickerContent(
+                    pickerState = pickerState,
+                    selectedSecondaryModelId = resolvedSecondary?.model?.id,
+                    followTitle = followPrimaryTitle,
+                    followSubtitle = followPrimarySubtitle,
+                    onSelectModel = onSelectModel,
+                )
+            }
 
-                CouiPreferenceGroup(title = stringResource(R.string.subagent_settings_group_builtin)) {
-                    SubagentProfile.BUILTIN_PROFILES.forEach { profile ->
-                        item(key = profile.name) {
-                            CouiPreference(
-                                title = profile.name,
-                                summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
-                                onClick = { inspectedProfile = profile },
-                            )
-                        }
-                    }
+            val currentProfile = inspectedProfile ?: retainedProfile
+            GlassBottomSheet(
+                show = inspectedProfile != null,
+                backdrop = overlayBackdrop,
+                title = currentProfile?.name.orEmpty(),
+                onDismissRequest = { inspectedProfile = null },
+                onDismissFinished = { if (inspectedProfile == null) retainedProfile = null },
+            ) {
+                if (currentProfile != null) {
+                    SubagentProfileDetailContent(
+                        profile = currentProfile,
+                        onEdit = if (!currentProfile.builtin) {
+                            { onStartEditProfile(currentProfile) }
+                        } else {
+                            null
+                        },
+                        onDelete = if (!currentProfile.builtin) {
+                            { onRequestDeleteProfile(currentProfile) }
+                        } else {
+                            null
+                        },
+                    )
                 }
+            }
 
-                CouiPreferenceGroup(title = stringResource(R.string.subagent_settings_group_custom)) {
-                    if (customProfiles.isEmpty()) {
-                        item {
-                            ListEmptyState(
-                                title = stringResource(R.string.subagent_settings_empty_title),
-                                summary = stringResource(R.string.subagent_settings_empty_summary),
-                                icon = Icons.Rounded.JoinLeft,
-                                action = {
-                                    CouiButton(
-                                        text = stringResource(R.string.subagent_settings_create),
-                                        role = CouiButtonRole.Primary,
-                                        onClick = {
-                                            editorError = null
-                                            editorDraft = CustomSubagentDraft()
-                                        },
-                                    )
-                                },
-                            )
-                        }
+            val activeDraft = editorDraft ?: retainedDraft
+            GlassDialog(
+                show = editorDraft != null,
+                backdrop = overlayBackdrop,
+                title = stringResource(
+                    if (activeDraft?.originalName != null) {
+                        R.string.subagent_settings_edit
                     } else {
-                        customProfiles.forEach { profile ->
-                            item(key = profile.name) {
-                                CouiPreference(
-                                    title = profile.name,
-                                    summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
-                                    onClick = { inspectedProfile = profile },
+                        R.string.subagent_settings_create
+                    },
+                ),
+                onDismissRequest = { editorDraft = null },
+                onDismissFinished = { if (editorDraft == null) retainedDraft = null },
+            ) {
+                if (activeDraft != null) {
+                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 540.dp)) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false)
+                                .verticalScroll(rememberScrollState()),
+                        ) {
+                            GlassTextField(
+                                state = activeDraft.name,
+                                lineLimits = TextFieldLineLimits.SingleLine,
+                                label = stringResource(R.string.subagent_settings_field_name),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            GlassTextField(
+                                state = activeDraft.description,
+                                lineLimits = TextFieldLineLimits.SingleLine,
+                                label = stringResource(R.string.subagent_settings_field_description),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            GlassTextField(
+                                state = activeDraft.whenToUse,
+                                lineLimits = TextFieldLineLimits.SingleLine,
+                                label = stringResource(R.string.subagent_settings_field_when_to_use),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            GlassTextField(
+                                state = activeDraft.toolsText,
+                                lineLimits = TextFieldLineLimits.SingleLine,
+                                label = stringResource(R.string.subagent_settings_field_tools),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            GlassTextField(
+                                state = activeDraft.prompt,
+                                lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4, maxHeightInLines = 8),
+                                label = stringResource(R.string.subagent_settings_field_prompt),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            editorError?.let { err ->
+                                Text(
+                                    text = err,
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = StatusError,
                                 )
                             }
                         }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        DialogActions(
+                            confirmText = stringResource(R.string.action_save),
+                            onCancel = { editorDraft = null },
+                            onConfirm = { editorDraft?.let(onSaveDraft) },
+                        )
                     }
                 }
+            }
 
-                CouiPageBottomSpacer()
+            val pendingDelete = deleteTargetProfile ?: retainedDeleteTarget
+            GlassDialog(
+                show = deleteTargetProfile != null,
+                backdrop = overlayBackdrop,
+                title = stringResource(R.string.subagent_settings_delete_title),
+                onDismissRequest = { deleteTargetProfile = null },
+                onDismissFinished = { if (deleteTargetProfile == null) retainedDeleteTarget = null },
+            ) {
+                if (pendingDelete != null) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = stringResource(
+                                R.string.subagent_settings_delete_confirm,
+                                pendingDelete.name,
+                            ),
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        DialogActions(
+                            confirmText = stringResource(R.string.action_delete),
+                            destructive = true,
+                            onCancel = { deleteTargetProfile = null },
+                            onConfirm = { deleteTargetProfile?.let(onConfirmDeleteProfile) },
+                        )
+                    }
+                }
+            }
+        },
+    ) {
+        item(key = "config_group") {
+            SmallTitle(stringResource(R.string.subagent_settings_group_general))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                SwitchPreference(
+                    title = stringResource(R.string.subagent_settings_enable),
+                    checked = subagentEnabled,
+                    enabled = agentPrefs != null,
+                    onCheckedChange = onToggleSubagent,
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.subagent_settings_model),
+                    summary = secondarySummary,
+                    enabled = subagentEnabled,
+                    onClick = { showModelSheet = true },
+                )
+                if (effortOptions.size > 1) {
+                    GlassDropdownPreference(
+                        title = stringResource(R.string.subagent_settings_reasoning),
+                        items = effortLabels,
+                        selectedIndex = selectedEffortIndex,
+                        backdrop = currentGlassOverlayBackdrop(),
+                        enabled = subagentEnabled,
+                        onSelectedIndexChange = onEffortChange,
+                    )
+                }
             }
         }
 
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = stringResource(R.string.ui_misc_route_subagents),
-                onBack = onBack,
-                actions = {
-                    MiuixTopBarActionButton(
-                        icon = MiuixIcons.Glass.Add,
-                        contentDescription = stringResource(R.string.subagent_settings_create),
-                        onClick = {
-                            editorError = null
-                            editorDraft = CustomSubagentDraft()
+        item(key = "builtin_group") {
+            SmallTitle(stringResource(R.string.subagent_settings_group_builtin))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                SubagentProfile.BUILTIN_PROFILES.forEach { profile ->
+                    ArrowPreference(
+                        title = profile.name,
+                        summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
+                        onClick = { inspectedProfile = profile },
+                    )
+                }
+            }
+        }
+
+        item(key = "custom_group") {
+            SmallTitle(stringResource(R.string.subagent_settings_group_custom))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                if (customProfiles.isEmpty()) {
+                    ListEmptyState(
+                        title = stringResource(R.string.subagent_settings_empty_title),
+                        summary = stringResource(R.string.subagent_settings_empty_summary),
+                        icon = Icons.Rounded.JoinLeft,
+                        action = {
+                            TextButton(
+                                text = stringResource(R.string.subagent_settings_create),
+                                onClick = {
+                                    editorError = null
+                                    editorDraft = CustomSubagentDraft()
+                                },
+                            )
                         },
                     )
-                },
-                overlay = {
-                    val overlayBackdrop = currentGlassOverlayBackdrop()
-                    GlassBottomSheet(
-                        show = showModelSheet,
-                        backdrop = overlayBackdrop,
-                        title = stringResource(R.string.subagent_settings_model),
-                        onDismissRequest = { showModelSheet = false },
-                        insideMargin = DpSize(0.dp, 0.dp),
-                    ) {
-                        OptionalModelPickerContent(
-                            pickerState = pickerState,
-                            selectedSecondaryModelId = resolvedSecondary?.model?.id,
-                            followTitle = followPrimaryTitle,
-                            followSubtitle = followPrimarySubtitle,
-                            onSelectModel = onSelectModel,
-                        )
-                    }
-
-                    val currentProfile = inspectedProfile ?: retainedProfile
-                    GlassBottomSheet(
-                        show = inspectedProfile != null,
-                        backdrop = overlayBackdrop,
-                        title = currentProfile?.name.orEmpty(),
-                        onDismissRequest = { inspectedProfile = null },
-                        onDismissFinished = { if (inspectedProfile == null) retainedProfile = null },
-                    ) {
-                        if (currentProfile != null) {
-                            SubagentProfileDetailContent(
-                                profile = currentProfile,
-                                onEdit = if (!currentProfile.builtin) {
-                                    { onStartEditProfile(currentProfile) }
-                                } else {
-                                    null
-                                },
-                                onDelete = if (!currentProfile.builtin) {
-                                    { onRequestDeleteProfile(currentProfile) }
-                                } else {
-                                    null
-                                },
-                            )
-                        }
-                    }
-
-                    val activeDraft = editorDraft ?: retainedDraft
-                    GlassDialog(
-                        show = editorDraft != null,
-                        backdrop = overlayBackdrop,
-                        title = stringResource(
-                            if (activeDraft?.originalName != null) {
-                                R.string.subagent_settings_edit
-                            } else {
-                                R.string.subagent_settings_create
-                            },
-                        ),
-                        onDismissRequest = { editorDraft = null },
-                        onDismissFinished = { if (editorDraft == null) retainedDraft = null },
-                    ) {
-                        if (activeDraft != null) {
-                            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 540.dp)) {
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f, fill = false)
-                                        .verticalScroll(rememberScrollState()),
-                                ) {
-                                    GlassTextField(
-                                        state = activeDraft.name,
-                                        lineLimits = TextFieldLineLimits.SingleLine,
-                                        label = stringResource(R.string.subagent_settings_field_name),
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                    GlassTextField(
-                                        state = activeDraft.description,
-                                        lineLimits = TextFieldLineLimits.SingleLine,
-                                        label = stringResource(R.string.subagent_settings_field_description),
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                    GlassTextField(
-                                        state = activeDraft.whenToUse,
-                                        lineLimits = TextFieldLineLimits.SingleLine,
-                                        label = stringResource(R.string.subagent_settings_field_when_to_use),
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                    GlassTextField(
-                                        state = activeDraft.toolsText,
-                                        lineLimits = TextFieldLineLimits.SingleLine,
-                                        label = stringResource(R.string.subagent_settings_field_tools),
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                    GlassTextField(
-                                        state = activeDraft.prompt,
-                                        lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4, maxHeightInLines = 8),
-                                        label = stringResource(R.string.subagent_settings_field_prompt),
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                    editorError?.let { err ->
-                                        Text(
-                                            text = err,
-                                            style = MiuixTheme.textStyles.footnote1,
-                                            color = StatusError,
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                                MiuixDialogActions(
-                                    confirmText = stringResource(R.string.action_save),
-                                    onCancel = { editorDraft = null },
-                                    onConfirm = { editorDraft?.let(onSaveDraft) },
-                                )
-                            }
-                        }
-                    }
-
-                    val pendingDelete = deleteTargetProfile ?: retainedDeleteTarget
-                    GlassDialog(
-                        show = deleteTargetProfile != null,
-                        backdrop = overlayBackdrop,
-                        title = stringResource(R.string.subagent_settings_delete_title),
-                        onDismissRequest = { deleteTargetProfile = null },
-                        onDismissFinished = { if (deleteTargetProfile == null) retainedDeleteTarget = null },
-                    ) {
-                        if (pendingDelete != null) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = stringResource(
-                                        R.string.subagent_settings_delete_confirm,
-                                        pendingDelete.name,
-                                    ),
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
-                                Spacer(modifier = Modifier.height(20.dp))
-                                MiuixDialogActions(
-                                    confirmText = stringResource(R.string.action_delete),
-                                    destructive = true,
-                                    onCancel = { deleteTargetProfile = null },
-                                    onConfirm = { deleteTargetProfile?.let(onConfirmDeleteProfile) },
-                                )
-                            }
-                        }
-                    }
-                },
-            ) {
-                item(key = "config_group") {
-                    SmallTitle(stringResource(R.string.subagent_settings_group_general))
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        SwitchPreference(
-                            title = stringResource(R.string.subagent_settings_enable),
-                            checked = subagentEnabled,
-                            enabled = agentPrefs != null,
-                            onCheckedChange = onToggleSubagent,
-                        )
+                } else {
+                    customProfiles.forEach { profile ->
                         ArrowPreference(
-                            title = stringResource(R.string.subagent_settings_model),
-                            summary = secondarySummary,
-                            enabled = subagentEnabled,
-                            onClick = { showModelSheet = true },
+                            title = profile.name,
+                            summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
+                            onClick = { inspectedProfile = profile },
                         )
-                        if (effortOptions.size > 1) {
-                            GlassDropdownPreference(
-                                title = stringResource(R.string.subagent_settings_reasoning),
-                                items = effortLabels,
-                                selectedIndex = selectedEffortIndex,
-                                backdrop = currentGlassOverlayBackdrop(),
-                                enabled = subagentEnabled,
-                                onSelectedIndexChange = onEffortChange,
-                            )
-                        }
-                    }
-                }
-
-                item(key = "builtin_group") {
-                    SmallTitle(stringResource(R.string.subagent_settings_group_builtin))
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        SubagentProfile.BUILTIN_PROFILES.forEach { profile ->
-                            ArrowPreference(
-                                title = profile.name,
-                                summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
-                                onClick = { inspectedProfile = profile },
-                            )
-                        }
-                    }
-                }
-
-                item(key = "custom_group") {
-                    SmallTitle(stringResource(R.string.subagent_settings_group_custom))
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        if (customProfiles.isEmpty()) {
-                            ListEmptyState(
-                                title = stringResource(R.string.subagent_settings_empty_title),
-                                summary = stringResource(R.string.subagent_settings_empty_summary),
-                                icon = Icons.Rounded.JoinLeft,
-                                action = {
-                                    TextButton(
-                                        text = stringResource(R.string.subagent_settings_create),
-                                        onClick = {
-                                            editorError = null
-                                            editorDraft = CustomSubagentDraft()
-                                        },
-                                    )
-                                },
-                            )
-                        } else {
-                            customProfiles.forEach { profile ->
-                                ArrowPreference(
-                                    title = profile.name,
-                                    summary = profile.summaryRes?.let { stringResource(it) } ?: profile.summary,
-                                    onClick = { inspectedProfile = profile },
-                                )
-                            }
-                        }
                     }
                 }
             }
@@ -776,23 +552,12 @@ private fun SubagentProfileDetailContent(
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
 ) {
-    val uiStyle = LocalUiStyle.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (uiStyle == AppearanceUiStyle.COUI) {
-                    Modifier
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = CouiPanelDefaults.contentPadding)
-                        .padding(top = 8.dp, bottom = 24.dp)
-                } else {
-                    Modifier
-                        .verticalScroll(rememberScrollState())
-                        .navigationBarsPadding()
-                        .padding(bottom = 24.dp)
-                },
-            ),
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(
@@ -840,40 +605,22 @@ private fun SubagentProfileDetailContent(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (onDelete != null) {
-                    if (uiStyle == AppearanceUiStyle.COUI) {
-                        CouiButton(
-                            text = stringResource(R.string.action_delete),
-                            onClick = onDelete,
-                            role = CouiButtonRole.Destructive,
-                            modifier = Modifier.weight(1f),
-                        )
-                    } else {
-                        TextButton(
-                            text = stringResource(R.string.action_delete),
-                            onClick = onDelete,
-                            colors = ButtonDefaults.textButtonColors(
-                                textColor = StatusError,
-                            ),
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+                    TextButton(
+                        text = stringResource(R.string.action_delete),
+                        onClick = onDelete,
+                        colors = ButtonDefaults.textButtonColors(
+                            textColor = StatusError,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
                 }
                 if (onEdit != null) {
-                    if (uiStyle == AppearanceUiStyle.COUI) {
-                        CouiButton(
-                            text = stringResource(R.string.action_edit),
-                            onClick = onEdit,
-                            role = CouiButtonRole.Primary,
-                            modifier = Modifier.weight(1f),
-                        )
-                    } else {
-                        TextButton(
-                            text = stringResource(R.string.action_edit),
-                            onClick = onEdit,
-                            colors = ButtonDefaults.textButtonColorsPrimary(),
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+                    TextButton(
+                        text = stringResource(R.string.action_edit),
+                        onClick = onEdit,
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }

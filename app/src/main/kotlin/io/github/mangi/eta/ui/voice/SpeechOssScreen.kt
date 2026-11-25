@@ -8,13 +8,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.SpeechCredentialField
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.components.SettingsTextField
-import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
-import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 
 @Composable
 internal fun SpeechOssScreen(onBack: () -> Unit) {
@@ -24,122 +20,64 @@ internal fun SpeechOssScreen(onBack: () -> Unit) {
     SpeechLifecycle { store.stop() }
     val settings = store.settings
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiScaffoldPage(
-                title = stringResource(R.string.speech_oss_title),
-                onBack = onBack,
-            ) {
-                if (!store.loaded) {
-                    SpeechLoadingState(store.message)
-                    return@CouiScaffoldPage
+    ScaffoldPage(
+        title = stringResource(R.string.speech_oss_title),
+        onBack = onBack,
+        modifier = Modifier.imePadding(),
+    ) {
+        if (!store.loaded) {
+            item(key = "loading") { SpeechLoadingState(store.message) }
+            return@ScaffoldPage
+        }
+        item(key = "note") {
+            SpeechNote(stringResource(R.string.speech_oss_note))
+        }
+        item(key = "storage") {
+            SpeechGroupCard(title = stringResource(R.string.speech_group_storage)) {
+                SpeechFieldColumn {
+                    SettingsTextField(
+                        label = stringResource(R.string.speech_oss_region),
+                        value = settings.oss.region,
+                        onChange = { store.edit(settings.copy(oss = settings.oss.copy(region = it.trim()))) },
+                    )
+                    SettingsTextField(
+                        label = "Endpoint",
+                        value = settings.oss.endpoint,
+                        onChange = { store.edit(settings.copy(oss = settings.oss.copy(endpoint = it.trim()))) },
+                    )
+                    SettingsTextField(
+                        label = "Bucket",
+                        value = settings.oss.bucket,
+                        onChange = { store.edit(settings.copy(oss = settings.oss.copy(bucket = it.trim()))) },
+                    )
+                    SettingsTextField(
+                        label = stringResource(R.string.speech_oss_prefix),
+                        value = settings.oss.prefix,
+                        onChange = { store.edit(settings.copy(oss = settings.oss.copy(prefix = it.trim()))) },
+                    )
                 }
-                SpeechNote(stringResource(R.string.speech_oss_note))
-                SpeechGroupCard(title = stringResource(R.string.speech_group_storage)) {
-                    SpeechFieldColumn {
-                        SettingsTextField(
-                            label = stringResource(R.string.speech_oss_region),
-                            value = settings.oss.region,
-                            onChange = { store.edit(settings.copy(oss = settings.oss.copy(region = it.trim()))) },
-                        )
-                        SettingsTextField(
-                            label = "Endpoint",
-                            value = settings.oss.endpoint,
-                            onChange = { store.edit(settings.copy(oss = settings.oss.copy(endpoint = it.trim()))) },
-                        )
-                        SettingsTextField(
-                            label = "Bucket",
-                            value = settings.oss.bucket,
-                            onChange = { store.edit(settings.copy(oss = settings.oss.copy(bucket = it.trim()))) },
-                        )
-                        SettingsTextField(
-                            label = stringResource(R.string.speech_oss_prefix),
-                            value = settings.oss.prefix,
-                            onChange = { store.edit(settings.copy(oss = settings.oss.copy(prefix = it.trim()))) },
-                        )
-                    }
-                }
-                SpeechGroupCard(title = stringResource(R.string.speech_group_credentials)) {
-                    SpeechFieldColumn {
-                        SettingsTextField(
-                            label = "AccessKey ID",
-                            value = store.credentials.ossAccessKeyId,
-                            secret = true,
-                            onChange = { store.credential(SpeechCredentialField.OSS_KEY_ID, it.trim()) },
-                        )
-                        SettingsTextField(
-                            label = "AccessKey Secret",
-                            value = store.credentials.ossAccessKeySecret,
-                            secret = true,
-                            onChange = { store.credential(SpeechCredentialField.OSS_KEY_SECRET, it.trim()) },
-                        )
-                    }
-                }
-                SpeechSaveBlock(store) {}
-                CouiPageBottomSpacer()
             }
         }
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = stringResource(R.string.speech_oss_title),
-                onBack = onBack,
-                modifier = Modifier.imePadding(),
-            ) {
-                if (!store.loaded) {
-                    item(key = "loading") { SpeechLoadingState(store.message) }
-                    return@MiuixScaffoldPage
-                }
-                item(key = "note") {
-                    SpeechNote(stringResource(R.string.speech_oss_note))
-                }
-                item(key = "storage") {
-                    SpeechGroupCard(title = stringResource(R.string.speech_group_storage)) {
-                        SpeechFieldColumn {
-                            SettingsTextField(
-                                label = stringResource(R.string.speech_oss_region),
-                                value = settings.oss.region,
-                                onChange = { store.edit(settings.copy(oss = settings.oss.copy(region = it.trim()))) },
-                            )
-                            SettingsTextField(
-                                label = "Endpoint",
-                                value = settings.oss.endpoint,
-                                onChange = { store.edit(settings.copy(oss = settings.oss.copy(endpoint = it.trim()))) },
-                            )
-                            SettingsTextField(
-                                label = "Bucket",
-                                value = settings.oss.bucket,
-                                onChange = { store.edit(settings.copy(oss = settings.oss.copy(bucket = it.trim()))) },
-                            )
-                            SettingsTextField(
-                                label = stringResource(R.string.speech_oss_prefix),
-                                value = settings.oss.prefix,
-                                onChange = { store.edit(settings.copy(oss = settings.oss.copy(prefix = it.trim()))) },
-                            )
-                        }
-                    }
-                }
-                item(key = "credentials") {
-                    SpeechGroupCard(title = stringResource(R.string.speech_group_credentials)) {
-                        SpeechFieldColumn {
-                            SettingsTextField(
-                                label = "AccessKey ID",
-                                value = store.credentials.ossAccessKeyId,
-                                secret = true,
-                                onChange = { store.credential(SpeechCredentialField.OSS_KEY_ID, it.trim()) },
-                            )
-                            SettingsTextField(
-                                label = "AccessKey Secret",
-                                value = store.credentials.ossAccessKeySecret,
-                                secret = true,
-                                onChange = { store.credential(SpeechCredentialField.OSS_KEY_SECRET, it.trim()) },
-                            )
-                        }
-                    }
-                }
-                item(key = "save") {
-                    SpeechSaveBlock(store) {}
+        item(key = "credentials") {
+            SpeechGroupCard(title = stringResource(R.string.speech_group_credentials)) {
+                SpeechFieldColumn {
+                    SettingsTextField(
+                        label = "AccessKey ID",
+                        value = store.credentials.ossAccessKeyId,
+                        secret = true,
+                        onChange = { store.credential(SpeechCredentialField.OSS_KEY_ID, it.trim()) },
+                    )
+                    SettingsTextField(
+                        label = "AccessKey Secret",
+                        value = store.credentials.ossAccessKeySecret,
+                        secret = true,
+                        onChange = { store.credential(SpeechCredentialField.OSS_KEY_SECRET, it.trim()) },
+                    )
                 }
             }
+        }
+        item(key = "save") {
+            SpeechSaveBlock(store) {}
         }
     }
 }

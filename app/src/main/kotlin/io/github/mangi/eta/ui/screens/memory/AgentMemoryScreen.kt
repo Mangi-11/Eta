@@ -2,7 +2,6 @@ package io.github.mangi.eta.ui.screens.memory
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,7 +31,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Notes
-import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,7 +40,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -53,21 +49,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.MiuixDialogActions
-import io.github.mangi.eta.ui.components.MiuixScaffold
-import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import io.github.mangi.eta.ui.components.coui.CouiNoticeDialog
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
-import io.github.mangi.eta.ui.components.coui.CouiScaffold
-import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
-import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
+import io.github.mangi.eta.ui.components.DialogActions
+import io.github.mangi.eta.ui.components.PageScaffold
+import io.github.mangi.eta.ui.components.TopBarActionButton
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
@@ -75,8 +59,6 @@ import io.github.mangi.eta.ui.markdown.LazyStaticMarkdown
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.model.AgentMemoryAction
 import io.github.mangi.eta.ui.model.AgentMemoryUiState
-import io.github.suqi8.coui.kmp.basic.HorizontalDivider as CouiDivider
-import io.github.suqi8.coui.kmp.utils.COUIOverscrollEffect
 import java.text.NumberFormat
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -85,15 +67,14 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
+import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRow
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private enum class MemoryViewMode { Preview, Edit }
@@ -123,171 +104,92 @@ internal fun AgentMemoryScreen(
     val imeVisible = WindowInsets.isImeVisible
     val canClear = !state.isLoading && !state.isSaving && state.draft.isNotEmpty()
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiScaffold(
-                title = stringResource(R.string.ui_memory_b55ff5),
-                onBack = { onAction(AgentMemoryAction.NavigateBack) },
-                compactTitle = true,
-                actions = {
-                    CouiTopAppBarIconButton(
-                        icon = Icons.Rounded.DeleteOutline,
-                        contentDescription = stringResource(R.string.ui_clear_all_memory_a43bd3),
-                        enabled = canClear,
-                        onClick = { showClearDialog = true },
-                    )
-                },
-                overlay = {
-                    CouiConfirmDialog(
-                        visible = showClearDialog,
-                        title = stringResource(R.string.ui_clear_all_memory_a43bd3),
-                        message = stringResource(R.string.ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac),
-                        confirmText = stringResource(R.string.memory_clear),
-                        confirmEnabled = !state.isSaving,
-                        destructive = true,
-                        onConfirm = {
-                            showClearDialog = false
-                            onAction(AgentMemoryAction.Clear)
-                        },
-                        onDismissRequest = { showClearDialog = false },
-                    )
+    PageScaffold(
+        title = stringResource(R.string.ui_memory_b55ff5),
+        onBack = { onAction(AgentMemoryAction.NavigateBack) },
+        actions = {
+            TopBarActionButton(
+                icon = MiuixIcons.Glass.Delete,
+                contentDescription = stringResource(R.string.ui_clear_all_memory_a43bd3),
+                enabled = canClear,
+                onClick = { showClearDialog = true },
+            )
+        },
+        overlay = {
+            val overlayBackdrop = currentGlassOverlayBackdrop()
+            GlassDialog(
+                show = showClearDialog,
+                backdrop = overlayBackdrop,
+                title = stringResource(R.string.ui_clear_all_memory_a43bd3),
+                summary = stringResource(R.string.ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac),
+                onDismissRequest = { showClearDialog = false },
+            ) {
+                DialogActions(
+                    confirmText = stringResource(R.string.memory_clear),
+                    destructive = true,
+                    confirmEnabled = !state.isSaving,
+                    onCancel = { showClearDialog = false },
+                    onConfirm = {
+                        showClearDialog = false
+                        onAction(AgentMemoryAction.Clear)
+                    },
+                )
+            }
 
-                    val activeNotice = state.notice ?: retainedNotice
-                    CouiNoticeDialog(
-                        visible = state.notice != null,
-                        title = stringResource(R.string.ui_memory_b55ff5),
-                        message = activeNotice,
-                        confirmText = stringResource(R.string.ui_knew_cb63c6),
-                        onDismissRequest = { onAction(AgentMemoryAction.DismissNotice) },
-                        onDismissFinished = { if (state.notice == null) retainedNotice = null },
-                    )
-                },
-            ) { contentPadding, _, nestedScrollConnection, sidePadding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .horizontalCutoutPadding()
-                        .padding(top = contentPadding.calculateTopPadding())
-                        .padding(horizontal = sidePadding)
-                        .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier)
-                        .imePadding()
-                        .navigationBarsPadding(),
+            val activeNotice = state.notice ?: retainedNotice
+            GlassDialog(
+                show = state.notice != null,
+                backdrop = overlayBackdrop,
+                title = stringResource(R.string.ui_memory_b55ff5),
+                summary = activeNotice,
+                onDismissRequest = { onAction(AgentMemoryAction.DismissNotice) },
+                onDismissFinished = { if (state.notice == null) retainedNotice = null },
+            ) {
+                GlassDialogButton(
+                    onClick = { onAction(AgentMemoryAction.DismissNotice) },
+                    role = GlassDialogButtonRole.Normal,
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    AnimatedVisibility(
-                        visible = !imeVisible,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
-                    ) {
-                        MemorySettingsGroup(state = state, onAction = onAction)
-                    }
-                    MemoryDocumentCard(
-                        state = state,
-                        mode = currentMode,
-                        onModeChange = { mode = it },
-                        onDraftChange = { onAction(AgentMemoryAction.DraftChanged(it)) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(top = CouiPageDefaults.groupSpacing)
-                            .padding(horizontal = CouiPageDefaults.horizontalMargin),
+                    Text(
+                        text = stringResource(R.string.ui_knew_cb63c6),
+                        style = MiuixTheme.textStyles.button,
                     )
-                    MemorySaveBar(
-                        state = state,
-                        onDiscard = { onAction(AgentMemoryAction.DraftChanged(state.savedContent)) },
-                        onSave = { onAction(AgentMemoryAction.Save) },
-                    )
-                    Spacer(Modifier.height(12.dp))
                 }
             }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffold(
-                title = stringResource(R.string.ui_memory_b55ff5),
-                onBack = { onAction(AgentMemoryAction.NavigateBack) },
-                actions = {
-                    MiuixTopBarActionButton(
-                        icon = MiuixIcons.Glass.Delete,
-                        contentDescription = stringResource(R.string.ui_clear_all_memory_a43bd3),
-                        enabled = canClear,
-                        onClick = { showClearDialog = true },
-                    )
-                },
-                overlay = {
-                    val overlayBackdrop = currentGlassOverlayBackdrop()
-                    GlassDialog(
-                        show = showClearDialog,
-                        backdrop = overlayBackdrop,
-                        title = stringResource(R.string.ui_clear_all_memory_a43bd3),
-                        summary = stringResource(R.string.ui_the_entire_contents_of_memory_md_will_be_deleted_and_83a8ac),
-                        onDismissRequest = { showClearDialog = false },
-                    ) {
-                        MiuixDialogActions(
-                            confirmText = stringResource(R.string.memory_clear),
-                            destructive = true,
-                            confirmEnabled = !state.isSaving,
-                            onCancel = { showClearDialog = false },
-                            onConfirm = {
-                                showClearDialog = false
-                                onAction(AgentMemoryAction.Clear)
-                            },
-                        )
-                    }
-
-                    val activeNotice = state.notice ?: retainedNotice
-                    GlassDialog(
-                        show = state.notice != null,
-                        backdrop = overlayBackdrop,
-                        title = stringResource(R.string.ui_memory_b55ff5),
-                        summary = activeNotice,
-                        onDismissRequest = { onAction(AgentMemoryAction.DismissNotice) },
-                        onDismissFinished = { if (state.notice == null) retainedNotice = null },
-                    ) {
-                        GlassDialogButton(
-                            onClick = { onAction(AgentMemoryAction.DismissNotice) },
-                            role = GlassDialogButtonRole.Normal,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.ui_knew_cb63c6),
-                                style = MiuixTheme.textStyles.button,
-                            )
-                        }
-                    }
-                },
-            ) { paddingValues, scrollBehavior, sidePadding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .horizontalCutoutPadding()
-                        .padding(top = paddingValues.calculateTopPadding())
-                        .padding(horizontal = sidePadding)
-                        .nestedScroll(scrollBehavior.nestedScrollConnection)
-                        .imePadding()
-                        .navigationBarsPadding(),
-                ) {
-                    AnimatedVisibility(
-                        visible = !imeVisible,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
-                    ) {
-                        MemorySettingsGroup(state = state, onAction = onAction)
-                    }
-                    MemoryDocumentCard(
-                        state = state,
-                        mode = currentMode,
-                        onModeChange = { mode = it },
-                        onDraftChange = { onAction(AgentMemoryAction.DraftChanged(it)) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 12.dp),
-                    )
-                    MemorySaveBar(
-                        state = state,
-                        onDiscard = { onAction(AgentMemoryAction.DraftChanged(state.savedContent)) },
-                        onSave = { onAction(AgentMemoryAction.Save) },
-                    )
-                    Spacer(Modifier.height(12.dp))
-                }
+        },
+    ) { paddingValues, scrollBehavior, sidePadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .horizontalCutoutPadding()
+                .padding(top = paddingValues.calculateTopPadding())
+                .padding(horizontal = sidePadding)
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
+                .imePadding()
+                .navigationBarsPadding(),
+        ) {
+            AnimatedVisibility(
+                visible = !imeVisible,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                MemorySettingsGroup(state = state, onAction = onAction)
             }
+            MemoryDocumentCard(
+                state = state,
+                mode = currentMode,
+                onModeChange = { mode = it },
+                onDraftChange = { onAction(AgentMemoryAction.DraftChanged(it)) },
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+            )
+            MemorySaveBar(
+                state = state,
+                onDiscard = { onAction(AgentMemoryAction.DraftChanged(state.savedContent)) },
+                onSave = { onAction(AgentMemoryAction.Save) },
+            )
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
@@ -297,46 +199,22 @@ private fun MemorySettingsGroup(
     state: AgentMemoryUiState,
     onAction: (AgentMemoryAction) -> Unit,
 ) {
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiPreferenceGroup {
-                item {
-                    CouiSwitchPreference(
-                        title = stringResource(R.string.ui_enable_memory_4b69b7),
-                        summary = stringResource(R.string.ui_after_closing_no_memory_will_be_injected_and_the_mod_db3d23),
-                        checked = state.enabled,
-                        enabled = !state.isLoading,
-                        onCheckedChange = { onAction(AgentMemoryAction.ToggleEnabled(it)) },
-                    )
-                }
-                item {
-                    CouiPreference(
-                        title = stringResource(R.string.ui_core_memory_injection_budget_48b5d5),
-                        summary = stringResource(R.string.memory_budget_summary, formatNumber(state.coreBudgetChars)),
-                        showChevron = false,
-                    )
-                }
-            }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(top = 8.dp, bottom = 12.dp),
-            ) {
-                SwitchPreference(
-                    title = stringResource(R.string.ui_enable_memory_4b69b7),
-                    summary = stringResource(R.string.ui_after_closing_no_memory_will_be_injected_and_the_mod_db3d23),
-                    checked = state.enabled,
-                    enabled = !state.isLoading,
-                    onCheckedChange = { onAction(AgentMemoryAction.ToggleEnabled(it)) },
-                )
-                BasicComponent(
-                    title = stringResource(R.string.ui_core_memory_injection_budget_48b5d5),
-                    summary = stringResource(R.string.memory_budget_summary, formatNumber(state.coreBudgetChars)),
-                )
-            }
-        }
+    Card(
+        modifier = Modifier
+            .padding(horizontal = 12.dp)
+            .padding(top = 8.dp, bottom = 12.dp),
+    ) {
+        SwitchPreference(
+            title = stringResource(R.string.ui_enable_memory_4b69b7),
+            summary = stringResource(R.string.ui_after_closing_no_memory_will_be_injected_and_the_mod_db3d23),
+            checked = state.enabled,
+            enabled = !state.isLoading,
+            onCheckedChange = { onAction(AgentMemoryAction.ToggleEnabled(it)) },
+        )
+        BasicComponent(
+            title = stringResource(R.string.ui_core_memory_injection_budget_48b5d5),
+            summary = stringResource(R.string.memory_budget_summary, formatNumber(state.coreBudgetChars)),
+        )
     }
 }
 
@@ -349,15 +227,14 @@ private fun MemoryDocumentCard(
     modifier: Modifier = Modifier,
 ) {
     val colors = MiuixTheme.colorScheme
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val overLimit = state.draftBytes > state.maxBytes
-    val cardContent: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
+    Card(modifier = modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(
                     start = 16.dp,
-                    end = if (isCoui) CouiPageDefaults.rowPadding else 10.dp,
+                    end = 10.dp,
                     top = 12.dp,
                     bottom = 12.dp,
                 ),
@@ -385,16 +262,12 @@ private fun MemoryDocumentCard(
             }
             MemoryModeSwitch(mode = mode, enabled = !state.isLoading, onModeChange = onModeChange)
         }
-        if (isCoui) {
-            CouiDivider()
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(0.5.dp)
-                    .background(colors.dividerLine),
-            )
-        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(0.5.dp)
+                .background(colors.dividerLine),
+        )
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             when {
                 state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -413,25 +286,6 @@ private fun MemoryDocumentCard(
                         )
                     }
                 }
-            }
-        }
-    }
-
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val pageColors = CouiPageDefaults.themeColors()
-            Column(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .clip(CouiPageDefaults.shape)
-                    .background(pageColors.card),
-            ) {
-                cardContent()
-            }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            Card(modifier = modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-                cardContent()
             }
         }
     }
@@ -463,17 +317,12 @@ private fun MemoryPreview(content: String, onStartEditing: () -> Unit) {
         }
         return
     }
-    val overscroll = if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-        remember { COUIOverscrollEffect() }
-    } else {
-        null
-    }
     LazyStaticMarkdown(
         content = content,
         tone = MarkdownTone.Answer,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-        overscrollEffect = overscroll,
+        overscrollEffect = null,
     )
 }
 
@@ -520,62 +369,29 @@ private fun MemoryModeSwitch(
     enabled: Boolean,
     onModeChange: (MemoryViewMode) -> Unit,
 ) {
-    if (LocalUiStyle.current == AppearanceUiStyle.MIUIX) {
-        val backdrop = rememberLayerBackdrop()
-        val colors = MiuixTheme.colorScheme
-        val previewLabel = stringResource(R.string.memory_mode_preview)
-        val editLabel = stringResource(R.string.memory_mode_edit)
-        val tabs = remember(previewLabel, editLabel) { listOf(previewLabel, editLabel) }
-        GlassSegmentedTabRow(
-            tabs = tabs,
-            selectedIndex = mode.ordinal,
-            onSelect = { index ->
-                if (enabled) {
-                    onModeChange(MemoryViewMode.entries[index])
-                }
-            },
-            backdrop = backdrop,
-            modifier = Modifier.width(156.dp),
-            surfaceAlpha = 0f,
-            shadow = null,
-            height = 34.dp,
-            trackColor = colors.surfaceContainerHigh,
-            indicatorColor = colors.surface,
-            selectedContentColor = colors.onSurface,
-            contentColor = colors.onSurfaceVariantSummary,
-        )
-        return
-    }
+    val backdrop = rememberLayerBackdrop()
     val colors = MiuixTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .squircleSurface(color = colors.surfaceContainerHigh, cornerRadius = 12.dp)
-            .padding(3.dp),
-    ) {
-        MemoryViewMode.entries.forEach { option ->
-            val selected = option == mode
-            val background by animateColorAsState(
-                if (selected) colors.surface else colors.surfaceContainerHigh,
-                label = "memory_mode_tab",
-            )
-            Box(
-                modifier = Modifier
-                    .squircleSurface(color = background, cornerRadius = 9.dp)
-                    .clickable(enabled = enabled && !selected) { onModeChange(option) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = stringResource(
-                        if (option == MemoryViewMode.Preview) R.string.memory_mode_preview else R.string.memory_mode_edit,
-                    ),
-                    style = MiuixTheme.textStyles.footnote1,
-                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                    color = if (selected) colors.onSurface else colors.onSurfaceVariantSummary,
-                )
+    val previewLabel = stringResource(R.string.memory_mode_preview)
+    val editLabel = stringResource(R.string.memory_mode_edit)
+    val tabs = remember(previewLabel, editLabel) { listOf(previewLabel, editLabel) }
+    GlassSegmentedTabRow(
+        tabs = tabs,
+        selectedIndex = mode.ordinal,
+        onSelect = { index ->
+            if (enabled) {
+                onModeChange(MemoryViewMode.entries[index])
             }
-        }
-    }
+        },
+        backdrop = backdrop,
+        modifier = Modifier.width(156.dp),
+        surfaceAlpha = 0f,
+        shadow = null,
+        height = 34.dp,
+        trackColor = colors.surfaceContainerHigh,
+        indicatorColor = colors.surface,
+        selectedContentColor = colors.onSurface,
+        contentColor = colors.onSurfaceVariantSummary,
+    )
 }
 
 @Composable
@@ -585,7 +401,6 @@ private fun MemorySaveBar(
     onSave: () -> Unit,
 ) {
     val overLimit = state.draftBytes > state.maxBytes
-    val uiStyle = LocalUiStyle.current
     AnimatedVisibility(
         visible = !state.isLoading && (state.hasUnsavedChanges || state.isSaving),
         enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
@@ -594,7 +409,7 @@ private fun MemorySaveBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = if (uiStyle == AppearanceUiStyle.COUI) CouiPageDefaults.horizontalMargin else 12.dp)
+                .padding(horizontal = 12.dp)
                 .padding(top = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -616,39 +431,21 @@ private fun MemorySaveBar(
                     maxLines = 2,
                 )
             }
-            val discardText = stringResource(R.string.memory_discard)
-            val saveText = stringResource(if (state.isSaving) R.string.memory_saving else R.string.memory_save)
-            if (uiStyle == AppearanceUiStyle.COUI) {
-                CouiButton(
-                    text = discardText,
-                    enabled = !state.isSaving,
-                    onClick = onDiscard,
-                    minHeight = 36.dp,
-                )
-                CouiButton(
-                    text = saveText,
-                    enabled = state.canSave,
-                    onClick = onSave,
-                    role = CouiButtonRole.Primary,
-                    minHeight = 36.dp,
-                )
-            } else {
-                TextButton(
-                    text = discardText,
-                    enabled = !state.isSaving,
-                    onClick = onDiscard,
-                    minHeight = 36.dp,
-                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                )
-                TextButton(
-                    text = saveText,
-                    enabled = state.canSave,
-                    onClick = onSave,
-                    minHeight = 36.dp,
-                    insideMargin = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            }
+            TextButton(
+                text = stringResource(R.string.memory_discard),
+                enabled = !state.isSaving,
+                onClick = onDiscard,
+                minHeight = 36.dp,
+                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            )
+            TextButton(
+                text = stringResource(if (state.isSaving) R.string.memory_saving else R.string.memory_save),
+                enabled = state.canSave,
+                onClick = onSave,
+                minHeight = 36.dp,
+                insideMargin = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+            )
         }
     }
 }

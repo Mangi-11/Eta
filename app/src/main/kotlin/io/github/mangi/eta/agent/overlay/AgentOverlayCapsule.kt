@@ -23,7 +23,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +35,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape as CouiCapsuleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
@@ -66,7 +64,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -75,13 +72,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.virtualdisplay.VirtualDisplaySnapshot
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
-import io.github.mangi.eta.ui.components.coui.couiPressMotion
-import io.github.mangi.eta.ui.components.coui.rememberCouiPressMotion
-import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
@@ -186,23 +176,8 @@ internal fun AgentOverlayCapsule(
         exit = slideOutVertically(tween(durationMillis = 200, easing = FastOutSlowInEasing)) { -it } +
             fadeOut(tween(140)),
     ) {
-        val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-        val couiDark = CouiTheme.isDark
-        val capsuleShape = if (isCoui) {
-            CouiShape(targetCapsuleCorner, weight = 2.5f)
-        } else {
-            RoundedCornerShape(targetCapsuleCorner)
-        }
-        val capsuleBg = if (isCoui) {
-            if (couiDark) Color(0xF520232B) else Color(0xFCFFFFFF)
-        } else {
-            MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f)
-        }
-        val capsuleBorder = if (isCoui) {
-            if (couiDark) Color(0x22FFFFFF) else Color(0x12000000)
-        } else {
-            Color.Transparent
-        }
+        val capsuleShape = RoundedCornerShape(targetCapsuleCorner)
+        val capsuleBg = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f)
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             Column(
                 modifier = Modifier
@@ -217,20 +192,13 @@ internal fun AgentOverlayCapsule(
                         transformOrigin = TransformOrigin(0.5f, 0f)
                     }
                     .shadow(
-                        elevation = if (isCoui) 12.dp else 10.dp,
+                        elevation = 10.dp,
                         shape = capsuleShape,
-                        ambientColor = if (isCoui) Color.Black.copy(alpha = if (couiDark) 0.45f else 0.18f) else accent,
-                        spotColor = if (isCoui) Color.Black.copy(alpha = if (couiDark) 0.55f else 0.22f) else accent,
+                        ambientColor = accent,
+                        spotColor = accent,
                     )
                     .clip(capsuleShape)
-                    .background(capsuleBg, capsuleShape)
-                    .then(
-                        if (isCoui) {
-                            Modifier.border(0.6.dp, capsuleBorder, capsuleShape)
-                        } else {
-                            Modifier
-                        },
-                    ),
+                    .background(capsuleBg, capsuleShape),
             ) {
                 Row(
                     modifier = Modifier
@@ -440,36 +408,14 @@ private fun ThoughtLine(thought: String) {
 
 @Composable
 private fun CapsuleAction(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit) {
-    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-        val dark = CouiTheme.isDark
-        val source = remember { MutableInteractionSource() }
-        val press = rememberCouiPressMotion()
-        Box(
-            modifier = Modifier
-                .size(width = 42.dp, height = 34.dp)
-                .graphicsLayer {
-                    scaleX = press.scale.value
-                    scaleY = press.scale.value
-                }
-                .couiPressMotion(press)
-                .clip(CouiCapsuleShape)
-                .background(if (dark) Color(0x1FFFFFFF) else Color(0x0F11141A), CouiCapsuleShape)
-                .couiButtonFeedback(dark, source, enabled = true)
-                .clickable(source, indication = null, role = Role.Button, onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(17.dp), tint = tint)
-        }
-    } else {
-        IconButton(
-            onClick = onClick,
-            backgroundColor = MiuixTheme.colorScheme.surfaceContainerHigh,
-            minWidth = 40.dp,
-            minHeight = 34.dp,
-            cornerRadius = 17.dp,
-        ) {
-            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(17.dp), tint = tint)
-        }
+    IconButton(
+        onClick = onClick,
+        backgroundColor = MiuixTheme.colorScheme.surfaceContainerHigh,
+        minWidth = 40.dp,
+        minHeight = 34.dp,
+        cornerRadius = 17.dp,
+    ) {
+        Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(17.dp), tint = tint)
     }
 }
 

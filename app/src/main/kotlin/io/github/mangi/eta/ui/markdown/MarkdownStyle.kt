@@ -80,8 +80,7 @@ internal fun rememberMarkdownStyle(tone: MarkdownTone): MarkdownStyle {
     return remember(tone, colors, textStyles) {
         val answer = tone == MarkdownTone.Answer
         val isDark = colors.surface.luminance() < 0.5f
-        // COUI 与 Miuix 的 onSurface 自带不同基础 alpha；统一归一为纯墨色基色后再按层级分配浓度，
-        // 避免两套主题下细线、引用与正文的视觉重量发生漂移。
+        // 统一将 onSurface 归一为纯墨色基色后再按层级分配浓度，确保细线、引用与正文视觉重量稳定。
         val ink = colors.onSurface.copy(alpha = 1f)
         val strongColor = if (answer) {
             ink.copy(alpha = if (isDark) 0.96f else 0.95f)

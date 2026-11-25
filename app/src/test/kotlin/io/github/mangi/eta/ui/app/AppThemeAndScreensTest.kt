@@ -7,14 +7,8 @@ import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.BroadcastFrameClock
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.getValue
@@ -29,18 +23,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.navigationevent.NavigationEventInfo
-import androidx.navigationevent.compose.NavigationBackHandler
-import androidx.navigationevent.compose.rememberNavigationEventState
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.BrowserSessionRegistry
@@ -49,12 +37,9 @@ import io.github.mangi.eta.agent.overlay.AgentOverlayState
 import io.github.mangi.eta.agent.overlay.AgentOverlayStatus
 import io.github.mangi.eta.agent.overlay.AgentResultCard
 import io.github.mangi.eta.data.model.AppearanceSettings
-import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.data.model.AppearanceThemeMode
 import io.github.mangi.eta.ui.AppearanceSettingsScreen
 import io.github.mangi.eta.ui.SettingsScreen
-import io.github.mangi.eta.ui.components.coui.CouiBottomSheet
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import io.github.suqi8.coui.kmp.basic.Text
 import io.github.mangi.eta.ui.model.AgentMemoryUiState
 import io.github.mangi.eta.ui.model.AgentSkillsUiState
 import io.github.mangi.eta.ui.model.AgentToolsUiState
@@ -64,6 +49,7 @@ import io.github.mangi.eta.ui.model.PermissionStatusUi
 import io.github.mangi.eta.ui.model.SkillItemUi
 import io.github.mangi.eta.ui.model.ToolGroupUi
 import io.github.mangi.eta.ui.model.ToolItemUi
+import io.github.mangi.eta.ui.navigation.NewProviderType
 import io.github.mangi.eta.ui.pages.providers.CommunityCatalogScreen
 import io.github.mangi.eta.ui.pages.providers.ModelProviderDetailScreen
 import io.github.mangi.eta.ui.pages.providers.ModelProviderListScreen
@@ -110,17 +96,17 @@ import org.robolectric.util.ReflectionHelpers
 @RunWith(RobolectricTestRunner::class)
 @Config(application = EtaApp::class, sdk = [36])
 @LooperMode(LooperMode.Mode.PAUSED)
-class UiStyleThemeAndScreensTest {
+class AppThemeAndScreensTest {
 
     @Test
-    fun switchingOverlayUiStylePreservesStateAndUsesSystemDensity() {
+    fun switchingThemeModePreservesStateAndUsesSystemDensity() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
         val activity = controller.get()
         val looper = shadowOf(Looper.getMainLooper())
         val baseDensity = activity.resources.displayMetrics.density
 
-        var appearance by mutableStateOf(AppearanceSettings(uiStyle = AppearanceUiStyle.COUI))
-        var observedStyle by mutableStateOf<AppearanceUiStyle?>(null)
+        var appearance by mutableStateOf(AppearanceSettings(themeMode = AppearanceThemeMode.LIGHT))
+        var resolvedDark by mutableStateOf<Boolean?>(null)
         var pageDensity by mutableStateOf(0f)
         var dialogDensity by mutableStateOf(0f)
         var mountCount = 0
@@ -148,7 +134,7 @@ class UiStyleThemeAndScreensTest {
             view.setContent {
                 AgentAppTheme(
                     appearance = appearance,
-                    systemOverlay = true,
+                    onResolvedDarkModeChange = { resolvedDark = it },
                 ) {
                     var draftText by rememberSaveable { mutableStateOf("initial-draft") }
                     var counter by remember { mutableIntStateOf(1) }
@@ -157,7 +143,6 @@ class UiStyleThemeAndScreensTest {
                         draftText = "edited-draft-$counter"
                     }
                     latestDraft = draftText
-                    observedStyle = LocalUiStyle.current
                     pageDensity = LocalDensity.current.density
                     Box(Modifier.size(100.dp))
                     Dialog(onDismissRequest = {}) {
@@ -169,28 +154,20 @@ class UiStyleThemeAndScreensTest {
             activity.setContentView(view)
             settle()
 
-            assertEquals(AppearanceUiStyle.COUI, observedStyle)
+            assertEquals(false, resolvedDark)
             assertEquals(1, mountCount)
             assertEquals("edited-draft-1", latestDraft)
             assertEquals(baseDensity, pageDensity, 0.001f)
             assertEquals(baseDensity, dialogDensity, 0.001f)
 
-            appearance = appearance.copy(uiStyle = AppearanceUiStyle.MIUIX)
+            appearance = appearance.copy(themeMode = AppearanceThemeMode.DARK)
             settle()
 
-            assertEquals(AppearanceUiStyle.MIUIX, observedStyle)
+            assertEquals(true, resolvedDark)
             assertEquals(1, mountCount)
             assertEquals("edited-draft-1", latestDraft)
             assertEquals(baseDensity, pageDensity, 0.001f)
             assertEquals(baseDensity, activity.resources.displayMetrics.density, 0.001f)
-
-            // 再切回 COUI：状态依然保持不变
-            appearance = appearance.copy(uiStyle = AppearanceUiStyle.COUI)
-            settle()
-
-            assertEquals(AppearanceUiStyle.COUI, observedStyle)
-            assertEquals(1, mountCount)
-            assertEquals("edited-draft-1", latestDraft)
         } finally {
             recomposer.cancel()
             scope.cancel()
@@ -199,14 +176,13 @@ class UiStyleThemeAndScreensTest {
     }
 
     @Test
-    fun primaryAndSecondaryScreensComposeAndInteractAcrossCouiAndMiuix() {
+    fun primaryAndSecondaryScreensComposeAndInteract() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
         val activity = controller.get()
         val looper = shadowOf(Looper.getMainLooper())
         val appInfo = activity.application.applicationInfo
         val previousLocaleConfig = ReflectionHelpers.getField<Int>(appInfo, "localeConfigRes")
 
-        var uiStyle by mutableStateOf(AppearanceUiStyle.COUI)
         var screenIndex by mutableIntStateOf(0)
         var backPressedCount = 0
         val baseDensity = activity.resources.displayMetrics.density
@@ -263,17 +239,15 @@ class UiStyleThemeAndScreensTest {
             // Robolectric 的 ApplicationInfo 未载入 Manifest 引用的语言资源。
             ReflectionHelpers.setField(appInfo, "localeConfigRes", R.xml.locales_config)
             activity.setContent {
-                key(screenIndex, uiStyle) {
-                    AgentAppTheme(
-                        appearance = AppearanceSettings(uiStyle = uiStyle),
-                    ) {
+                key(screenIndex) {
+                    AgentAppTheme(appearance = AppearanceSettings()) {
                         pageDensity = LocalDensity.current.density
                         when (screenIndex) {
                             0 -> AppearanceSettingsScreen(onBack = { backPressedCount++ })
                             1 -> SettingsScreen(context = activity, onNavigate = {}, onBack = { backPressedCount++ })
                             2 -> ModelProviderListScreen(onNavigate = {}, onBack = { backPressedCount++ })
                             3 -> ModelProviderDetailScreen(
-                                newType = io.github.mangi.eta.ui.navigation.NewProviderType.OpenAiCompatible,
+                                newType = NewProviderType.OpenAiCompatible,
                                 onBack = { backPressedCount++ },
                             )
                             4 -> AgentToolsScreen(state = toolsState, onAction = {})
@@ -322,29 +296,26 @@ class UiStyleThemeAndScreensTest {
 
             for (index in 0..29) {
                 screenIndex = index
-                for (style in listOf(AppearanceUiStyle.COUI, AppearanceUiStyle.MIUIX)) {
-                    uiStyle = style
-                    looper.idle()
-                    measureAndLayoutActivity(activity)
-                    looper.idle()
-                    assertEquals(baseDensity, pageDensity, 0.001f)
-                    val nodes = collectSemanticsNodes(activity.window.decorView)
-                    assertTrue(
-                        "Expected non-empty semantics tree for screenIndex=$index, style=$style",
-                        nodes.isNotEmpty(),
-                    )
-                }
+                looper.idle()
+                measureAndLayoutActivity(activity)
+                looper.idle()
+                assertEquals(baseDensity, pageDensity, 0.001f)
+                val nodes = collectSemanticsNodes(activity.window.decorView)
+                assertTrue(
+                    "Expected non-empty semantics tree for screenIndex=$index",
+                    nodes.isNotEmpty(),
+                )
             }
 
-            // 验证 AppearanceSettingsScreen 在 COUI 模式下的返回按钮语义点击可触发 onBack
+            // 验证 AppearanceSettingsScreen 返回按钮语义点击可触发 onBack
             screenIndex = 0
-            uiStyle = AppearanceUiStyle.COUI
             looper.idle()
             measureAndLayoutActivity(activity)
             looper.idle()
-            val backButtons = collectSemanticsNodes(activity.window.decorView).filter { node ->
+            val backLabel = activity.getString(R.string.action_back)
+            val backButtons = collectSemanticsNodes(activity.window.decorView, merged = true).filter { node ->
                 node.config.contains(SemanticsActions.OnClick) &&
-                    node.config.getOrNull(SemanticsProperties.ContentDescription)?.any { it.isNotBlank() } == true
+                    node.config.getOrNull(SemanticsProperties.ContentDescription)?.any { it == backLabel } == true
             }
             assertTrue(backButtons.isNotEmpty())
             val clicked = backButtons.first().config[SemanticsActions.OnClick].action?.invoke()
@@ -353,110 +324,6 @@ class UiStyleThemeAndScreensTest {
         } finally {
             controller.pause().stop().destroy()
             ReflectionHelpers.setField(appInfo, "localeConfigRes", previousLocaleConfig)
-        }
-    }
-
-    @Test
-    fun couiDialogAndBottomSheetConsumeBackBeforePageAndCanReopen() {
-        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
-        val activity = controller.get()
-        val looper = shadowOf(Looper.getMainLooper())
-        val frameClock = BroadcastFrameClock()
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + frameClock)
-        val recomposer = Recomposer(scope.coroutineContext)
-        val windowInfo = object : WindowInfo {
-            override val isWindowFocused = true
-            override val containerDpSize = DpSize(400.dp, 800.dp)
-        }
-        var visible by mutableStateOf(false)
-        var useBottomSheet by mutableStateOf(false)
-        val sheetListState = LazyListState()
-        var dismissals = 0
-        var pageBacks = 0
-
-        fun settle() {
-            repeat(28) {
-                Snapshot.sendApplyNotifications()
-                looper.idleFor(Duration.ofMillis(16))
-                frameClock.sendFrame(SystemClock.uptimeMillis() * 1_000_000L)
-                forceLayoutTree(activity.window.decorView)
-                measureAndLayoutActivity(activity)
-                looper.idle()
-            }
-        }
-
-        try {
-            scope.launch { recomposer.runRecomposeAndApplyChanges() }
-            val view = ComposeView(activity)
-            view.setParentCompositionContext(recomposer)
-            view.setContent {
-                CompositionLocalProvider(LocalWindowInfo provides windowInfo) {
-                    AgentAppTheme(
-                        appearance = AppearanceSettings(uiStyle = AppearanceUiStyle.COUI, blurEnabled = false),
-                    ) {
-                        NavigationBackHandler(
-                            state = rememberNavigationEventState(NavigationEventInfo.None),
-                            onBackCompleted = { pageBacks++ },
-                        )
-                        Box(Modifier.fillMaxSize())
-                        val dismiss: () -> Unit = {
-                            dismissals++
-                            visible = false
-                        }
-                        if (useBottomSheet) {
-                            CouiBottomSheet(show = visible, title = "测试底部面板", onDismissRequest = dismiss) {
-                                LazyColumn(Modifier.fillMaxWidth().height(160.dp), state = sheetListState) {
-                                    items(20) { Text("列表条目 ${it + 1}") }
-                                }
-                            }
-                        } else {
-                            CouiConfirmDialog(
-                                visible = visible,
-                                title = "测试弹窗",
-                                message = null,
-                                confirmText = "确认",
-                                onConfirm = {},
-                                onDismissRequest = dismiss,
-                            )
-                        }
-                    }
-                }
-            }
-            activity.setContentView(view)
-            settle()
-            fun showsText(text: String): Boolean =
-                collectSemanticsNodes(activity.window.decorView).any { node ->
-                    node.config.getOrNull(SemanticsProperties.Text)?.any { it.text == text } == true
-                }
-
-            listOf(false, true).forEach { bottomSheet ->
-                useBottomSheet = bottomSheet
-                val title = if (bottomSheet) "测试底部面板" else "测试弹窗"
-                repeat(2) {
-                    visible = true
-                    settle()
-                    assertTrue("应显示$title", showsText(title))
-                    if (bottomSheet) {
-                        val layout = sheetListState.layoutInfo
-                        assertTrue(
-                            "面板列表应有可见条目，实际视口为 ${layout.viewportSize}",
-                            layout.visibleItemsInfo.any { it.index == 0 },
-                        )
-                    }
-                    val previousDismissals = dismissals
-                    activity.onBackPressedDispatcher.onBackPressed()
-                    settle()
-                    assertEquals(previousDismissals + 1, dismissals)
-                    assertEquals(0, pageBacks)
-                    assertTrue("关闭后应隐藏$title", !showsText(title))
-                }
-            }
-            activity.onBackPressedDispatcher.onBackPressed()
-            assertEquals(1, pageBacks)
-        } finally {
-            recomposer.cancel()
-            scope.cancel()
-            controller.pause().stop().destroy()
         }
     }
 
@@ -475,7 +342,7 @@ class UiStyleThemeAndScreensTest {
         decor.layout(0, 0, 1080, 2400)
     }
 
-    private fun collectSemanticsNodes(root: View): List<SemanticsNode> {
+    private fun collectSemanticsNodes(root: View, merged: Boolean = false): List<SemanticsNode> {
         val result = mutableListOf<SemanticsNode>()
         fun visitView(view: View) {
             if (view is AbstractComposeView) {
@@ -484,14 +351,15 @@ class UiStyleThemeAndScreensTest {
                     runCatching {
                         val ownerField = child.javaClass.getMethod("getSemanticsOwner")
                         val semanticsOwner = ownerField.invoke(child)
-                        val unmergedRoot = semanticsOwner.javaClass
-                            .getMethod("getUnmergedRootSemanticsNode")
+                        val rootMethod = if (merged) "getRootSemanticsNode" else "getUnmergedRootSemanticsNode"
+                        val rootNode = semanticsOwner.javaClass
+                            .getMethod(rootMethod)
                             .invoke(semanticsOwner) as SemanticsNode
                         fun collect(node: SemanticsNode) {
                             result.add(node)
                             node.children.forEach(::collect)
                         }
-                        collect(unmergedRoot)
+                        collect(rootNode)
                     }
                 }
             }

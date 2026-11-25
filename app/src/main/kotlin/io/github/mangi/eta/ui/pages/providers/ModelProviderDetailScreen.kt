@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,7 +32,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -44,7 +42,6 @@ import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
@@ -57,33 +54,16 @@ import io.github.mangi.eta.data.provider.OfficialModelCatalog
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.MiuixDialogActions
-import io.github.mangi.eta.ui.components.MiuixPageBottomSpacer
-import io.github.mangi.eta.ui.components.MiuixScaffold
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.DialogActions
+import io.github.mangi.eta.ui.components.PageBottomSpacer
+import io.github.mangi.eta.ui.components.PageScaffold
+import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiScaffold
-import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiSegmentedTabs
-import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
-import io.github.mangi.eta.ui.components.coui.CouiTextField
 import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
 import io.github.mangi.eta.ui.navigation.NewProviderType
-import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
-import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
-import io.github.suqi8.coui.kmp.utils.rememberCOUIFlingBehavior
-import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -147,45 +127,19 @@ internal fun ModelProviderDetailScreen(
     }
 
     if (provider == null && draft == null) {
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiScaffoldPage(
-                    title = stringResource(R.string.route_provider_details),
-                    onBack = onBack,
+        ScaffoldPage(
+            title = stringResource(R.string.route_provider_details),
+            onBack = onBack,
+        ) {
+            item(key = "missing_provider") {
+                Column(
+                    modifier = Modifier.fillParentMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(stringResource(R.string.ui_provider_does_not_exist_83cee6))
-                        Spacer(modifier = Modifier.height(12.dp))
-                        CouiButton(
-                            text = stringResource(R.string.ui_return_11d024),
-                            onClick = onBack,
-                            role = CouiButtonRole.Primary,
-                        )
-                    }
-                }
-            }
-            AppearanceUiStyle.MIUIX -> {
-                MiuixScaffoldPage(
-                    title = stringResource(R.string.route_provider_details),
-                    onBack = onBack,
-                ) {
-                    item(key = "missing_provider") {
-                        Column(
-                            modifier = Modifier.fillParentMaxSize().padding(24.dp),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Text(stringResource(R.string.ui_provider_does_not_exist_83cee6))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            TextButton(text = stringResource(R.string.ui_return_11d024), onClick = onBack)
-                        }
-                    }
+                    Text(stringResource(R.string.ui_provider_does_not_exist_83cee6))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(text = stringResource(R.string.ui_return_11d024), onClick = onBack)
                 }
             }
         }
@@ -212,114 +166,85 @@ internal fun ModelProviderDetailScreen(
         stringResource(R.string.page_model_98fd0c),
     )
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiScaffold(title = title, onBack = onBack, compactTitle = true) { contentPadding, rawPadding, nestedScrollConnection, sidePadding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .horizontalCutoutPadding()
-                        .padding(
-                            top = contentPadding.calculateTopPadding(),
-                            bottom = contentPadding.calculateBottomPadding(),
-                        )
-                        .consumeWindowInsets(rawPadding),
-                ) {
-                    if (!isNew) {
-                        CouiSegmentedTabs(
-                            items = tabs.mapIndexed { index, label -> index to label },
-                            selectedKey = currentTab,
-                            onSelectedKeyChange = { currentTab = it },
-                            modifier = Modifier.padding(
-                                horizontal = sidePadding + CouiPageDefaults.horizontalMargin,
-                                vertical = 8.dp,
-                            ),
-                        )
-                    }
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        when (currentTab) {
-                            0 -> ProviderConfigTab(
-                                provider = initial,
-                                draft = configDraft,
-                                onDraftChange = { configDraft = it },
-                                scope = scope,
-                                isNew = isNew,
-                                nestedScrollConnection = nestedScrollConnection,
-                                contentSidePadding = sidePadding,
-                                onCreated = { id -> createdId = id },
-                                onDeleted = onBack,
-                            )
-                            1 -> if (!isNew) {
-                                ProviderModelsTab(
-                                    provider = initial,
-                                    scope = scope,
-                                    nestedScrollConnection = nestedScrollConnection,
-                                    contentSidePadding = sidePadding,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+    val pagerState = rememberPagerState(initialPage = currentTab, pageCount = { if (isNew) 1 else tabs.size })
+    val currentPage by remember { derivedStateOf { pagerState.currentPage } }
+    val configListState = rememberLazyListState()
+    val modelsListState = rememberLazyListState()
+    val configTopBarState = rememberTopAppBarState()
+    val modelsTopBarState = rememberTopAppBarState()
+    val configScrollBehavior = MiuixScrollBehavior(state = configTopBarState)
+    val modelsScrollBehavior = MiuixScrollBehavior(state = modelsTopBarState)
+    val activeListState = if (currentPage == 0) configListState else modelsListState
+    val scrollBehavior = if (currentPage == 0) configScrollBehavior else modelsScrollBehavior
+    val isContentScrolled by remember(activeListState) {
+        derivedStateOf { activeListState.canScrollBackward }
+    }
+    val contentUnderTopBar by remember(activeListState, scrollBehavior) {
+        derivedStateOf {
+            activeListState.canScrollBackward ||
+                scrollBehavior.state.overscrollOffset < -1f
         }
-        AppearanceUiStyle.MIUIX -> {
-            val pagerState = rememberPagerState(initialPage = currentTab, pageCount = { if (isNew) 1 else tabs.size })
-            val currentPage by remember { derivedStateOf { pagerState.currentPage } }
-            val configListState = rememberLazyListState()
-            val modelsListState = rememberLazyListState()
-            val configTopBarState = rememberTopAppBarState()
-            val modelsTopBarState = rememberTopAppBarState()
-            val configScrollBehavior = MiuixScrollBehavior(state = configTopBarState)
-            val modelsScrollBehavior = MiuixScrollBehavior(state = modelsTopBarState)
-            val activeListState = if (currentPage == 0) configListState else modelsListState
-            val scrollBehavior = if (currentPage == 0) configScrollBehavior else modelsScrollBehavior
-            val isContentScrolled by remember(activeListState) {
-                derivedStateOf { activeListState.canScrollBackward }
-            }
-            val contentUnderTopBar by remember(activeListState, scrollBehavior) {
-                derivedStateOf {
-                    activeListState.canScrollBackward ||
-                        scrollBehavior.state.overscrollOffset < -1f
-                }
-            }
-            MiuixScaffold(
-                title = title,
-                onBack = onBack,
-                scrollBehavior = scrollBehavior,
-                isContentScrolled = isContentScrolled,
-                topBarBottomContent = { backdrop ->
-                    val fallbackBackdrop = rememberLayerBackdrop()
-                    if (!isNew) {
-                        GlassSegmentedTabRow(
-                            tabs = tabs,
-                            selectedIndex = pagerState.targetPage,
-                            onSelect = { index ->
-                                currentTab = index
-                                scope.launch { pagerState.springAnimateToPage(index) }
-                            },
-                            backdrop = backdrop ?: fallbackBackdrop,
-                            surfaceAlpha = if (backdrop != null && contentUnderTopBar) 1f else 0f,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = GlassTopAppBarDefaults.HorizontalPadding)
-                                .padding(top = 6.dp, bottom = 12.dp),
-                        )
-                    }
-                },
-            ) { paddingValues, _, sidePadding ->
-                val topPadding = paddingValues.calculateTopPadding()
-                Box(
+    }
+    PageScaffold(
+        title = title,
+        onBack = onBack,
+        scrollBehavior = scrollBehavior,
+        isContentScrolled = isContentScrolled,
+        topBarBottomContent = { backdrop ->
+            val fallbackBackdrop = rememberLayerBackdrop()
+            if (!isNew) {
+                GlassSegmentedTabRow(
+                    tabs = tabs,
+                    selectedIndex = pagerState.targetPage,
+                    onSelect = { index ->
+                        currentTab = index
+                        scope.launch { pagerState.springAnimateToPage(index) }
+                    },
+                    backdrop = backdrop ?: fallbackBackdrop,
+                    surfaceAlpha = if (backdrop != null && contentUnderTopBar) 1f else 0f,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .horizontalCutoutPadding(),
-                ) {
-                    if (isNew) {
-                        ProviderConfigTab(
+                        .fillMaxWidth()
+                        .padding(horizontal = GlassTopAppBarDefaults.HorizontalPadding)
+                        .padding(top = 6.dp, bottom = 12.dp),
+                )
+            }
+        },
+    ) { paddingValues, _, sidePadding ->
+        val topPadding = paddingValues.calculateTopPadding()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .horizontalCutoutPadding(),
+        ) {
+            if (isNew) {
+                ProviderConfigTab(
+                    provider = initial,
+                    draft = configDraft,
+                    onDraftChange = { configDraft = it },
+                    scope = scope,
+                    isNew = true,
+                    scrollBehavior = configScrollBehavior,
+                    contentSidePadding = sidePadding,
+                    contentTopPadding = topPadding,
+                    listState = configListState,
+                    onCreated = { id -> createdId = id },
+                    onDeleted = onBack,
+                )
+            } else {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    userScrollEnabled = false,
+                    beyondViewportPageCount = 1,
+                    key = { it },
+                ) { page ->
+                    when (page) {
+                        0 -> ProviderConfigTab(
                             provider = initial,
                             draft = configDraft,
                             onDraftChange = { configDraft = it },
                             scope = scope,
-                            isNew = true,
+                            isNew = false,
                             scrollBehavior = configScrollBehavior,
                             contentSidePadding = sidePadding,
                             contentTopPadding = topPadding,
@@ -327,38 +252,14 @@ internal fun ModelProviderDetailScreen(
                             onCreated = { id -> createdId = id },
                             onDeleted = onBack,
                         )
-                    } else {
-                        HorizontalPager(
-                            state = pagerState,
-                            modifier = Modifier.fillMaxSize(),
-                            userScrollEnabled = false,
-                            beyondViewportPageCount = 1,
-                            key = { it },
-                        ) { page ->
-                            when (page) {
-                                0 -> ProviderConfigTab(
-                                    provider = initial,
-                                    draft = configDraft,
-                                    onDraftChange = { configDraft = it },
-                                    scope = scope,
-                                    isNew = false,
-                                    scrollBehavior = configScrollBehavior,
-                                    contentSidePadding = sidePadding,
-                                    contentTopPadding = topPadding,
-                                    listState = configListState,
-                                    onCreated = { id -> createdId = id },
-                                    onDeleted = onBack,
-                                )
-                                1 -> ProviderModelsTab(
-                                    provider = initial,
-                                    scope = scope,
-                                    scrollBehavior = modelsScrollBehavior,
-                                    contentSidePadding = sidePadding,
-                                    contentTopPadding = topPadding,
-                                    listState = modelsListState,
-                                )
-                            }
-                        }
+                        1 -> ProviderModelsTab(
+                            provider = initial,
+                            scope = scope,
+                            scrollBehavior = modelsScrollBehavior,
+                            contentSidePadding = sidePadding,
+                            contentTopPadding = topPadding,
+                            listState = modelsListState,
+                        )
                     }
                 }
             }
@@ -374,7 +275,6 @@ private fun ProviderConfigTab(
     scope: CoroutineScope,
     isNew: Boolean,
     scrollBehavior: ScrollBehavior? = null,
-    nestedScrollConnection: NestedScrollConnection? = scrollBehavior?.nestedScrollConnection,
     contentSidePadding: Dp,
     contentTopPadding: Dp = 0.dp,
     listState: LazyListState = rememberLazyListState(),
@@ -382,7 +282,6 @@ private fun ProviderConfigTab(
     onDeleted: () -> Unit,
 ) {
     val context = LocalContext.current
-    val uiStyle = LocalUiStyle.current
     var headersExpanded by rememberSaveable { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var testStatus by remember { mutableStateOf<String?>(null) }
@@ -489,36 +388,23 @@ private fun ProviderConfigTab(
     }
 
     val scrollState = scrollBehavior?.state
+    val nestedScrollConnection = scrollBehavior?.nestedScrollConnection
     val onOverscrollChanged: (Float) -> Unit = remember(scrollState) {
         { scrollState?.overscrollOffset = it }
-    }
-    val scrollModifier = if (uiStyle == AppearanceUiStyle.COUI) {
-        Modifier
-            .couiScrollEndHaptic()
-            .couiOverScrollVertical()
-    } else {
-        Modifier
-            .scrollEndHaptic()
-            .overScrollVertical(onOffsetChanged = onOverscrollChanged)
-    }
-    val flingBehavior = if (uiStyle == AppearanceUiStyle.COUI) {
-        rememberCOUIFlingBehavior()
-    } else {
-        androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
     }
     LazyColumn(
         state = listState,
         modifier = Modifier
             .fillMaxSize()
             .imePadding()
-            .then(scrollModifier)
+            .scrollEndHaptic()
+            .overScrollVertical(onOffsetChanged = onOverscrollChanged)
             .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier),
         contentPadding = PaddingValues(
             start = contentSidePadding,
             top = contentTopPadding,
             end = contentSidePadding,
         ),
-        flingBehavior = flingBehavior,
         overscrollEffect = null,
     ) {
         item(key = "connection") {
@@ -543,22 +429,12 @@ private fun ProviderConfigTab(
                     onDisconnect = loginStore::disconnect,
                     onCancel = loginStore::cancel,
                 )
-                if (uiStyle == AppearanceUiStyle.COUI) {
-                    CouiDivider()
-                    CouiPreference(
-                        title = stringResource(R.string.ui_test_connection_10b7d8),
-                        summary = testStatus,
-                        enabled = !isWorking && !loginState.isBusy,
-                        onClick = onTestConnection,
-                    )
-                } else {
-                    BasicComponent(
-                        title = stringResource(R.string.ui_test_connection_10b7d8),
-                        summary = testStatus,
-                        enabled = !isWorking && !loginState.isBusy,
-                        onClick = onTestConnection,
-                    )
-                }
+                BasicComponent(
+                    title = stringResource(R.string.ui_test_connection_10b7d8),
+                    summary = testStatus,
+                    enabled = !isWorking && !loginState.isBusy,
+                    onClick = onTestConnection,
+                )
             }
         }
 
@@ -571,50 +447,23 @@ private fun ProviderConfigTab(
 
         item(key = "preferences_and_prompt") {
             ProviderSection(title = stringResource(R.string.ui_preferences_and_strategies_2abd3c)) {
-                if (uiStyle == AppearanceUiStyle.COUI) {
-                    CouiSwitchPreference(
-                        title = stringResource(R.string.ui_enable_this_provider_683a76),
-                        checked = draft.isEnabled,
-                        onCheckedChange = { onDraftChange(draft.copy(isEnabled = it)) },
-                    )
-                } else {
-                    SwitchPreference(
-                        title = stringResource(R.string.ui_enable_this_provider_683a76),
-                        checked = draft.isEnabled,
-                        onCheckedChange = { onDraftChange(draft.copy(isEnabled = it)) },
-                    )
-                }
-            }
-            if (uiStyle == AppearanceUiStyle.COUI) {
-                CouiPreferenceGroup(title = stringResource(R.string.ui_system_prompt_word_193981)) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 12.dp),
-                        ) {
-                            CouiTextField(
-                                state = rememberDraftTextFieldState(draft.systemPrompt) { onDraftChange(draft.copy(systemPrompt = it)) },
-                                placeholder = stringResource(R.string.ui_leave_blank_to_use_the_default_mobile_agent_prompt_w_21e7c8),
-                                singleLine = false,
-                                minLines = 4,
-                            )
-                        }
-                    }
-                }
-            } else {
-                SmallTitle(text = stringResource(R.string.ui_system_prompt_word_193981))
-                TextField(
-                    state = rememberDraftTextFieldState(draft.systemPrompt) { onDraftChange(draft.copy(systemPrompt = it)) },
-                    lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4),
-                    label = stringResource(R.string.ui_leave_blank_to_use_the_default_mobile_agent_prompt_w_21e7c8),
-                    useLabelAsPlaceholder = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp),
+                SwitchPreference(
+                    title = stringResource(R.string.ui_enable_this_provider_683a76),
+                    checked = draft.isEnabled,
+                    onCheckedChange = { onDraftChange(draft.copy(isEnabled = it)) },
                 )
             }
+            SmallTitle(text = stringResource(R.string.ui_system_prompt_word_193981))
+            TextField(
+                state = rememberDraftTextFieldState(draft.systemPrompt) { onDraftChange(draft.copy(systemPrompt = it)) },
+                lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4),
+                label = stringResource(R.string.ui_leave_blank_to_use_the_default_mobile_agent_prompt_w_21e7c8),
+                useLabelAsPlaceholder = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            )
         }
 
         item(key = "actions") {
@@ -637,52 +486,30 @@ private fun ProviderConfigTab(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = if (uiStyle == AppearanceUiStyle.COUI) CouiPageDefaults.horizontalMargin else 12.dp)
+                    .padding(horizontal = 12.dp)
                     .padding(top = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (uiStyle == AppearanceUiStyle.COUI) {
-                    CouiButton(
-                        text = saveText,
-                        enabled = !isWorking && !loginState.isBusy && !creationCommitted,
-                        role = CouiButtonRole.Primary,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = onSaveOrCreate,
-                    )
-                    if (!isNew) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        CouiButton(
-                            text = removeText,
-                            enabled = !isWorking && !loginState.isBusy,
-                            role = CouiButtonRole.Destructive,
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = {
-                                if (provider.isBuiltIn) showResetDialog = true else showDeleteDialog = true
-                            },
-                        )
-                    }
-                } else {
+                TextButton(
+                    text = saveText,
+                    enabled = !isWorking && !loginState.isBusy && !creationCommitted,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    onClick = onSaveOrCreate,
+                )
+                if (!isNew) {
+                    Spacer(modifier = Modifier.height(12.dp))
                     TextButton(
-                        text = saveText,
-                        enabled = !isWorking && !loginState.isBusy && !creationCommitted,
+                        text = removeText,
+                        enabled = !isWorking && !loginState.isBusy,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        onClick = onSaveOrCreate,
+                        colors = ButtonDefaults.textButtonColors(
+                            textColor = MiuixTheme.colorScheme.error,
+                        ),
+                        onClick = {
+                            if (provider.isBuiltIn) showResetDialog = true else showDeleteDialog = true
+                        },
                     )
-                    if (!isNew) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        TextButton(
-                            text = removeText,
-                            enabled = !isWorking && !loginState.isBusy,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.textButtonColors(
-                                textColor = MiuixTheme.colorScheme.error,
-                            ),
-                            onClick = {
-                                if (provider.isBuiltIn) showResetDialog = true else showDeleteDialog = true
-                            },
-                        )
-                    }
                 }
                 status?.let { message ->
                     Text(
@@ -697,11 +524,7 @@ private fun ProviderConfigTab(
         }
 
         item(key = "bottom_spacer") {
-            if (uiStyle == AppearanceUiStyle.COUI) {
-                CouiPageBottomSpacer()
-            } else {
-                MiuixPageBottomSpacer()
-            }
+            PageBottomSpacer()
         }
     }
 
@@ -751,66 +574,38 @@ private fun ProviderConfigTab(
         }
     }
 
-    when (uiStyle) {
-        AppearanceUiStyle.COUI -> {
-            CouiConfirmDialog(
-                visible = showDeleteDialog,
-                title = stringResource(R.string.ui_remove_provider_9f848f),
-                message = stringResource(R.string.provider_delete_summary, providerDisplayName),
-                confirmText = deleteConfirmText,
-                confirmEnabled = !isWorking,
-                cancelEnabled = !isWorking,
-                destructive = true,
-                onConfirm = onConfirmDelete,
-                onDismissRequest = { if (!isWorking) showDeleteDialog = false },
-            )
-            CouiConfirmDialog(
-                visible = showResetDialog,
-                title = stringResource(R.string.ui_reset_built_in_configuration_35b6ec),
-                message = stringResource(R.string.provider_reset_summary, providerDisplayName),
-                confirmText = resetConfirmText,
-                confirmEnabled = !isWorking,
-                cancelEnabled = !isWorking,
-                destructive = true,
-                onConfirm = onConfirmReset,
-                onDismissRequest = { if (!isWorking) showResetDialog = false },
-            )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            val overlayBackdrop = currentGlassOverlayBackdrop()
-            GlassDialog(
-                show = showDeleteDialog,
-                backdrop = overlayBackdrop,
-                title = stringResource(R.string.ui_remove_provider_9f848f),
-                summary = stringResource(R.string.provider_delete_summary, providerDisplayName),
-                onDismissRequest = { if (!isWorking) showDeleteDialog = false },
-            ) {
-                MiuixDialogActions(
-                    confirmText = deleteConfirmText,
-                    cancelEnabled = !isWorking,
-                    confirmEnabled = !isWorking,
-                    destructive = true,
-                    onCancel = { showDeleteDialog = false },
-                    onConfirm = onConfirmDelete,
-                )
-            }
-            GlassDialog(
-                show = showResetDialog,
-                backdrop = overlayBackdrop,
-                title = stringResource(R.string.ui_reset_built_in_configuration_35b6ec),
-                summary = stringResource(R.string.provider_reset_summary, providerDisplayName),
-                onDismissRequest = { if (!isWorking) showResetDialog = false },
-            ) {
-                MiuixDialogActions(
-                    confirmText = resetConfirmText,
-                    cancelEnabled = !isWorking,
-                    confirmEnabled = !isWorking,
-                    destructive = true,
-                    onCancel = { showResetDialog = false },
-                    onConfirm = onConfirmReset,
-                )
-            }
-        }
+    val overlayBackdrop = currentGlassOverlayBackdrop()
+    GlassDialog(
+        show = showDeleteDialog,
+        backdrop = overlayBackdrop,
+        title = stringResource(R.string.ui_remove_provider_9f848f),
+        summary = stringResource(R.string.provider_delete_summary, providerDisplayName),
+        onDismissRequest = { if (!isWorking) showDeleteDialog = false },
+    ) {
+        DialogActions(
+            confirmText = deleteConfirmText,
+            cancelEnabled = !isWorking,
+            confirmEnabled = !isWorking,
+            destructive = true,
+            onCancel = { showDeleteDialog = false },
+            onConfirm = onConfirmDelete,
+        )
+    }
+    GlassDialog(
+        show = showResetDialog,
+        backdrop = overlayBackdrop,
+        title = stringResource(R.string.ui_reset_built_in_configuration_35b6ec),
+        summary = stringResource(R.string.provider_reset_summary, providerDisplayName),
+        onDismissRequest = { if (!isWorking) showResetDialog = false },
+    ) {
+        DialogActions(
+            confirmText = resetConfirmText,
+            cancelEnabled = !isWorking,
+            confirmEnabled = !isWorking,
+            destructive = true,
+            onCancel = { showResetDialog = false },
+            onConfirm = onConfirmReset,
+        )
     }
 }
 

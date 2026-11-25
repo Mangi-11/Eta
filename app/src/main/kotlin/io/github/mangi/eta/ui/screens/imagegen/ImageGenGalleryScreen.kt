@@ -40,28 +40,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.imagegen.GeneratedImageRecord
 import io.github.mangi.eta.agent.imagegen.GeneratedImageStore
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.LocalChatImagePreviewer
-import io.github.mangi.eta.ui.components.MiuixDialogActions
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.components.StatusError
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import io.github.mangi.eta.ui.components.coui.CouiIcon
-import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.rememberChatImageBitmap
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -137,11 +128,7 @@ internal fun ImageGenGalleryScreen(
         }
     }
 
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-    var retainedPendingDelete by remember { mutableStateOf<GeneratedImageRecord?>(null) }
-    if (pendingDelete != null) retainedPendingDelete = pendingDelete
-
-    if (!isCoui && confirmClearAll) {
+    if (confirmClearAll) {
         val clearTitle = stringResource(R.string.imagegen_gallery_clear_title)
         val clearMessage = pluralStringResource(
             R.plurals.imagegen_gallery_clear_message,
@@ -157,7 +144,7 @@ internal fun ImageGenGalleryScreen(
             backdrop = currentGlassOverlayBackdrop(),
             onDismissRequest = { confirmClearAll = false },
         ) {
-            MiuixDialogActions(
+            DialogActions(
                 cancelText = stringResource(R.string.action_cancel),
                 confirmText = clearAction,
                 destructive = true,
@@ -167,198 +154,86 @@ internal fun ImageGenGalleryScreen(
         }
     }
 
-    if (!isCoui) {
-        pendingDelete?.let { target ->
-            val deleteTitle = stringResource(R.string.imagegen_gallery_delete_title)
-            val deleteMessage = stringResource(R.string.imagegen_gallery_delete_message)
-            val deleteAction = stringResource(R.string.action_delete)
-            GlassDialog(
-                show = true,
-                title = deleteTitle,
-                summary = deleteMessage,
-                backdrop = currentGlassOverlayBackdrop(),
-                onDismissRequest = { pendingDelete = null },
-            ) {
-                MiuixDialogActions(
-                    cancelText = stringResource(R.string.action_cancel),
-                    confirmText = deleteAction,
-                    destructive = true,
-                    onCancel = { pendingDelete = null },
-                    onConfirm = { deleteSingle(target) },
-                )
-            }
+    pendingDelete?.let { target ->
+        val deleteTitle = stringResource(R.string.imagegen_gallery_delete_title)
+        val deleteMessage = stringResource(R.string.imagegen_gallery_delete_message)
+        val deleteAction = stringResource(R.string.action_delete)
+        GlassDialog(
+            show = true,
+            title = deleteTitle,
+            summary = deleteMessage,
+            backdrop = currentGlassOverlayBackdrop(),
+            onDismissRequest = { pendingDelete = null },
+        ) {
+            DialogActions(
+                cancelText = stringResource(R.string.action_cancel),
+                confirmText = deleteAction,
+                destructive = true,
+                onCancel = { pendingDelete = null },
+                onConfirm = { deleteSingle(target) },
+            )
         }
     }
 
     val rows = remember(records) { records.chunked(2) }
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
-            // 使用 CouiLazyScaffoldPage 惰性回收离屏行，避免大量缩略图同时驻留内存。
-            CouiLazyScaffoldPage(
-                title = stringResource(R.string.image_gen_gallery_title),
-                onBack = onBack,
-                overlay = {
-                    val clearMessage = pluralStringResource(
-                        R.plurals.imagegen_gallery_clear_message,
+    ScaffoldPage(
+        title = stringResource(R.string.image_gen_gallery_title),
+        onBack = onBack,
+        actions = {
+            if (records.isNotEmpty()) {
+                IconButton(onClick = { confirmClearAll = true }) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteOutline,
+                        contentDescription = stringResource(R.string.imagegen_gallery_clear_all_desc),
+                        tint = StatusError,
+                    )
+                }
+            }
+        },
+    ) {
+        if (records.isEmpty()) {
+            item(key = "empty") {
+                ListEmptyState(
+                    icon = Icons.Rounded.PhotoLibrary,
+                    title = stringResource(R.string.imagegen_gallery_empty_title),
+                    summary = stringResource(R.string.imagegen_gallery_empty_summary),
+                )
+            }
+        } else {
+            item(key = "summary") {
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.imagegen_gallery_header_summary,
                         records.size,
                         records.size,
                         formatImageStorageSize(totalBytes),
-                    )
-                    CouiConfirmDialog(
-                        visible = confirmClearAll,
-                        title = stringResource(R.string.imagegen_gallery_clear_title),
-                        message = clearMessage,
-                        confirmText = stringResource(R.string.imagegen_action_clear),
-                        destructive = true,
-                        onDismissRequest = { confirmClearAll = false },
-                        onConfirm = clearAll,
-                    )
-                    val activeDelete = pendingDelete ?: retainedPendingDelete
-                    CouiConfirmDialog(
-                        visible = pendingDelete != null,
-                        title = stringResource(R.string.imagegen_gallery_delete_title),
-                        message = stringResource(R.string.imagegen_gallery_delete_message),
-                        confirmText = stringResource(R.string.action_delete),
-                        confirmEnabled = activeDelete != null,
-                        destructive = true,
-                        onDismissRequest = { pendingDelete = null },
-                        onDismissFinished = { if (pendingDelete == null) retainedPendingDelete = null },
-                        onConfirm = { activeDelete?.let(deleteSingle) },
-                    )
-                },
-                actions = {
-                    if (records.isNotEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable { confirmClearAll = true }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.imagegen_action_clear),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = StatusError,
-                            )
-                        }
-                    }
-                },
-            ) {
-                if (records.isEmpty()) {
-                    item(key = "empty") {
-                        ListEmptyState(
-                            icon = Icons.Rounded.PhotoLibrary,
-                            title = stringResource(R.string.imagegen_gallery_empty_title),
-                            summary = stringResource(R.string.imagegen_gallery_empty_summary),
-                        )
-                    }
-                } else {
-                    item(key = "summary") {
-                        Text(
-                            text = pluralStringResource(
-                                R.plurals.imagegen_gallery_header_summary,
-                                records.size,
-                                records.size,
-                                formatImageStorageSize(totalBytes),
-                            ),
-                            fontSize = 12.sp,
-                            color = colors.summary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
-                    }
-                    items(rows.size, key = { idx -> rows[idx].first().id }) { rowIdx ->
-                        val rowItems = rows[rowIdx]
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 5.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            rowItems.forEachIndexed { colIdx, item ->
-                                val globalIdx = rowIdx * 2 + colIdx
-                                GalleryImageTile(
-                                    record = item,
-                                    index = globalIdx,
-                                    isCoui = true,
-                                    modifier = Modifier.weight(1f),
-                                    onBoundsChanged = { itemBounds[globalIdx] = it },
-                                    onClick = { openAt(globalIdx) },
-                                    onDelete = { pendingDelete = item },
-                                )
-                            }
-                            if (rowItems.size == 1) Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-                item(key = "bottom_spacer") {
-                    CouiPageBottomSpacer()
-                }
+                    ),
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
             }
-        }
-
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = stringResource(R.string.image_gen_gallery_title),
-                onBack = onBack,
-                actions = {
-                    if (records.isNotEmpty()) {
-                        IconButton(onClick = { confirmClearAll = true }) {
-                            Icon(
-                                imageVector = Icons.Rounded.DeleteOutline,
-                                contentDescription = stringResource(R.string.imagegen_gallery_clear_all_desc),
-                                tint = StatusError,
-                            )
-                        }
-                    }
-                },
-            ) {
-                if (records.isEmpty()) {
-                    item(key = "empty") {
-                        ListEmptyState(
-                            icon = Icons.Rounded.PhotoLibrary,
-                            title = stringResource(R.string.imagegen_gallery_empty_title),
-                            summary = stringResource(R.string.imagegen_gallery_empty_summary),
+            items(rows.size, key = { idx -> rows[idx].first().id }) { rowIdx ->
+                val rowItems = rows[rowIdx]
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    rowItems.forEachIndexed { colIdx, item ->
+                        val globalIdx = rowIdx * 2 + colIdx
+                        GalleryImageTile(
+                            record = item,
+                            index = globalIdx,
+                            modifier = Modifier.weight(1f),
+                            onBoundsChanged = { itemBounds[globalIdx] = it },
+                            onClick = { openAt(globalIdx) },
+                            onDelete = { pendingDelete = item },
                         )
                     }
-                } else {
-                    item(key = "summary") {
-                        Text(
-                            text = pluralStringResource(
-                                R.plurals.imagegen_gallery_header_summary,
-                                records.size,
-                                records.size,
-                                formatImageStorageSize(totalBytes),
-                            ),
-                            fontSize = 12.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
-                    }
-                    items(rows.size, key = { idx -> rows[idx].first().id }) { rowIdx ->
-                        val rowItems = rows[rowIdx]
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 5.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            rowItems.forEachIndexed { colIdx, item ->
-                                val globalIdx = rowIdx * 2 + colIdx
-                                GalleryImageTile(
-                                    record = item,
-                                    index = globalIdx,
-                                    isCoui = false,
-                                    modifier = Modifier.weight(1f),
-                                    onBoundsChanged = { itemBounds[globalIdx] = it },
-                                    onClick = { openAt(globalIdx) },
-                                    onDelete = { pendingDelete = item },
-                                )
-                            }
-                            if (rowItems.size == 1) Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
+                    if (rowItems.size == 1) Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -369,7 +244,6 @@ internal fun ImageGenGalleryScreen(
 private fun GalleryImageTile(
     record: GeneratedImageRecord,
     index: Int,
-    isCoui: Boolean,
     modifier: Modifier = Modifier,
     onBoundsChanged: (Rect) -> Unit,
     onClick: () -> Unit,
@@ -380,21 +254,9 @@ private fun GalleryImageTile(
     val dateLabel = remember(record.createdAt) {
         SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(Date(record.createdAt))
     }
-    val cardBg = if (isCoui) {
-        CouiTheme.colorScheme.cardBackground
-    } else {
-        MiuixTheme.colorScheme.surfaceContainerHigh
-    }
-    val titleColor = if (isCoui) {
-        CouiPageDefaults.themeColors().title
-    } else {
-        MiuixTheme.colorScheme.onSurface
-    }
-    val summaryColor = if (isCoui) {
-        CouiPageDefaults.themeColors().summary
-    } else {
-        MiuixTheme.colorScheme.onSurfaceVariantSummary
-    }
+    val cardBg = MiuixTheme.colorScheme.surfaceContainerHigh
+    val titleColor = MiuixTheme.colorScheme.onSurface
+    val summaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
 
     Column(
         modifier = modifier
@@ -432,21 +294,12 @@ private fun GalleryImageTile(
                 contentAlignment = Alignment.Center,
             ) {
                 val deleteImageDesc = stringResource(R.string.imagegen_gallery_delete_image_desc)
-                if (isCoui) {
-                    CouiIcon(
-                        imageVector = Icons.Rounded.DeleteOutline,
-                        contentDescription = deleteImageDesc,
-                        tint = Color.White,
-                        modifier = Modifier.size(15.dp),
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Rounded.DeleteOutline,
-                        contentDescription = deleteImageDesc,
-                        tint = Color.White,
-                        modifier = Modifier.size(15.dp),
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Rounded.DeleteOutline,
+                    contentDescription = deleteImageDesc,
+                    tint = Color.White,
+                    modifier = Modifier.size(15.dp),
+                )
             }
         }
         Column(

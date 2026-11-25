@@ -26,13 +26,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.DaemonTaskUi
-import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.displayName
 import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.StatusSuccess
-import io.github.mangi.eta.ui.components.coui.CouiNoticeDialog
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
@@ -49,7 +46,12 @@ internal fun DaemonTasksDialog(
     onStop: (String) -> Unit,
     onLoadLogs: suspend (String) -> String,
 ) {
-    val body: @Composable () -> Unit = {
+    GlassDialog(
+        show = show,
+        backdrop = currentGlassOverlayBackdrop(),
+        title = stringResource(R.string.terminal_daemon_tasks),
+        onDismissRequest = onDismiss,
+    ) {
         if (tasks.isEmpty()) {
             Text(
                 text = stringResource(R.string.terminal_daemon_empty),
@@ -65,30 +67,6 @@ internal fun DaemonTasksDialog(
                 items(items = tasks, key = { it.id }) { task ->
                     DaemonTaskRow(task = task, onStop = onStop, onLoadLogs = onLoadLogs)
                 }
-            }
-        }
-    }
-
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiNoticeDialog(
-                visible = show,
-                title = stringResource(R.string.terminal_daemon_tasks),
-                message = null,
-                scrollableContent = false,
-                onDismissRequest = onDismiss,
-            ) {
-                body()
-            }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            GlassDialog(
-                show = show,
-                backdrop = currentGlassOverlayBackdrop(),
-                title = stringResource(R.string.terminal_daemon_tasks),
-                onDismissRequest = onDismiss,
-            ) {
-                body()
             }
         }
     }

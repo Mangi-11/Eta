@@ -68,13 +68,6 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentFileReference
 import io.github.mangi.eta.agent.model.AgentFileReferenceKind
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiInputDialog
-import io.github.mangi.eta.ui.components.coui.CouiMenu
-import io.github.mangi.eta.ui.components.coui.CouiMenuItem
-import io.github.mangi.eta.ui.components.coui.couiMenuAnchor
-import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -226,7 +219,6 @@ internal fun AgentAttachmentPickerButton(
         if (uri != null) onAttachFolder(uri.toString())
     }
 
-    val anchor = rememberCouiMenuAnchor()
     val options = listOf(
         stringResource(R.string.attachment_image),
         stringResource(R.string.attachment_file),
@@ -247,8 +239,6 @@ internal fun AgentAttachmentPickerButton(
         }
     }
 
-    val uiStyle = LocalUiStyle.current
-    val isCoui = uiStyle == AppearanceUiStyle.COUI
     val popupLayout = rememberInputBarPopupLayout(
         inputContainerTopPx = inputContainerTopPx,
         anchorTopPx = buttonTopPx,
@@ -257,141 +247,97 @@ internal fun AgentAttachmentPickerButton(
     )
     Box(modifier = modifier) {
         IconButton(
-            onClick = { if (isCoui) anchor.open { showPopup = true } else showPopup = true },
+            onClick = { showPopup = true },
             minWidth = 34.dp,
             minHeight = 34.dp,
-            modifier = if (isCoui) {
-                Modifier.couiMenuAnchor(anchor)
-            } else {
-                Modifier
-                    .glassPopupAnchor(
-                        anchor = popupAnchor,
-                        cornerRadius = 17.dp,
-                    )
-                    .onGloballyPositioned {
-                        val bounds = it.boundsInWindow()
-                        buttonTopPx = bounds.top
-                        buttonBottomPx = bounds.bottom
-                    }
-            },
+            modifier = Modifier
+                .glassPopupAnchor(
+                    anchor = popupAnchor,
+                    cornerRadius = 17.dp,
+                )
+                .onGloballyPositioned {
+                    val bounds = it.boundsInWindow()
+                    buttonTopPx = bounds.top
+                    buttonBottomPx = bounds.bottom
+                },
         ) {
             Icon(
-                imageVector = if (isCoui) Icons.Rounded.Add else MiuixIcons.Glass.Add,
+                imageVector = MiuixIcons.Glass.Add,
                 contentDescription = stringResource(R.string.ui_add_attachment_dba9e8),
                 modifier = Modifier
-                    .size(if (isCoui) 21.dp else 23.dp)
-                    .then(if (isCoui) Modifier else Modifier.glassPopupAnchorContent(popupAnchor)),
+                    .size(23.dp)
+                    .glassPopupAnchorContent(popupAnchor),
                 tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.72f),
             )
         }
-        when (uiStyle) {
-            AppearanceUiStyle.COUI -> {
-                val menuItems = remember(options) {
-                    options.mapIndexed { index, label -> CouiMenuItem(value = index, text = label) }
-                }
-                CouiMenu(
-                    expanded = showPopup,
-                    onDismissRequest = { showPopup = false },
-                    items = menuItems,
-                    onItemClick = { item ->
-                        showPopup = false
-                        onSelectOption(item.value)
-                    },
-                    anchor = anchor,
-                )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                val overlayBackdrop = currentGlassOverlayBackdrop() ?: glassBackdrop
-                val optionIcons = remember {
-                    listOf(
-                        MiuixIcons.Glass.ImageOutline,
-                        MiuixIcons.Glass.File,
-                        MiuixIcons.Glass.FolderOutline,
-                        MiuixIcons.Glass.Edit,
+        val overlayBackdrop = currentGlassOverlayBackdrop() ?: glassBackdrop
+        val optionIcons = remember {
+            listOf(
+                MiuixIcons.Glass.ImageOutline,
+                MiuixIcons.Glass.File,
+                MiuixIcons.Glass.FolderOutline,
+                MiuixIcons.Glass.Edit,
+            )
+        }
+        TopLayer {
+            GlassTransformPopup(
+                show = showPopup,
+                onDismissRequest = { showPopup = false },
+                anchor = popupAnchor,
+                backdrop = overlayBackdrop,
+                gap = popupLayout.gap,
+                sizing = GlassPopupSizing(maxHeight = popupLayout.maxHeight),
+                onMeasured = { measuredPopupHeightPx = it.height },
+                anchorContent = {
+                    Icon(
+                        imageVector = MiuixIcons.Glass.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(23.dp),
+                        tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.72f),
                     )
-                }
-                EtaTopLayer {
-                    GlassTransformPopup(
-                        show = showPopup,
-                        onDismissRequest = { showPopup = false },
-                        anchor = popupAnchor,
-                        backdrop = overlayBackdrop,
-                        gap = popupLayout.gap,
-                        sizing = GlassPopupSizing(maxHeight = popupLayout.maxHeight),
-                        onMeasured = { measuredPopupHeightPx = it.height },
-                        anchorContent = {
-                            Icon(
-                                imageVector = MiuixIcons.Glass.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(23.dp),
-                                tint = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.72f),
-                            )
+                },
+            ) {
+                options.forEachIndexed { index, option ->
+                    GlassPopupItem(
+                        text = option,
+                        icon = optionIcons[index],
+                        onClick = {
+                            showPopup = false
+                            onSelectOption(index)
                         },
-                    ) {
-                        options.forEachIndexed { index, option ->
-                            GlassPopupItem(
-                                text = option,
-                                icon = optionIcons[index],
-                                onClick = {
-                                    showPopup = false
-                                    onSelectOption(index)
-                                },
-                            )
-                        }
-                    }
+                    )
                 }
             }
         }
     }
 
-    when (uiStyle) {
-        AppearanceUiStyle.COUI -> {
-            CouiInputDialog(
-                visible = showPathDialog,
-                title = stringResource(R.string.ui_input_file_path_36d474),
-                message = stringResource(R.string.ui_supports_files_and_folders_under_internal_storage_or_520786),
+    GlassDialog(
+        show = showPathDialog,
+        backdrop = currentGlassOverlayBackdrop() ?: glassBackdrop,
+        title = stringResource(R.string.ui_input_file_path_36d474),
+        summary = stringResource(R.string.ui_supports_files_and_folders_under_internal_storage_or_520786),
+        onDismissRequest = { showPathDialog = false },
+    ) {
+        Column {
+            GlassTextField(
                 state = pathInputState,
-                placeholder = stringResource(R.string.ui_absolute_path_9ac6fc),
+                lineLimits = TextFieldLineLimits.SingleLine,
+                label = stringResource(R.string.ui_absolute_path_9ac6fc),
+                useLabelAsPlaceholder = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            DialogActions(
                 confirmText = stringResource(R.string.attachment_add),
                 confirmEnabled = pathInputState.text.toString().trim().startsWith('/'),
+                onCancel = { showPathDialog = false },
                 onConfirm = {
                     val path = pathInputState.text.toString().trim()
                     showPathDialog = false
                     onAttachFilePath(path)
                 },
-                onDismissRequest = { showPathDialog = false },
+                modifier = Modifier.padding(top = 16.dp),
             )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            GlassDialog(
-                show = showPathDialog,
-                backdrop = currentGlassOverlayBackdrop() ?: glassBackdrop,
-                title = stringResource(R.string.ui_input_file_path_36d474),
-                summary = stringResource(R.string.ui_supports_files_and_folders_under_internal_storage_or_520786),
-                onDismissRequest = { showPathDialog = false },
-            ) {
-                Column {
-                    GlassTextField(
-                        state = pathInputState,
-                        lineLimits = TextFieldLineLimits.SingleLine,
-                        label = stringResource(R.string.ui_absolute_path_9ac6fc),
-                        useLabelAsPlaceholder = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.attachment_add),
-                        confirmEnabled = pathInputState.text.toString().trim().startsWith('/'),
-                        onCancel = { showPathDialog = false },
-                        onConfirm = {
-                            val path = pathInputState.text.toString().trim()
-                            showPathDialog = false
-                            onAttachFilePath(path)
-                        },
-                        modifier = Modifier.padding(top = 16.dp),
-                    )
-                }
-            }
         }
     }
 }

@@ -1455,9 +1455,8 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                     .collectAsState(initial = AppearanceSettings())
                 AgentAppTheme(
                     appearance = appearance,
-                    systemOverlay = true,
                 ) {
-                    // 部分 ROM 会给 TYPE_ACCESSIBILITY_OVERLAY 分配软件 Canvas；Miuix 与 COUI 的
+                    // 部分 ROM 会给 TYPE_ACCESSIBILITY_OVERLAY 分配软件 Canvas；Miuix 的
                     // RuntimeShader 只检查系统版本，因此系统浮层统一使用无 RuntimeShader 的圆角回退。
                     CompositionLocalProvider(
                         LocalSquircleEnabled provides false,

@@ -13,23 +13,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.voice.validateSpeechSettings
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.TtsProvider
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.components.SettingsTextField
-import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
-import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
@@ -44,89 +35,48 @@ internal fun SpeechSynthesisScreen(onBack: () -> Unit) {
     val settings = store.settings
     val ttsLabels = TtsProvider.entries.map { it.label() }
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiScaffoldPage(
-                title = stringResource(R.string.speech_synthesis_title),
-                onBack = onBack,
-            ) {
-                if (!store.loaded) {
-                    SpeechLoadingState(store.message)
-                    return@CouiScaffoldPage
-                }
-                SpeechGroupCard(title = stringResource(R.string.speech_group_service)) {
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.speech_tts_service),
-                        items = ttsLabels,
-                        selectedIndex = settings.tts.ordinal,
-                        onSelectedIndexChange = { index ->
-                            TtsProvider.entries.getOrNull(index)?.let { store.edit(settings.copy(tts = it)) }
-                        },
-                    )
-                }
-                if (settings.tts != TtsProvider.NONE) {
-                    SpeechConnectionSection(store, synthesis = true)
-                    SpeechVoiceSection(store)
-                    SpeechPreviewSection(store)
-                }
-                SpeechSaveBlock(store) {
-                    if (store.settings.tts != TtsProvider.NONE) {
-                        validateSpeechSettings(
-                            store.settings,
-                            store.credentials,
-                            synthesis = true,
-                            hasProviderDeepSeekKey = store.hasProviderDeepSeekKey,
-                        )
-                    }
-                }
-                CouiPageBottomSpacer()
+    ScaffoldPage(
+        title = stringResource(R.string.speech_synthesis_title),
+        onBack = onBack,
+        modifier = Modifier.imePadding(),
+    ) {
+        if (!store.loaded) {
+            item(key = "loading") { SpeechLoadingState(store.message) }
+            return@ScaffoldPage
+        }
+        item(key = "service") {
+            SpeechGroupCard(title = stringResource(R.string.speech_group_service)) {
+                GlassDropdownPreference(
+                    title = stringResource(R.string.speech_tts_service),
+                    items = ttsLabels,
+                    selectedIndex = settings.tts.ordinal,
+                    backdrop = currentGlassOverlayBackdrop(),
+                    onSelectedIndexChange = { index ->
+                        TtsProvider.entries.getOrNull(index)?.let { store.edit(settings.copy(tts = it)) }
+                    },
+                )
             }
         }
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = stringResource(R.string.speech_synthesis_title),
-                onBack = onBack,
-                modifier = Modifier.imePadding(),
-            ) {
-                if (!store.loaded) {
-                    item(key = "loading") { SpeechLoadingState(store.message) }
-                    return@MiuixScaffoldPage
-                }
-                item(key = "service") {
-                    SpeechGroupCard(title = stringResource(R.string.speech_group_service)) {
-                        GlassDropdownPreference(
-                            title = stringResource(R.string.speech_tts_service),
-                            items = ttsLabels,
-                            selectedIndex = settings.tts.ordinal,
-                            backdrop = currentGlassOverlayBackdrop(),
-                            onSelectedIndexChange = { index ->
-                                TtsProvider.entries.getOrNull(index)?.let { store.edit(settings.copy(tts = it)) }
-                            },
-                        )
-                    }
-                }
-                if (settings.tts != TtsProvider.NONE) {
-                    item(key = "connection") {
-                        SpeechConnectionSection(store, synthesis = true)
-                    }
-                    item(key = "voice") {
-                        SpeechVoiceSection(store)
-                    }
-                    item(key = "preview") {
-                        SpeechPreviewSection(store)
-                    }
-                }
-                item(key = "save") {
-                    SpeechSaveBlock(store) {
-                        if (store.settings.tts != TtsProvider.NONE) {
-                            validateSpeechSettings(
-                                store.settings,
-                                store.credentials,
-                                synthesis = true,
-                                hasProviderDeepSeekKey = store.hasProviderDeepSeekKey,
-                            )
-                        }
-                    }
+        if (settings.tts != TtsProvider.NONE) {
+            item(key = "connection") {
+                SpeechConnectionSection(store, synthesis = true)
+            }
+            item(key = "voice") {
+                SpeechVoiceSection(store)
+            }
+            item(key = "preview") {
+                SpeechPreviewSection(store)
+            }
+        }
+        item(key = "save") {
+            SpeechSaveBlock(store) {
+                if (store.settings.tts != TtsProvider.NONE) {
+                    validateSpeechSettings(
+                        store.settings,
+                        store.credentials,
+                        synthesis = true,
+                        hasProviderDeepSeekKey = store.hasProviderDeepSeekKey,
+                    )
                 }
             }
         }
@@ -169,33 +119,17 @@ private fun SpeechPreviewSection(store: SpeechSettingsStore) {
                     },
                 )
             }
-            when (LocalUiStyle.current) {
-                AppearanceUiStyle.COUI -> {
-
-                    CouiDivider()
-                    CouiPreference(
-                        title = title,
-                        summary = summary,
-                        summaryColor = if (playback.error != null) CouiTheme.colorScheme.error else Color.Unspecified,
-                        enabled = !store.saving && text.isNotBlank(),
-                        showChevron = false,
-                        onClick = onPreviewClick,
-                    )
-                }
-                AppearanceUiStyle.MIUIX -> {
-                    BasicComponent(
-                        title = title,
-                        summary = summary,
-                        summaryColor = if (playback.error != null) {
-                            BasicComponentDefaults.summaryColor(color = MiuixTheme.colorScheme.error)
-                        } else {
-                            BasicComponentDefaults.summaryColor()
-                        },
-                        enabled = !store.saving && text.isNotBlank(),
-                        onClick = onPreviewClick,
-                    )
-                }
-            }
+            BasicComponent(
+                title = title,
+                summary = summary,
+                summaryColor = if (playback.error != null) {
+                    BasicComponentDefaults.summaryColor(color = MiuixTheme.colorScheme.error)
+                } else {
+                    BasicComponentDefaults.summaryColor()
+                },
+                enabled = !store.saving && text.isNotBlank(),
+                onClick = onPreviewClick,
+            )
         }
         SpeechNote(stringResource(R.string.speech_preview_note))
     }

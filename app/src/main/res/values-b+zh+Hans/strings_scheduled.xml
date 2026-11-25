@@ -38,8 +38,8 @@
     <string name="scheduled_session_badge_dedicated">固定频道</string>
     <string name="scheduled_session_badge_isolated">独立归档</string>
     <string name="scheduled_detail_field_capabilities">能力范围</string>
-    <string name="scheduled_detail_miuix_model_meta">模型：%1$s · %2$s · %3$s</string>
-    <string name="scheduled_detail_miuix_capabilities_meta">能力：%1$s</string>
+    <string name="scheduled_detail_model_meta">模型：%1$s · %2$s · %3$s</string>
+    <string name="scheduled_detail_capabilities_meta">能力：%1$s</string>
     <string name="scheduled_detail_memo_title">任务小记事本</string>
     <string name="scheduled_detail_memo_title_with_hint">任务小记事本（供下次运行对比）</string>
     <string name="scheduled_action_clear_memo">清空记事本</string>

@@ -33,8 +33,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.components.coui.couiPressMotion
-import io.github.mangi.eta.ui.components.coui.rememberCouiPressMotion
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -79,7 +77,7 @@ internal fun EtaAssistantSuggestions(
                 val progress = remember(resId) { Animatable(0f) }
                 val opacity = remember(resId) { Animatable(0f) }
                 val interactionSource = remember(resId) { MutableInteractionSource() }
-                val press = rememberCouiPressMotion()
+                val press = rememberAssistantPressMotion()
                 LaunchedEffect(visible) {
                     if (visible) {
                         progress.snapTo(0f)
@@ -114,8 +112,8 @@ internal fun EtaAssistantSuggestions(
                             scaleX = entryScale
                             scaleY = entryScale
                         }
-                        .couiPressMotion(press, enabled = visible, cancelOnConsumedMove = true)
-                        .couiAssistantCapsule(
+                        .assistantPressMotion(press, enabled = visible, cancelOnConsumedMove = true)
+                        .assistantCapsule(
                             surfaceColor = colors.chipBackground,
                             strokeColor = colors.chipStroke,
                             dark = colors.dark,

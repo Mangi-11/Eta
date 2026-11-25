@@ -2,21 +2,16 @@ package io.github.mangi.eta.ui.screens.scheduled
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,13 +19,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -38,33 +31,15 @@ import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.scheduler.ScheduledTaskRunner
 import io.github.mangi.eta.agent.scheduler.ScheduledTaskScheduleCalculator
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ScheduledTask
 import io.github.mangi.eta.data.model.ScheduledTaskRun
 import io.github.mangi.eta.data.model.ScheduledTaskRunStatus
 import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.ScheduledTaskRepository
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.MiuixDialogActions
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiCardDivider
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceFooter
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
-import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
-import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
-import io.github.mangi.eta.ui.components.coui.CouiText
-import io.github.mangi.eta.ui.components.coui.CouiTextKind
-import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
-import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
+import io.github.mangi.eta.ui.components.DialogActions
+import io.github.mangi.eta.ui.components.ScaffoldPage
+import io.github.mangi.eta.ui.components.TopBarActionButton
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.Dispatchers
@@ -81,8 +56,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Edit
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.material.icons.outlined.Edit as OutlinedEdit
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 
 @Composable
 internal fun ScheduledTaskDetailScreen(
@@ -190,454 +163,203 @@ internal fun ScheduledTaskDetailScreen(
     val title = currentTask?.name?.ifBlank { stringResource(R.string.route_scheduled_task_detail) }
         ?: stringResource(R.string.route_scheduled_task_detail)
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
-            CouiLazyScaffoldPage(
-                title = title,
-                onBack = onBack,
-                actions = {
-                    if (currentTask != null) {
-                        CouiTopAppBarIconButton(
-                            icon = Icons.Outlined.OutlinedEdit,
-                            contentDescription = stringResource(R.string.route_scheduled_task_edit),
-                            onClick = { onNavigate(AppRoute.ScheduledTaskEditor(taskId = taskId)) },
-                        )
-                    }
-                },
-                overlay = {
-                    CouiConfirmDialog(
-                        visible = showDeleteConfirm,
-                        title = stringResource(R.string.scheduled_action_delete_task),
-                        message = stringResource(
-                            R.string.scheduled_delete_dialog_message,
-                            currentTask?.name.orEmpty(),
-                        ),
-                        confirmText = stringResource(R.string.action_delete),
-                        destructive = true,
-                        onConfirm = onConfirmDelete,
-                        onDismissRequest = { showDeleteConfirm = false },
-                    )
-                    CouiConfirmDialog(
-                        visible = showClearMemoConfirm,
-                        title = stringResource(R.string.scheduled_clear_memo_dialog_title),
-                        message = stringResource(R.string.scheduled_clear_memo_dialog_message),
-                        confirmText = stringResource(R.string.scheduled_action_clear),
-                        destructive = true,
-                        onConfirm = onConfirmClearMemo,
-                        onDismissRequest = { showClearMemoConfirm = false },
-                    )
-                },
-            ) {
-                if (currentTask == null) {
-                    item(key = "missing") {
-                        CouiText(
-                            text = stringResource(R.string.scheduled_detail_missing),
-                            kind = CouiTextKind.ItemSummary,
-                            color = colors.summary,
-                            modifier = Modifier.padding(24.dp),
-                        )
-                    }
-                } else {
-                    item(key = "hero") {
-                        CouiTaskControlCard(
-                            task = currentTask,
-                            isRunning = isRunning,
-                            nowMs = nowMs,
-                            onRunOrStop = onRunOrStop,
-                            onToggleEnabled = onToggleEnabled,
-                        )
-                    }
-                    item(key = "prompt_card") {
-                        CouiPreferenceGroup(title = stringResource(R.string.scheduled_detail_section_config)) {
-                            item {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    CouiText(
-                                        text = currentTask.prompt,
-                                        kind = CouiTextKind.ItemSummary,
-                                        color = colors.title,
-                                    )
-                                }
-                                CouiCardDivider()
-                            }
-                            item {
-                                CouiPreference(
-                                    title = stringResource(R.string.scheduled_field_model),
-                                    value = modelDisplay,
-                                    showChevron = false,
-                                )
-                            }
-                            item {
-                                CouiPreference(
-                                    title = stringResource(R.string.scheduled_detail_field_notify_session),
-                                    value = "${ScheduledTaskUiFormatting.deliveryBadge(currentTask.deliveryMode)} · ${
-                                        stringResource(
-                                            if (currentTask.showRunningNotification) {
-                                                R.string.scheduled_progress_badge_show
-                                            } else {
-                                                R.string.scheduled_progress_badge_silent
-                                            },
-                                        )
-                                    } · ${
-                                        stringResource(
-                                            if (currentTask.sessionMode.wireValue == "dedicated") {
-                                                R.string.scheduled_session_badge_dedicated
-                                            } else {
-                                                R.string.scheduled_session_badge_isolated
-                                            },
-                                        )
-                                    }",
-                                    showChevron = false,
-                                )
-                            }
-                            item {
-                                CouiPreference(
-                                    title = stringResource(R.string.scheduled_detail_field_capabilities),
-                                    summary = buildCapabilitiesSummary(currentTask),
-                                    showChevron = false,
-                                )
-                            }
-                        }
-                    }
-                    if (currentTask.memo.isNotBlank()) {
-                        item(key = "memo_card") {
-                            CouiPreferenceGroup(title = stringResource(R.string.scheduled_detail_memo_title_with_hint)) {
-                                item {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
-                                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                                    ) {
-                                        CouiText(
-                                            text = currentTask.memo,
-                                            kind = CouiTextKind.ItemSummary,
-                                            color = colors.summary,
-                                            maxLines = 8,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        CouiButton(
-                                            text = stringResource(R.string.scheduled_action_clear_memo),
-                                            role = CouiButtonRole.Secondary,
-                                            onClick = { showClearMemoConfirm = true },
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    item(key = "history_section") {
-                        CouiSectionTitle(stringResource(R.string.scheduled_detail_section_timeline))
-                    }
-                    if (runs.isEmpty()) {
-                        item(key = "history_empty") {
-                            CouiPreferenceFooter(text = stringResource(R.string.scheduled_detail_timeline_empty))
-                        }
-                    } else {
-                        itemsIndexed(items = runs, key = { _, run -> run.id }) { _, run ->
-                            val runIsLive = isRunning && run.status == ScheduledTaskRunStatus.RUNNING
-                            CouiRunTimelineItem(
-                                run = run,
-                                isLive = runIsLive,
-                                nowMs = nowMs,
-                                onOpenConversation = {
-                                    onOpenRun(run, currentTask, runIsLive)
-                                },
-                            )
-                        }
-                    }
-                    item(key = "danger_zone") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = CouiPageDefaults.horizontalMargin, vertical = 16.dp),
-                        ) {
-                            CouiButton(
-                                text = stringResource(R.string.scheduled_action_delete_task),
-                                role = CouiButtonRole.Destructive,
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = { showDeleteConfirm = true },
-                            )
-                        }
-                    }
-                    item(key = "bottom_spacer") {
-                        CouiPageBottomSpacer()
-                    }
-                }
+    ScaffoldPage(
+        title = title,
+        onBack = onBack,
+        actions = {
+            if (currentTask != null) {
+                TopBarActionButton(
+                    icon = MiuixIcons.Glass.Edit,
+                    contentDescription = stringResource(R.string.route_scheduled_task_edit),
+                    onClick = { onNavigate(AppRoute.ScheduledTaskEditor(taskId = taskId)) },
+                )
             }
-        }
-
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = title,
-                onBack = onBack,
-                actions = {
-                    if (currentTask != null) {
-                        MiuixTopBarActionButton(
-                            icon = MiuixIcons.Glass.Edit,
-                            contentDescription = stringResource(R.string.route_scheduled_task_edit),
-                            onClick = { onNavigate(AppRoute.ScheduledTaskEditor(taskId = taskId)) },
-                        )
-                    }
-                },
-            ) {
-                if (currentTask == null) {
-                    item(key = "missing") {
+        },
+    ) {
+        if (currentTask == null) {
+            item(key = "missing") {
+                Text(
+                    text = stringResource(R.string.scheduled_detail_missing),
+                    fontSize = 14.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(24.dp),
+                )
+            }
+        } else {
+            item(key = "hero") {
+                TaskControlCard(
+                    task = currentTask,
+                    isRunning = isRunning,
+                    nowMs = nowMs,
+                    onRunOrStop = onRunOrStop,
+                    onToggleEnabled = onToggleEnabled,
+                )
+            }
+            item(key = "prompt_section") {
+                SmallTitle(text = stringResource(R.string.scheduled_detail_section_config))
+            }
+            item(key = "prompt_card") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         Text(
-                            text = stringResource(R.string.scheduled_detail_missing),
+                            text = currentTask.prompt,
                             fontSize = 14.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(24.dp),
+                            lineHeight = 20.sp,
+                            color = MiuixTheme.colorScheme.onSurface,
                         )
-                    }
-                } else {
-                    item(key = "hero") {
-                        MiuixTaskControlCard(
-                            task = currentTask,
-                            isRunning = isRunning,
-                            nowMs = nowMs,
-                            onRunOrStop = onRunOrStop,
-                            onToggleEnabled = onToggleEnabled,
-                        )
-                    }
-                    item(key = "prompt_section") {
-                        SmallTitle(text = stringResource(R.string.scheduled_detail_section_config))
-                    }
-                    item(key = "prompt_card") {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp)
-                                .padding(bottom = 12.dp),
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Text(
-                                    text = currentTask.prompt,
-                                    fontSize = 14.sp,
-                                    lineHeight = 20.sp,
-                                    color = MiuixTheme.colorScheme.onSurface,
-                                )
-                                Text(
-                                    text = stringResource(
-                                        R.string.scheduled_detail_miuix_model_meta,
-                                        modelDisplay,
-                                        ScheduledTaskUiFormatting.deliveryBadge(currentTask.deliveryMode),
-                                        stringResource(
-                                            if (currentTask.showRunningNotification) {
-                                                R.string.scheduled_progress_badge_show_full
-                                            } else {
-                                                R.string.scheduled_progress_badge_silent
-                                            },
-                                        ),
-                                    ),
-                                    fontSize = 12.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
-                                Text(
-                                    text = stringResource(
-                                        R.string.scheduled_detail_miuix_capabilities_meta,
-                                        buildCapabilitiesSummary(currentTask),
-                                    ),
-                                    fontSize = 12.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
-                            }
-                        }
-                    }
-                    if (currentTask.memo.isNotBlank()) {
-                        item(key = "memo_section") {
-                            SmallTitle(text = stringResource(R.string.scheduled_detail_memo_title))
-                        }
-                        item(key = "memo_card") {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp)
-                                    .padding(bottom = 12.dp),
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                                ) {
-                                    Text(
-                                        text = currentTask.memo,
-                                        fontSize = 13.sp,
-                                        lineHeight = 19.sp,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                        maxLines = 8,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    TextButton(
-                                        text = stringResource(R.string.scheduled_action_clear_memo),
-                                        onClick = { showClearMemoConfirm = true },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    item(key = "history_section") {
-                        SmallTitle(text = stringResource(R.string.scheduled_detail_section_timeline))
-                    }
-                    if (runs.isEmpty()) {
-                        item(key = "history_empty") {
-                            Text(
-                                text = stringResource(R.string.scheduled_detail_timeline_empty),
-                                fontSize = 13.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                            )
-                        }
-                    } else {
-                        itemsIndexed(items = runs, key = { _, run -> run.id }) { _, run ->
-                            val runIsLive = isRunning && run.status == ScheduledTaskRunStatus.RUNNING
-                            MiuixRunTimelineItem(
-                                run = run,
-                                isLive = runIsLive,
-                                nowMs = nowMs,
-                                onOpenConversation = {
-                                    onOpenRun(run, currentTask, runIsLive)
-                                },
-                            )
-                        }
-                    }
-                    item(key = "danger_zone") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 16.dp),
-                        ) {
-                            TextButton(
-                                text = stringResource(R.string.scheduled_action_delete_task),
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.textButtonColors(
-                                    textColor = MiuixTheme.colorScheme.error,
+                        Text(
+                            text = stringResource(
+                                R.string.scheduled_detail_model_meta,
+                                modelDisplay,
+                                ScheduledTaskUiFormatting.deliveryBadge(currentTask.deliveryMode),
+                                stringResource(
+                                    if (currentTask.showRunningNotification) {
+                                        R.string.scheduled_progress_badge_show_full
+                                    } else {
+                                        R.string.scheduled_progress_badge_silent
+                                    },
                                 ),
-                                onClick = { showDeleteConfirm = true },
+                            ),
+                            fontSize = 12.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.scheduled_detail_capabilities_meta,
+                                buildCapabilitiesSummary(currentTask),
+                            ),
+                            fontSize = 12.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
+                }
+            }
+            if (currentTask.memo.isNotBlank()) {
+                item(key = "memo_section") {
+                    SmallTitle(text = stringResource(R.string.scheduled_detail_memo_title))
+                }
+                item(key = "memo_card") {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Text(
+                                text = currentTask.memo,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                maxLines = 8,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            TextButton(
+                                text = stringResource(R.string.scheduled_action_clear_memo),
+                                onClick = { showClearMemoConfirm = true },
                             )
                         }
                     }
                 }
             }
-
-            if (showDeleteConfirm) {
-                GlassDialog(
-                    show = true,
-                    title = stringResource(R.string.scheduled_action_delete_task),
-                    summary = stringResource(
-                        R.string.scheduled_delete_dialog_message,
-                        currentTask?.name.orEmpty(),
-                    ),
-                    backdrop = currentGlassOverlayBackdrop(),
-                    onDismissRequest = { showDeleteConfirm = false },
-                ) {
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.action_delete),
-                        destructive = true,
-                        onCancel = { showDeleteConfirm = false },
-                        onConfirm = onConfirmDelete,
+            item(key = "history_section") {
+                SmallTitle(text = stringResource(R.string.scheduled_detail_section_timeline))
+            }
+            if (runs.isEmpty()) {
+                item(key = "history_empty") {
+                    Text(
+                        text = stringResource(R.string.scheduled_detail_timeline_empty),
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    )
+                }
+            } else {
+                itemsIndexed(items = runs, key = { _, run -> run.id }) { _, run ->
+                    val runIsLive = isRunning && run.status == ScheduledTaskRunStatus.RUNNING
+                    RunTimelineItem(
+                        run = run,
+                        isLive = runIsLive,
+                        nowMs = nowMs,
+                        onOpenConversation = {
+                            onOpenRun(run, currentTask, runIsLive)
+                        },
                     )
                 }
             }
-            if (showClearMemoConfirm) {
-                GlassDialog(
-                    show = true,
-                    title = stringResource(R.string.scheduled_clear_memo_dialog_title),
-                    summary = stringResource(R.string.scheduled_clear_memo_dialog_message),
-                    backdrop = currentGlassOverlayBackdrop(),
-                    onDismissRequest = { showClearMemoConfirm = false },
+            item(key = "danger_zone") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 16.dp),
                 ) {
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.scheduled_action_clear),
-                        destructive = true,
-                        onCancel = { showClearMemoConfirm = false },
-                        onConfirm = onConfirmClearMemo,
+                    TextButton(
+                        text = stringResource(R.string.scheduled_action_delete_task),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(
+                            textColor = MiuixTheme.colorScheme.error,
+                        ),
+                        onClick = { showDeleteConfirm = true },
                     )
                 }
             }
         }
     }
-}
 
-@Composable
-private fun CouiTaskControlCard(
-    task: ScheduledTask,
-    isRunning: Boolean,
-    nowMs: Long,
-    onRunOrStop: () -> Unit,
-    onToggleEnabled: (Boolean) -> Unit,
-) {
-    val colors = CouiPageDefaults.themeColors()
-    val scheduleText = ScheduledTaskScheduleCalculator.describeSchedule(task.schedule)
-    val nextText = if (task.enabled && task.nextRunAt != null) {
-        stringResource(
-            R.string.scheduled_next_run_prefix,
-            ScheduledTaskScheduleCalculator.formatNextRunLabel(task.nextRunAt, nowMs),
-        )
-    } else if (!task.autoDisabledReason.isNullOrBlank()) {
-        task.autoDisabledReason
-    } else {
-        stringResource(R.string.scheduled_status_currently_paused)
-    }
-
-    CouiPreferenceGroup {
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                CouiText(
-                    text = scheduleText,
-                    kind = CouiTextKind.ItemTitle,
-                    color = colors.title,
-                )
-                CouiText(
-                    text = nextText,
-                    kind = CouiTextKind.ItemSummary,
-                    color = colors.summary,
-                )
-                CouiButton(
-                    text = if (isRunning) stringResource(R.string.scheduled_action_stop)
-                    else stringResource(R.string.scheduled_action_run_now),
-                    role = if (isRunning) CouiButtonRole.DestructiveFilled else CouiButtonRole.Primary,
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onRunOrStop,
-                )
-            }
-            CouiCardDivider()
+    if (showDeleteConfirm) {
+        GlassDialog(
+            show = true,
+            title = stringResource(R.string.scheduled_action_delete_task),
+            summary = stringResource(
+                R.string.scheduled_delete_dialog_message,
+                currentTask?.name.orEmpty(),
+            ),
+            backdrop = currentGlassOverlayBackdrop(),
+            onDismissRequest = { showDeleteConfirm = false },
+        ) {
+            DialogActions(
+                confirmText = stringResource(R.string.action_delete),
+                destructive = true,
+                onCancel = { showDeleteConfirm = false },
+                onConfirm = onConfirmDelete,
+            )
         }
-        item {
-            CouiSwitchPreference(
-                title = stringResource(R.string.scheduled_detail_enable_schedule_title),
-                summary = stringResource(
-                    if (task.enabled) {
-                        R.string.scheduled_detail_enable_schedule_on_summary
-                    } else {
-                        R.string.scheduled_detail_enable_schedule_off_summary
-                    },
-                ),
-                checked = task.enabled,
-                onCheckedChange = onToggleEnabled,
+    }
+    if (showClearMemoConfirm) {
+        GlassDialog(
+            show = true,
+            title = stringResource(R.string.scheduled_clear_memo_dialog_title),
+            summary = stringResource(R.string.scheduled_clear_memo_dialog_message),
+            backdrop = currentGlassOverlayBackdrop(),
+            onDismissRequest = { showClearMemoConfirm = false },
+        ) {
+            DialogActions(
+                confirmText = stringResource(R.string.scheduled_action_clear),
+                destructive = true,
+                onCancel = { showClearMemoConfirm = false },
+                onConfirm = onConfirmClearMemo,
             )
         }
     }
 }
 
 @Composable
-private fun MiuixTaskControlCard(
+private fun TaskControlCard(
     task: ScheduledTask,
     isRunning: Boolean,
     nowMs: Long,
@@ -708,102 +430,7 @@ private fun MiuixTaskControlCard(
 }
 
 @Composable
-private fun CouiRunTimelineItem(
-    run: ScheduledTaskRun,
-    isLive: Boolean,
-    nowMs: Long,
-    onOpenConversation: () -> Unit,
-) {
-    val dark = CouiTheme.isDark
-    val colors = CouiPageDefaults.themeColors()
-    val canOpen = !run.archiveConversationKey.isNullOrBlank() &&
-        (isLive || (run.status != ScheduledTaskRunStatus.RUNNING && run.status != ScheduledTaskRunStatus.SKIPPED))
-    val dotColor = ScheduledTaskUiFormatting.statusDotColor(
-        status = run.status,
-        runningNow = isLive,
-        autoDisabled = false,
-    )
-    val interaction = remember { MutableInteractionSource() }
-    val headline = buildString {
-        append(ScheduledTaskUiFormatting.statusLabel(run.status, runningNow = isLive))
-        append(" · ")
-        append(ScheduledTaskUiFormatting.triggerSourceLabel(run.triggerSource))
-        val dur = ScheduledTaskUiFormatting.formatDuration(run.durationMs)
-        if (dur.isNotEmpty()) append(" · ").append(dur)
-    }
-    val timeText = ScheduledTaskUiFormatting.formatTimestamp(run.startedAt, nowMs)
-
-    CouiPreferenceGroup {
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (canOpen) {
-                            Modifier
-                                .couiButtonFeedback(dark, interaction, enabled = true)
-                                .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onOpenConversation)
-                        } else Modifier
-                    )
-                    .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(dotColor),
-                        )
-                        CouiText(
-                            text = headline,
-                            kind = CouiTextKind.ItemTitle,
-                            color = colors.title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    CouiText(
-                        text = timeText,
-                        kind = CouiTextKind.ItemSummary,
-                        color = colors.summary,
-                    )
-                }
-                if (run.summary.isNotBlank()) {
-                    CouiText(
-                        text = run.summary,
-                        kind = CouiTextKind.ItemSummary,
-                        color = colors.summary,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (canOpen) {
-                    CouiText(
-                        text = stringResource(
-                            if (isLive) R.string.scheduled_timeline_tap_live else R.string.scheduled_timeline_tap_conversation,
-                        ),
-                        kind = CouiTextKind.ItemSummary,
-                        color = colors.accent,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MiuixRunTimelineItem(
+private fun RunTimelineItem(
     run: ScheduledTaskRun,
     isLive: Boolean,
     nowMs: Long,

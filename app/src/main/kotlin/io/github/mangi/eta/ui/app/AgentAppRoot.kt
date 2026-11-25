@@ -56,18 +56,14 @@ import io.github.mangi.eta.ui.screens.scheduled.ScheduledTaskDetailScreen
 import io.github.mangi.eta.ui.screens.scheduled.ScheduledTaskEditorScreen
 import io.github.mangi.eta.ui.screens.scheduled.ScheduledTasksScreen
 import io.github.mangi.eta.core.AndroidAgentLogger
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.AppearanceSettingsScreen
 import io.github.mangi.eta.ui.IncomingShareRequest
 import io.github.mangi.eta.ui.SettingsScreen
 import io.github.mangi.eta.ui.components.ChatImagePreviewHost
+import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.LocalChatImagePreviewer
-import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import io.github.mangi.eta.ui.components.coui.CouiInputDialog
-import io.github.mangi.eta.ui.components.coui.CouiNoticeDialog
 import io.github.mangi.eta.ui.model.AgentHomeAction
 import io.github.mangi.eta.ui.model.AgentMemoryAction
 import io.github.mangi.eta.ui.model.AgentSkillsAction
@@ -901,303 +897,171 @@ fun AgentAppRoot(
         }
     }
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            var retainedNotice by remember { mutableStateOf<String?>(null) }
-            characterStore.notice?.let { retainedNotice = it }
-            CouiNoticeDialog(
-                visible = characterStore.notice != null,
-                title = stringResource(R.string.conversation_dock_characters),
-                message = characterStore.notice ?: retainedNotice,
-                confirmText = stringResource(R.string.ui_misc_got_it),
-                onDismissRequest = characterStore::dismissNotice,
-                onDismissFinished = { if (characterStore.notice == null) retainedNotice = null },
+    val sceneBackdrop = currentGlassOverlayBackdrop()
+    var retainedNotice by remember { mutableStateOf<String?>(null) }
+    characterStore.notice?.let { retainedNotice = it }
+    GlassDialog(
+        show = characterStore.notice != null,
+        backdrop = sceneBackdrop,
+        title = stringResource(R.string.conversation_dock_characters),
+        summary = retainedNotice,
+        onDismissRequest = characterStore::dismissNotice,
+        onDismissFinished = { if (characterStore.notice == null) retainedNotice = null },
+    ) {
+        GlassDialogButton(
+            onClick = characterStore::dismissNotice,
+            role = GlassDialogButtonRole.Normal,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = stringResource(R.string.ui_misc_got_it),
+                style = MiuixTheme.textStyles.button,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
+        }
+    }
 
-            var retainedRename by remember { mutableStateOf<ConversationSummaryUi?>(null) }
-            conversationRenameTarget?.let { retainedRename = it }
-            val activeRename = conversationRenameTarget ?: retainedRename
-            val renameInputState = remember(activeRename?.id) {
-                TextFieldState(activeRename?.title.orEmpty())
-            }
-            CouiInputDialog(
-                visible = conversationRenameTarget != null,
-                title = stringResource(R.string.conversation_rename_title),
+    var retainedRename by remember { mutableStateOf<ConversationSummaryUi?>(null) }
+    conversationRenameTarget?.let { retainedRename = it }
+    val renameInputState = remember(retainedRename?.id) {
+        TextFieldState(retainedRename?.title.orEmpty())
+    }
+    GlassDialog(
+        show = conversationRenameTarget != null,
+        backdrop = sceneBackdrop,
+        title = stringResource(R.string.conversation_rename_title),
+        onDismissRequest = { conversationRenameTarget = null },
+        onDismissFinished = { if (conversationRenameTarget == null) retainedRename = null },
+    ) {
+        Column {
+            GlassTextField(
                 state = renameInputState,
-                placeholder = stringResource(R.string.conversation_rename_hint),
+                lineLimits = TextFieldLineLimits.SingleLine,
+                label = stringResource(R.string.conversation_rename_hint),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            DialogActions(
                 confirmText = stringResource(R.string.action_save),
-                confirmEnabled = renameInputState.text.isNotBlank() && activeRename != null,
+                confirmEnabled = renameInputState.text.isNotBlank() && retainedRename != null,
+                onCancel = { conversationRenameTarget = null },
                 onConfirm = {
-                    activeRename?.let { conversation ->
+                    retainedRename?.let { conversation ->
                         agentState.renameConversation(conversation.id, renameInputState.text.toString())
                     }
                     conversationRenameTarget = null
                 },
-                onDismissRequest = { conversationRenameTarget = null },
-                onDismissFinished = { if (conversationRenameTarget == null) retainedRename = null },
-            )
-
-            var retainedDelete by remember { mutableStateOf<ConversationSummaryUi?>(null) }
-            conversationDeleteTarget?.let { retainedDelete = it }
-            val activeDelete = conversationDeleteTarget ?: retainedDelete
-            val deleteMessage = activeDelete?.let { conversation ->
-                stringResource(
-                    if (conversation.isActiveRun) R.string.conversation_stop_and_delete_message else R.string.conversation_delete_message,
-                )
-            }
-            val deleteConfirmText = stringResource(
-                if (activeDelete?.isActiveRun == true) R.string.conversation_stop_and_delete else R.string.action_delete,
-            )
-            CouiConfirmDialog(
-                visible = conversationDeleteTarget != null,
-                title = stringResource(R.string.conversation_delete_title),
-                message = deleteMessage,
-                confirmText = deleteConfirmText,
-                confirmEnabled = activeDelete != null,
-                destructive = true,
-                onConfirm = {
-                    activeDelete?.let { conversation ->
-                        if ((backStack.lastOrNull() as? AppRoute.Browser)?.sessionKey == conversation.id) {
-                            navigator.popToHome()
-                        }
-                        agentState.deleteConversation(conversation.id)
-                    }
-                    conversationDeleteTarget = null
-                },
-                onDismissRequest = { conversationDeleteTarget = null },
-                onDismissFinished = { if (conversationDeleteTarget == null) retainedDelete = null },
-            )
-
-            var retainedMessageDelete by remember { mutableStateOf<MessageMutationTarget?>(null) }
-            messageDeleteTarget?.let { retainedMessageDelete = it }
-            val activeMessageDelete = messageDeleteTarget ?: retainedMessageDelete
-            val messageDeleteSummary = activeMessageDelete?.let { target ->
-                if (target.laterTurnCount == 0) {
-                    stringResource(R.string.conversation_delete_message_body)
-                } else {
-                    pluralStringResource(
-                        R.plurals.conversation_delete_later_turns,
-                        target.laterTurnCount,
-                        target.laterTurnCount,
-                    )
-                }
-            }
-            CouiConfirmDialog(
-                visible = messageDeleteTarget != null,
-                title = stringResource(R.string.conversation_delete_message_title),
-                message = messageDeleteSummary,
-                confirmText = stringResource(R.string.action_delete),
-                confirmEnabled = activeMessageDelete != null,
-                destructive = true,
-                onConfirm = {
-                    activeMessageDelete?.let { target ->
-                        agentState.deleteMessageTurn(target.messageId)
-                    }
-                    messageDeleteTarget = null
-                },
-                onDismissRequest = { messageDeleteTarget = null },
-                onDismissFinished = { if (messageDeleteTarget == null) retainedMessageDelete = null },
-            )
-
-            var retainedRegenerate by remember { mutableStateOf<MessageMutationTarget?>(null) }
-            messageRegenerateTarget?.let { retainedRegenerate = it }
-            val activeRegenerate = messageRegenerateTarget ?: retainedRegenerate
-            val regenerateSummary = activeRegenerate?.let { target ->
-                if (target.laterTurnCount == 0) {
-                    stringResource(R.string.conversation_regenerate_current_turn)
-                } else {
-                    pluralStringResource(
-                        R.plurals.conversation_regenerate_later_turns,
-                        target.laterTurnCount,
-                        target.laterTurnCount,
-                    )
-                }
-            }
-            CouiConfirmDialog(
-                visible = messageRegenerateTarget != null,
-                title = stringResource(R.string.conversation_regenerate_title),
-                message = regenerateSummary,
-                confirmText = stringResource(R.string.action_regenerate),
-                confirmEnabled = activeRegenerate != null,
-                destructive = true,
-                onConfirm = {
-                    activeRegenerate?.let { target ->
-                        agentState.regenerateMessage(target.messageId)
-                    }
-                    messageRegenerateTarget = null
-                },
-                onDismissRequest = { messageRegenerateTarget = null },
-                onDismissFinished = { if (messageRegenerateTarget == null) retainedRegenerate = null },
+                modifier = Modifier.padding(top = 16.dp),
             )
         }
-        AppearanceUiStyle.MIUIX -> {
-            val sceneBackdrop = currentGlassOverlayBackdrop()
-            var retainedNotice by remember { mutableStateOf<String?>(null) }
-            characterStore.notice?.let { retainedNotice = it }
-            GlassDialog(
-                show = characterStore.notice != null,
-                backdrop = sceneBackdrop,
-                title = stringResource(R.string.conversation_dock_characters),
-                summary = retainedNotice,
-                onDismissRequest = characterStore::dismissNotice,
-                onDismissFinished = { if (characterStore.notice == null) retainedNotice = null },
-            ) {
-                GlassDialogButton(
-                    onClick = characterStore::dismissNotice,
-                    role = GlassDialogButtonRole.Normal,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = stringResource(R.string.ui_misc_got_it),
-                        style = MiuixTheme.textStyles.button,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+    }
 
-            var retainedRename by remember { mutableStateOf<ConversationSummaryUi?>(null) }
-            conversationRenameTarget?.let { retainedRename = it }
-            val renameInputState = remember(retainedRename?.id) {
-                TextFieldState(retainedRename?.title.orEmpty())
-            }
-            GlassDialog(
-                show = conversationRenameTarget != null,
-                backdrop = sceneBackdrop,
-                title = stringResource(R.string.conversation_rename_title),
-                onDismissRequest = { conversationRenameTarget = null },
-                onDismissFinished = { if (conversationRenameTarget == null) retainedRename = null },
-            ) {
-                Column {
-                    GlassTextField(
-                        state = renameInputState,
-                        lineLimits = TextFieldLineLimits.SingleLine,
-                        label = stringResource(R.string.conversation_rename_hint),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    MiuixDialogActions(
-                        confirmText = stringResource(R.string.action_save),
-                        confirmEnabled = renameInputState.text.isNotBlank() && retainedRename != null,
-                        onCancel = { conversationRenameTarget = null },
-                        onConfirm = {
-                            retainedRename?.let { conversation ->
-                                agentState.renameConversation(conversation.id, renameInputState.text.toString())
-                            }
-                            conversationRenameTarget = null
-                        },
-                        modifier = Modifier.padding(top = 16.dp),
-                    )
+    var retainedDelete by remember { mutableStateOf<ConversationSummaryUi?>(null) }
+    conversationDeleteTarget?.let { retainedDelete = it }
+    val deleteMessage = stringResource(
+        if (retainedDelete?.isActiveRun == true) {
+            R.string.conversation_stop_and_delete_message
+        } else {
+            R.string.conversation_delete_message
+        },
+    )
+    val deleteConfirmText = stringResource(
+        if (retainedDelete?.isActiveRun == true) {
+            R.string.conversation_stop_and_delete
+        } else {
+            R.string.action_delete
+        },
+    )
+    GlassDialog(
+        show = conversationDeleteTarget != null,
+        backdrop = sceneBackdrop,
+        title = stringResource(R.string.conversation_delete_title),
+        summary = deleteMessage,
+        onDismissRequest = { conversationDeleteTarget = null },
+        onDismissFinished = { if (conversationDeleteTarget == null) retainedDelete = null },
+    ) {
+        DialogActions(
+            confirmText = deleteConfirmText,
+            destructive = true,
+            onCancel = { conversationDeleteTarget = null },
+            onConfirm = {
+                retainedDelete?.let { conversation ->
+                    if ((backStack.lastOrNull() as? AppRoute.Browser)?.sessionKey == conversation.id) {
+                        navigator.popToHome()
+                    }
+                    agentState.deleteConversation(conversation.id)
                 }
-            }
+                conversationDeleteTarget = null
+            },
+        )
+    }
 
-            var retainedDelete by remember { mutableStateOf<ConversationSummaryUi?>(null) }
-            conversationDeleteTarget?.let { retainedDelete = it }
-            val deleteMessage = stringResource(
-                if (retainedDelete?.isActiveRun == true) {
-                    R.string.conversation_stop_and_delete_message
-                } else {
-                    R.string.conversation_delete_message
-                },
+    var retainedDeleteMessage by remember { mutableStateOf<MessageMutationTarget?>(null) }
+    messageDeleteTarget?.let { retainedDeleteMessage = it }
+    val deleteMessageSummary = retainedDeleteMessage?.let { target ->
+        if (target.laterTurnCount == 0) {
+            stringResource(R.string.conversation_delete_message_body)
+        } else {
+            pluralStringResource(
+                R.plurals.conversation_delete_later_turns,
+                target.laterTurnCount,
+                target.laterTurnCount,
             )
-            val deleteConfirmText = stringResource(
-                if (retainedDelete?.isActiveRun == true) {
-                    R.string.conversation_stop_and_delete
-                } else {
-                    R.string.action_delete
-                },
-            )
-            GlassDialog(
-                show = conversationDeleteTarget != null,
-                backdrop = sceneBackdrop,
-                title = stringResource(R.string.conversation_delete_title),
-                summary = deleteMessage,
-                onDismissRequest = { conversationDeleteTarget = null },
-                onDismissFinished = { if (conversationDeleteTarget == null) retainedDelete = null },
-            ) {
-                MiuixDialogActions(
-                    confirmText = deleteConfirmText,
-                    destructive = true,
-                    onCancel = { conversationDeleteTarget = null },
-                    onConfirm = {
-                        retainedDelete?.let { conversation ->
-                            if ((backStack.lastOrNull() as? AppRoute.Browser)?.sessionKey == conversation.id) {
-                                navigator.popToHome()
-                            }
-                            agentState.deleteConversation(conversation.id)
-                        }
-                        conversationDeleteTarget = null
-                    },
-                )
-            }
-
-            var retainedDeleteMessage by remember { mutableStateOf<MessageMutationTarget?>(null) }
-            messageDeleteTarget?.let { retainedDeleteMessage = it }
-            val deleteMessageSummary = retainedDeleteMessage?.let { target ->
-                if (target.laterTurnCount == 0) {
-                    stringResource(R.string.conversation_delete_message_body)
-                } else {
-                    pluralStringResource(
-                        R.plurals.conversation_delete_later_turns,
-                        target.laterTurnCount,
-                        target.laterTurnCount,
-                    )
-                }
-            }
-            GlassDialog(
-                show = messageDeleteTarget != null,
-                backdrop = sceneBackdrop,
-                title = stringResource(R.string.conversation_delete_message_title),
-                summary = deleteMessageSummary,
-                onDismissRequest = { messageDeleteTarget = null },
-                onDismissFinished = { if (messageDeleteTarget == null) retainedDeleteMessage = null },
-            ) {
-                MiuixDialogActions(
-                    confirmText = stringResource(R.string.action_delete),
-                    destructive = true,
-                    onCancel = { messageDeleteTarget = null },
-                    onConfirm = {
-                        retainedDeleteMessage?.let { target ->
-                            agentState.deleteMessageTurn(target.messageId)
-                        }
-                        messageDeleteTarget = null
-                    },
-                )
-            }
-
-            var retainedRegenerate by remember { mutableStateOf<MessageMutationTarget?>(null) }
-            messageRegenerateTarget?.let { retainedRegenerate = it }
-            val regenerateSummary = retainedRegenerate?.let { target ->
-                if (target.laterTurnCount == 0) {
-                    stringResource(R.string.conversation_regenerate_current_turn)
-                } else {
-                    pluralStringResource(
-                        R.plurals.conversation_regenerate_later_turns,
-                        target.laterTurnCount,
-                        target.laterTurnCount,
-                    )
-                }
-            }
-            GlassDialog(
-                show = messageRegenerateTarget != null,
-                backdrop = sceneBackdrop,
-                title = stringResource(R.string.conversation_regenerate_title),
-                summary = regenerateSummary,
-                onDismissRequest = { messageRegenerateTarget = null },
-                onDismissFinished = { if (messageRegenerateTarget == null) retainedRegenerate = null },
-            ) {
-                MiuixDialogActions(
-                    confirmText = stringResource(R.string.action_regenerate),
-                    destructive = true,
-                    onCancel = { messageRegenerateTarget = null },
-                    onConfirm = {
-                        retainedRegenerate?.let { target ->
-                            agentState.regenerateMessage(target.messageId)
-                        }
-                        messageRegenerateTarget = null
-                    },
-                )
-            }
         }
+    }
+    GlassDialog(
+        show = messageDeleteTarget != null,
+        backdrop = sceneBackdrop,
+        title = stringResource(R.string.conversation_delete_message_title),
+        summary = deleteMessageSummary,
+        onDismissRequest = { messageDeleteTarget = null },
+        onDismissFinished = { if (messageDeleteTarget == null) retainedDeleteMessage = null },
+    ) {
+        DialogActions(
+            confirmText = stringResource(R.string.action_delete),
+            destructive = true,
+            onCancel = { messageDeleteTarget = null },
+            onConfirm = {
+                retainedDeleteMessage?.let { target ->
+                    agentState.deleteMessageTurn(target.messageId)
+                }
+                messageDeleteTarget = null
+            },
+        )
+    }
+
+    var retainedRegenerate by remember { mutableStateOf<MessageMutationTarget?>(null) }
+    messageRegenerateTarget?.let { retainedRegenerate = it }
+    val regenerateSummary = retainedRegenerate?.let { target ->
+        if (target.laterTurnCount == 0) {
+            stringResource(R.string.conversation_regenerate_current_turn)
+        } else {
+            pluralStringResource(
+                R.plurals.conversation_regenerate_later_turns,
+                target.laterTurnCount,
+                target.laterTurnCount,
+            )
+        }
+    }
+    GlassDialog(
+        show = messageRegenerateTarget != null,
+        backdrop = sceneBackdrop,
+        title = stringResource(R.string.conversation_regenerate_title),
+        summary = regenerateSummary,
+        onDismissRequest = { messageRegenerateTarget = null },
+        onDismissFinished = { if (messageRegenerateTarget == null) retainedRegenerate = null },
+    ) {
+        DialogActions(
+            confirmText = stringResource(R.string.action_regenerate),
+            destructive = true,
+            onCancel = { messageRegenerateTarget = null },
+            onConfirm = {
+                retainedRegenerate?.let { target ->
+                    agentState.regenerateMessage(target.messageId)
+                }
+                messageRegenerateTarget = null
+            },
+        )
     }
 }
 

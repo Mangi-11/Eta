@@ -1,7 +1,6 @@
 package io.github.mangi.eta.data.datastore
 
 import android.content.Context
-import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
@@ -15,8 +14,6 @@ import io.github.mangi.eta.data.model.AppearanceAccentColor
 import io.github.mangi.eta.data.model.AppearancePaletteStyle
 import io.github.mangi.eta.data.model.AppearanceSettings
 import io.github.mangi.eta.data.model.AppearanceThemeMode
-import io.github.mangi.eta.data.model.AppearanceTopBarBlurStyle
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.AssistantOverlaySettings
 import io.github.mangi.eta.data.model.ConversationTitleSettings
 import io.github.mangi.eta.data.model.ImageGenSettings
@@ -166,42 +163,20 @@ internal object SettingsDataStore {
     private val OFFICIAL_MODEL_CATALOG_REVISION = intPreferencesKey("official_model_catalog_revision")
     private val MEMORY_ENABLED = booleanPreferencesKey("memory_enabled")
     private val LINUX_DISTRIBUTION = stringPreferencesKey("linux_distribution")
-    private val APPEARANCE_UI_STYLE = stringPreferencesKey("appearance_ui_style")
     private val APPEARANCE_THEME_MODE = stringPreferencesKey("appearance_theme_mode")
     private val APPEARANCE_MONET_ENABLED = booleanPreferencesKey("appearance_monet_enabled")
     private val APPEARANCE_PALETTE_STYLE = stringPreferencesKey("appearance_palette_style")
     private val APPEARANCE_ACCENT_COLOR = stringPreferencesKey("appearance_accent_color")
     private val APPEARANCE_PURE_BLACK_ENABLED = booleanPreferencesKey("appearance_pure_black_enabled")
-    private val APPEARANCE_BLUR_ENABLED = booleanPreferencesKey("appearance_blur_enabled")
     private val APPEARANCE_PROGRESSIVE_BLUR_ENABLED =
         booleanPreferencesKey("appearance_progressive_blur_enabled")
-    private val APPEARANCE_TOP_BAR_BLUR_STYLE = stringPreferencesKey("appearance_top_bar_blur_style")
     private val APPEARANCE_SWIPE_DISMISS_ENABLED =
         booleanPreferencesKey("appearance_swipe_dismiss_enabled")
     private val APPEARANCE_PREDICTIVE_BACK_ENABLED =
         booleanPreferencesKey("appearance_predictive_back_enabled")
     private const val SELECTED_MODEL_BY_PROVIDER_PREFIX = "selected_model_id_by_provider."
 
-    internal object DefaultUiStyleMigration : DataMigration<Preferences> {
-        private val revision = intPreferencesKey("appearance_ui_style_default_revision")
-
-        override suspend fun shouldMigrate(currentData: Preferences): Boolean =
-            (currentData[revision] ?: 0) < AppearanceUiStyle.DEFAULT_REVISION
-
-        override suspend fun migrate(currentData: Preferences): Preferences =
-            currentData.toMutablePreferences().apply {
-                // 只在切换默认样式时清除旧选择，后续启动尊重用户重新选择的样式。
-                remove(APPEARANCE_UI_STYLE)
-                this[revision] = AppearanceUiStyle.DEFAULT_REVISION
-            }
-
-        override suspend fun cleanUp() = Unit
-    }
-
-    private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
-        name = STORE_NAME,
-        produceMigrations = { listOf(DefaultUiStyleMigration) },
-    )
+    private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = STORE_NAME)
 
     @Volatile
     private lateinit var dataStore: DataStore<Preferences>
@@ -357,23 +332,6 @@ internal object SettingsDataStore {
         }
     }
 
-    suspend fun selectUiStyle(style: AppearanceUiStyle) {
-        ensureInitialized()
-        dataStore.edit { prefs ->
-            prefs[APPEARANCE_UI_STYLE] = style.persistedValue
-        }
-    }
-
-    suspend fun hasSavedUiStyle(): Boolean {
-        ensureInitialized()
-        return dataStore.data
-            .catch { cause ->
-                if (cause is IOException) emit(emptyPreferences()) else throw cause
-            }
-            .first()
-            .contains(APPEARANCE_UI_STYLE)
-    }
-
     private fun ensureInitialized() {
         check(::dataStore.isInitialized) {
             "SettingsDataStore.init(context) must be called in Application.onCreate()"
@@ -396,35 +354,24 @@ internal object SettingsDataStore {
         selectedModelId = this[SELECTED_MODEL_ID],
         memoryEnabled = this[MEMORY_ENABLED] ?: true,
         appearance = AppearanceSettings(
-            uiStyle = AppearanceUiStyle.fromPersistedValue(this[APPEARANCE_UI_STYLE]),
             themeMode = AppearanceThemeMode.fromPersistedValue(this[APPEARANCE_THEME_MODE]),
             monetEnabled = this[APPEARANCE_MONET_ENABLED] ?: false,
             paletteStyle = AppearancePaletteStyle.fromPersistedValue(this[APPEARANCE_PALETTE_STYLE]),
             accentColor = AppearanceAccentColor.fromPersistedValue(this[APPEARANCE_ACCENT_COLOR]),
             pureBlackEnabled = this[APPEARANCE_PURE_BLACK_ENABLED] ?: false,
-            blurEnabled = this[APPEARANCE_BLUR_ENABLED] ?: true,
             progressiveBlurEnabled = this[APPEARANCE_PROGRESSIVE_BLUR_ENABLED] ?: true,
-            topBarBlurStyle = AppearanceTopBarBlurStyle.fromPersistedValue(
-                this[APPEARANCE_TOP_BAR_BLUR_STYLE],
-            ),
             swipeDismissEnabled = this[APPEARANCE_SWIPE_DISMISS_ENABLED] ?: true,
             predictiveBackEnabled = this[APPEARANCE_PREDICTIVE_BACK_ENABLED] ?: true,
         ),
     )
 
     private fun MutablePreferences.putAppearance(settings: AppearanceSettings) {
-        val currentStyle = AppearanceUiStyle.fromPersistedValue(this[APPEARANCE_UI_STYLE])
-        if (contains(APPEARANCE_UI_STYLE) || settings.uiStyle != currentStyle) {
-            this[APPEARANCE_UI_STYLE] = settings.uiStyle.persistedValue
-        }
         this[APPEARANCE_THEME_MODE] = settings.themeMode.persistedValue
         this[APPEARANCE_MONET_ENABLED] = settings.monetEnabled
         this[APPEARANCE_PALETTE_STYLE] = settings.paletteStyle.persistedValue
         this[APPEARANCE_ACCENT_COLOR] = settings.accentColor.persistedValue
         this[APPEARANCE_PURE_BLACK_ENABLED] = settings.pureBlackEnabled
-        this[APPEARANCE_BLUR_ENABLED] = settings.blurEnabled
         this[APPEARANCE_PROGRESSIVE_BLUR_ENABLED] = settings.progressiveBlurEnabled
-        this[APPEARANCE_TOP_BAR_BLUR_STYLE] = settings.topBarBlurStyle.persistedValue
         this[APPEARANCE_SWIPE_DISMISS_ENABLED] = settings.swipeDismissEnabled
         this[APPEARANCE_PREDICTIVE_BACK_ENABLED] = settings.predictiveBackEnabled
     }

@@ -102,8 +102,8 @@ internal data class EtaVoiceUiState(
     val phase: EtaVoicePhase = EtaVoicePhase.READY,
 )
 
-private val CouiEnterEasing = CubicBezierEasing(0.20f, 0f, 0f, 1f)
-private val CouiExitEasing = CubicBezierEasing(0.30f, 0f, 1f, 1f)
+private val AssistantEnterEasing = CubicBezierEasing(0.20f, 0f, 0f, 1f)
+private val AssistantExitEasing = CubicBezierEasing(0.30f, 0f, 1f, 1f)
 
 @Composable
 internal fun EtaVoicePanel(
@@ -145,7 +145,7 @@ internal fun EtaVoicePanel(
 
     val exitProgress by animateFloatAsState(
         targetValue = if (exitRequested) 1f else 0f,
-        animationSpec = tween(210, easing = CouiExitEasing),
+        animationSpec = tween(210, easing = AssistantExitEasing),
         label = "assistant_exit",
     )
     val hasMessages = state.messages.isNotEmpty()
@@ -189,7 +189,7 @@ internal fun EtaVoicePanel(
                     1f,
                     tween(
                         durationMillis = if (recognitionEnabled == false) 250 else 210,
-                        easing = CouiEnterEasing,
+                        easing = AssistantEnterEasing,
                     ),
                 )
             }
@@ -404,7 +404,7 @@ private fun BoxScope.AssistantPanel(
     val messageRevealProgress = animateFloatAsState(
         targetValue = if (hasMessages) 1f else 0f,
         animationSpec = if (hasMessages) {
-            tween(durationMillis = 210, delayMillis = 45, easing = CouiEnterEasing)
+            tween(durationMillis = 210, delayMillis = 45, easing = AssistantEnterEasing)
         } else {
             tween(durationMillis = 110, easing = FastOutSlowInEasing)
         },
@@ -604,7 +604,7 @@ private fun BoxScope.AssistantPanel(
 
     val messageRevealOffsetPx = with(density) { 14.dp.toPx() }
     val sheetCornerRadius = 32.dp
-    val sheetShape = remember { TopCouiSheetShape(topRadius = sheetCornerRadius, cornerWeight = 2.6f) }
+    val sheetShape = remember { AssistantSheetShape(topRadius = sheetCornerRadius, cornerWeight = 2.6f) }
     val sheetSurfaceVisible = hasMessages || sheetBackgroundAlpha.value > 0.001f
 
     Column(
@@ -620,8 +620,8 @@ private fun BoxScope.AssistantPanel(
                     val shadowRisePx = 28.dp.toPx()
                     val cornerPx = sheetCornerRadius.toPx().coerceIn(0f, minOf(size.width * 0.5f, size.height))
                     val maxAlpha = (if (colors.dark) 0.30f else 0.10f) * sheetAlpha
-                    val sheetPath = buildTopCouiSheetPath(size, cornerPx, 2.6f)
-                    val rimPath = buildTopCouiRimPath(size, cornerPx, 2.6f)
+                    val sheetPath = buildAssistantSheetPath(size, cornerPx, 2.6f)
+                    val rimPath = buildAssistantRimPath(size, cornerPx, 2.6f)
                     clipRect(left = 0f, top = -shadowRisePx, right = size.width, bottom = cornerPx) {
                         clipPath(sheetPath, clipOp = ClipOp.Difference) {
                             val layers = 8
@@ -656,7 +656,7 @@ private fun BoxScope.AssistantPanel(
                 drawContent()
                 if (sheetAlpha > 0.01f && size.height > 8f) {
                     val rimFadePx = minOf(84.dp.toPx(), size.height * 0.55f)
-                    val path = buildTopCouiSheetPath(size, sheetCornerRadius.toPx(), 2.6f)
+                    val path = buildAssistantSheetPath(size, sheetCornerRadius.toPx(), 2.6f)
                     drawPath(
                         path = path,
                         brush = Brush.verticalGradient(

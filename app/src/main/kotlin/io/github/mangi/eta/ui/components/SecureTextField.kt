@@ -27,7 +27,7 @@ import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun MiuixSecureTextField(
+internal fun SecureTextField(
     state: TextFieldState,
     label: String,
     modifier: Modifier = Modifier,

@@ -1,6 +1,5 @@
 package io.github.mangi.eta.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,18 +11,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiIcon
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiText
-import io.github.mangi.eta.ui.components.coui.CouiTextKind
-import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.squircle.squircleBackground
@@ -41,96 +32,46 @@ internal fun ListEmptyState(
     icon: ImageVector? = null,
     action: (@Composable () -> Unit)? = null,
 ) {
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
-            Column(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 40.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+    val colors = MiuixTheme.colorScheme
+    Column(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        icon?.let {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .squircleBackground(colors.surfaceContainerHigh, 16.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                icon?.let {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CouiShape(16.dp, 2f))
-                            .background(colors.card),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CouiIcon(
-                            imageVector = it,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = colors.summary,
-                        )
-                    }
-                    Spacer(Modifier.height(6.dp))
-                }
-                CouiText(
-                    text = title,
-                    kind = if (summary != null) CouiTextKind.ItemTitle else CouiTextKind.Search,
-                    color = if (summary != null) colors.title else colors.summary,
-                    textAlign = TextAlign.Center,
+                Icon(
+                    imageVector = it,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = colors.onSurfaceVariantSummary,
                 )
-                summary?.let {
-                    CouiText(
-                        text = it,
-                        kind = CouiTextKind.GroupFooter,
-                        color = colors.summary,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-                action?.let {
-                    Spacer(Modifier.height(10.dp))
-                    it()
-                }
             }
+            Spacer(Modifier.height(6.dp))
         }
-        AppearanceUiStyle.MIUIX -> {
-            val colors = MiuixTheme.colorScheme
-            Column(
-                modifier = modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                icon?.let {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .squircleBackground(colors.surfaceContainerHigh, 16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = it,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = colors.onSurfaceVariantSummary,
-                        )
-                    }
-                    Spacer(Modifier.height(6.dp))
-                }
-                Text(
-                    text = title,
-                    style = if (summary != null) MiuixTheme.textStyles.body1 else MiuixTheme.textStyles.body2,
-                    fontWeight = if (summary != null) FontWeight.Medium else null,
-                    color = if (summary != null) colors.onSurface else colors.onSurfaceVariantSummary,
-                    textAlign = TextAlign.Center,
-                )
-                summary?.let {
-                    Text(
-                        text = it,
-                        style = MiuixTheme.textStyles.body2,
-                        color = colors.onSurfaceVariantSummary,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-                action?.let {
-                    Spacer(Modifier.height(10.dp))
-                    it()
-                }
-            }
+        Text(
+            text = title,
+            style = if (summary != null) MiuixTheme.textStyles.body1 else MiuixTheme.textStyles.body2,
+            fontWeight = if (summary != null) FontWeight.Medium else null,
+            color = if (summary != null) colors.onSurface else colors.onSurfaceVariantSummary,
+            textAlign = TextAlign.Center,
+        )
+        summary?.let {
+            Text(
+                text = it,
+                style = MiuixTheme.textStyles.body2,
+                color = colors.onSurfaceVariantSummary,
+                textAlign = TextAlign.Center,
+            )
+        }
+        action?.let {
+            Spacer(Modifier.height(10.dp))
+            it()
         }
     }
 }

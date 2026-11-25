@@ -43,10 +43,6 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot
 import io.github.mangi.eta.agent.subagent.SubagentStepSnapshot
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiBottomSheet
-import io.github.mangi.eta.ui.components.coui.CouiPanelDefaults
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
 import top.yukonga.miuix.kmp.basic.Icon
@@ -162,38 +158,19 @@ internal fun SubagentActivityRow(
         }
     }
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiBottomSheet(
-                show = showInspector,
-                onDismissRequest = { showInspector = false },
-                title = taskTitle,
-            ) {
-                SubagentInspectorContent(
-                    messageId = message.id,
-                    snapshot = snapshot,
-                    running = running,
-                    cancelled = cancelled,
-                    failed = failed,
-                )
-            }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            GlassBottomSheet(
-                show = showInspector,
-                backdrop = currentGlassOverlayBackdrop(),
-                title = taskTitle,
-                onDismissRequest = { showInspector = false },
-            ) {
-                SubagentInspectorContent(
-                    messageId = message.id,
-                    snapshot = snapshot,
-                    running = running,
-                    cancelled = cancelled,
-                    failed = failed,
-                )
-            }
-        }
+    GlassBottomSheet(
+        show = showInspector,
+        backdrop = currentGlassOverlayBackdrop(),
+        title = taskTitle,
+        onDismissRequest = { showInspector = false },
+    ) {
+        SubagentInspectorContent(
+            messageId = message.id,
+            snapshot = snapshot,
+            running = running,
+            cancelled = cancelled,
+            failed = failed,
+        )
     }
 }
 
@@ -244,26 +221,14 @@ private fun SubagentInspectorContent(
     // 使用稳定 messageId 作 key，避免启动瞬间 subagentId 从空变为 sub_1 时重置展开状态。
     var promptExpanded by rememberSaveable(messageId) { mutableStateOf(false) }
     val pulse = rememberDrawPhasePulse(active = running)
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (isCoui) {
-                    Modifier
-                        .heightIn(max = maxSheetHeight)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = CouiPanelDefaults.contentPadding)
-                        .padding(top = 8.dp, bottom = 24.dp)
-                } else {
-                    Modifier
-                        .heightIn(max = maxSheetHeight)
-                        .verticalScroll(rememberScrollState())
-                        .navigationBarsPadding()
-                        .padding(bottom = 24.dp)
-                },
-            ),
+            .heightIn(max = maxSheetHeight)
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         // 顶部状态与元信息横条：留白克制，只展示关键身份与实时状态

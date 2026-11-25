@@ -24,7 +24,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import io.github.mangi.eta.ui.app.LocalEtaTopLayer
+import io.github.mangi.eta.ui.app.LocalTopLayer
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentColors
@@ -46,10 +46,10 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.PopupLayout
 
 /**
  * 支持双行摘要（[DropdownItem.summary]）与单行禁用态的 OS4 玻璃下拉设置行。
- * 存在顶层承载器时直接挂载在 [EtaTopLayer] 上以保持完整退场动效；独立测试环境回退至 [PopupLayout]。
+ * 存在顶层承载器时直接挂载在 [TopLayer] 上以保持完整退场动效；独立测试环境回退至 [PopupLayout]。
  */
 @Composable
-internal fun EtaGlassSpinnerPreference(
+internal fun GlassSpinnerPreference(
     title: String,
     items: List<DropdownItem>,
     selectedIndex: Int,
@@ -157,8 +157,8 @@ internal fun EtaGlassSpinnerPreference(
         }
     }
 
-    if (LocalEtaTopLayer.current != null) {
-        EtaTopLayer(content = popupBody)
+    if (LocalTopLayer.current != null) {
+        TopLayer(content = popupBody)
     } else if (mounted.value) {
         PopupLayout(
             visible = mounted,

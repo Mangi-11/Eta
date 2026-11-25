@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -45,8 +44,6 @@ import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -58,7 +55,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -77,7 +73,6 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.auth.ProviderAuthException
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
@@ -88,36 +83,22 @@ import io.github.mangi.eta.data.provider.GeminiModelCapabilities
 import io.github.mangi.eta.data.repository.ModelRepository
 import io.github.mangi.eta.data.repository.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
-import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.ChoiceChip
 import io.github.mangi.eta.ui.components.DecimalDigits
-import io.github.mangi.eta.ui.components.EtaChoiceChip
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
-import io.github.mangi.eta.ui.components.MiuixDialogActions
+import io.github.mangi.eta.ui.components.DialogActions
+import io.github.mangi.eta.ui.components.PreferenceGroupItem
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.captureGlassBackdrop
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
-import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
-import io.github.mangi.eta.ui.components.coui.CouiText
-import io.github.mangi.eta.ui.components.coui.CouiTextField
-import io.github.mangi.eta.ui.components.coui.CouiTextKind
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.rememberGlassBackdrop
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
-import io.github.suqi8.coui.kmp.utils.rememberCOUIFlingBehavior
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.FloatingToolbar
-import top.yukonga.miuix.kmp.basic.FloatingToolbarDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
@@ -137,11 +118,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import io.github.suqi8.coui.kmp.basic.Checkbox as CouiCheckbox
-import io.github.suqi8.coui.kmp.basic.HorizontalDivider as CouiDivider
-import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
-import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
-import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 
 private val editableReasoningEfforts = listOf(
     ReasoningEffort.OFF,
@@ -208,7 +184,6 @@ internal fun ProviderModelsTab(
     provider: ProviderSetting,
     scope: CoroutineScope,
     scrollBehavior: ScrollBehavior? = null,
-    nestedScrollConnection: NestedScrollConnection? = scrollBehavior?.nestedScrollConnection,
     contentSidePadding: Dp,
     contentTopPadding: Dp = 0.dp,
     listState: LazyListState = rememberLazyListState(),
@@ -248,7 +223,6 @@ internal fun ProviderModelsTab(
         },
     )
 
-    val uiStyle = LocalUiStyle.current
     val onPullRemoteModels: () -> Unit = {
         fetchScope.launch {
             isFetching = true
@@ -307,8 +281,9 @@ internal fun ProviderModelsTab(
         )
     }
 
-    val tabBackdrop = if (uiStyle == AppearanceUiStyle.COUI) null else rememberGlassBackdrop()
+    val tabBackdrop = rememberGlassBackdrop()
     val scrollState = scrollBehavior?.state
+    val nestedScrollConnection = scrollBehavior?.nestedScrollConnection
     val onOverscrollChanged: (Float) -> Unit = remember(scrollState) {
         { scrollState?.overscrollOffset = it }
     }
@@ -323,35 +298,20 @@ internal fun ProviderModelsTab(
         )
     }
 
-    val scrollModifier = if (uiStyle == AppearanceUiStyle.COUI) {
-        Modifier
-            .imePadding()
-            .couiScrollEndHaptic()
-            .couiOverScrollVertical()
-    } else {
-        Modifier
-            .scrollEndHaptic()
-            .overScrollVertical(onOffsetChanged = onOverscrollChanged)
-    }
-    val flingBehavior = if (uiStyle == AppearanceUiStyle.COUI) {
-        rememberCOUIFlingBehavior()
-    } else {
-        androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
-    }
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .captureGlassBackdrop(tabBackdrop)
-                .then(scrollModifier)
+                .scrollEndHaptic()
+                .overScrollVertical(onOffsetChanged = onOverscrollChanged)
                 .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier),
             contentPadding = PaddingValues(
                 start = contentSidePadding,
                 top = contentTopPadding,
                 end = contentSidePadding,
             ),
-            flingBehavior = flingBehavior,
             overscrollEffect = null,
         ) {
             item(key = "actions", contentType = "section") {
@@ -369,34 +329,18 @@ internal fun ProviderModelsTab(
                         val pullSummary = stringResource(R.string.provider_models_endpoint_summary, provider.baseUrl)
                         val customTitle = stringResource(R.string.ui_add_custom_model_a5ddc0)
                         val customSummary = stringResource(R.string.ui_manually_fill_in_the_display_name_and_model_id_077a7b)
-                        if (uiStyle == AppearanceUiStyle.COUI) {
-                            CouiPreference(
-                                title = pullTitle,
-                                summary = pullSummary,
-                                enabled = !isFetching,
-                                onClick = onPullRemoteModels,
-                            )
-                            CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
-                            CouiPreference(
-                                title = customTitle,
-                                summary = customSummary,
-                                enabled = !isFetching,
-                                onClick = onOpenAddCustomModel,
-                            )
-                        } else {
-                            ArrowPreference(
-                                title = pullTitle,
-                                summary = pullSummary,
-                                enabled = !isFetching,
-                                onClick = onPullRemoteModels,
-                            )
-                            ArrowPreference(
-                                title = customTitle,
-                                summary = customSummary,
-                                enabled = !isFetching,
-                                onClick = onOpenAddCustomModel,
-                            )
-                        }
+                        ArrowPreference(
+                            title = pullTitle,
+                            summary = pullSummary,
+                            enabled = !isFetching,
+                            onClick = onPullRemoteModels,
+                        )
+                        ArrowPreference(
+                            title = customTitle,
+                            summary = customSummary,
+                            enabled = !isFetching,
+                            onClick = onOpenAddCustomModel,
+                        )
                         val failPrefix = stringResource(R.string.page_fail_3e3c80)
                         message?.let {
                             Text(
@@ -411,26 +355,18 @@ internal fun ProviderModelsTab(
             }
 
             item(key = "model_search", contentType = "search") {
-                if (uiStyle == AppearanceUiStyle.COUI) {
-                    CouiSearchBarBox(
-                        query = modelSearchQuery,
-                        onQueryChange = { modelSearchQuery = it },
-                        placeholder = stringResource(R.string.ui_search_model_df5586),
-                    )
-                } else {
-                    InputField(
-                        query = modelSearchQuery,
-                        onQueryChange = { modelSearchQuery = it },
-                        onSearch = {},
-                        expanded = false,
-                        onExpandedChange = {},
-                        label = stringResource(R.string.ui_search_model_df5586),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .padding(top = 4.dp, bottom = 8.dp),
-                    )
-                }
+                InputField(
+                    query = modelSearchQuery,
+                    onQueryChange = { modelSearchQuery = it },
+                    onSearch = {},
+                    expanded = false,
+                    onExpandedChange = {},
+                    label = stringResource(R.string.ui_search_model_df5586),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(top = 4.dp, bottom = 8.dp),
+                )
             }
 
             if (provider.models.isEmpty() || filteredModels.isEmpty()) {
@@ -476,36 +412,23 @@ internal fun ProviderModelsTab(
                                 selectedModelIds + visibleIds
                             }
                         }
-                        if (uiStyle == AppearanceUiStyle.COUI) {
-                            CouiSectionTitle(text = selectedTitle) {
-                                SelectionHeaderAction(
-                                    text = actionLabel,
-                                    color = MiuixTheme.colorScheme.primary,
-                                    enabled = !isFetching && visibleIds.isNotEmpty(),
-                                    onClick = onToggleSelectAll,
-                                )
-                            }
-                        } else {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(end = 20.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                SmallTitle(
-                                    text = selectedTitle,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                SelectionHeaderAction(
-                                    text = actionLabel,
-                                    color = MiuixTheme.colorScheme.primary,
-                                    enabled = !isFetching && visibleIds.isNotEmpty(),
-                                    onClick = onToggleSelectAll,
-                                )
-                            }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SmallTitle(
+                                text = selectedTitle,
+                                modifier = Modifier.weight(1f),
+                            )
+                            SelectionHeaderAction(
+                                text = actionLabel,
+                                color = MiuixTheme.colorScheme.primary,
+                                enabled = !isFetching && visibleIds.isNotEmpty(),
+                                onClick = onToggleSelectAll,
+                            )
                         }
-                    } else if (uiStyle == AppearanceUiStyle.COUI) {
-                        CouiSectionTitle(text = modelListTitle)
                     } else {
                         SmallTitle(modelListTitle)
                     }
@@ -515,7 +438,7 @@ internal fun ProviderModelsTab(
                     key = { _, model -> "model:${model.id}" },
                     contentType = { _, _ -> "model" },
                 ) { index, model ->
-                    EtaPreferenceGroupItem(
+                    PreferenceGroupItem(
                         isFirst = index == 0,
                         isLast = index == filteredModels.lastIndex,
                     ) {
@@ -697,68 +620,39 @@ internal fun ProviderModelsTab(
         }
     }
 
-    when (uiStyle) {
-        AppearanceUiStyle.COUI -> {
-            CouiConfirmDialog(
-                visible = modelPendingDelete != null,
-                title = stringResource(R.string.ui_delete_model_cf24da),
-                message = stringResource(R.string.provider_model_delete_summary, activeDeleteModel?.displayName.orEmpty()),
-                confirmText = deleteConfirmText,
-                confirmEnabled = !isMutatingModel && activeDeleteModel != null,
-                cancelEnabled = !isMutatingModel,
-                destructive = true,
-                onConfirm = { activeDeleteModel?.let(onConfirmDeleteModel) },
-                onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
-                onDismissFinished = { if (modelPendingDelete == null) retainedModelPendingDelete = null },
-            )
-            CouiConfirmDialog(
-                visible = showBatchDeleteDialog,
-                title = stringResource(R.string.ui_delete_model_cf24da),
-                message = batchSummary,
-                confirmText = batchConfirmText,
-                confirmEnabled = !isMutatingModel,
-                cancelEnabled = !isMutatingModel,
-                destructive = true,
-                onConfirm = onConfirmBatchDelete,
-                onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
-            )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            val overlayBackdrop = currentGlassOverlayBackdrop() ?: tabBackdrop
-            GlassDialog(
-                show = modelPendingDelete != null,
-                backdrop = overlayBackdrop,
-                title = stringResource(R.string.ui_delete_model_cf24da),
-                summary = stringResource(R.string.provider_model_delete_summary, activeDeleteModel?.displayName.orEmpty()),
-                onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
-                onDismissFinished = { if (modelPendingDelete == null) retainedModelPendingDelete = null },
-            ) {
-                MiuixDialogActions(
-                    confirmText = deleteConfirmText,
-                    cancelEnabled = !isMutatingModel,
-                    confirmEnabled = !isMutatingModel && activeDeleteModel != null,
-                    destructive = true,
-                    onCancel = { modelPendingDelete = null },
-                    onConfirm = { activeDeleteModel?.let(onConfirmDeleteModel) },
-                )
-            }
-            GlassDialog(
-                show = showBatchDeleteDialog,
-                backdrop = overlayBackdrop,
-                title = stringResource(R.string.ui_delete_model_cf24da),
-                summary = batchSummary,
-                onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
-            ) {
-                MiuixDialogActions(
-                    confirmText = batchConfirmText,
-                    cancelEnabled = !isMutatingModel,
-                    confirmEnabled = !isMutatingModel,
-                    destructive = true,
-                    onCancel = { showBatchDeleteDialog = false },
-                    onConfirm = onConfirmBatchDelete,
-                )
-            }
-        }
+    val overlayBackdrop = currentGlassOverlayBackdrop() ?: tabBackdrop
+    GlassDialog(
+        show = modelPendingDelete != null,
+        backdrop = overlayBackdrop,
+        title = stringResource(R.string.ui_delete_model_cf24da),
+        summary = stringResource(R.string.provider_model_delete_summary, activeDeleteModel?.displayName.orEmpty()),
+        onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
+        onDismissFinished = { if (modelPendingDelete == null) retainedModelPendingDelete = null },
+    ) {
+        DialogActions(
+            confirmText = deleteConfirmText,
+            cancelEnabled = !isMutatingModel,
+            confirmEnabled = !isMutatingModel && activeDeleteModel != null,
+            destructive = true,
+            onCancel = { modelPendingDelete = null },
+            onConfirm = { activeDeleteModel?.let(onConfirmDeleteModel) },
+        )
+    }
+    GlassDialog(
+        show = showBatchDeleteDialog,
+        backdrop = overlayBackdrop,
+        title = stringResource(R.string.ui_delete_model_cf24da),
+        summary = batchSummary,
+        onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
+    ) {
+        DialogActions(
+            confirmText = batchConfirmText,
+            cancelEnabled = !isMutatingModel,
+            confirmEnabled = !isMutatingModel,
+            destructive = true,
+            onCancel = { showBatchDeleteDialog = false },
+            onConfirm = onConfirmBatchDelete,
+        )
     }
 
     RemoteModelImportSheet(
@@ -825,7 +719,7 @@ private fun SelectionHeaderAction(
     )
 }
 
-/** 多选模式底部操作栏：MIUIX 使用 OS4 GlassFloatingToolbar，COUI 保留原样式，避开屏幕底部圆角裁切区。 */
+/** 多选模式底部操作栏：使用 OS4 GlassFloatingToolbar，避开屏幕底部圆角裁切区。 */
 @Composable
 private fun ModelDeleteBar(
     selectedCount: Int,
@@ -843,7 +737,11 @@ private fun ModelDeleteBar(
         end = 24.dp,
         bottom = bottomPadding,
     )
-    val barContent: @Composable (androidx.compose.ui.unit.Dp) -> Unit = { cornerRadius ->
+    val cornerRadius = GlassFloatingToolbarDefaults.CornerRadius
+    GlassFloatingToolbar(
+        backdrop = backdrop,
+        outSidePadding = outSidePadding,
+    ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -872,21 +770,6 @@ private fun ModelDeleteBar(
                     textColor = MiuixTheme.colorScheme.onError,
                 ),
             )
-        }
-    }
-    if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-        FloatingToolbar(
-            outSidePadding = outSidePadding,
-            showDivider = true,
-        ) {
-            barContent(FloatingToolbarDefaults.CornerRadius)
-        }
-    } else {
-        GlassFloatingToolbar(
-            backdrop = backdrop,
-            outSidePadding = outSidePadding,
-        ) {
-            barContent(GlassFloatingToolbarDefaults.CornerRadius)
         }
     }
 }
@@ -953,30 +836,17 @@ private fun ModelListItem(
         }
         Spacer(modifier = Modifier.width(8.dp))
         if (selectionMode) {
-            when (LocalUiStyle.current) {
-                AppearanceUiStyle.COUI -> {
-                    CouiCheckbox(
-                        modifier = Modifier.size(24.dp),
-                        state = if (checked) ToggleableState.On else ToggleableState.Off,
-                        onClick = null,
-                        enabled = enabled,
-                    )
-                }
-                AppearanceUiStyle.MIUIX -> {
-                    Checkbox(
-                        state = if (checked) ToggleableState.On else ToggleableState.Off,
-                        onClick = onToggleChecked,
-                        enabled = enabled,
-                    )
-                }
-            }
+            Checkbox(
+                state = if (checked) ToggleableState.On else ToggleableState.Off,
+                onClick = onToggleChecked,
+                enabled = enabled,
+            )
         } else {
-            val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
             IconButton(onClick = onEdit, enabled = enabled) {
                 Icon(
-                    imageVector = if (isCoui) Icons.Rounded.Tune else MiuixIcons.Glass.Tune,
+                    imageVector = MiuixIcons.Glass.Tune,
                     contentDescription = stringResource(R.string.ui_edit_model_parameters_ba4864),
-                    modifier = if (isCoui) Modifier else Modifier.size(22.dp),
+                    modifier = Modifier.size(22.dp),
                     tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
                 )
             }
@@ -1103,384 +973,198 @@ private fun ModelEditDialog(
         },
     )
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
-            val contextRightLabel = when {
-                contextWindowOverrideTextState.text.isBlank() -> null
-                contextError != null -> stringResource(R.string.provider_context_window_invalid)
-                contextValue != null -> stringResource(R.string.provider_context_window_value, formatCompactTokenCount(contextValue))
-                else -> null
+    GlassDialog(
+        show = show,
+        backdrop = currentGlassOverlayBackdrop(),
+        title = dialogTitle,
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        onDismissFinished = onDismissFinished,
+    ) {
+        Column {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .modelDialogScrollableBody()
+                    .scrollEndHaptic()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                GlassTextField(
+                    state = displayNameState,
+                    lineLimits = TextFieldLineLimits.SingleLine,
+                    label = stringResource(R.string.ui_display_name_ed16be),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                GlassTextField(
+                    state = modelIdState,
+                    lineLimits = TextFieldLineLimits.SingleLine,
+                    label = "Model ID",
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Next,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                GlassTextField(
+                    state = contextWindowOverrideTextState,
+                    lineLimits = TextFieldLineLimits.SingleLine,
+                    inputTransformation = DecimalDigits,
+                    label = stringResource(R.string.ui_context_length_tokens_227860),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 10.dp),
+                ) {
+                    contextWindowPresets.forEach { preset ->
+                        ChoiceChip(
+                            text = formatCompactTokenCount(preset),
+                            selected = contextValue == preset,
+                            onClick = { contextWindowOverrideTextState.setTextAndPlaceCursorAtEnd(preset.toString()) },
+                            enabled = !isSaving,
+                        )
+                    }
+                }
+                Text(
+                    text = when {
+                        contextWindowOverrideTextState.text.isBlank() ->
+                            stringResource(R.string.provider_context_window_hint)
+                        contextError != null ->
+                            stringResource(R.string.provider_context_window_invalid)
+                        contextValue != null && contextValue !in contextWindowPresets ->
+                            stringResource(R.string.provider_context_window_value, formatCompactTokenCount(contextValue))
+                        else -> stringResource(R.string.provider_context_window_usage)
+                    },
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = if (contextError != null && contextWindowOverrideTextState.text.isNotBlank()) {
+                        StatusError
+                    } else {
+                        MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    },
+                    modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = !isSaving) {
+                            reasoningOverrideActive = true
+                            reasoningEnabled = !reasoningEnabled
+                        }
+                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = thinkingTitle,
+                            style = MiuixTheme.textStyles.body1,
+                            color = MiuixTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = thinkingSummary,
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = reasoningEnabled,
+                        onCheckedChange = { enabled ->
+                            reasoningOverrideActive = true
+                            reasoningEnabled = enabled
+                        },
+                        enabled = !isSaving,
+                    )
+                }
+                if (reasoningEnabled) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 10.dp),
+                    ) {
+                        availableEfforts.forEach { effort ->
+                            val checked = effort in selectedReasoningEfforts
+                            ChoiceChip(
+                                text = effort.displayName,
+                                selected = checked,
+                                onClick = {
+                                    reasoningOverrideActive = true
+                                    selectedReasoningEfforts = if (checked) {
+                                        selectedReasoningEfforts - effort
+                                    } else {
+                                        selectedReasoningEfforts + effort
+                                    }
+                                },
+                                enabled = !isSaving,
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = effortHelp,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                )
+                (modelIdError ?: error)?.let { message ->
+                    Text(
+                        text = message,
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = StatusError,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+                if (reasoningOverrideActive || onDelete != null) {
+                    Row(
+                        modifier = Modifier.padding(top = 4.dp).offset(x = (-4).dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (reasoningOverrideActive) {
+                            Text(
+                                text = stringResource(R.string.ui_restore_automatic_8d4e1e),
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable(
+                                        enabled = !isSaving,
+                                        onClick = ::resetAutomaticReasoning,
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                            )
+                        }
+                        onDelete?.let { delete ->
+                            Text(
+                                text = stringResource(R.string.ui_delete_model_cf24da),
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.error,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable(enabled = !isSaving, onClick = delete)
+                                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                            )
+                        }
+                    }
+                }
             }
-            CouiConfirmDialog(
-                visible = show,
-                title = dialogTitle,
-                message = null,
+            DialogActions(
                 confirmText = confirmText,
                 confirmEnabled = confirmEnabled,
                 cancelEnabled = !isSaving,
+                onCancel = onDismiss,
                 onConfirm = { onSubmit(updated()) },
-                onDismissRequest = { if (!isSaving) onDismiss() },
-                onDismissFinished = onDismissFinished,
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    CouiTextField(
-                        state = displayNameState,
-                        label = stringResource(R.string.ui_display_name_ed16be),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    )
-                    CouiTextField(
-                        state = modelIdState,
-                        label = "Model ID",
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Ascii,
-                            imeAction = ImeAction.Next,
-                        ),
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        CouiTextField(
-                            state = contextWindowOverrideTextState,
-                            inputTransformation = DecimalDigits,
-                            label = stringResource(R.string.ui_context_length_tokens_227860),
-                            rightLabel = contextRightLabel,
-                            rightLabelColor = if (contextError != null && contextWindowOverrideTextState.text.isNotBlank()) {
-                                StatusError
-                            } else {
-                                colors.summary
-                            },
-                            placeholder = stringResource(R.string.provider_context_window_hint),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Done,
-                            ),
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            contextWindowPresets.forEach { preset ->
-                                EtaChoiceChip(
-                                    text = formatCompactTokenCount(preset),
-                                    selected = contextValue == preset,
-                                    onClick = { contextWindowOverrideTextState.setTextAndPlaceCursorAtEnd(preset.toString()) },
-                                    enabled = !isSaving,
-                                )
-                            }
-                        }
-                    }
-
-                    CouiDivider()
-
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable(enabled = !isSaving) {
-                                    reasoningOverrideActive = true
-                                    reasoningEnabled = !reasoningEnabled
-                                }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(2.dp),
-                            ) {
-                                CouiText(
-                                    text = thinkingTitle,
-                                    kind = CouiTextKind.ItemTitle,
-                                    color = colors.title,
-                                )
-                                CouiText(
-                                    text = thinkingSummary,
-                                    kind = CouiTextKind.ItemSummary,
-                                    color = colors.summary,
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            CouiSwitch(
-                                checked = reasoningEnabled,
-                                onCheckedChange = { enabled ->
-                                    reasoningOverrideActive = true
-                                    reasoningEnabled = enabled
-                                },
-                                enabled = !isSaving,
-                            )
-                        }
-
-                        if (reasoningEnabled && availableEfforts.isNotEmpty()) {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                availableEfforts.forEach { effort ->
-                                    val checked = effort in selectedReasoningEfforts
-                                    EtaChoiceChip(
-                                        text = effort.displayName,
-                                        selected = checked,
-                                        onClick = {
-                                            reasoningOverrideActive = true
-                                            selectedReasoningEfforts = if (checked) {
-                                                selectedReasoningEfforts - effort
-                                            } else {
-                                                selectedReasoningEfforts + effort
-                                            }
-                                        },
-                                        enabled = !isSaving,
-                                    )
-                                }
-                            }
-                            CouiText(
-                                text = effortHelp,
-                                kind = CouiTextKind.GroupFooter,
-                                color = colors.summary,
-                            )
-                        }
-                    }
-
-                    (modelIdError ?: error)?.let { message ->
-                        CouiText(
-                            text = message,
-                            kind = CouiTextKind.GroupFooter,
-                            color = StatusError,
-                        )
-                    }
-
-                    if (reasoningOverrideActive || onDelete != null) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 2.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            if (reasoningOverrideActive) {
-                                CouiButton(
-                                    text = stringResource(R.string.ui_restore_automatic_8d4e1e),
-                                    enabled = !isSaving,
-                                    onClick = ::resetAutomaticReasoning,
-                                    minHeight = 38.dp,
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                            onDelete?.let { delete ->
-                                CouiButton(
-                                    text = stringResource(R.string.ui_delete_model_cf24da),
-                                    enabled = !isSaving,
-                                    role = CouiButtonRole.Destructive,
-                                    onClick = delete,
-                                    minHeight = 38.dp,
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        AppearanceUiStyle.MIUIX -> {
-            GlassDialog(
-                show = show,
-                backdrop = currentGlassOverlayBackdrop(),
-                title = dialogTitle,
-                onDismissRequest = { if (!isSaving) onDismiss() },
-                onDismissFinished = onDismissFinished,
-            ) {
-                Column {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .modelDialogScrollableBody()
-                            .scrollEndHaptic()
-                            .verticalScroll(rememberScrollState()),
-                    ) {
-                        GlassTextField(
-                            state = displayNameState,
-                            lineLimits = TextFieldLineLimits.SingleLine,
-                            label = stringResource(R.string.ui_display_name_ed16be),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        GlassTextField(
-                            state = modelIdState,
-                            lineLimits = TextFieldLineLimits.SingleLine,
-                            label = "Model ID",
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Ascii,
-                                imeAction = ImeAction.Next,
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        GlassTextField(
-                            state = contextWindowOverrideTextState,
-                            lineLimits = TextFieldLineLimits.SingleLine,
-                            inputTransformation = DecimalDigits,
-                            label = stringResource(R.string.ui_context_length_tokens_227860),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Done,
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(top = 10.dp),
-                        ) {
-                            contextWindowPresets.forEach { preset ->
-                                EtaChoiceChip(
-                                    text = formatCompactTokenCount(preset),
-                                    selected = contextValue == preset,
-                                    onClick = { contextWindowOverrideTextState.setTextAndPlaceCursorAtEnd(preset.toString()) },
-                                    enabled = !isSaving,
-                                )
-                            }
-                        }
-                        Text(
-                            text = when {
-                                contextWindowOverrideTextState.text.isBlank() ->
-                                    stringResource(R.string.provider_context_window_hint)
-                                contextError != null ->
-                                    stringResource(R.string.provider_context_window_invalid)
-                                contextValue != null && contextValue !in contextWindowPresets ->
-                                    stringResource(R.string.provider_context_window_value, formatCompactTokenCount(contextValue))
-                                else -> stringResource(R.string.provider_context_window_usage)
-                            },
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = if (contextError != null && contextWindowOverrideTextState.text.isNotBlank()) {
-                                StatusError
-                            } else {
-                                MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            },
-                            modifier = Modifier.padding(start = 4.dp, top = 8.dp),
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable(enabled = !isSaving) {
-                                    reasoningOverrideActive = true
-                                    reasoningEnabled = !reasoningEnabled
-                                }
-                                .padding(horizontal = 4.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = thinkingTitle,
-                                    style = MiuixTheme.textStyles.body1,
-                                    color = MiuixTheme.colorScheme.onSurface,
-                                )
-                                Text(
-                                    text = thinkingSummary,
-                                    style = MiuixTheme.textStyles.footnote2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    modifier = Modifier.padding(top = 2.dp),
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Switch(
-                                checked = reasoningEnabled,
-                                onCheckedChange = { enabled ->
-                                    reasoningOverrideActive = true
-                                    reasoningEnabled = enabled
-                                },
-                                enabled = !isSaving,
-                            )
-                        }
-                        if (reasoningEnabled) {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.padding(top = 10.dp),
-                            ) {
-                                availableEfforts.forEach { effort ->
-                                    val checked = effort in selectedReasoningEfforts
-                                    EtaChoiceChip(
-                                        text = effort.displayName,
-                                        selected = checked,
-                                        onClick = {
-                                            reasoningOverrideActive = true
-                                            selectedReasoningEfforts = if (checked) {
-                                                selectedReasoningEfforts - effort
-                                            } else {
-                                                selectedReasoningEfforts + effort
-                                            }
-                                        },
-                                        enabled = !isSaving,
-                                    )
-                                }
-                            }
-                        }
-                        Text(
-                            text = effortHelp,
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(start = 4.dp, top = 8.dp),
-                        )
-                        (modelIdError ?: error)?.let { message ->
-                            Text(
-                                text = message,
-                                style = MiuixTheme.textStyles.footnote2,
-                                color = StatusError,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
-                        }
-                        if (reasoningOverrideActive || onDelete != null) {
-                            Row(
-                                modifier = Modifier.padding(top = 4.dp).offset(x = (-4).dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                if (reasoningOverrideActive) {
-                                    Text(
-                                        text = stringResource(R.string.ui_restore_automatic_8d4e1e),
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.primary,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .clickable(
-                                                enabled = !isSaving,
-                                                onClick = ::resetAutomaticReasoning,
-                                            )
-                                            .padding(horizontal = 8.dp, vertical = 10.dp),
-                                    )
-                                }
-                                onDelete?.let { delete ->
-                                    Text(
-                                        text = stringResource(R.string.ui_delete_model_cf24da),
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.error,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .clickable(enabled = !isSaving, onClick = delete)
-                                            .padding(horizontal = 8.dp, vertical = 10.dp),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    MiuixDialogActions(
-                        confirmText = confirmText,
-                        confirmEnabled = confirmEnabled,
-                        cancelEnabled = !isSaving,
-                        onCancel = onDismiss,
-                        onConfirm = { onSubmit(updated()) },
-                        modifier = Modifier.padding(top = 16.dp),
-                    )
-                }
-            }
+                modifier = Modifier.padding(top = 16.dp),
+            )
         }
     }
 }

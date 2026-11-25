@@ -17,32 +17,32 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
-import io.github.mangi.eta.ui.app.LocalEtaTopLayer
+import io.github.mangi.eta.ui.app.LocalTopLayer
 
 /**
  * 全窗口顶层承载器状态：将页内弹层提升到根宿主，避免被顶栏、导航容器或侧栏裁剪或遮挡。
  */
 @Stable
-internal class EtaTopLayerState {
-    val entries = mutableStateListOf<EtaTopLayerEntry>()
+internal class TopLayerState {
+    val entries = mutableStateListOf<TopLayerEntry>()
 }
 
 @Stable
-internal class EtaTopLayerEntry {
+internal class TopLayerEntry {
     var content by mutableStateOf<@Composable BoxScope.() -> Unit>({})
 }
 
 /**
- * 将 [content] 提升到最近的 [EtaTopLayerHost] 渲染；在独立测试等无顶层宿主的环境中回退为原地全尺寸容器。
+ * 将 [content] 提升到最近的 [TopLayerHost] 渲染；在独立测试等无顶层宿主的环境中回退为原地全尺寸容器。
  */
 @Composable
-internal fun EtaTopLayer(content: @Composable BoxScope.() -> Unit) {
-    val layer = LocalEtaTopLayer.current
+internal fun TopLayer(content: @Composable BoxScope.() -> Unit) {
+    val layer = LocalTopLayer.current
     if (layer == null) {
         Box(modifier = Modifier.fillMaxSize(), content = content)
         return
     }
-    val entry = remember { EtaTopLayerEntry() }
+    val entry = remember { TopLayerEntry() }
     SideEffect { entry.content = content }
     DisposableEffect(layer, entry) {
         layer.entries += entry
@@ -51,8 +51,8 @@ internal fun EtaTopLayer(content: @Composable BoxScope.() -> Unit) {
 }
 
 @Composable
-internal fun EtaTopLayerHost(
-    state: EtaTopLayerState,
+internal fun TopLayerHost(
+    state: TopLayerState,
     modifier: Modifier = Modifier,
     onActiveOverlayChanged: (Boolean) -> Unit = {},
 ) {

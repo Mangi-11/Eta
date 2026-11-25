@@ -12,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,26 +29,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.provider.CommunityCatalog
 import io.github.mangi.eta.data.provider.CommunityCatalogProvider
 import io.github.mangi.eta.data.provider.CommunityCatalogSource
 import io.github.mangi.eta.ui.app.CommunityCatalogStore
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.ListEmptyState
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
-import io.github.mangi.eta.ui.components.coui.CouiCheckboxPreference
-import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiPageSearch
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
-import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
-import io.github.mangi.eta.ui.components.coui.CouiTopAppBarTextButton
+import io.github.mangi.eta.ui.components.PreferenceGroupItem
+import io.github.mangi.eta.ui.components.ScaffoldPage
+import io.github.mangi.eta.ui.components.TopBarActionButton
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
 import io.github.mangi.eta.ui.navigation.AppRoute
-import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.CancellationException
@@ -88,209 +77,103 @@ internal fun CommunityCatalogScreen(
 
     LaunchedEffect(Unit) { store.openCatalog() }
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiLazyScaffoldPage(
-                title = stringResource(R.string.catalog_i18n_title),
-                onBack = onBack,
-                search = CouiPageSearch(query, { query = it }, stringResource(R.string.catalog_i18n_search_providers)),
-                actions = {
-                    CouiTopAppBarIconButton(
-                        icon = Icons.Rounded.Refresh,
-                        contentDescription = stringResource(R.string.catalog_i18n_refresh),
-                        enabled = !store.loading && !store.refreshing,
-                        onClick = store::refresh,
+    ScaffoldPage(
+        title = stringResource(R.string.catalog_i18n_title),
+        onBack = onBack,
+        actions = {
+            TopBarActionButton(
+                icon = MiuixIcons.Glass.Refresh,
+                contentDescription = stringResource(R.string.catalog_i18n_refresh),
+                enabled = !store.loading && !store.refreshing,
+                onClick = store::refresh,
+            )
+        },
+    ) {
+        item(key = "search") {
+            InputField(
+                query = query,
+                onQueryChange = { query = it },
+                onSearch = {},
+                expanded = false,
+                onExpandedChange = {},
+                label = stringResource(R.string.catalog_i18n_search_providers),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
+
+        item(key = "catalog_status") {
+            ProviderSection(title = stringResource(R.string.catalog_i18n_status_section)) {
+                BasicComponent(
+                    title = stringResource(R.string.catalog_i18n_community_title),
+                    summary = stringResource(R.string.catalog_i18n_community_privacy),
+                )
+                BasicComponent(
+                    title = stringResource(R.string.catalog_i18n_candidate_title),
+                    summary = stringResource(R.string.catalog_i18n_candidate_summary),
+                )
+                BasicComponent(
+                    title = catalog?.sourceLabel() ?: stringResource(
+                        if (store.loading) R.string.catalog_i18n_loading_local else R.string.catalog_i18n_unavailable,
+                    ),
+                    summary = catalog?.let { catalogSummary(it) },
+                )
+                if (store.refreshing) {
+                    BasicComponent(title = stringResource(R.string.catalog_i18n_updating_online))
+                }
+                store.refreshError?.let { error ->
+                    BasicComponent(
+                        title = stringResource(R.string.catalog_i18n_update_failed),
+                        summary = if (catalog != null) {
+                            stringResource(R.string.catalog_i18n_update_failed_fallback, error)
+                        } else {
+                            error
+                        },
                     )
-                },
-            ) { searching ->
-
-                if (!searching) item(key = "catalog_status") {
-                    ProviderSection(title = stringResource(R.string.catalog_i18n_status_section)) {
-                        CouiPreference(
-                            title = stringResource(R.string.catalog_i18n_community_title),
-                            summary = stringResource(R.string.catalog_i18n_community_privacy),
-                            showChevron = false,
-                        )
-                        CouiDivider()
-                        CouiPreference(
-                            title = stringResource(R.string.catalog_i18n_candidate_title),
-                            summary = stringResource(R.string.catalog_i18n_candidate_summary),
-                            showChevron = false,
-                        )
-                        CouiDivider()
-                        CouiPreference(
-                            title = catalog?.sourceLabel() ?: stringResource(
-                                if (store.loading) R.string.catalog_i18n_loading_local else R.string.catalog_i18n_unavailable,
-                            ),
-                            summary = catalog?.let { catalogSummary(it) },
-                            showChevron = false,
-                        )
-                        if (store.refreshing) {
-                            CouiDivider()
-                            CouiPreference(title = stringResource(R.string.catalog_i18n_updating_online), showChevron = false)
-                        }
-                        store.refreshError?.let { error ->
-                            CouiDivider()
-                            CouiPreference(
-                                title = stringResource(R.string.catalog_i18n_update_failed),
-                                summary = if (catalog != null) {
-                                    stringResource(R.string.catalog_i18n_update_failed_fallback, error)
-                                } else {
-                                    error
-                                },
-                                showChevron = false,
-                            )
-                        }
-                        if (store.loadError && catalog == null) {
-                            CouiDivider()
-                            CouiPreference(
-                                title = stringResource(R.string.catalog_i18n_local_load_failed),
-                                summary = stringResource(R.string.catalog_i18n_local_load_failed_summary),
-                                showChevron = false,
-                            )
-                        }
-                    }
                 }
-
-                item(key = "results_title") {
-                    CouiSectionTitle(text = stringResource(R.string.catalog_i18n_importable_providers, providers.size))
-                }
-                if (catalog == null && store.loading) {
-                    item(key = "loading") { CatalogLoadingState() }
-                } else if (providers.isEmpty()) {
-                    item(key = "empty") {
-                        ListEmptyState(
-                            title = stringResource(
-                                if (catalog == null) R.string.catalog_i18n_empty_no_catalog else R.string.catalog_i18n_empty_no_match,
-                            ),
-                            summary = stringResource(
-                                if (catalog == null) R.string.catalog_i18n_empty_no_catalog_summary else R.string.catalog_i18n_empty_no_match_summary,
-                            ),
-                            icon = if (catalog == null) Icons.Rounded.CloudOff else Icons.Rounded.SearchOff,
-                        )
-                    }
-                } else {
-                    itemsIndexed(providers, key = { _, provider -> "provider:${provider.id}" }, contentType = { _, _ -> "provider" }) { index, provider ->
-                        EtaPreferenceGroupItem(
-                            isFirst = index == 0,
-                            isLast = index == providers.lastIndex,
-                        ) {
-                            val modelsCountText = pluralStringResource(
-                                R.plurals.catalog_i18n_importable_models_count,
-                                provider.models.size,
-                                provider.models.size,
-                            )
-                            CouiPreference(
-                                title = provider.name,
-                                summary = "${provider.baseUrl}\n$modelsCountText",
-                                onClick = { onNavigate(AppRoute.CommunityCatalogProvider(provider.id)) },
-                            )
-                        }
-                    }
+                if (store.loadError && catalog == null) {
+                    BasicComponent(
+                        title = stringResource(R.string.catalog_i18n_local_load_failed),
+                        summary = stringResource(R.string.catalog_i18n_local_load_failed_summary),
+                    )
                 }
             }
         }
 
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = stringResource(R.string.catalog_i18n_title),
-                onBack = onBack,
-                actions = {
-                    MiuixTopBarActionButton(
-                        icon = MiuixIcons.Glass.Refresh,
-                        contentDescription = stringResource(R.string.catalog_i18n_refresh),
-                        enabled = !store.loading && !store.refreshing,
-                        onClick = store::refresh,
+        item(key = "results_title") {
+            SmallTitle(stringResource(R.string.catalog_i18n_importable_providers, providers.size))
+        }
+        if (catalog == null && store.loading) {
+            item(key = "loading") { CatalogLoadingState() }
+        } else if (providers.isEmpty()) {
+            item(key = "empty") {
+                ListEmptyState(
+                    title = stringResource(
+                        if (catalog == null) R.string.catalog_i18n_empty_no_catalog else R.string.catalog_i18n_empty_no_match,
+                    ),
+                    summary = stringResource(
+                        if (catalog == null) R.string.catalog_i18n_empty_no_catalog_summary else R.string.catalog_i18n_empty_no_match_summary,
+                    ),
+                    icon = if (catalog == null) Icons.Rounded.CloudOff else Icons.Rounded.SearchOff,
+                )
+            }
+        } else {
+            itemsIndexed(providers, key = { _, provider -> "provider:${provider.id}" }, contentType = { _, _ -> "provider" }) { index, provider ->
+                PreferenceGroupItem(
+                    isFirst = index == 0,
+                    isLast = index == providers.lastIndex,
+                ) {
+                    val modelsCountText = pluralStringResource(
+                        R.plurals.catalog_i18n_importable_models_count,
+                        provider.models.size,
+                        provider.models.size,
                     )
-                },
-            ) {
-                item(key = "search") {
-                    InputField(
-                        query = query,
-                        onQueryChange = { query = it },
-                        onSearch = {},
-                        expanded = false,
-                        onExpandedChange = {},
-                        label = stringResource(R.string.catalog_i18n_search_providers),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    ArrowPreference(
+                        title = provider.name,
+                        summary = "${provider.baseUrl}\n$modelsCountText",
+                        onClick = { onNavigate(AppRoute.CommunityCatalogProvider(provider.id)) },
                     )
-                }
-
-                item(key = "catalog_status") {
-                    ProviderSection(title = stringResource(R.string.catalog_i18n_status_section)) {
-                        BasicComponent(
-                            title = stringResource(R.string.catalog_i18n_community_title),
-                            summary = stringResource(R.string.catalog_i18n_community_privacy),
-                        )
-                        BasicComponent(
-                            title = stringResource(R.string.catalog_i18n_candidate_title),
-                            summary = stringResource(R.string.catalog_i18n_candidate_summary),
-                        )
-                        BasicComponent(
-                            title = catalog?.sourceLabel() ?: stringResource(
-                                if (store.loading) R.string.catalog_i18n_loading_local else R.string.catalog_i18n_unavailable,
-                            ),
-                            summary = catalog?.let { catalogSummary(it) },
-                        )
-                        if (store.refreshing) {
-                            BasicComponent(title = stringResource(R.string.catalog_i18n_updating_online))
-                        }
-                        store.refreshError?.let { error ->
-                            BasicComponent(
-                                title = stringResource(R.string.catalog_i18n_update_failed),
-                                summary = if (catalog != null) {
-                                    stringResource(R.string.catalog_i18n_update_failed_fallback, error)
-                                } else {
-                                    error
-                                },
-                            )
-                        }
-                        if (store.loadError && catalog == null) {
-                            BasicComponent(
-                                title = stringResource(R.string.catalog_i18n_local_load_failed),
-                                summary = stringResource(R.string.catalog_i18n_local_load_failed_summary),
-                            )
-                        }
-                    }
-                }
-
-                item(key = "results_title") {
-                    SmallTitle(stringResource(R.string.catalog_i18n_importable_providers, providers.size))
-                }
-                if (catalog == null && store.loading) {
-                    item(key = "loading") { CatalogLoadingState() }
-                } else if (providers.isEmpty()) {
-                    item(key = "empty") {
-                        ListEmptyState(
-                            title = stringResource(
-                                if (catalog == null) R.string.catalog_i18n_empty_no_catalog else R.string.catalog_i18n_empty_no_match,
-                            ),
-                            summary = stringResource(
-                                if (catalog == null) R.string.catalog_i18n_empty_no_catalog_summary else R.string.catalog_i18n_empty_no_match_summary,
-                            ),
-                            icon = if (catalog == null) Icons.Rounded.CloudOff else Icons.Rounded.SearchOff,
-                        )
-                    }
-                } else {
-                    itemsIndexed(providers, key = { _, provider -> "provider:${provider.id}" }, contentType = { _, _ -> "provider" }) { index, provider ->
-                        EtaPreferenceGroupItem(
-                            isFirst = index == 0,
-                            isLast = index == providers.lastIndex,
-                        ) {
-                            val modelsCountText = pluralStringResource(
-                                R.plurals.catalog_i18n_importable_models_count,
-                                provider.models.size,
-                                provider.models.size,
-                            )
-                            ArrowPreference(
-                                title = provider.name,
-                                summary = "${provider.baseUrl}\n$modelsCountText",
-                                onClick = { onNavigate(AppRoute.CommunityCatalogProvider(provider.id)) },
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -347,275 +230,155 @@ internal fun CommunityCatalogProviderScreen(
         }
     }
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiLazyScaffoldPage(
-                title = provider?.name ?: stringResource(R.string.catalog_i18n_select_models),
-                onBack = onBack,
-                search = CouiPageSearch(query, { query = it }, stringResource(R.string.catalog_i18n_search_models)),
-                actions = {
-                    CouiTopAppBarTextButton(
-                        text = stringResource(R.string.catalog_i18n_import_count, selectedIds.size),
-                        enabled = canImport,
-                        onClick = onImport,
-                    )
-                },
-            ) { searching ->
-                if (provider == null) {
-                    item(key = "missing") {
-                        if (store.loading) {
-                            CatalogLoadingState()
-                        } else {
-                            ListEmptyState(
-                                title = stringResource(R.string.catalog_i18n_provider_not_found),
-                                summary = stringResource(R.string.catalog_i18n_provider_not_found_summary),
-                            )
-                        }
-                    }
-                    return@CouiLazyScaffoldPage
-                }
-
-                if (!searching) item(key = "provider") {
-                    ProviderSection(title = stringResource(R.string.catalog_i18n_provider_section)) {
-                        CouiPreference(title = stringResource(R.string.catalog_i18n_field_name), summary = provider.name, showChevron = false)
-                        CouiDivider()
-                        CouiPreference(title = "Base URL", summary = provider.baseUrl, showChevron = false)
-                    }
-                }
-                if (!searching) importErrorRes?.let { errorRes ->
-                    item(key = "import_error") {
-                        Text(
-                            text = stringResource(errorRes),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.error,
-                            modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp),
-                        )
-                    }
-                }
-                item(key = "models_title") {
-                    val visibleIds = remember(filteredModels) { filteredModels.mapTo(mutableSetOf()) { it.modelId } }
-                    val allVisibleSelected = visibleIds.isNotEmpty() && selectedIds.containsAll(visibleIds)
-                    val titleText = if (selectedIds.isEmpty()) {
-                        stringResource(R.string.catalog_i18n_models_count, filteredModels.size)
-                    } else {
-                        stringResource(R.string.catalog_i18n_models_selected, selectedIds.size, provider.models.size)
-                    }
-                    CouiSectionTitle(text = titleText) {
-                        if (filteredModels.isNotEmpty()) {
-                            Text(
-                                text = stringResource(
-                                    if (allVisibleSelected) R.string.page_select_none_ba20eb else R.string.page_select_all_3e44b2,
-                                ),
-                                style = MiuixTheme.textStyles.subtitle,
-                                color = if (!store.importing) {
-                                    MiuixTheme.colorScheme.primary
-                                } else {
-                                    MiuixTheme.colorScheme.disabledOnSecondaryVariant
-                                },
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(enabled = !store.importing) {
-                                        selectedIds = if (allVisibleSelected) {
-                                            ArrayList(selectedIds.filterNot { it in visibleIds })
-                                        } else {
-                                            ArrayList((selectedIds + visibleIds).distinct())
-                                        }
-                                    }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                            )
-                        }
-                    }
-                }
-                if (filteredModels.isEmpty()) {
-                    item(key = "empty_models") {
-                        ListEmptyState(title = stringResource(R.string.catalog_i18n_no_matching_models))
-                    }
+    ScaffoldPage(
+        title = provider?.name ?: stringResource(R.string.catalog_i18n_select_models),
+        onBack = onBack,
+        actions = {
+            TextButton(
+                text = stringResource(R.string.catalog_i18n_import_count, selectedIds.size),
+                enabled = canImport,
+                onClick = onImport,
+                minWidth = 0.dp,
+                minHeight = 32.dp,
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+                insideMargin = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            )
+        },
+    ) {
+        if (provider == null) {
+            item(key = "missing") {
+                if (store.loading) {
+                    CatalogLoadingState()
                 } else {
-                    itemsIndexed(filteredModels, key = { _, model -> "model:${model.modelId}" }, contentType = { _, _ -> "model" }) { index, model ->
-                        EtaPreferenceGroupItem(
-                            isFirst = index == 0,
-                            isLast = index == filteredModels.lastIndex,
-                        ) {
-                            val contextLabel = stringResource(
-                                R.string.catalog_i18n_context_tokens,
-                                formatCompactTokenCount(model.contextWindow),
-                            )
-                            CouiCheckboxPreference(
-                                title = model.displayName,
-                                summary = buildString {
-                                    append(model.modelId)
-                                    append(" · ")
-                                    append(contextLabel)
-                                    model.releaseDate?.let { append(" · "); append(it) }
-                                },
-                                checked = model.modelId in selectedIds,
-                                enabled = !store.importing,
-                                onCheckedChange = { checked ->
-                                    selectedIds = if (checked) {
-                                        ArrayList(selectedIds + model.modelId)
-                                    } else {
-                                        ArrayList(selectedIds.filterNot { it == model.modelId })
-                                    }
-                                },
-                            )
-                        }
+                    ListEmptyState(
+                        title = stringResource(R.string.catalog_i18n_provider_not_found),
+                        summary = stringResource(R.string.catalog_i18n_provider_not_found_summary),
+                    )
+                }
+            }
+            return@ScaffoldPage
+        }
+
+        item(key = "provider") {
+            ProviderSection(title = stringResource(R.string.catalog_i18n_provider_section)) {
+                BasicComponent(title = stringResource(R.string.catalog_i18n_field_name), summary = provider.name)
+                BasicComponent {
+                    Text(
+                        text = "Base URL",
+                        fontSize = MiuixTheme.textStyles.headline1.fontSize,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    SelectionContainer {
+                        Text(
+                            text = provider.baseUrl,
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            softWrap = true,
+                        )
                     }
                 }
             }
         }
-
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = provider?.name ?: stringResource(R.string.catalog_i18n_select_models),
-                onBack = onBack,
-                actions = {
-                    TextButton(
-                        text = stringResource(R.string.catalog_i18n_import_count, selectedIds.size),
-                        enabled = canImport,
-                        onClick = onImport,
-                        minWidth = 0.dp,
-                        minHeight = 32.dp,
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    )
-                },
+        importErrorRes?.let { errorRes ->
+            item(key = "import_error") {
+                Text(
+                    text = stringResource(errorRes),
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp),
+                )
+            }
+        }
+        item(key = "model_search") {
+            InputField(
+                query = query,
+                onQueryChange = { query = it },
+                onSearch = {},
+                expanded = false,
+                onExpandedChange = {},
+                label = stringResource(R.string.catalog_i18n_search_models),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(top = 4.dp, bottom = 8.dp),
+            )
+        }
+        item(key = "models_title") {
+            val visibleIds = remember(filteredModels) { filteredModels.mapTo(mutableSetOf()) { it.modelId } }
+            val allVisibleSelected = visibleIds.isNotEmpty() && selectedIds.containsAll(visibleIds)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                if (provider == null) {
-                    item(key = "missing") {
-                        if (store.loading) {
-                            CatalogLoadingState()
+                SmallTitle(
+                    text = if (selectedIds.isEmpty()) {
+                        stringResource(R.string.catalog_i18n_models_count, filteredModels.size)
+                    } else {
+                        stringResource(R.string.catalog_i18n_models_selected, selectedIds.size, provider.models.size)
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                if (filteredModels.isNotEmpty()) {
+                    Text(
+                        text = stringResource(
+                            if (allVisibleSelected) R.string.page_select_none_ba20eb else R.string.page_select_all_3e44b2,
+                        ),
+                        style = MiuixTheme.textStyles.subtitle,
+                        color = if (!store.importing) {
+                            MiuixTheme.colorScheme.primary
                         } else {
-                            ListEmptyState(
-                                title = stringResource(R.string.catalog_i18n_provider_not_found),
-                                summary = stringResource(R.string.catalog_i18n_provider_not_found_summary),
-                            )
-                        }
-                    }
-                    return@MiuixScaffoldPage
-                }
-
-                item(key = "provider") {
-                    ProviderSection(title = stringResource(R.string.catalog_i18n_provider_section)) {
-                        BasicComponent(title = stringResource(R.string.catalog_i18n_field_name), summary = provider.name)
-                        BasicComponent {
-                            Text(
-                                text = "Base URL",
-                                fontSize = MiuixTheme.textStyles.headline1.fontSize,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            SelectionContainer {
-                                Text(
-                                    text = provider.baseUrl,
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    softWrap = true,
-                                )
-                            }
-                        }
-                    }
-                }
-                importErrorRes?.let { errorRes ->
-                    item(key = "import_error") {
-                        Text(
-                            text = stringResource(errorRes),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.error,
-                            modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp),
-                        )
-                    }
-                }
-                item(key = "model_search") {
-                    InputField(
-                        query = query,
-                        onQueryChange = { query = it },
-                        onSearch = {},
-                        expanded = false,
-                        onExpandedChange = {},
-                        label = stringResource(R.string.catalog_i18n_search_models),
+                            MiuixTheme.colorScheme.disabledOnSecondaryVariant
+                        },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .padding(top = 4.dp, bottom = 8.dp),
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(enabled = !store.importing) {
+                                selectedIds = if (allVisibleSelected) {
+                                    ArrayList(selectedIds.filterNot { it in visibleIds })
+                                } else {
+                                    ArrayList((selectedIds + visibleIds).distinct())
+                                }
+                            }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                     )
                 }
-                item(key = "models_title") {
-                    val visibleIds = remember(filteredModels) { filteredModels.mapTo(mutableSetOf()) { it.modelId } }
-                    val allVisibleSelected = visibleIds.isNotEmpty() && selectedIds.containsAll(visibleIds)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(end = 20.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        SmallTitle(
-                            text = if (selectedIds.isEmpty()) {
-                                stringResource(R.string.catalog_i18n_models_count, filteredModels.size)
+            }
+        }
+        if (filteredModels.isEmpty()) {
+            item(key = "empty_models") {
+                ListEmptyState(title = stringResource(R.string.catalog_i18n_no_matching_models))
+            }
+        } else {
+            itemsIndexed(filteredModels, key = { _, model -> "model:${model.modelId}" }, contentType = { _, _ -> "model" }) { index, model ->
+                PreferenceGroupItem(
+                    isFirst = index == 0,
+                    isLast = index == filteredModels.lastIndex,
+                ) {
+                    val contextLabel = stringResource(
+                        R.string.catalog_i18n_context_tokens,
+                        formatCompactTokenCount(model.contextWindow),
+                    )
+                    CheckboxPreference(
+                        title = model.displayName,
+                        summary = buildString {
+                            append(model.modelId)
+                            append(" · ")
+                            append(contextLabel)
+                            model.releaseDate?.let { append(" · "); append(it) }
+                        },
+                        checked = model.modelId in selectedIds,
+                        enabled = !store.importing,
+                        checkboxLocation = CheckboxLocation.End,
+                        onCheckedChange = { checked ->
+                            selectedIds = if (checked) {
+                                ArrayList(selectedIds + model.modelId)
                             } else {
-                                stringResource(R.string.catalog_i18n_models_selected, selectedIds.size, provider.models.size)
-                            },
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (filteredModels.isNotEmpty()) {
-                            Text(
-                                text = stringResource(
-                                    if (allVisibleSelected) R.string.page_select_none_ba20eb else R.string.page_select_all_3e44b2,
-                                ),
-                                style = MiuixTheme.textStyles.subtitle,
-                                color = if (!store.importing) {
-                                    MiuixTheme.colorScheme.primary
-                                } else {
-                                    MiuixTheme.colorScheme.disabledOnSecondaryVariant
-                                },
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(enabled = !store.importing) {
-                                        selectedIds = if (allVisibleSelected) {
-                                            ArrayList(selectedIds.filterNot { it in visibleIds })
-                                        } else {
-                                            ArrayList((selectedIds + visibleIds).distinct())
-                                        }
-                                    }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                            )
-                        }
-                    }
-                }
-                if (filteredModels.isEmpty()) {
-                    item(key = "empty_models") {
-                        ListEmptyState(title = stringResource(R.string.catalog_i18n_no_matching_models))
-                    }
-                } else {
-                    itemsIndexed(filteredModels, key = { _, model -> "model:${model.modelId}" }, contentType = { _, _ -> "model" }) { index, model ->
-                        EtaPreferenceGroupItem(
-                            isFirst = index == 0,
-                            isLast = index == filteredModels.lastIndex,
-                        ) {
-                            val contextLabel = stringResource(
-                                R.string.catalog_i18n_context_tokens,
-                                formatCompactTokenCount(model.contextWindow),
-                            )
-                            CheckboxPreference(
-                                title = model.displayName,
-                                summary = buildString {
-                                    append(model.modelId)
-                                    append(" · ")
-                                    append(contextLabel)
-                                    model.releaseDate?.let { append(" · "); append(it) }
-                                },
-                                checked = model.modelId in selectedIds,
-                                enabled = !store.importing,
-                                checkboxLocation = CheckboxLocation.End,
-                                onCheckedChange = { checked ->
-                                    selectedIds = if (checked) {
-                                        ArrayList(selectedIds + model.modelId)
-                                    } else {
-                                        ArrayList(selectedIds.filterNot { it == model.modelId })
-                                    }
-                                },
-                            )
-                        }
-                    }
+                                ArrayList(selectedIds.filterNot { it == model.modelId })
+                            }
+                        },
+                    )
                 }
             }
         }

@@ -52,15 +52,8 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AppStrings
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
 import io.github.mangi.eta.ui.model.AgentContextUsageUi
 import io.github.mangi.eta.ui.model.TokenUsageUi
-import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -112,8 +105,6 @@ internal fun TurnStatsPill(
         else -> return
     }
 
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-    val couiDark = CouiTheme.isDark
     val interactionSource = remember { MutableInteractionSource() }
     val restingTint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.78f)
     val activeBg = if (open) {
@@ -188,41 +179,22 @@ internal fun TurnStatsPill(
     Box(modifier = modifier) {
         Box(
             modifier = Modifier
-                .then(
-                    if (!isCoui) {
-                        Modifier.glassPopupAnchor(anchor = popupAnchor, cornerRadius = 8.dp)
-                    } else {
-                        Modifier
-                    },
-                )
+                .glassPopupAnchor(anchor = popupAnchor, cornerRadius = 8.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(activeBg, RoundedCornerShape(8.dp))
-                .then(
-                    if (isCoui) {
-                        Modifier.couiButtonFeedback(couiDark, interactionSource, enabled = true)
-                    } else {
-                        Modifier
-                    },
-                )
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
                     role = Role.Button,
                     onClick = { open = !open },
                 )
-                .then(
-                    if (!isCoui) {
-                        Modifier.glassPopupAnchorContent(popupAnchor)
-                    } else {
-                        Modifier
-                    },
-                ),
+                .glassPopupAnchorContent(popupAnchor),
         ) {
             pillContent()
         }
 
-        if (!isCoui && overlayBackdrop != null) {
-            EtaTopLayer {
+        if (overlayBackdrop != null) {
+            TopLayer {
                 GlassTransformPopup(
                     show = open,
                     onDismissRequest = { open = false },
@@ -428,39 +400,24 @@ internal fun ContextUsageStatsPopoverPopup(
         if (canCompact) {
             Spacer(Modifier.height(12.dp))
             val compactLabel = stringResource(R.string.context_compact_action)
-            if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-                CouiButton(
-                    text = compactLabel,
-                    onClick = {
-                        onDismissRequest()
-                        onCompact()
-                    },
-                    role = CouiButtonRole.Primary,
-                    minHeight = 34.dp,
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            } else {
-                TextButton(
-                    text = compactLabel,
-                    onClick = {
-                        onDismissRequest()
-                        onCompact()
-                    },
-                    minWidth = 0.dp,
-                    minHeight = 34.dp,
-                    cornerRadius = 17.dp,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            TextButton(
+                text = compactLabel,
+                onClick = {
+                    onDismissRequest()
+                    onCompact()
+                },
+                minWidth = 0.dp,
+                minHeight = 34.dp,
+                cornerRadius = 17.dp,
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val overlayBackdrop = currentGlassOverlayBackdrop()
-    if (!isCoui && anchor != null && anchorContent != null && overlayBackdrop != null) {
-        EtaTopLayer {
+    if (anchor != null && anchorContent != null && overlayBackdrop != null) {
+        TopLayer {
             GlassTransformPopup(
                 show = show,
                 onDismissRequest = onDismissRequest,
@@ -485,48 +442,27 @@ internal fun ChatStatsPopoverPopup(
 ) {
     val density = LocalDensity.current
     val positionProvider = remember(density) { StatsPopoverPositionProvider(density) }
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-    val couiDark = CouiTheme.isDark
 
     Popup(
         popupPositionProvider = positionProvider,
         onDismissRequest = onDismissRequest,
         properties = PopupProperties(focusable = true),
     ) {
-        val cardModifier = if (isCoui) {
-            val shape = remember { CouiShape(18.dp, 2.2f) }
-            val bgColor = CouiTheme.colorScheme.surface
-            val borderColor = CouiTheme.colorScheme.divider
-            Modifier
-                .widthIn(min = 256.dp, max = 328.dp)
-                .dropShadow(
-                    shape = shape,
-                    shadow = Shadow(
-                        radius = 18.dp,
-                        color = Color.Black,
-                        alpha = if (couiDark) 0.38f else 0.10f,
-                    ),
-                )
-                .clip(shape)
-                .background(bgColor, shape)
-                .border(0.5.dp, borderColor, shape)
-        } else {
-            Modifier
-                .widthIn(min = 256.dp, max = 328.dp)
-                .dropShadow(
-                    shape = RoundedCornerShape(18.dp),
-                    shadow = Shadow(radius = 16.dp, color = Color.Black, alpha = 0.12f),
-                )
-                .squircleSurface(
-                    color = MiuixTheme.colorScheme.surfaceContainer,
-                    cornerRadius = 18.dp,
-                )
-                .squircleBorder(
-                    width = 0.5.dp,
-                    color = MiuixTheme.colorScheme.outline.copy(alpha = 0.5f),
-                    cornerRadius = 18.dp,
-                )
-        }
+        val cardModifier = Modifier
+            .widthIn(min = 256.dp, max = 328.dp)
+            .dropShadow(
+                shape = RoundedCornerShape(18.dp),
+                shadow = Shadow(radius = 16.dp, color = Color.Black, alpha = 0.12f),
+            )
+            .squircleSurface(
+                color = MiuixTheme.colorScheme.surfaceContainer,
+                cornerRadius = 18.dp,
+            )
+            .squircleBorder(
+                width = 0.5.dp,
+                color = MiuixTheme.colorScheme.outline.copy(alpha = 0.5f),
+                cornerRadius = 18.dp,
+            )
 
         Column(
             modifier = cardModifier.padding(horizontal = 16.dp, vertical = 14.dp),

@@ -22,12 +22,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.TerminalEnvironment
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.displayName
 import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.StatusSuccess
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassDialog
@@ -56,7 +53,12 @@ internal fun SessionListDialog(
     onClose: (String) -> Unit,
     onNew: () -> Unit,
 ) {
-    val listBody: @Composable () -> Unit = {
+    GlassDialog(
+        show = show,
+        backdrop = currentGlassOverlayBackdrop(),
+        title = stringResource(R.string.terminal_sessions),
+        onDismissRequest = onDismiss,
+    ) {
         if (rows.isEmpty()) {
             Text(
                 text = stringResource(R.string.terminal_session_empty),
@@ -79,44 +81,17 @@ internal fun SessionListDialog(
                 }
             }
         }
-    }
-
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiConfirmDialog(
-                visible = show,
-                title = stringResource(R.string.terminal_sessions),
-                message = null,
-                confirmText = stringResource(R.string.terminal_new_session),
-                cancelText = stringResource(R.string.action_close),
-                scrollableContent = false,
-                onConfirm = { onNew(); onDismiss() },
-                onDismissRequest = onDismiss,
-            ) {
-                listBody()
-            }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            GlassDialog(
-                show = show,
-                backdrop = currentGlassOverlayBackdrop(),
-                title = stringResource(R.string.terminal_sessions),
-                onDismissRequest = onDismiss,
-            ) {
-                listBody()
-                GlassDialogButton(
-                    onClick = { onNew(); onDismiss() },
-                    role = GlassDialogButtonRole.Primary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.terminal_new_session),
-                        style = MiuixTheme.textStyles.button,
-                    )
-                }
-            }
+        GlassDialogButton(
+            onClick = { onNew(); onDismiss() },
+            role = GlassDialogButtonRole.Primary,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.terminal_new_session),
+                style = MiuixTheme.textStyles.button,
+            )
         }
     }
 }

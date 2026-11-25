@@ -28,7 +28,6 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import io.github.mangi.eta.data.model.AppearanceSettings
 import io.github.mangi.eta.data.model.AppearanceThemeMode
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.app.AgentAppTheme
 import io.github.mangi.eta.ui.model.AgentMessageUi
@@ -213,15 +212,13 @@ class EtaVoicePanelTouchTest {
 
     @Test
     fun replyBackgroundCoversNavigationAreaWhileInputAvoidsIt() {
-        for (style in AppearanceUiStyle.entries) {
-            for (theme in listOf(AppearanceThemeMode.LIGHT, AppearanceThemeMode.DARK)) {
-                withPanel(appearance = AppearanceSettings(uiStyle = style, themeMode = theme)) { panel ->
-                    panel.showReply()
-                    for (navigationBottom in listOf(48, 144)) {
-                        panel.setBottomInsets(navigationBottom = navigationBottom)
-                        panel.advance(3)
-                        panel.assertNavigationBackgroundCovered(navigationBottom)
-                    }
+        for (theme in listOf(AppearanceThemeMode.LIGHT, AppearanceThemeMode.DARK)) {
+            withPanel(appearance = AppearanceSettings(themeMode = theme)) { panel ->
+                panel.showReply()
+                for (navigationBottom in listOf(48, 144)) {
+                    panel.setBottomInsets(navigationBottom = navigationBottom)
+                    panel.advance(3)
+                    panel.assertNavigationBackgroundCovered(navigationBottom)
                 }
             }
         }
@@ -374,7 +371,7 @@ class EtaVoicePanelTouchTest {
 
     @Test
     fun sheetTopShadowDoesNotLeakOutsideRoundedCorners() =
-        withPanel(appearance = AppearanceSettings(uiStyle = AppearanceUiStyle.COUI, themeMode = AppearanceThemeMode.LIGHT)) { panel ->
+        withPanel(appearance = AppearanceSettings(themeMode = AppearanceThemeMode.LIGHT)) { panel ->
             panel.showReply()
             panel.assertTopCornerShadowNoRectangularCut()
         }

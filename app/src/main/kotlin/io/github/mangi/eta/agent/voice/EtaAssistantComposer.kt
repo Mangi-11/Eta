@@ -74,8 +74,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.components.coui.couiPressMotion
-import io.github.mangi.eta.ui.components.coui.rememberCouiPressMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -257,7 +255,7 @@ private fun AssistantInputBar(
     Row(
         modifier = modifier
             .heightIn(min = 50.dp)
-            .couiAssistantCapsule(
+            .assistantCapsule(
                 surfaceColor = inputBackground,
                 strokeColor = colors.chipStroke,
                 dark = colors.dark,
@@ -352,7 +350,7 @@ private fun AssistantTrailingButton(
     onHoldCancel: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
-    val press = rememberCouiPressMotion()
+    val press = rememberAssistantPressMotion()
     val currentClick by rememberUpdatedState(onClick)
     val currentHoldAvailable by rememberUpdatedState(holdToTalkAvailable)
     val currentHoldStart by rememberUpdatedState(onHoldStart)
@@ -497,7 +495,7 @@ private fun AssistantVoiceEntry(
                     .animateContentSize(
                         animationSpec = spring(dampingRatio = 0.92f, stiffness = 480f),
                     )
-                    .couiAssistantCapsule(
+                    .assistantCapsule(
                         surfaceColor = colors.chipBackground,
                         strokeColor = colors.chipStroke,
                         dark = colors.dark,
@@ -590,7 +588,7 @@ private fun AssistantFloatingRoundButton(
 ) {
     val haptics = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
-    val press = rememberCouiPressMotion()
+    val press = rememberAssistantPressMotion()
     Box(
         modifier = Modifier
             .size(44.dp)
@@ -601,8 +599,8 @@ private fun AssistantFloatingRoundButton(
                 scaleX = totalScale
                 scaleY = totalScale
             }
-            .couiPressMotion(press, enabled = enabled)
-            .couiAssistantCapsule(
+            .assistantPressMotion(press, enabled = enabled)
+            .assistantCapsule(
                 surfaceColor = surfaceColor,
                 strokeColor = strokeColor,
                 dark = dark,

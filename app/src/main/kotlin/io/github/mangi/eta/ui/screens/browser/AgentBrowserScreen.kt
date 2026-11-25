@@ -34,11 +34,8 @@ import io.github.mangi.eta.agent.browser.AgentBrowserSession
 import io.github.mangi.eta.agent.browser.BrowserSessionRegistry
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.MiuixDialogActions
+import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -107,88 +104,68 @@ internal fun AgentBrowserScreen(
         launchBrowserAction { session.navigateFromUser(context.applicationContext, target) }
     }
 
-    val pageContent: @Composable (Modifier) -> Unit = { bodyModifier ->
-        Column(
-            modifier = bodyModifier
-                .fillMaxSize()
-                .background(MiuixTheme.colorScheme.surface)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                .imePadding()
-                .navigationBarsPadding(),
-        ) {
-            BrowserAddressBar(
-                snapshot = snapshot,
-                address = address,
-                focused = addressFocused,
-                onFocusChange = { addressFocused = it },
-                actionPending = actionPending,
-                onExit = onBack,
-                onGo = ::navigate,
-                onBack = { launchBrowserAction { session.goBackFromUser() } },
-                onForward = { launchBrowserAction { session.goForwardFromUser() } },
-                onRefreshOrStop = {
-                    if (snapshot.isLoading) {
-                        session.stopFromUser()
-                    } else {
-                        launchBrowserAction { session.reloadFromUser() }
-                    }
-                },
-                onOpenExternal = {
-                    if (snapshot.url.startsWith("http://") || snapshot.url.startsWith("https://")) {
-                        try {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, snapshot.url.toUri()))
-                        } catch (_: android.content.ActivityNotFoundException) {
-                            Toast.makeText(context, noExternalAppMessage, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
-                onClosePage = {
-                    focusManager.clearFocus()
-                    keyboard?.hide()
-                    launchBrowserAction { session.resetFromUser() }
-                },
-                onClearData = { showClearDataDialog = true },
-            )
-            BrowserWebViewHost(session = session, modifier = Modifier.weight(1f))
-        }
-    }
-
     val onConfirmClear: () -> Unit = {
         showClearDataDialog = false
         launchBrowserAction { BrowserSessionRegistry.clearSharedBrowsingData(context.applicationContext) }
     }
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            pageContent(modifier)
-            CouiConfirmDialog(
-                visible = showClearDataDialog,
-                title = stringResource(R.string.browser_clear_shared_data),
-                message = stringResource(R.string.browser_clear_shared_data_message),
-                confirmText = stringResource(R.string.browser_clear_shared_data),
-                confirmEnabled = !actionPending,
-                destructive = true,
-                onConfirm = onConfirmClear,
-                onDismissRequest = { showClearDataDialog = false },
-            )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            pageContent(modifier)
-            GlassDialog(
-                show = showClearDataDialog,
-                backdrop = currentGlassOverlayBackdrop(),
-                title = stringResource(R.string.browser_clear_shared_data),
-                summary = stringResource(R.string.browser_clear_shared_data_message),
-                onDismissRequest = { showClearDataDialog = false },
-            ) {
-                MiuixDialogActions(
-                    confirmText = stringResource(R.string.browser_clear_shared_data),
-                    confirmEnabled = !actionPending,
-                    destructive = true,
-                    onCancel = { showClearDataDialog = false },
-                    onConfirm = onConfirmClear,
-                )
-            }
-        }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.surface)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+            .imePadding()
+            .navigationBarsPadding(),
+    ) {
+        BrowserAddressBar(
+            snapshot = snapshot,
+            address = address,
+            focused = addressFocused,
+            onFocusChange = { addressFocused = it },
+            actionPending = actionPending,
+            onExit = onBack,
+            onGo = ::navigate,
+            onBack = { launchBrowserAction { session.goBackFromUser() } },
+            onForward = { launchBrowserAction { session.goForwardFromUser() } },
+            onRefreshOrStop = {
+                if (snapshot.isLoading) {
+                    session.stopFromUser()
+                } else {
+                    launchBrowserAction { session.reloadFromUser() }
+                }
+            },
+            onOpenExternal = {
+                if (snapshot.url.startsWith("http://") || snapshot.url.startsWith("https://")) {
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, snapshot.url.toUri()))
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        Toast.makeText(context, noExternalAppMessage, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onClosePage = {
+                focusManager.clearFocus()
+                keyboard?.hide()
+                launchBrowserAction { session.resetFromUser() }
+            },
+            onClearData = { showClearDataDialog = true },
+        )
+        BrowserWebViewHost(session = session, modifier = Modifier.weight(1f))
+    }
+
+    GlassDialog(
+        show = showClearDataDialog,
+        backdrop = currentGlassOverlayBackdrop(),
+        title = stringResource(R.string.browser_clear_shared_data),
+        summary = stringResource(R.string.browser_clear_shared_data_message),
+        onDismissRequest = { showClearDataDialog = false },
+    ) {
+        DialogActions(
+            confirmText = stringResource(R.string.browser_clear_shared_data),
+            confirmEnabled = !actionPending,
+            destructive = true,
+            onCancel = { showClearDataDialog = false },
+            onConfirm = onConfirmClear,
+        )
     }
 }

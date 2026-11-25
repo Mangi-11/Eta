@@ -71,7 +71,7 @@ Eta 对标手机厂商预装的一方系统助手，围绕 Android 系统服务�
 - **模型生态**：支持 OpenAI（Chat Completions / Responses）、Anthropic、Gemini（含 Google Cloud Vertex AI）协议；内置 12 家主流服务商，支持自定义服务、`models.dev` 目录导入及 **Codex（ChatGPT）/ Grok 订阅登录**。
 - **情感陪伴与酒馆生态**：支持创建角色并兼容酒馆（SillyTavern）生态，支持 PNG / JSON 角色卡导入导出、用户人设、内嵌世界书、独立剧情记忆与回复原位编辑重生成；角色会话同样可结合手机个人上下文并调用工具，兼顾情感陪伴与实际办事。
 - **记忆与扩展**：支持 `MEMORY.md` 长期记忆、GitHub / ZIP 安装 Skills 与 Streamable HTTP MCP 远程工具。
-- **日常体验**：支持运行中排队与实时插话（Steer）、对话分支、原生 LaTeX 数学公式渲染、**Miuix / COUI** 双原生界面风格与简/繁/英三语界面。
+- **日常体验**：支持运行中排队与实时插话（Steer）、对话分支、原生 LaTeX 数学公式渲染、基于 **Miuix** 的原生质感界面与简/繁/英三语界面。
 
 ## Eta 的定位
 
@@ -136,7 +136,7 @@ AI 时代下，处理外部 PR 变得比以往更加困难：大量由 AI 生成
 - [Pi Coding Agent](https://github.com/earendil-works/pi)：Eta Agent Runtime 的核心参考，包括 Agent Loop、Tool Calling、steering 与 transcript 状态管理。
 - [OmniBot](https://github.com/omnimind-ai/OmniBot)：Android AI Agent 方向的参考项目。
 - [libxposed API](https://github.com/libxposed/api)：现代 Xposed API。
-- [Miuix](https://github.com/compose-miuix-ui/miuix) 与 [COUI](https://github.com/suqi8/coui)：UI 组件库。
+- [Miuix](https://github.com/compose-miuix-ui/miuix)：UI 组件库。
 
 ## 许可证
 

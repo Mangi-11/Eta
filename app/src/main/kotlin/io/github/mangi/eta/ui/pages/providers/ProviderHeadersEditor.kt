@@ -1,14 +1,11 @@
 package io.github.mangi.eta.ui.pages.providers
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material.icons.Icons
@@ -28,18 +25,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.MiuixSecureTextField
-import io.github.mangi.eta.ui.components.coui.CouiIcon
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.SecureTextField
 import io.github.mangi.eta.ui.components.rememberDraftTextFieldState
-import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -80,102 +69,51 @@ internal fun ProviderHeadersSection(
         val headersSummary = stringResource(R.string.provider_i18n_headers_summary)
         val toggleDescription = stringResource(if (expanded) R.string.speech_collapse else R.string.speech_expand)
         val addHeaderTitle = stringResource(R.string.provider_i18n_add_header)
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                val colors = CouiPageDefaults.themeColors()
-                CouiPreference(
-                    title = headersCountTitle,
-                    summary = headersSummary,
-                    showChevron = false,
-                    trailing = {
-                        CouiIcon(
-                            imageVector = Icons.Rounded.ExpandMore,
-                            contentDescription = toggleDescription,
-                            tint = colors.summary,
-                            modifier = Modifier
-                                .size(22.dp)
-                                .rotate(chevronRotation),
-                        )
-                    },
-                    onClick = { onExpandedChange(!expanded) },
+        BasicComponent(
+            title = headersCountTitle,
+            summary = headersSummary,
+            endActions = {
+                Icon(
+                    imageVector = Icons.Rounded.ExpandMore,
+                    contentDescription = toggleDescription,
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    modifier = Modifier.rotate(chevronRotation),
                 )
-                if (expanded) {
-                    headers.forEach { row ->
-                        key(row.id) {
-                            CouiDivider()
-                            ProviderHeaderRow(
-                                row = row,
-                                onNameChange = { value ->
-                                    onHeadersChange(headers.map {
-                                        if (it.id == row.id) it.copy(header = it.header.copy(name = value)) else it
-                                    })
-                                },
-                                onValueChange = { value ->
-                                    onHeadersChange(headers.map {
-                                        if (it.id == row.id) it.copy(header = it.header.copy(value = value)) else it
-                                    })
-                                },
-                                onRemove = { onHeadersChange(headers.filterNot { it.id == row.id }) },
-                            )
-                        }
-                    }
-                    CouiDivider()
-                    CouiPreference(
-                        title = addHeaderTitle,
-                        titleColor = colors.accent,
-                        showChevron = false,
-                        onClick = { onHeadersChange(headers + ProviderHeaderDraft()) },
-                    )
-                }
-            }
-            AppearanceUiStyle.MIUIX -> {
-                BasicComponent(
-                    title = headersCountTitle,
-                    summary = headersSummary,
-                    endActions = {
-                        Icon(
-                            imageVector = Icons.Rounded.ExpandMore,
-                            contentDescription = toggleDescription,
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            modifier = Modifier.rotate(chevronRotation),
-                        )
-                    },
-                    onClick = { onExpandedChange(!expanded) },
-                )
-                if (expanded) {
-                    headers.forEach { row ->
-                        key(row.id) {
-                            ProviderHeaderRow(
-                                row = row,
-                                onNameChange = { value ->
-                                    onHeadersChange(headers.map {
-                                        if (it.id == row.id) it.copy(header = it.header.copy(name = value)) else it
-                                    })
-                                },
-                                onValueChange = { value ->
-                                    onHeadersChange(headers.map {
-                                        if (it.id == row.id) it.copy(header = it.header.copy(value = value)) else it
-                                    })
-                                },
-                                onRemove = { onHeadersChange(headers.filterNot { it.id == row.id }) },
-                            )
-                        }
-                    }
-                    BasicComponent(
-                        title = addHeaderTitle,
-                        titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.primary),
-                        startAction = {
-                            Icon(
-                                imageVector = Icons.Rounded.Add,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.padding(end = 8.dp),
-                            )
+            },
+            onClick = { onExpandedChange(!expanded) },
+        )
+        if (expanded) {
+            headers.forEach { row ->
+                key(row.id) {
+                    ProviderHeaderRow(
+                        row = row,
+                        onNameChange = { value ->
+                            onHeadersChange(headers.map {
+                                if (it.id == row.id) it.copy(header = it.header.copy(name = value)) else it
+                            })
                         },
-                        onClick = { onHeadersChange(headers + ProviderHeaderDraft()) },
+                        onValueChange = { value ->
+                            onHeadersChange(headers.map {
+                                if (it.id == row.id) it.copy(header = it.header.copy(value = value)) else it
+                            })
+                        },
+                        onRemove = { onHeadersChange(headers.filterNot { it.id == row.id }) },
                     )
                 }
             }
+            BasicComponent(
+                title = addHeaderTitle,
+                titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.primary),
+                startAction = {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                },
+                onClick = { onHeadersChange(headers + ProviderHeaderDraft()) },
+            )
         }
     }
 }
@@ -192,104 +130,45 @@ private fun ProviderHeaderRow(
     var visible by remember(row.id) { mutableStateOf(false) }
     val nameLabel = stringResource(R.string.provider_i18n_header_name)
     val valueLabel = stringResource(R.string.provider_i18n_header_value)
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
-            Row(
-                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    CouiTextField(
-                        state = nameState,
-                        label = nameLabel,
-                        singleLine = true,
-                    )
-                    CouiTextField(
-                        state = valueState,
-                        label = valueLabel,
-                        singleLine = true,
-                        secretVisible = visible,
-                        trailingIcon = {
-                            Box(
-                                modifier = Modifier
-                                    .padding(start = 8.dp)
-                                    .size(28.dp)
-                                    .clickable(role = Role.Button) { visible = !visible },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                CouiIcon(
-                                    imageVector = if (visible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                                    contentDescription = stringResource(
-                                        if (visible) R.string.page_hide_bb0e7e else R.string.page_show_71b677,
-                                    ),
-                                    modifier = Modifier.size(20.dp),
-                                    tint = colors.summary,
-                                )
-                            }
-                        },
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clickable(role = Role.Button, onClick = onRemove),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CouiIcon(
-                        imageVector = Icons.Rounded.Delete,
-                        contentDescription = stringResource(R.string.ui_delete_3755f5),
-                        modifier = Modifier.size(22.dp),
-                        tint = colors.summary,
-                    )
-                }
-            }
+    Row(
+        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextField(
+                state = nameState,
+                lineLimits = TextFieldLineLimits.SingleLine,
+                label = nameLabel,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SecureTextField(
+                state = valueState,
+                label = valueLabel,
+                visible = visible,
+                trailingIcon = {
+                    IconButton(onClick = { visible = !visible }) {
+                        Icon(
+                            imageVector = if (visible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
+                            contentDescription = if (visible) {
+                                stringResource(R.string.page_hide_bb0e7e)
+                            } else {
+                                stringResource(R.string.page_show_71b677)
+                            },
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
-        AppearanceUiStyle.MIUIX -> {
-            Row(
-                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TextField(
-                        state = nameState,
-                        lineLimits = TextFieldLineLimits.SingleLine,
-                        label = nameLabel,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    MiuixSecureTextField(
-                        state = valueState,
-                        label = valueLabel,
-                        visible = visible,
-                        trailingIcon = {
-                            IconButton(onClick = { visible = !visible }) {
-                                Icon(
-                                    imageVector = if (visible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                                    contentDescription = if (visible) {
-                                        stringResource(R.string.page_hide_bb0e7e)
-                                    } else {
-                                        stringResource(R.string.page_show_71b677)
-                                    },
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                IconButton(onClick = onRemove) {
-                    Icon(
-                        imageVector = Icons.Rounded.Delete,
-                        contentDescription = stringResource(R.string.ui_delete_3755f5),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                    )
-                }
-            }
+        IconButton(onClick = onRemove) {
+            Icon(
+                imageVector = Icons.Rounded.Delete,
+                contentDescription = stringResource(R.string.ui_delete_3755f5),
+                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+            )
         }
     }
 }

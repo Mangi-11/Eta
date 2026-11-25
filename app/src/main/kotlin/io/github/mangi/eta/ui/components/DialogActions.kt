@@ -27,7 +27,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * @param destructive 确认是否为破坏性操作（使用 error 配色）。
  */
 @Composable
-fun MiuixDialogActions(
+fun DialogActions(
     confirmText: String,
     onCancel: () -> Unit,
     onConfirm: () -> Unit,

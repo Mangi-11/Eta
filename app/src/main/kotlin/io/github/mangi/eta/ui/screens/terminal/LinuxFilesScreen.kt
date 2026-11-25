@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -36,17 +35,10 @@ import io.github.mangi.eta.agent.terminal.LinuxDistribution
 import io.github.mangi.eta.agent.terminal.LinuxEnvironmentPaths
 import io.github.mangi.eta.agent.terminal.LinuxFileExplorer
 import io.github.mangi.eta.agent.terminal.ShellProcessSupervisor
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.EtaMonospace
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.ListEmptyState
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
-import io.github.mangi.eta.ui.components.coui.CouiSettingsIcon
+import io.github.mangi.eta.ui.components.PreferenceGroupItem
+import io.github.mangi.eta.ui.components.ScaffoldPage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -121,9 +113,11 @@ internal fun LinuxFilesScreen(
         isBackEnabled = openFilePath != null,
         onBackCompleted = { closeFile() },
     )
-    val uiStyle = LocalUiStyle.current
 
-    val listContent: LazyListScope.() -> Unit = {
+    ScaffoldPage(
+        title = stringResource(R.string.linux_files_title),
+        onBack = { if (openFilePath != null) closeFile() else onBack() },
+    ) {
         when {
             linuxDistribution == null -> {
                 item(key = "invalid-distribution") {
@@ -147,33 +141,18 @@ internal fun LinuxFilesScreen(
                             }
                         }
                         item(key = "viewer-content") {
-                            if (uiStyle == AppearanceUiStyle.COUI) {
-                                CouiPreferenceGroup {
-                                    item {
-                                        Box(modifier = Modifier.padding(16.dp)) {
-                                            SelectionContainer {
-                                                Text(
-                                                    text = result.content,
-                                                    style = MiuixTheme.textStyles.footnote1.copy(fontFamily = EtaMonospace),
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                Card(
-                                    modifier = Modifier
-                                        .padding(horizontal = 12.dp)
-                                        .padding(bottom = 12.dp),
-                                    insideMargin = PaddingValues(16.dp),
-                                ) {
-                                    SelectionContainer {
-                                        Text(
-                                            text = result.content,
-                                            style = MiuixTheme.textStyles.footnote1
-                                                .copy(fontFamily = EtaMonospace),
-                                        )
-                                    }
+                            Card(
+                                modifier = Modifier
+                                    .padding(horizontal = 12.dp)
+                                    .padding(bottom = 12.dp),
+                                insideMargin = PaddingValues(16.dp),
+                            ) {
+                                SelectionContainer {
+                                    Text(
+                                        text = result.content,
+                                        style = MiuixTheme.textStyles.footnote1
+                                            .copy(fontFamily = EtaMonospace),
+                                    )
                                 }
                             }
                         }
@@ -261,23 +240,6 @@ internal fun LinuxFilesScreen(
             }
         }
     }
-
-    when (uiStyle) {
-        AppearanceUiStyle.COUI -> {
-            CouiLazyScaffoldPage(
-                title = stringResource(R.string.linux_files_title),
-                onBack = { if (openFilePath != null) closeFile() else onBack() },
-                content = { listContent() },
-            )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = stringResource(R.string.linux_files_title),
-                onBack = { if (openFilePath != null) closeFile() else onBack() },
-                content = listContent,
-            )
-        }
-    }
 }
 
 @Composable
@@ -329,37 +291,19 @@ private fun FileRow(
     onClick: () -> Unit,
 ) {
     val icon = if (isDir) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile
-    EtaPreferenceGroupItem(isFirst = isFirst, isLast = isLast, hasLeadingIcon = true) {
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                val colors = CouiPageDefaults.themeColors()
-                CouiPreference(
-                    title = name,
-                    summary = summary,
-                    icon = {
-                        CouiSettingsIcon(
-                            icon = icon,
-                            tint = if (isDir) colors.accent else colors.summary,
-                        )
-                    },
-                    onClick = onClick,
+    PreferenceGroupItem(isFirst = isFirst, isLast = isLast) {
+        BasicComponent(
+            title = name,
+            summary = summary,
+            startAction = {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = 8.dp).size(24.dp),
+                    tint = if (isDir) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
                 )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                BasicComponent(
-                    title = name,
-                    summary = summary,
-                    startAction = {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = 8.dp).size(24.dp),
-                            tint = if (isDir) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantActions,
-                        )
-                    },
-                    onClick = onClick,
-                )
-            }
-        }
+            },
+            onClick = onClick,
+        )
     }
 }

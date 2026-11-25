@@ -36,11 +36,11 @@ import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 /**
- * Eta 二级列表页的统一 OS4 玻璃骨架：手机折叠大标题、宽屏固定小标题、GlassTopAppBar、
+ * 二级列表页的统一 OS4 玻璃骨架：手机折叠大标题、宽屏固定小标题、GlassTopAppBar、
  * 横屏安全区、宽屏内容居中、滚动边界触感与越界回弹均由此处统一提供。
  */
 @Composable
-fun MiuixScaffoldPage(
+fun ScaffoldPage(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -97,7 +97,7 @@ fun MiuixScaffoldPage(
                 expandable = expandable,
                 scrollBehavior = scrollBehavior,
                 isContentScrolled = isContentScrolled,
-                navigationIcon = { MiuixBackButton(onClick = onBack) },
+                navigationIcon = { TopBarBackButton(onClick = onBack) },
                 actions = actions,
                 bottomContent = { topBarBottomContent(demandPageBackdrop) },
             )
@@ -125,7 +125,7 @@ fun MiuixScaffoldPage(
                 ) {
                     content()
                     item(key = "bottom_spacer") {
-                        MiuixPageBottomSpacer()
+                        PageBottomSpacer()
                     }
                 }
             }
@@ -139,7 +139,7 @@ fun MiuixScaffoldPage(
  * 接入自己的内容；[sidePadding] 用于在宽屏限制实际内容宽度，滚动容器本身仍应保持全宽。
  */
 @Composable
-fun MiuixScaffold(
+fun PageScaffold(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -191,7 +191,7 @@ fun MiuixScaffold(
                 backdrop = if (isTopBarGlassActive) pageBackdrop else null,
                 scrollBehavior = scrollBehavior,
                 isContentScrolled = isContentScrolled,
-                navigationIcon = { MiuixBackButton(onClick = onBack) },
+                navigationIcon = { TopBarBackButton(onClick = onBack) },
                 actions = actions,
                 bottomContent = { topBarBottomContent(demandPageBackdrop) },
             )
@@ -215,7 +215,7 @@ fun MiuixScaffold(
 }
 
 @Composable
-fun MiuixPageBottomSpacer(modifier: Modifier = Modifier) {
+fun PageBottomSpacer(modifier: Modifier = Modifier) {
     Spacer(
         modifier = modifier
             .height(24.dp)

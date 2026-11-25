@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.scheduler.ScheduledTaskScheduleCalculator
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.ScheduledTask
 import io.github.mangi.eta.data.model.ScheduledTaskCapabilities
@@ -66,24 +65,10 @@ import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.data.repository.ScheduledTaskRepository
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.MiuixDialogActions
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
+import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.OptionalModelPickerContent
-import io.github.mangi.eta.ui.components.coui.CouiBottomSheet
-import io.github.mangi.eta.ui.components.coui.CouiChipTabs
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
-import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
-import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
-import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
-import io.github.mangi.eta.ui.components.coui.CouiTextField
-import io.github.mangi.eta.ui.components.coui.CouiTopAppBarTextButton
+import io.github.mangi.eta.ui.components.ScaffoldPage
+import io.github.mangi.eta.ui.components.TopBarActionButton
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import kotlinx.coroutines.Dispatchers
@@ -103,10 +88,6 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.UUID
-import io.github.suqi8.coui.kmp.basic.HorizontalDivider as CouiDivider
-import io.github.suqi8.coui.kmp.basic.TimePicker as CouiTimePicker
-import io.github.suqi8.coui.kmp.basic.TimeValue as CouiTimeValue
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 
 @Composable
 internal fun ScheduledTaskEditorScreen(
@@ -358,735 +339,393 @@ internal fun ScheduledTaskEditorScreen(
         }
     }
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            var showTimePicker by remember { mutableStateOf(false) }
-            var pickerDaysOfWeek by remember { mutableStateOf(daysOfWeek) }
-            var pickerTime by remember { mutableStateOf(CouiTimeValue(hour = hour, minute = minute)) }
-            CouiScaffoldPage(
-                title = pageTitle,
-                onBack = onBack,
-                compactTitle = true,
-                actions = {
-                    CouiTopAppBarTextButton(
-                        text = stringResource(R.string.action_save),
-                        enabled = canSave,
-                        onClick = onSaveClick,
-                    )
-                },
-                overlay = {
-                    CouiBottomSheet(
-                        show = showModelSheet,
-                        onDismissRequest = { showModelSheet = false },
-                        title = stringResource(R.string.scheduled_field_model),
-                    ) {
-                        OptionalModelPickerContent(
-                            pickerState = pickerState,
-                            selectedSecondaryModelId = resolvedCustom?.model?.id,
-                            followTitle = followTitle,
-                            followSubtitle = followSubtitle,
-                            onSelectModel = { id ->
-                                showModelSheet = false
-                                selectedModelId = id
-                            },
-                        )
-                    }
-                    CouiConfirmDialog(
-                        visible = showTimePicker,
-                        title = stringResource(R.string.scheduled_editor_trigger_time),
-                        message = null,
-                        confirmText = stringResource(R.string.action_confirm),
-                        scrollableContent = false,
-                        onDismissRequest = { showTimePicker = false },
-                        onConfirm = {
-                            hour = pickerTime.hour
-                            minute = pickerTime.minute
-                            if (triggerKind == ScheduledTaskTriggerKind.WEEKLY) {
-                                daysOfWeek = pickerDaysOfWeek
-                            }
-                            showTimePicker = false
-                        },
-                    ) {
-                        CouiTimePicker(
-                            value = pickerTime,
-                            onValueChange = { pickerTime = it },
-                            is24Hour = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        if (triggerKind == ScheduledTaskTriggerKind.WEEKLY) {
-                            WeekdaySelectorRow(
-                                selectedDays = pickerDaysOfWeek,
-                                onToggleDay = { day ->
-                                    pickerDaysOfWeek = if (day in pickerDaysOfWeek && pickerDaysOfWeek.size > 1) {
-                                        pickerDaysOfWeek - day
-                                    } else {
-                                        pickerDaysOfWeek + day
-                                    }
-                                },
-                                isCoui = true,
-                                horizontalPadding = 0.dp,
-                            )
-                        }
-                    }
-                },
+    var showTimePicker by remember { mutableStateOf(false) }
+    var pickerDaysOfWeek by remember { mutableStateOf(daysOfWeek) }
+    var pickerHour by remember { mutableIntStateOf(hour) }
+    var pickerMinute by remember { mutableIntStateOf(minute) }
+    ScaffoldPage(
+        title = pageTitle,
+        onBack = onBack,
+        modifier = Modifier.imePadding(),
+        actions = {
+            TopBarActionButton(
+                icon = MiuixIcons.Glass.Ok,
+                contentDescription = stringResource(R.string.action_save),
+                enabled = canSave,
+                onClick = onSaveClick,
+            )
+        },
+        overlay = {
+            GlassBottomSheet(
+                show = showModelSheet,
+                backdrop = currentGlassOverlayBackdrop(),
+                title = stringResource(R.string.scheduled_field_model),
+                onDismissRequest = { showModelSheet = false },
+                insideMargin = DpSize(0.dp, 0.dp),
             ) {
-                CouiPreferenceGroup(title = stringResource(R.string.scheduled_editor_section_content)) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            CouiTextField(
-                                state = nameState,
-                                inputTransformation = InputTransformation.maxLengthTrim(80),
-                                label = stringResource(R.string.scheduled_editor_name_label),
-                                placeholder = stringResource(R.string.scheduled_editor_name_placeholder),
-                                singleLine = true,
-                            )
-                            CouiTextField(
-                                state = promptState,
-                                inputTransformation = InputTransformation.maxLengthTrim(8000),
-                                label = stringResource(R.string.scheduled_editor_prompt_label),
-                                placeholder = stringResource(R.string.scheduled_editor_prompt_placeholder),
-                                singleLine = false,
-                                minLines = 4,
-                                maxLines = 10,
-                            )
-                        }
-                    }
-                }
-
-                CouiSectionTitle(stringResource(R.string.scheduled_editor_section_schedule))
-                CouiChipTabs(
-                    items = triggerTabs,
-                    selectedKey = triggerKind,
-                    onSelectedKeyChange = { next ->
-                        triggerKind = next
-                        if (next == ScheduledTaskTriggerKind.ONCE && onceTriggerAtMs <= System.currentTimeMillis()) {
-                            onceTriggerAtMs = System.currentTimeMillis() + onceDelayMinutes * 60_000L
-                        }
+                OptionalModelPickerContent(
+                    pickerState = pickerState,
+                    selectedSecondaryModelId = resolvedCustom?.model?.id,
+                    followTitle = followTitle,
+                    followSubtitle = followSubtitle,
+                    onSelectModel = { id ->
+                        showModelSheet = false
+                        selectedModelId = id
                     },
                 )
-                CouiPreferenceGroup {
-                    item {
-                        when (triggerKind) {
-                            ScheduledTaskTriggerKind.DAILY,
-                            ScheduledTaskTriggerKind.WEEKDAYS -> {
-                                CouiPreference(
-                                    title = stringResource(R.string.scheduled_editor_trigger_time),
-                                    value = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
-                                    onClick = {
-                                        pickerTime = CouiTimeValue(hour = hour, minute = minute)
-                                        showTimePicker = true
-                                    },
-                                )
-                            }
-                            ScheduledTaskTriggerKind.WEEKLY -> {
-                                CouiPreference(
-                                    title = stringResource(R.string.scheduled_editor_trigger_time),
-                                    summary = ScheduledTaskScheduleCalculator.describeSchedule(currentSchedule),
-                                    onClick = {
-                                        pickerTime = CouiTimeValue(hour = hour, minute = minute)
-                                        pickerDaysOfWeek = daysOfWeek
-                                        showTimePicker = true
-                                    },
-                                )
-                            }
-                            ScheduledTaskTriggerKind.INTERVAL -> {
-                                QuickOptionPillsRow(
-                                    title = stringResource(R.string.scheduled_editor_interval_label),
-                                    options = intervalChoices.map { it to ScheduledTaskScheduleCalculator.formatInterval(it) },
-                                    selected = intervalMinutes,
-                                    onSelect = { intervalMinutes = it },
-                                    isCoui = true,
-                                )
-                                CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
-                            }
-                            ScheduledTaskTriggerKind.ONCE -> {
-                                QuickOptionPillsRow(
-                                    title = stringResource(R.string.scheduled_editor_once_delay_label),
-                                    options = onceDelayOptions,
-                                    selected = onceDelayMinutes,
-                                    onSelect = { mins ->
-                                        onceDelayMinutes = mins
-                                        onceTriggerAtMs = System.currentTimeMillis() + mins * 60_000L
-                                    },
-                                    isCoui = true,
-                                )
-                                CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
-                            }
-                            ScheduledTaskTriggerKind.CRON -> {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 14.dp),
-                                ) {
-                                    CouiTextField(
-                                        state = cronExpressionState,
-                                        inputTransformation = InputTransformation.maxLengthTrim(80),
-                                        label = stringResource(R.string.scheduled_editor_cron_label),
-                                        placeholder = "0 9 * * 1-5",
-                                        singleLine = true,
-                                    )
-                                }
-                                CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
-                            }
-                        }
-                    }
-                    item {
-                        CouiPreference(
-                            title = stringResource(R.string.scheduled_editor_schedule_preview),
-                            summary = nextRunPreview,
-                            showChevron = false,
-                        )
-                    }
+            }
+            GlassDialog(
+                show = showTimePicker,
+                backdrop = currentGlassOverlayBackdrop(),
+                title = stringResource(R.string.scheduled_editor_trigger_time),
+                onDismissRequest = { showTimePicker = false },
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    NumberPicker(
+                        value = pickerHour,
+                        onValueChange = { pickerHour = it },
+                        range = 0..23,
+                        label = { it.toString().padStart(2, '0') },
+                        wrapAround = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = ":",
+                        style = MiuixTheme.textStyles.title1,
+                        color = MiuixTheme.colorScheme.onSurface,
+                    )
+                    NumberPicker(
+                        value = pickerMinute,
+                        onValueChange = { pickerMinute = it },
+                        range = 0..59,
+                        label = { it.toString().padStart(2, '0') },
+                        wrapAround = true,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-
-                CouiPreferenceGroup(title = stringResource(R.string.scheduled_editor_section_delivery)) {
-                    item {
-                        CouiDropdownPreference(
-                            title = stringResource(R.string.scheduled_editor_result_notification),
-                            items = deliveryOptions.map { it.second },
-                            selectedIndex = deliveryOptions.indexOfFirst { it.first == deliveryMode }.coerceAtLeast(0),
-                            onSelectedIndexChange = { idx -> deliveryMode = deliveryOptions[idx].first },
-                        )
-                    }
-                    item {
-                        CouiSwitchPreference(
-                            title = stringResource(R.string.scheduled_editor_show_progress_title),
-                            summary = stringResource(R.string.scheduled_editor_show_progress_summary),
-                            checked = showRunningNotification,
-                            onCheckedChange = { showRunningNotification = it },
-                        )
-                    }
-                }
-
-                CouiPreferenceGroup {
-                    item {
-                        CouiPreference(
-                            title = stringResource(
-                                if (showAdvanced) {
-                                    R.string.scheduled_editor_advanced_collapse
-                                } else {
-                                    R.string.scheduled_editor_advanced_expand
-                                },
-                            ),
-                            summary = if (showAdvanced) null else stringResource(R.string.scheduled_editor_advanced_summary),
-                            onClick = { showAdvanced = !showAdvanced },
-                        )
-                    }
-                }
-
-                if (showAdvanced) {
-                    CouiPreferenceGroup(title = stringResource(R.string.scheduled_editor_section_model)) {
-                        item {
-                            CouiPreference(
-                                title = stringResource(R.string.scheduled_field_model),
-                                summary = modelSummary,
-                                onClick = { showModelSheet = true },
-                            )
-                        }
-                        if (effortOptions.size > 1) {
-                            item {
-                                CouiDropdownPreference(
-                                    title = stringResource(R.string.scheduled_editor_reasoning_effort),
-                                    items = effortLabels,
-                                    selectedIndex = selectedEffortIndex,
-                                    onSelectedIndexChange = { idx ->
-                                        selectedReasoningEffort = effortOptions[idx]?.wireValue
-                                    },
-                                )
+                if (triggerKind == ScheduledTaskTriggerKind.WEEKLY) {
+                    WeekdaySelectorRow(
+                        selectedDays = pickerDaysOfWeek,
+                        onToggleDay = { day ->
+                            pickerDaysOfWeek = if (day in pickerDaysOfWeek && pickerDaysOfWeek.size > 1) {
+                                pickerDaysOfWeek - day
+                            } else {
+                                pickerDaysOfWeek + day
                             }
-                        }
-                    }
-
-                    CouiPreferenceGroup(title = stringResource(R.string.scheduled_editor_section_capabilities)) {
-                        item {
-                            CouiSwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_browser_title),
-                                summary = stringResource(R.string.scheduled_cap_browser_summary),
-                                checked = capabilities.browserTools,
-                                onCheckedChange = { capabilities = capabilities.copy(browserTools = it) },
-                            )
-                        }
-                        item {
-                            CouiSwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_device_read_title),
-                                summary = stringResource(R.string.scheduled_cap_device_read_summary),
-                                checked = capabilities.deviceReadTools,
-                                onCheckedChange = { capabilities = capabilities.copy(deviceReadTools = it) },
-                            )
-                        }
-                        item {
-                            CouiSwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_device_action_title),
-                                summary = stringResource(R.string.scheduled_cap_device_action_summary),
-                                checked = capabilities.deviceActionTools,
-                                onCheckedChange = { capabilities = capabilities.copy(deviceActionTools = it) },
-                            )
-                        }
-                        item {
-                            CouiSwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_terminal_title),
-                                summary = stringResource(R.string.scheduled_cap_terminal_summary),
-                                checked = capabilities.terminalTools,
-                                onCheckedChange = { capabilities = capabilities.copy(terminalTools = it) },
-                            )
-                        }
-                        item {
-                            CouiSwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_mcp_title),
-                                summary = stringResource(R.string.scheduled_cap_mcp_summary),
-                                checked = capabilities.mcpTools,
-                                onCheckedChange = { capabilities = capabilities.copy(mcpTools = it) },
-                            )
-                        }
-                        item {
-                            CouiSwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_gui_title),
-                                summary = stringResource(R.string.scheduled_cap_gui_summary),
-                                checked = capabilities.guiTools,
-                                onCheckedChange = { capabilities = capabilities.copy(guiTools = it) },
-                            )
-                        }
-                    }
-
-                    CouiPreferenceGroup(title = stringResource(R.string.scheduled_editor_section_session_policy)) {
-                        item {
-                            CouiDropdownPreference(
-                                title = stringResource(R.string.scheduled_editor_session_mode),
-                                items = sessionOptions.map { it.second },
-                                selectedIndex = sessionOptions.indexOfFirst { it.first == sessionMode }.coerceAtLeast(0),
-                                onSelectedIndexChange = { idx -> sessionMode = sessionOptions[idx].first },
-                            )
-                        }
-                        item {
-                            CouiDropdownPreference(
-                                title = stringResource(R.string.scheduled_editor_misfire_policy),
-                                items = misfireOptions.map { it.second },
-                                selectedIndex = misfireOptions.indexOfFirst { it.first == misfirePolicy }.coerceAtLeast(0),
-                                onSelectedIndexChange = { idx -> misfirePolicy = misfireOptions[idx].first },
-                            )
-                        }
-                        item {
-                            CouiSwitchPreference(
-                                title = stringResource(R.string.scheduled_editor_quiet_hours_title),
-                                summary = stringResource(R.string.scheduled_editor_quiet_hours_summary),
-                                checked = quietHoursEnabled,
-                                onCheckedChange = { quietHoursEnabled = it },
-                            )
-                        }
-                        item {
-                            CouiDropdownPreference(
-                                title = stringResource(R.string.scheduled_editor_timeout),
-                                items = timeoutLabels,
-                                selectedIndex = timeoutChoices.indexOf(timeoutSeconds).coerceAtLeast(1),
-                                onSelectedIndexChange = { idx -> timeoutSeconds = timeoutChoices[idx] },
-                            )
-                        }
-                    }
+                        },
+                        horizontalPadding = 0.dp,
+                    )
                 }
-
-                CouiPageBottomSpacer()
+                Spacer(modifier = Modifier.height(12.dp))
+                DialogActions(
+                    confirmText = stringResource(R.string.action_confirm),
+                    onCancel = { showTimePicker = false },
+                    onConfirm = {
+                        hour = pickerHour
+                        minute = pickerMinute
+                        if (triggerKind == ScheduledTaskTriggerKind.WEEKLY) {
+                            daysOfWeek = pickerDaysOfWeek
+                        }
+                        showTimePicker = false
+                    },
+                )
+            }
+        },
+    ) {
+        item(key = "basic_content") {
+            SmallTitle(text = stringResource(R.string.scheduled_editor_section_content))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TextField(
+                        state = nameState,
+                        lineLimits = TextFieldLineLimits.SingleLine,
+                        inputTransformation = InputTransformation.maxLengthTrim(80),
+                        label = stringResource(R.string.scheduled_editor_name_label_with_example),
+                    )
+                    TextField(
+                        state = promptState,
+                        lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4, maxHeightInLines = 10),
+                        inputTransformation = InputTransformation.maxLengthTrim(8000),
+                        label = stringResource(R.string.scheduled_editor_prompt_label),
+                    )
+                }
             }
         }
 
-        AppearanceUiStyle.MIUIX -> {
-            var showTimePicker by remember { mutableStateOf(false) }
-            var pickerDaysOfWeek by remember { mutableStateOf(daysOfWeek) }
-            var pickerHour by remember { mutableIntStateOf(hour) }
-            var pickerMinute by remember { mutableIntStateOf(minute) }
-            MiuixScaffoldPage(
-                title = pageTitle,
-                onBack = onBack,
-                modifier = Modifier.imePadding(),
-                actions = {
-                    MiuixTopBarActionButton(
-                        icon = MiuixIcons.Glass.Ok,
-                        contentDescription = stringResource(R.string.action_save),
-                        enabled = canSave,
-                        onClick = onSaveClick,
-                    )
-                },
-                overlay = {
-                    GlassBottomSheet(
-                        show = showModelSheet,
-                        backdrop = currentGlassOverlayBackdrop(),
-                        title = stringResource(R.string.scheduled_field_model),
-                        onDismissRequest = { showModelSheet = false },
-                        insideMargin = DpSize(0.dp, 0.dp),
-                    ) {
-                        OptionalModelPickerContent(
-                            pickerState = pickerState,
-                            selectedSecondaryModelId = resolvedCustom?.model?.id,
-                            followTitle = followTitle,
-                            followSubtitle = followSubtitle,
-                            onSelectModel = { id ->
-                                showModelSheet = false
-                                selectedModelId = id
-                            },
-                        )
-                    }
-                    GlassDialog(
-                        show = showTimePicker,
-                        backdrop = currentGlassOverlayBackdrop(),
-                        title = stringResource(R.string.scheduled_editor_trigger_time),
-                        onDismissRequest = { showTimePicker = false },
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            NumberPicker(
-                                value = pickerHour,
-                                onValueChange = { pickerHour = it },
-                                range = 0..23,
-                                label = { it.toString().padStart(2, '0') },
-                                wrapAround = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(
-                                text = ":",
-                                style = MiuixTheme.textStyles.title1,
-                                color = MiuixTheme.colorScheme.onSurface,
-                            )
-                            NumberPicker(
-                                value = pickerMinute,
-                                onValueChange = { pickerMinute = it },
-                                range = 0..59,
-                                label = { it.toString().padStart(2, '0') },
-                                wrapAround = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        if (triggerKind == ScheduledTaskTriggerKind.WEEKLY) {
-                            WeekdaySelectorRow(
-                                selectedDays = pickerDaysOfWeek,
-                                onToggleDay = { day ->
-                                    pickerDaysOfWeek = if (day in pickerDaysOfWeek && pickerDaysOfWeek.size > 1) {
-                                        pickerDaysOfWeek - day
-                                    } else {
-                                        pickerDaysOfWeek + day
-                                    }
-                                },
-                                isCoui = false,
-                                horizontalPadding = 0.dp,
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        MiuixDialogActions(
-                            confirmText = stringResource(R.string.action_confirm),
-                            onCancel = { showTimePicker = false },
-                            onConfirm = {
-                                hour = pickerHour
-                                minute = pickerMinute
-                                if (triggerKind == ScheduledTaskTriggerKind.WEEKLY) {
-                                    daysOfWeek = pickerDaysOfWeek
-                                }
-                                showTimePicker = false
-                            },
-                        )
-                    }
-                },
+        item(key = "schedule_section") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                item(key = "basic_content") {
-                    SmallTitle(text = stringResource(R.string.scheduled_editor_section_content))
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
+                SmallTitle(
+                    text = stringResource(R.string.scheduled_editor_section_schedule),
+                    insideMargin = PaddingValues(start = 28.dp, top = 6.dp, end = 8.dp, bottom = 0.dp),
+                )
+                Text(
+                    text = nextRunPreview,
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = if (scheduleError != null) {
+                        MiuixTheme.colorScheme.error
+                    } else {
+                        MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(top = 6.dp),
+                )
+            }
+            QuickOptionPillsRow(
+                title = "",
+                options = triggerTabs,
+                selected = triggerKind,
+                onSelect = { next ->
+                    triggerKind = next
+                    if (next == ScheduledTaskTriggerKind.ONCE && onceTriggerAtMs <= System.currentTimeMillis()) {
+                        onceTriggerAtMs = System.currentTimeMillis() + onceDelayMinutes * 60_000L
+                    }
+                },
+            )
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                when (triggerKind) {
+                    ScheduledTaskTriggerKind.DAILY,
+                    ScheduledTaskTriggerKind.WEEKDAYS -> {
+                        ArrowPreference(
+                            title = stringResource(R.string.scheduled_editor_trigger_time),
+                            summary = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
+                            onClick = {
+                                pickerHour = hour
+                                pickerMinute = minute
+                                showTimePicker = true
+                            },
+                        )
+                    }
+                    ScheduledTaskTriggerKind.WEEKLY -> {
+                        val weekdaySummary = ScheduledTaskScheduleCalculator.describeSchedule(currentSchedule)
+                        ArrowPreference(
+                            title = stringResource(R.string.scheduled_editor_trigger_time),
+                            summary = weekdaySummary,
+                            onClick = {
+                                pickerHour = hour
+                                pickerMinute = minute
+                                pickerDaysOfWeek = daysOfWeek
+                                showTimePicker = true
+                            },
+                        )
+                    }
+                    ScheduledTaskTriggerKind.INTERVAL -> {
+                        QuickOptionPillsRow(
+                            title = stringResource(R.string.scheduled_editor_interval_label),
+                            options = intervalChoices.map { it to ScheduledTaskScheduleCalculator.formatInterval(it) },
+                            selected = intervalMinutes,
+                            onSelect = { intervalMinutes = it },
+                        )
+                    }
+                    ScheduledTaskTriggerKind.ONCE -> {
+                        QuickOptionPillsRow(
+                            title = stringResource(R.string.scheduled_editor_once_delay_label),
+                            options = onceDelayOptions,
+                            selected = onceDelayMinutes,
+                            onSelect = { mins ->
+                                onceDelayMinutes = mins
+                                onceTriggerAtMs = System.currentTimeMillis() + mins * 60_000L
+                            },
+                        )
+                    }
+                    ScheduledTaskTriggerKind.CRON -> {
+                        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                             TextField(
-                                state = nameState,
+                                state = cronExpressionState,
                                 lineLimits = TextFieldLineLimits.SingleLine,
                                 inputTransformation = InputTransformation.maxLengthTrim(80),
-                                label = stringResource(R.string.scheduled_editor_name_label_with_example),
-                            )
-                            TextField(
-                                state = promptState,
-                                lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4, maxHeightInLines = 10),
-                                inputTransformation = InputTransformation.maxLengthTrim(8000),
-                                label = stringResource(R.string.scheduled_editor_prompt_label),
+                                label = stringResource(R.string.scheduled_editor_cron_label),
                             )
                         }
                     }
                 }
+            }
+        }
 
-                item(key = "schedule_section") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(end = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        SmallTitle(
-                            text = stringResource(R.string.scheduled_editor_section_schedule),
-                            insideMargin = PaddingValues(start = 28.dp, top = 6.dp, end = 8.dp, bottom = 0.dp),
-                        )
-                        Text(
-                            text = nextRunPreview,
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = if (scheduleError != null) {
-                                MiuixTheme.colorScheme.error
-                            } else {
-                                MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(top = 6.dp),
-                        )
-                    }
-                    QuickOptionPillsRow(
-                        title = "",
-                        options = triggerTabs,
-                        selected = triggerKind,
-                        onSelect = { next ->
-                            triggerKind = next
-                            if (next == ScheduledTaskTriggerKind.ONCE && onceTriggerAtMs <= System.currentTimeMillis()) {
-                                onceTriggerAtMs = System.currentTimeMillis() + onceDelayMinutes * 60_000L
-                            }
+        item(key = "delivery_section") {
+            SmallTitle(text = stringResource(R.string.scheduled_editor_section_delivery))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                GlassDropdownPreference(
+                    title = stringResource(R.string.scheduled_editor_result_notification),
+                    items = deliveryOptions.map { it.second },
+                    selectedIndex = deliveryOptions.indexOfFirst { it.first == deliveryMode }.coerceAtLeast(0),
+                    onSelectedIndexChange = { idx -> deliveryMode = deliveryOptions[idx].first },
+                    backdrop = currentGlassOverlayBackdrop(),
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.scheduled_editor_show_progress_title),
+                    summary = stringResource(R.string.scheduled_editor_show_progress_summary),
+                    checked = showRunningNotification,
+                    onCheckedChange = { showRunningNotification = it },
+                )
+            }
+        }
+
+        item(key = "advanced_toggle") {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                ArrowPreference(
+                    title = stringResource(
+                        if (showAdvanced) {
+                            R.string.scheduled_editor_advanced_collapse
+                        } else {
+                            R.string.scheduled_editor_advanced_expand
                         },
-                        isCoui = false,
-                    )
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        when (triggerKind) {
-                            ScheduledTaskTriggerKind.DAILY,
-                            ScheduledTaskTriggerKind.WEEKDAYS -> {
-                                ArrowPreference(
-                                    title = stringResource(R.string.scheduled_editor_trigger_time),
-                                    summary = ScheduledTaskScheduleCalculator.formatHourMinute(hour, minute),
-                                    onClick = {
-                                        pickerHour = hour
-                                        pickerMinute = minute
-                                        showTimePicker = true
-                                    },
-                                )
-                            }
-                            ScheduledTaskTriggerKind.WEEKLY -> {
-                                val weekdaySummary = ScheduledTaskScheduleCalculator.describeSchedule(currentSchedule)
-                                ArrowPreference(
-                                    title = stringResource(R.string.scheduled_editor_trigger_time),
-                                    summary = weekdaySummary,
-                                    onClick = {
-                                        pickerHour = hour
-                                        pickerMinute = minute
-                                        pickerDaysOfWeek = daysOfWeek
-                                        showTimePicker = true
-                                    },
-                                )
-                            }
-                            ScheduledTaskTriggerKind.INTERVAL -> {
-                                QuickOptionPillsRow(
-                                    title = stringResource(R.string.scheduled_editor_interval_label),
-                                    options = intervalChoices.map { it to ScheduledTaskScheduleCalculator.formatInterval(it) },
-                                    selected = intervalMinutes,
-                                    onSelect = { intervalMinutes = it },
-                                    isCoui = false,
-                                )
-                            }
-                            ScheduledTaskTriggerKind.ONCE -> {
-                                QuickOptionPillsRow(
-                                    title = stringResource(R.string.scheduled_editor_once_delay_label),
-                                    options = onceDelayOptions,
-                                    selected = onceDelayMinutes,
-                                    onSelect = { mins ->
-                                        onceDelayMinutes = mins
-                                        onceTriggerAtMs = System.currentTimeMillis() + mins * 60_000L
-                                    },
-                                    isCoui = false,
-                                )
-                            }
-                            ScheduledTaskTriggerKind.CRON -> {
-                                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                    TextField(
-                                        state = cronExpressionState,
-                                        lineLimits = TextFieldLineLimits.SingleLine,
-                                        inputTransformation = InputTransformation.maxLengthTrim(80),
-                                        label = stringResource(R.string.scheduled_editor_cron_label),
-                                    )
-                                }
-                            }
-                    }
-                    }
-                }
+                    ),
+                    summary = if (showAdvanced) null else stringResource(R.string.scheduled_editor_advanced_summary),
+                    onClick = { showAdvanced = !showAdvanced },
+                )
+            }
+        }
 
-                item(key = "delivery_section") {
-                    SmallTitle(text = stringResource(R.string.scheduled_editor_section_delivery))
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
+        if (showAdvanced) {
+            item(key = "advanced_model") {
+                SmallTitle(text = stringResource(R.string.scheduled_editor_section_model))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    ArrowPreference(
+                        title = stringResource(R.string.scheduled_field_model),
+                        summary = modelSummary,
+                        onClick = { showModelSheet = true },
+                    )
+                    if (effortOptions.size > 1) {
                         GlassDropdownPreference(
-                            title = stringResource(R.string.scheduled_editor_result_notification),
-                            items = deliveryOptions.map { it.second },
-                            selectedIndex = deliveryOptions.indexOfFirst { it.first == deliveryMode }.coerceAtLeast(0),
-                            onSelectedIndexChange = { idx -> deliveryMode = deliveryOptions[idx].first },
+                            title = stringResource(R.string.scheduled_editor_reasoning_effort),
+                            items = effortLabels,
+                            selectedIndex = selectedEffortIndex,
+                            onSelectedIndexChange = { idx ->
+                                selectedReasoningEffort = effortOptions[idx]?.wireValue
+                            },
                             backdrop = currentGlassOverlayBackdrop(),
                         )
-                        SwitchPreference(
-                            title = stringResource(R.string.scheduled_editor_show_progress_title),
-                            summary = stringResource(R.string.scheduled_editor_show_progress_summary),
-                            checked = showRunningNotification,
-                            onCheckedChange = { showRunningNotification = it },
-                        )
                     }
                 }
+            }
 
-                item(key = "advanced_toggle") {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        ArrowPreference(
-                            title = stringResource(
-                                if (showAdvanced) {
-                                    R.string.scheduled_editor_advanced_collapse
-                                } else {
-                                    R.string.scheduled_editor_advanced_expand
-                                },
-                            ),
-                            summary = if (showAdvanced) null else stringResource(R.string.scheduled_editor_advanced_summary),
-                            onClick = { showAdvanced = !showAdvanced },
-                        )
-                    }
+            item(key = "advanced_caps") {
+                SmallTitle(text = stringResource(R.string.scheduled_editor_section_capabilities))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    SwitchPreference(
+                        title = stringResource(R.string.scheduled_cap_browser_title),
+                        summary = stringResource(R.string.scheduled_cap_browser_summary),
+                        checked = capabilities.browserTools,
+                        onCheckedChange = { capabilities = capabilities.copy(browserTools = it) },
+                    )
+                    SwitchPreference(
+                        title = stringResource(R.string.scheduled_cap_device_read_title),
+                        summary = stringResource(R.string.scheduled_cap_device_read_summary),
+                        checked = capabilities.deviceReadTools,
+                        onCheckedChange = { capabilities = capabilities.copy(deviceReadTools = it) },
+                    )
+                    SwitchPreference(
+                        title = stringResource(R.string.scheduled_cap_device_action_title),
+                        summary = stringResource(R.string.scheduled_cap_device_action_summary),
+                        checked = capabilities.deviceActionTools,
+                        onCheckedChange = { capabilities = capabilities.copy(deviceActionTools = it) },
+                    )
+                    SwitchPreference(
+                        title = stringResource(R.string.scheduled_cap_terminal_title),
+                        summary = stringResource(R.string.scheduled_cap_terminal_summary),
+                        checked = capabilities.terminalTools,
+                        onCheckedChange = { capabilities = capabilities.copy(terminalTools = it) },
+                    )
+                    SwitchPreference(
+                        title = stringResource(R.string.scheduled_cap_mcp_title),
+                        summary = stringResource(R.string.scheduled_cap_mcp_summary),
+                        checked = capabilities.mcpTools,
+                        onCheckedChange = { capabilities = capabilities.copy(mcpTools = it) },
+                    )
+                    SwitchPreference(
+                        title = stringResource(R.string.scheduled_cap_gui_title),
+                        summary = stringResource(R.string.scheduled_cap_gui_summary),
+                        checked = capabilities.guiTools,
+                        onCheckedChange = { capabilities = capabilities.copy(guiTools = it) },
+                    )
                 }
+            }
 
-                if (showAdvanced) {
-                    item(key = "advanced_model") {
-                        SmallTitle(text = stringResource(R.string.scheduled_editor_section_model))
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp)
-                                .padding(bottom = 12.dp),
-                        ) {
-                            ArrowPreference(
-                                title = stringResource(R.string.scheduled_field_model),
-                                summary = modelSummary,
-                                onClick = { showModelSheet = true },
-                            )
-                            if (effortOptions.size > 1) {
-                                GlassDropdownPreference(
-                                    title = stringResource(R.string.scheduled_editor_reasoning_effort),
-                                    items = effortLabels,
-                                    selectedIndex = selectedEffortIndex,
-                                    onSelectedIndexChange = { idx ->
-                                        selectedReasoningEffort = effortOptions[idx]?.wireValue
-                                    },
-                                    backdrop = currentGlassOverlayBackdrop(),
-                                )
-                            }
-                        }
-                    }
-
-                    item(key = "advanced_caps") {
-                        SmallTitle(text = stringResource(R.string.scheduled_editor_section_capabilities))
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp)
-                                .padding(bottom = 12.dp),
-                        ) {
-                            SwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_browser_title),
-                                summary = stringResource(R.string.scheduled_cap_browser_summary),
-                                checked = capabilities.browserTools,
-                                onCheckedChange = { capabilities = capabilities.copy(browserTools = it) },
-                            )
-                            SwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_device_read_title),
-                                summary = stringResource(R.string.scheduled_cap_device_read_summary),
-                                checked = capabilities.deviceReadTools,
-                                onCheckedChange = { capabilities = capabilities.copy(deviceReadTools = it) },
-                            )
-                            SwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_device_action_title),
-                                summary = stringResource(R.string.scheduled_cap_device_action_summary),
-                                checked = capabilities.deviceActionTools,
-                                onCheckedChange = { capabilities = capabilities.copy(deviceActionTools = it) },
-                            )
-                            SwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_terminal_title),
-                                summary = stringResource(R.string.scheduled_cap_terminal_summary),
-                                checked = capabilities.terminalTools,
-                                onCheckedChange = { capabilities = capabilities.copy(terminalTools = it) },
-                            )
-                            SwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_mcp_title),
-                                summary = stringResource(R.string.scheduled_cap_mcp_summary),
-                                checked = capabilities.mcpTools,
-                                onCheckedChange = { capabilities = capabilities.copy(mcpTools = it) },
-                            )
-                            SwitchPreference(
-                                title = stringResource(R.string.scheduled_cap_gui_title),
-                                summary = stringResource(R.string.scheduled_cap_gui_summary),
-                                checked = capabilities.guiTools,
-                                onCheckedChange = { capabilities = capabilities.copy(guiTools = it) },
-                            )
-                        }
-                    }
-
-                    item(key = "advanced_session") {
-                        SmallTitle(text = stringResource(R.string.scheduled_editor_section_session_policy))
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp)
-                                .padding(bottom = 12.dp),
-                        ) {
-                            GlassDropdownPreference(
-                                title = stringResource(R.string.scheduled_editor_session_mode),
-                                items = sessionOptions.map { it.second },
-                                selectedIndex = sessionOptions.indexOfFirst { it.first == sessionMode }.coerceAtLeast(0),
-                                onSelectedIndexChange = { idx -> sessionMode = sessionOptions[idx].first },
-                                backdrop = currentGlassOverlayBackdrop(),
-                            )
-                            GlassDropdownPreference(
-                                title = stringResource(R.string.scheduled_editor_misfire_policy),
-                                items = misfireOptions.map { it.second },
-                                selectedIndex = misfireOptions.indexOfFirst { it.first == misfirePolicy }.coerceAtLeast(0),
-                                onSelectedIndexChange = { idx -> misfirePolicy = misfireOptions[idx].first },
-                                backdrop = currentGlassOverlayBackdrop(),
-                            )
-                            SwitchPreference(
-                                title = stringResource(R.string.scheduled_editor_quiet_hours_title),
-                                summary = stringResource(R.string.scheduled_editor_quiet_hours_summary),
-                                checked = quietHoursEnabled,
-                                onCheckedChange = { quietHoursEnabled = it },
-                            )
-                            GlassDropdownPreference(
-                                title = stringResource(R.string.scheduled_editor_timeout),
-                                items = timeoutLabels,
-                                selectedIndex = timeoutChoices.indexOf(timeoutSeconds).coerceAtLeast(1),
-                                onSelectedIndexChange = { idx -> timeoutSeconds = timeoutChoices[idx] },
-                                backdrop = currentGlassOverlayBackdrop(),
-                            )
-                        }
-                    }
+            item(key = "advanced_session") {
+                SmallTitle(text = stringResource(R.string.scheduled_editor_section_session_policy))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    GlassDropdownPreference(
+                        title = stringResource(R.string.scheduled_editor_session_mode),
+                        items = sessionOptions.map { it.second },
+                        selectedIndex = sessionOptions.indexOfFirst { it.first == sessionMode }.coerceAtLeast(0),
+                        onSelectedIndexChange = { idx -> sessionMode = sessionOptions[idx].first },
+                        backdrop = currentGlassOverlayBackdrop(),
+                    )
+                    GlassDropdownPreference(
+                        title = stringResource(R.string.scheduled_editor_misfire_policy),
+                        items = misfireOptions.map { it.second },
+                        selectedIndex = misfireOptions.indexOfFirst { it.first == misfirePolicy }.coerceAtLeast(0),
+                        onSelectedIndexChange = { idx -> misfirePolicy = misfireOptions[idx].first },
+                        backdrop = currentGlassOverlayBackdrop(),
+                    )
+                    SwitchPreference(
+                        title = stringResource(R.string.scheduled_editor_quiet_hours_title),
+                        summary = stringResource(R.string.scheduled_editor_quiet_hours_summary),
+                        checked = quietHoursEnabled,
+                        onCheckedChange = { quietHoursEnabled = it },
+                    )
+                    GlassDropdownPreference(
+                        title = stringResource(R.string.scheduled_editor_timeout),
+                        items = timeoutLabels,
+                        selectedIndex = timeoutChoices.indexOf(timeoutSeconds).coerceAtLeast(1),
+                        onSelectedIndexChange = { idx -> timeoutSeconds = timeoutChoices[idx] },
+                        backdrop = currentGlassOverlayBackdrop(),
+                    )
                 }
             }
         }
@@ -1097,7 +736,6 @@ internal fun ScheduledTaskEditorScreen(
 private fun WeekdaySelectorRow(
     selectedDays: Set<Int>,
     onToggleDay: (Int) -> Unit,
-    isCoui: Boolean,
     horizontalPadding: Dp = 16.dp,
 ) {
     val labels = listOf(
@@ -1109,13 +747,9 @@ private fun WeekdaySelectorRow(
         6 to stringResource(R.string.scheduled_weekday_narrow_sat),
         7 to stringResource(R.string.scheduled_weekday_narrow_sun),
     )
-    val accent = if (isCoui) CouiPageDefaults.themeColors().accent else MiuixTheme.colorScheme.primary
-    val inactiveBg = if (isCoui) {
-        CouiTheme.colorScheme.container8
-    } else {
-        MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-    }
-    val inactiveFg = if (isCoui) CouiPageDefaults.themeColors().title else MiuixTheme.colorScheme.onSurface
+    val accent = MiuixTheme.colorScheme.primary
+    val inactiveBg = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+    val inactiveFg = MiuixTheme.colorScheme.onSurface
 
     Row(
         modifier = Modifier
@@ -1150,15 +784,10 @@ private fun <T> QuickOptionPillsRow(
     options: List<Pair<T, String>>,
     selected: T,
     onSelect: (T) -> Unit,
-    isCoui: Boolean,
 ) {
-    val accent = if (isCoui) CouiPageDefaults.themeColors().accent else MiuixTheme.colorScheme.primary
-    val inactiveBg = if (isCoui) {
-        CouiTheme.colorScheme.container8
-    } else {
-        MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-    }
-    val inactiveFg = if (isCoui) CouiPageDefaults.themeColors().title else MiuixTheme.colorScheme.onSurface
+    val accent = MiuixTheme.colorScheme.primary
+    val inactiveBg = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+    val inactiveFg = MiuixTheme.colorScheme.onSurface
 
     Column(
         modifier = Modifier
@@ -1170,7 +799,7 @@ private fun <T> QuickOptionPillsRow(
             Text(
                 text = title,
                 fontSize = 13.sp,
-                color = if (isCoui) CouiPageDefaults.themeColors().summary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
         }
         Row(

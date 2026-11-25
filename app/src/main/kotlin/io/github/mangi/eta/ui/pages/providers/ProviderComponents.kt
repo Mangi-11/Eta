@@ -21,15 +21,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.ProviderSetting
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiIcon
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
 import io.github.mangi.eta.ui.components.providerBrandLogoRes as sharedProviderBrandLogoRes
-import io.github.suqi8.coui.kmp.theme.COUITheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -43,29 +37,17 @@ internal fun ProviderSection(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiPreferenceGroup(
-                modifier = modifier,
-                title = title,
-            ) {
-                item { androidx.compose.foundation.layout.Column(content = content) }
-            }
+    Column(modifier = modifier) {
+        if (title != null) {
+            SmallTitle(title)
         }
-        AppearanceUiStyle.MIUIX -> {
-            Column(modifier = modifier) {
-                if (title != null) {
-                    SmallTitle(title)
-                }
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp),
-                ) {
-                    content()
-                }
-            }
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp),
+        ) {
+            content()
         }
     }
 }
@@ -85,34 +67,15 @@ private fun ProviderBrandImage(
     @DrawableRes logo: Int,
     modifier: Modifier = Modifier,
 ) {
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            Box(
-                modifier = modifier.size(CouiPageDefaults.iconSize),
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(
-                    painter = painterResource(logo),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape),
-                )
-            }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            Image(
-                painter = painterResource(logo),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = modifier
-                    .padding(end = 8.dp)
-                    .size(24.dp)
-                    .clip(CircleShape),
-            )
-        }
-    }
+    Image(
+        painter = painterResource(logo),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = modifier
+            .padding(end = 8.dp)
+            .size(24.dp)
+            .clip(CircleShape),
+    )
 }
 
 @DrawableRes
@@ -139,36 +102,18 @@ internal fun ProviderIcon(
         is CustomProviderSetting -> Icons.Rounded.Dns
         else -> Icons.Rounded.Language
     }
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
-            Box(
-                modifier = modifier.size(CouiPageDefaults.iconSize),
-                contentAlignment = Alignment.Center,
-            ) {
-                CouiIcon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = colors.summary,
-                )
-            }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            Box(
-                modifier = modifier
-                    .padding(end = 8.dp)
-                    .size(24.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                )
-            }
-        }
+    Box(
+        modifier = modifier
+            .padding(end = 8.dp)
+            .size(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+        )
     }
 }
 
@@ -180,37 +125,19 @@ internal fun TagChip(
     text: String,
     tone: TagChipTone = TagChipTone.Normal,
 ) {
-    val uiStyle = LocalUiStyle.current
     val background: Color
     val foreground: Color
     val weight: FontWeight
-    if (uiStyle == AppearanceUiStyle.COUI) {
-        val colors = CouiPageDefaults.themeColors()
-        val dark = COUITheme.isDark
-        when (tone) {
-            TagChipTone.Normal -> {
-                background = COUITheme.colorScheme.container8
-                foreground = colors.summary
-                weight = FontWeight.Normal
-            }
-            TagChipTone.Emphasized -> {
-                background = COUITheme.colorScheme.secondary
-                foreground = colors.accent
-                weight = FontWeight.Medium
-            }
+    when (tone) {
+        TagChipTone.Normal -> {
+            background = MiuixTheme.colorScheme.secondaryContainer
+            foreground = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            weight = FontWeight.Normal
         }
-    } else {
-        when (tone) {
-            TagChipTone.Normal -> {
-                background = MiuixTheme.colorScheme.secondaryContainer
-                foreground = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                weight = FontWeight.Normal
-            }
-            TagChipTone.Emphasized -> {
-                background = MiuixTheme.colorScheme.tertiaryContainer
-                foreground = MiuixTheme.colorScheme.onTertiaryContainer
-                weight = FontWeight.Medium
-            }
+        TagChipTone.Emphasized -> {
+            background = MiuixTheme.colorScheme.tertiaryContainer
+            foreground = MiuixTheme.colorScheme.onTertiaryContainer
+            weight = FontWeight.Medium
         }
     }
     Text(

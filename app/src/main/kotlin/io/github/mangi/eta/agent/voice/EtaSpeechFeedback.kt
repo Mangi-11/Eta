@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CircleShape as CouiCapsuleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -33,9 +32,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
-import io.github.mangi.eta.ui.components.coui.couiPressMotion
-import io.github.mangi.eta.ui.components.coui.rememberCouiPressMotion
 import top.yukonga.miuix.kmp.basic.Text
 
 internal enum class EtaSpeechPhase { IDLE, STARTING, LISTENING, RECOGNIZING }
@@ -64,7 +60,7 @@ internal fun EtaSpeechFeedback(
     val actionTint = colors.accent
     val actionBackground = actionTint.copy(alpha = if (colors.dark) 0.22f else 0.12f)
     val rowSource = remember { MutableInteractionSource() }
-    val rowPress = rememberCouiPressMotion()
+    val rowPress = rememberAssistantPressMotion()
     val buttonSource = remember { MutableInteractionSource() }
 
     AnimatedVisibility(
@@ -87,8 +83,8 @@ internal fun EtaSpeechFeedback(
             Row(
                 modifier = Modifier
                     .heightIn(min = 38.dp)
-                    .couiPressMotion(rowPress, enabled = speech.configureAvailable, cancelOnConsumedMove = true)
-                    .couiAssistantCapsule(
+                    .assistantPressMotion(rowPress, enabled = speech.configureAvailable, cancelOnConsumedMove = true)
+                    .assistantCapsule(
                         surfaceColor = colors.chipBackground,
                         strokeColor = colors.chipStroke,
                         dark = colors.dark,
@@ -137,9 +133,9 @@ internal fun EtaSpeechFeedback(
                     Spacer(modifier = Modifier.width(2.dp))
                     Box(
                         modifier = Modifier
-                            .clip(CouiCapsuleShape)
-                            .background(actionBackground, CouiCapsuleShape)
-                            .couiButtonFeedback(colors.dark, buttonSource, enabled = true)
+                            .clip(CircleShape)
+                            .background(actionBackground, CircleShape)
+                            .assistantButtonFeedback(colors.dark, buttonSource, enabled = true)
                             .clickable(
                                 interactionSource = buttonSource,
                                 indication = null,

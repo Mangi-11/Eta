@@ -31,7 +31,6 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Hub
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,16 +38,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -59,50 +53,25 @@ import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.mcp.McpServerManager
 import io.github.mangi.eta.agent.mcp.validateMcpEndpoint
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.McpAuthorizationType
 import io.github.mangi.eta.data.model.McpDiscoveryTruncation
 import io.github.mangi.eta.data.model.McpProtocolMode
 import io.github.mangi.eta.data.model.McpServerSetting
 import io.github.mangi.eta.data.model.McpToolDefinition
 import io.github.mangi.eta.data.repository.McpServerRepository
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
+import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.ListEmptyState
-import io.github.mangi.eta.ui.components.MiuixDialogActions
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.MiuixSecureTextField
-import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
-import io.github.mangi.eta.ui.components.coui.CouiIcon
-import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
-import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
-import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
-import io.github.mangi.eta.ui.components.coui.CouiText
-import io.github.mangi.eta.ui.components.coui.CouiTextField
-import io.github.mangi.eta.ui.components.coui.CouiTextKind
-import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
+import io.github.mangi.eta.ui.components.PreferenceGroupItem
+import io.github.mangi.eta.ui.components.ScaffoldPage
+import io.github.mangi.eta.ui.components.SecureTextField
+import io.github.mangi.eta.ui.components.TopBarActionButton
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.markdown.MarkdownTone
 import io.github.mangi.eta.ui.markdown.StaticMarkdown
 import io.github.mangi.eta.ui.navigation.AppRoute
 import io.github.mangi.eta.ui.screens.tools.GroupBatchTogglePill
-import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
-import io.github.suqi8.coui.kmp.icon.COUIIcons
-import io.github.suqi8.coui.kmp.icon.extended.Add
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
-import io.github.suqi8.coui.kmp.utils.CouiHapticEffect
-import io.github.suqi8.coui.kmp.utils.rememberCouiHaptic
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -213,239 +182,127 @@ internal fun McpServersScreen(
         }
     }
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiScaffoldPage(
-                title = stringResource(R.string.route_mcp_servers),
-                onBack = onBack,
-                actions = {
-                    CouiTopAppBarIconButton(
-                        icon = COUIIcons.Add,
-                        contentDescription = stringResource(R.string.mcp_add_server),
-                        onClick = { showAdd = true },
-                    )
-                },
-                overlay = {
-                    CouiConfirmDialog(
-                        visible = showAdd,
-                        title = stringResource(R.string.mcp_add_server),
-                        message = null,
-                        confirmText = if (working) stringResource(R.string.mcp_connecting) else stringResource(R.string.mcp_add_server),
-                        confirmEnabled = !working,
-                        cancelEnabled = !working,
-                        onConfirm = onConfirmAdd,
-                        onDismissRequest = { if (!working) showAdd = false },
-                    ) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            CouiTextField(
-                                state = nameState,
-                                label = stringResource(R.string.mcp_server_name),
-                                singleLine = true,
-                                enabled = !working,
-                            )
-                            CouiTextField(
-                                state = urlState,
-                                label = stringResource(R.string.mcp_server_url),
-                                singleLine = true,
-                                enabled = !working,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                            )
-                            CouiTextField(
-                                state = tokenState,
-                                label = stringResource(R.string.mcp_bearer_optional),
-                                singleLine = true,
-                                enabled = !working,
-                                secretVisible = false,
-                            )
-                            error?.let {
-                                Text(
-                                    text = it,
-                                    style = MiuixTheme.textStyles.body2,
-                                    color = MiuixTheme.colorScheme.error,
-                                )
-                            }
-                        }
-                    }
-                },
+    ScaffoldPage(
+        title = stringResource(R.string.route_mcp_servers),
+        onBack = onBack,
+        actions = {
+            TopBarActionButton(
+                icon = MiuixIcons.Glass.Add,
+                contentDescription = stringResource(R.string.mcp_add_server),
+                onClick = { showAdd = true },
+            )
+        },
+        overlay = {
+            GlassDialog(
+                show = showAdd,
+                backdrop = currentGlassOverlayBackdrop(),
+                title = stringResource(R.string.mcp_add_server),
+                onDismissRequest = { if (!working) showAdd = false },
             ) {
-                CouiPreferenceGroup(
-                    title = stringResource(R.string.mcp_configured_servers, servers.size),
-                    headerActions = {
-                        if (totalTools > 0) {
-                            GroupBatchTogglePill(
-                                allEnabled = allServersToolsEnabled,
-                                onToggleAll = onToggleAllServersTools,
-                            )
-                        }
-                    },
-                ) {
-                    if (servers.isEmpty()) {
-                        item {
-                            ListEmptyState(
-                                title = stringResource(R.string.mcp_empty_title),
-                                summary = stringResource(R.string.mcp_empty_summary),
-                                icon = Icons.Rounded.Hub,
-                                action = {
-                                    CouiButton(
-                                        text = stringResource(R.string.mcp_add_server),
-                                        role = CouiButtonRole.Primary,
-                                        onClick = { showAdd = true },
-                                    )
-                                },
-                            )
-                        }
-                    } else {
-                        servers.forEach { server ->
-                            val summaryRes = if (server.toolsTruncationReason != null) {
-                                R.string.mcp_server_row_summary_truncated
-                            } else {
-                                R.string.mcp_server_row_summary
-                            }
-                            item(key = server.id) {
-                                CouiPreference(
-                                    title = server.name,
-                                    summary = stringResource(
-                                        summaryRes,
-                                        server.activeTools.size,
-                                        server.tools.size,
-                                    ),
-                                    onClick = { onNavigate(AppRoute.McpServerDetail(server.id)) },
-                                )
-                            }
-                        }
-                    }
-                }
-                CouiPageBottomSpacer()
-            }
-        }
-
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = stringResource(R.string.route_mcp_servers),
-                onBack = onBack,
-                actions = {
-                    MiuixTopBarActionButton(
-                        icon = MiuixIcons.Glass.Add,
-                        contentDescription = stringResource(R.string.mcp_add_server),
-                        onClick = { showAdd = true },
-                    )
-                },
-                overlay = {
-                    GlassDialog(
-                        show = showAdd,
-                        backdrop = currentGlassOverlayBackdrop(),
-                        title = stringResource(R.string.mcp_add_server),
-                        onDismissRequest = { if (!working) showAdd = false },
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f, fill = false)
-                                    .verticalScroll(rememberScrollState()),
-                            ) {
-                                GlassTextField(
-                                    state = nameState,
-                                    lineLimits = TextFieldLineLimits.SingleLine,
-                                    label = stringResource(R.string.mcp_server_name),
-                                    enabled = !working,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                GlassTextField(
-                                    state = urlState,
-                                    lineLimits = TextFieldLineLimits.SingleLine,
-                                    label = stringResource(R.string.mcp_server_url),
-                                    enabled = !working,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                MiuixSecureTextField(
-                                    state = tokenState,
-                                    label = stringResource(R.string.mcp_bearer_optional),
-                                    colors = glassOverlayTextFieldColors(),
-                                    enabled = !working,
-                                    visible = false,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                error?.let {
-                                    Text(
-                                        text = it,
-                                        style = MiuixTheme.textStyles.body2,
-                                        color = MiuixTheme.colorScheme.error,
-                                    )
-                                }
-                            }
-                            MiuixDialogActions(
-                                modifier = Modifier.padding(top = 16.dp),
-                                confirmText = if (working) {
-                                    stringResource(R.string.mcp_connecting)
-                                } else {
-                                    stringResource(R.string.mcp_add_server)
-                                },
-                                confirmEnabled = !working,
-                                onCancel = { showAdd = false },
-                                onConfirm = onConfirmAdd,
-                            )
-                        }
-                    }
-                },
-            ) {
-                item(key = "servers") {
-                    Row(
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(end = 20.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
                     ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            SmallTitle(stringResource(R.string.mcp_configured_servers, servers.size))
-                        }
-                        if (totalTools > 0) {
-                            GroupBatchTogglePill(
-                                allEnabled = allServersToolsEnabled,
-                                onToggleAll = onToggleAllServersTools,
+                        GlassTextField(
+                            state = nameState,
+                            lineLimits = TextFieldLineLimits.SingleLine,
+                            label = stringResource(R.string.mcp_server_name),
+                            enabled = !working,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        GlassTextField(
+                            state = urlState,
+                            lineLimits = TextFieldLineLimits.SingleLine,
+                            label = stringResource(R.string.mcp_server_url),
+                            enabled = !working,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        SecureTextField(
+                            state = tokenState,
+                            label = stringResource(R.string.mcp_bearer_optional),
+                            colors = glassOverlayTextFieldColors(),
+                            enabled = !working,
+                            visible = false,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        error?.let {
+                            Text(
+                                text = it,
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.error,
                             )
                         }
                     }
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        if (servers.isEmpty()) {
-                            ListEmptyState(
-                                title = stringResource(R.string.mcp_empty_title),
-                                summary = stringResource(R.string.mcp_empty_summary),
-                                icon = Icons.Rounded.Hub,
-                                action = {
-                                    TextButton(
-                                        text = stringResource(R.string.mcp_add_server),
-                                        onClick = { showAdd = true },
-                                    )
-                                },
-                            )
+                    DialogActions(
+                        modifier = Modifier.padding(top = 16.dp),
+                        confirmText = if (working) {
+                            stringResource(R.string.mcp_connecting)
                         } else {
-                            servers.forEach { server ->
-                                val summaryRes = if (server.toolsTruncationReason != null) {
-                                    R.string.mcp_server_row_summary_truncated
-                                } else {
-                                    R.string.mcp_server_row_summary
-                                }
-                                ArrowPreference(
-                                    title = server.name,
-                                    summary = stringResource(
-                                        summaryRes,
-                                        server.activeTools.size,
-                                        server.tools.size,
-                                    ),
-                                    onClick = { onNavigate(AppRoute.McpServerDetail(server.id)) },
-                                )
-                            }
+                            stringResource(R.string.mcp_add_server)
+                        },
+                        confirmEnabled = !working,
+                        onCancel = { showAdd = false },
+                        onConfirm = onConfirmAdd,
+                    )
+                }
+            }
+        },
+    ) {
+        item(key = "servers") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    SmallTitle(stringResource(R.string.mcp_configured_servers, servers.size))
+                }
+                if (totalTools > 0) {
+                    GroupBatchTogglePill(
+                        allEnabled = allServersToolsEnabled,
+                        onToggleAll = onToggleAllServersTools,
+                    )
+                }
+            }
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                if (servers.isEmpty()) {
+                    ListEmptyState(
+                        title = stringResource(R.string.mcp_empty_title),
+                        summary = stringResource(R.string.mcp_empty_summary),
+                        icon = Icons.Rounded.Hub,
+                        action = {
+                            TextButton(
+                                text = stringResource(R.string.mcp_add_server),
+                                onClick = { showAdd = true },
+                            )
+                        },
+                    )
+                } else {
+                    servers.forEach { server ->
+                        val summaryRes = if (server.toolsTruncationReason != null) {
+                            R.string.mcp_server_row_summary_truncated
+                        } else {
+                            R.string.mcp_server_row_summary
                         }
+                        ArrowPreference(
+                            title = server.name,
+                            summary = stringResource(
+                                summaryRes,
+                                server.activeTools.size,
+                                server.tools.size,
+                            ),
+                            onClick = { onNavigate(AppRoute.McpServerDetail(server.id)) },
+                        )
                     }
                 }
             }
@@ -589,356 +446,183 @@ internal fun McpServerDetailScreen(
         }
     }
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-
-            CouiLazyScaffoldPage(
-                title = server?.name ?: stringResource(R.string.route_mcp_server_detail),
-                onBack = onBack,
-                actions = {
-                    CouiTopAppBarIconButton(
-                        icon = Icons.Rounded.Refresh,
-                        contentDescription = stringResource(R.string.mcp_refresh_tools),
-                        enabled = server != null && !working,
-                        onClick = onRefresh,
-                    )
-                },
-                overlay = {
-                    CouiConfirmDialog(
-                        visible = showToken,
-                        title = stringResource(R.string.mcp_update_token),
-                        message = stringResource(R.string.mcp_update_token_summary),
-                        confirmText = stringResource(R.string.action_save),
-                        onConfirm = saveToken,
-                        onDismissRequest = { showToken = false },
-                    ) {
-                        val focusRequester = remember { FocusRequester() }
-                        val window = LocalWindowInfo.current
-                        val keyboard = LocalSoftwareKeyboardController.current
-                        LaunchedEffect(showToken, window) {
-                            if (showToken) {
-                                snapshotFlow { window.isWindowFocused }.first { it }
-                                if (focusRequester.requestFocus()) keyboard?.show()
-                            }
-                        }
-                        CouiTextField(
-                            state = tokenState,
-                            inputModifier = Modifier.focusRequester(focusRequester),
-                            enabled = showToken,
-                            label = stringResource(R.string.mcp_bearer_token),
-                            secretVisible = false,
-                        )
-                    }
-
-                    CouiConfirmDialog(
-                        visible = showDelete,
-                        title = stringResource(R.string.mcp_delete_server),
-                        message = stringResource(R.string.mcp_delete_confirm, server?.name.orEmpty()),
-                        confirmText = stringResource(R.string.ui_delete_3755f5),
-                        destructive = true,
-                        onConfirm = {
-                            scope.launch {
-                                withContext(Dispatchers.IO) { McpServerRepository.delete(serverId) }
-                                onBack()
-                            }
-                        },
-                        onDismissRequest = { showDelete = false },
-                    )
-                },
+    ScaffoldPage(
+        title = server?.name ?: stringResource(R.string.route_mcp_server_detail),
+        onBack = onBack,
+        actions = {
+            TopBarActionButton(
+                icon = MiuixIcons.Glass.Refresh,
+                contentDescription = stringResource(R.string.mcp_refresh_tools),
+                enabled = server != null && !working,
+                onClick = onRefresh,
+            )
+        },
+        overlay = {
+            val overlayBackdrop = currentGlassOverlayBackdrop()
+            GlassDialog(
+                show = showToken,
+                backdrop = overlayBackdrop,
+                title = stringResource(R.string.mcp_update_token),
+                summary = stringResource(R.string.mcp_update_token_summary),
+                onDismissRequest = { showToken = false },
             ) {
-                if (server == null) {
-                    item(key = "missing") {
-                        ListEmptyState(title = stringResource(R.string.mcp_server_missing))
-                    }
-                    return@CouiLazyScaffoldPage
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SecureTextField(
+                        state = tokenState,
+                        label = stringResource(R.string.mcp_bearer_token),
+                        colors = glassOverlayTextFieldColors(),
+                        visible = false,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    DialogActions(
+                        confirmText = stringResource(R.string.action_save),
+                        onCancel = { showToken = false },
+                        onConfirm = saveToken,
+                    )
                 }
-                item(key = "server-settings") {
-                    CouiPreferenceGroup(title = stringResource(R.string.mcp_server_settings)) {
-                        item {
-                            CouiSwitchPreference(
-                                title = stringResource(R.string.mcp_enable_server),
-                                summary = server.url,
-                                checked = optimisticServerEnabled,
-                                onCheckedChange = onToggleServerEnabled,
-                            )
-                        }
-                        item {
-                            CouiPreference(
-                                title = stringResource(R.string.mcp_update_token),
-                                summary = stringResource(
-                                    if (server.authorizationType == McpAuthorizationType.BEARER) {
-                                        R.string.mcp_token_configured
-                                    } else {
-                                        R.string.mcp_no_authentication
-                                    },
-                                ),
-                                onClick = { showToken = true },
-                            )
-                        }
-                    }
-                }
+            }
 
-                val enabledCount = server.tools.count { it.name in optimisticEnabledTools }
-                val allEnabled = server.tools.isNotEmpty() && enabledCount == server.tools.size
-                item(key = "tools-header") {
-                    CouiSectionTitle(
-                        text = stringResource(
+            GlassDialog(
+                show = showDelete,
+                backdrop = overlayBackdrop,
+                title = stringResource(R.string.mcp_delete_server),
+                summary = stringResource(R.string.mcp_delete_confirm, server?.name.orEmpty()),
+                onDismissRequest = { showDelete = false },
+            ) {
+                DialogActions(
+                    confirmText = stringResource(R.string.ui_delete_3755f5),
+                    destructive = true,
+                    onCancel = { showDelete = false },
+                    onConfirm = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) { McpServerRepository.delete(serverId) }
+                            onBack()
+                        }
+                    },
+                )
+            }
+        },
+    ) {
+        if (server == null) {
+            item(key = "missing") {
+                ListEmptyState(title = stringResource(R.string.mcp_server_missing))
+            }
+            return@ScaffoldPage
+        }
+        item(key = "server") {
+            SmallTitle(stringResource(R.string.mcp_server_settings))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                SwitchPreference(
+                    title = stringResource(R.string.mcp_enable_server),
+                    summary = server.url,
+                    checked = optimisticServerEnabled,
+                    onCheckedChange = onToggleServerEnabled,
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.mcp_update_token),
+                    summary = stringResource(
+                        if (server.authorizationType == McpAuthorizationType.BEARER) {
+                            R.string.mcp_token_configured
+                        } else {
+                            R.string.mcp_no_authentication
+                        },
+                    ),
+                    onClick = { showToken = true },
+                )
+            }
+        }
+
+        val enabledCount = server.tools.count { it.name in optimisticEnabledTools }
+        val allEnabled = server.tools.isNotEmpty() && enabledCount == server.tools.size
+        item(key = "tools-header") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    SmallTitle(
+                        stringResource(
                             R.string.ui_misc_mcp_tools_enabled_header,
                             stringResource(R.string.mcp_tools_count, server.tools.size),
                             enabledCount,
                         ),
-                        trailing = {
-                            if (server.tools.isNotEmpty()) {
-                                GroupBatchTogglePill(
-                                    allEnabled = allEnabled,
-                                    onToggleAll = { onToggleAllTools(!allEnabled) },
-                                )
-                            }
-                        },
                     )
                 }
-
-                server.toolsTruncationReason?.let { reason ->
-                    item(key = "tools-truncated") {
-                        CouiPreferenceGroup {
-                            item {
-                                CouiPreference(
-                                    title = stringResource(R.string.mcp_tools_truncated_title, server.tools.size),
-                                    summary = stringResource(reason.summaryRes()),
-                                    titleColor = CouiTheme.colorScheme.error,
-                                    showChevron = false,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (server.tools.isEmpty()) {
-                    item(key = "tools-empty") {
-                        CouiPreferenceGroup {
-                            item {
-                                ListEmptyState(
-                                    title = stringResource(R.string.mcp_no_tools),
-                                    summary = stringResource(R.string.mcp_refresh_tools_hint),
-                                    icon = Icons.Rounded.Refresh,
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    itemsIndexed(
-                        items = server.tools,
-                        key = { _, tool -> "mcp-tool-${tool.name}" },
-                    ) { index, tool ->
-                        EtaPreferenceGroupItem(
-                            isFirst = index == 0,
-                            isLast = index == server.tools.lastIndex,
-                        ) {
-                            McpToolSwitchRow(
-                                tool = tool,
-                                checked = tool.name in optimisticEnabledTools,
-                                onCheckedChange = { enabled -> onToggleTool(tool, enabled) },
-                            )
-                        }
-                    }
-                }
-
-                item(key = "delete-server") {
-                    CouiPreferenceGroup {
-                        item {
-                            CouiPreference(
-                                title = stringResource(R.string.mcp_delete_server),
-                                titleColor = CouiTheme.colorScheme.error,
-                                summary = stringResource(R.string.mcp_delete_server_summary),
-                                showChevron = false,
-                                onClick = { showDelete = true },
-                            )
-                        }
-                    }
+                if (server.tools.isNotEmpty()) {
+                    GroupBatchTogglePill(
+                        allEnabled = allEnabled,
+                        onToggleAll = { onToggleAllTools(!allEnabled) },
+                    )
                 }
             }
         }
 
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = server?.name ?: stringResource(R.string.route_mcp_server_detail),
-                onBack = onBack,
-                actions = {
-                    MiuixTopBarActionButton(
-                        icon = MiuixIcons.Glass.Refresh,
-                        contentDescription = stringResource(R.string.mcp_refresh_tools),
-                        enabled = server != null && !working,
-                        onClick = onRefresh,
+        server.toolsTruncationReason?.let { reason ->
+            item(key = "tools-truncated") {
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    BasicComponent(
+                        title = stringResource(R.string.mcp_tools_truncated_title, server.tools.size),
+                        titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
+                        summary = stringResource(reason.summaryRes()),
                     )
-                },
-                overlay = {
-                    val overlayBackdrop = currentGlassOverlayBackdrop()
-                    GlassDialog(
-                        show = showToken,
-                        backdrop = overlayBackdrop,
-                        title = stringResource(R.string.mcp_update_token),
-                        summary = stringResource(R.string.mcp_update_token_summary),
-                        onDismissRequest = { showToken = false },
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            MiuixSecureTextField(
-                                state = tokenState,
-                                label = stringResource(R.string.mcp_bearer_token),
-                                colors = glassOverlayTextFieldColors(),
-                                visible = false,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            MiuixDialogActions(
-                                confirmText = stringResource(R.string.action_save),
-                                onCancel = { showToken = false },
-                                onConfirm = saveToken,
-                            )
-                        }
-                    }
+                }
+            }
+        }
 
-                    GlassDialog(
-                        show = showDelete,
-                        backdrop = overlayBackdrop,
-                        title = stringResource(R.string.mcp_delete_server),
-                        summary = stringResource(R.string.mcp_delete_confirm, server?.name.orEmpty()),
-                        onDismissRequest = { showDelete = false },
-                    ) {
-                        MiuixDialogActions(
-                            confirmText = stringResource(R.string.ui_delete_3755f5),
-                            destructive = true,
-                            onCancel = { showDelete = false },
-                            onConfirm = {
-                                scope.launch {
-                                    withContext(Dispatchers.IO) { McpServerRepository.delete(serverId) }
-                                    onBack()
-                                }
-                            },
-                        )
-                    }
-                },
+        if (server.tools.isEmpty()) {
+            item(key = "tools-empty") {
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    ListEmptyState(
+                        title = stringResource(R.string.mcp_no_tools),
+                        summary = stringResource(R.string.mcp_refresh_tools_hint),
+                        icon = Icons.Rounded.Refresh,
+                    )
+                }
+            }
+        } else {
+            itemsIndexed(
+                items = server.tools,
+                key = { _, tool -> "mcp-tool-${tool.name}" },
+            ) { index, tool ->
+                PreferenceGroupItem(
+                    isFirst = index == 0,
+                    isLast = index == server.tools.lastIndex,
+                ) {
+                    McpToolSwitchRow(
+                        tool = tool,
+                        checked = tool.name in optimisticEnabledTools,
+                        onCheckedChange = { enabled -> onToggleTool(tool, enabled) },
+                    )
+                }
+            }
+        }
+
+        item(key = "delete") {
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(top = 4.dp, bottom = 12.dp),
             ) {
-                if (server == null) {
-                    item(key = "missing") {
-                        ListEmptyState(title = stringResource(R.string.mcp_server_missing))
-                    }
-                    return@MiuixScaffoldPage
-                }
-                item(key = "server") {
-                    SmallTitle(stringResource(R.string.mcp_server_settings))
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        SwitchPreference(
-                            title = stringResource(R.string.mcp_enable_server),
-                            summary = server.url,
-                            checked = optimisticServerEnabled,
-                            onCheckedChange = onToggleServerEnabled,
-                        )
-                        ArrowPreference(
-                            title = stringResource(R.string.mcp_update_token),
-                            summary = stringResource(
-                                if (server.authorizationType == McpAuthorizationType.BEARER) {
-                                    R.string.mcp_token_configured
-                                } else {
-                                    R.string.mcp_no_authentication
-                                },
-                            ),
-                            onClick = { showToken = true },
-                        )
-                    }
-                }
-
-                val enabledCount = server.tools.count { it.name in optimisticEnabledTools }
-                val allEnabled = server.tools.isNotEmpty() && enabledCount == server.tools.size
-                item(key = "tools-header") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(end = 20.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            SmallTitle(
-                                stringResource(
-                                    R.string.ui_misc_mcp_tools_enabled_header,
-                                    stringResource(R.string.mcp_tools_count, server.tools.size),
-                                    enabledCount,
-                                ),
-                            )
-                        }
-                        if (server.tools.isNotEmpty()) {
-                            GroupBatchTogglePill(
-                                allEnabled = allEnabled,
-                                onToggleAll = { onToggleAllTools(!allEnabled) },
-                            )
-                        }
-                    }
-                }
-
-                server.toolsTruncationReason?.let { reason ->
-                    item(key = "tools-truncated") {
-                        Card(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp)
-                                .padding(bottom = 12.dp),
-                        ) {
-                            BasicComponent(
-                                title = stringResource(R.string.mcp_tools_truncated_title, server.tools.size),
-                                titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
-                                summary = stringResource(reason.summaryRes()),
-                            )
-                        }
-                    }
-                }
-
-                if (server.tools.isEmpty()) {
-                    item(key = "tools-empty") {
-                        Card(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp)
-                                .padding(bottom = 12.dp),
-                        ) {
-                            ListEmptyState(
-                                title = stringResource(R.string.mcp_no_tools),
-                                summary = stringResource(R.string.mcp_refresh_tools_hint),
-                                icon = Icons.Rounded.Refresh,
-                            )
-                        }
-                    }
-                } else {
-                    itemsIndexed(
-                        items = server.tools,
-                        key = { _, tool -> "mcp-tool-${tool.name}" },
-                    ) { index, tool ->
-                        EtaPreferenceGroupItem(
-                            isFirst = index == 0,
-                            isLast = index == server.tools.lastIndex,
-                        ) {
-                            McpToolSwitchRow(
-                                tool = tool,
-                                checked = tool.name in optimisticEnabledTools,
-                                onCheckedChange = { enabled -> onToggleTool(tool, enabled) },
-                            )
-                        }
-                    }
-                }
-
-                item(key = "delete") {
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(top = 4.dp, bottom = 12.dp),
-                    ) {
-                        BasicComponent(
-                            title = stringResource(R.string.mcp_delete_server),
-                            titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
-                            summary = stringResource(R.string.mcp_delete_server_summary),
-                            onClick = { showDelete = true },
-                        )
-                    }
-                }
+                BasicComponent(
+                    title = stringResource(R.string.mcp_delete_server),
+                    titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
+                    summary = stringResource(R.string.mcp_delete_server_summary),
+                    onClick = { showDelete = true },
+                )
             }
         }
     }
@@ -974,255 +658,121 @@ private fun McpToolSwitchRow(
     var expanded by rememberSaveable(tool.name) { mutableStateOf(false) }
     val canExpand = rawDescription.isNotBlank() && (isinherentlyMultiLine || hasVisualOverflow || expanded)
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
-            val couiHaptic = rememberCouiHaptic()
-            val headerInteraction = remember { MutableInteractionSource() }
-            var optimisticChecked by remember(checked) { mutableStateOf(checked) }
-            val commitToggle: (Boolean) -> Unit = { target ->
-                optimisticChecked = target
-                onCheckedChange(target)
-            }
-
-            Column(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .animateContentSize()
-                    .padding(horizontal = CouiPageDefaults.rowPadding, vertical = 12.dp),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .toggleable(
-                            value = optimisticChecked,
-                            interactionSource = headerInteraction,
-                            indication = null,
-                            enabled = true,
-                            role = Role.Switch,
-                            onValueChange = { target ->
-                                couiHaptic(CouiHapticEffect.Switch)
-                                commitToggle(target)
-                            },
-                        ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        CouiText(
-                            text = displayTitle,
-                            kind = CouiTextKind.ItemTitle,
-                            color = colors.title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (showRawName) {
-                            CouiText(
-                                text = tool.name,
-                                kind = CouiTextKind.GroupFooter,
-                                color = colors.summary.copy(alpha = 0.75f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    CouiSwitch(
-                        checked = optimisticChecked,
-                        onCheckedChange = commitToggle,
-                        enabled = true,
-                    )
-                }
-
-                Spacer(Modifier.height(4.dp))
-
-                if (!expanded) {
+    val headerInteraction = remember { MutableInteractionSource() }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = checked,
+                    interactionSource = headerInteraction,
+                    indication = null,
+                    enabled = true,
+                    role = Role.Switch,
+                    onValueChange = onCheckedChange,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = displayTitle,
+                    fontSize = MiuixTheme.textStyles.headline1.fontSize,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (showRawName) {
                     Text(
-                        text = collapsedPreview,
-                        style = MiuixTheme.textStyles.body2,
-                        color = colors.summary,
-                        maxLines = 2,
+                        text = tool.name,
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.78f),
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        onTextLayout = { result ->
-                            if (result.hasVisualOverflow != hasVisualOverflow) {
-                                hasVisualOverflow = result.hasVisualOverflow
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(
-                                if (canExpand) {
-                                    Modifier.clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                    ) { expanded = true }
-                                } else {
-                                    Modifier
-                                },
-                            ),
                     )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(colors.title.copy(alpha = 0.04f))
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                    ) {
-                        StaticMarkdown(
-                            content = rawDescription,
-                            tone = MarkdownTone.Thinking,
-                        )
-                    }
                 }
+            }
+            Spacer(Modifier.width(12.dp))
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+            )
+        }
 
-                if (canExpand) {
-                    Row(
-                        modifier = Modifier
-                            .padding(top = 4.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable(role = Role.Button) { expanded = !expanded }
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        CouiText(
-                            text = stringResource(
-                                if (expanded) R.string.ui_misc_collapse_description else R.string.ui_misc_expand_description,
-                            ),
-                            kind = CouiTextKind.GroupFooter,
-                            color = colors.accent,
-                        )
-                        CouiIcon(
-                            imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                            contentDescription = null,
-                            modifier = Modifier.size(15.dp),
-                            tint = colors.accent,
-                        )
+        Spacer(Modifier.height(4.dp))
+
+        if (!expanded) {
+            Text(
+                text = collapsedPreview,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                onTextLayout = { result ->
+                    if (result.hasVisualOverflow != hasVisualOverflow) {
+                        hasVisualOverflow = result.hasVisualOverflow
                     }
-                }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (canExpand) {
+                            Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { expanded = true }
+                        } else {
+                            Modifier
+                        },
+                    ),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                StaticMarkdown(
+                    content = rawDescription,
+                    tone = MarkdownTone.Thinking,
+                )
             }
         }
 
-        AppearanceUiStyle.MIUIX -> {
-            val headerInteraction = remember { MutableInteractionSource() }
-            Column(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .animateContentSize()
-                    .padding(horizontal = 16.dp, vertical = 13.dp),
+        if (canExpand) {
+            Row(
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(role = Role.Button) { expanded = !expanded }
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .toggleable(
-                            value = checked,
-                            interactionSource = headerInteraction,
-                            indication = null,
-                            enabled = true,
-                            role = Role.Switch,
-                            onValueChange = onCheckedChange,
-                        ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = displayTitle,
-                            fontSize = MiuixTheme.textStyles.headline1.fontSize,
-                            fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onBackground,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (showRawName) {
-                            Text(
-                                text = tool.name,
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.78f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Switch(
-                        checked = checked,
-                        onCheckedChange = onCheckedChange,
-                    )
-                }
-
-                Spacer(Modifier.height(4.dp))
-
-                if (!expanded) {
-                    Text(
-                        text = collapsedPreview,
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        onTextLayout = { result ->
-                            if (result.hasVisualOverflow != hasVisualOverflow) {
-                                hasVisualOverflow = result.hasVisualOverflow
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(
-                                if (canExpand) {
-                                    Modifier.clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                    ) { expanded = true }
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.04f))
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                    ) {
-                        StaticMarkdown(
-                            content = rawDescription,
-                            tone = MarkdownTone.Thinking,
-                        )
-                    }
-                }
-
-                if (canExpand) {
-                    Row(
-                        modifier = Modifier
-                            .padding(top = 4.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable(role = Role.Button) { expanded = !expanded }
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            text = stringResource(
-                                if (expanded) R.string.ui_misc_collapse_description else R.string.ui_misc_expand_description,
-                            ),
-                            style = MiuixTheme.textStyles.footnote1.copy(
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                            ),
-                            color = MiuixTheme.colorScheme.primary,
-                        )
-                        Icon(
-                            imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                            contentDescription = null,
-                            modifier = Modifier.size(15.dp),
-                            tint = MiuixTheme.colorScheme.primary,
-                        )
-                    }
-                }
+                Text(
+                    text = stringResource(
+                        if (expanded) R.string.ui_misc_collapse_description else R.string.ui_misc_expand_description,
+                    ),
+                    style = MiuixTheme.textStyles.footnote1.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    color = MiuixTheme.colorScheme.primary,
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp),
+                    tint = MiuixTheme.colorScheme.primary,
+                )
             }
         }
     }

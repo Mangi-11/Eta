@@ -15,34 +15,23 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.AssistantOverlaySettings
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
-import io.github.mangi.eta.ui.components.MiuixFooterHint
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.FooterHint
 import io.github.mangi.eta.ui.components.OptionalModelPickerContent
-import io.github.mangi.eta.ui.components.coui.CouiBottomSheet
-import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
-import io.github.mangi.eta.ui.components.coui.CouiPageBottomSpacer
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceFooter
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
-import io.github.mangi.eta.ui.components.coui.CouiScaffoldPage
+import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun AssistantOverlaySettingsScreen(
@@ -141,113 +130,56 @@ internal fun AssistantOverlaySettingsScreen(
     val unsupportedSummary = stringResource(R.string.conversation_title_settings_reasoning_unsupported)
     val noteText = stringResource(R.string.assistant_overlay_settings_note)
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiScaffoldPage(
-                title = pageTitle,
-                onBack = onBack,
-                overlay = {
-                    CouiBottomSheet(
-                        show = showModelSheet,
-                        onDismissRequest = { showModelSheet = false },
-                        title = modelTitle,
-                    ) {
-                        OptionalModelPickerContent(
-                            pickerState = pickerState,
-                            selectedSecondaryModelId = resolvedCustom?.model?.id,
-                            followTitle = followTitle,
-                            followSubtitle = followSubtitle,
-                            onSelectModel = onSelectModel,
-                        )
-                    }
-                },
+    ScaffoldPage(
+        title = pageTitle,
+        onBack = onBack,
+        overlay = {
+            GlassBottomSheet(
+                show = showModelSheet,
+                backdrop = currentGlassOverlayBackdrop(),
+                title = modelTitle,
+                onDismissRequest = { showModelSheet = false },
+                insideMargin = DpSize(0.dp, 0.dp),
             ) {
-                CouiPreferenceGroup(title = groupTitle) {
-                    item {
-                        CouiPreference(
-                            title = modelTitle,
-                            summary = modelSummary,
-                            onClick = { showModelSheet = true },
-                        )
-                    }
-                    if (effortOptions.size > 1) {
-                        item {
-                            CouiDropdownPreference(
-                                title = effortTitle,
-                                items = effortLabels,
-                                selectedIndex = selectedEffortIndex,
-                                onSelectedIndexChange = onEffortChange,
-                            )
-                        }
-                    } else {
-                        item {
-                            CouiPreference(
-                                title = effortTitle,
-                                summary = unsupportedSummary,
-                                enabled = false,
-                                showChevron = false,
-                            )
-                        }
-                    }
-                }
-                CouiPreferenceFooter(text = noteText)
-                CouiPageBottomSpacer()
+                OptionalModelPickerContent(
+                    pickerState = pickerState,
+                    selectedSecondaryModelId = resolvedCustom?.model?.id,
+                    followTitle = followTitle,
+                    followSubtitle = followSubtitle,
+                    onSelectModel = onSelectModel,
+                )
             }
-        }
-
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = pageTitle,
-                onBack = onBack,
-                overlay = {
-                    GlassBottomSheet(
-                        show = showModelSheet,
+        },
+    ) {
+        item(key = "assistant_overlay_settings_group") {
+            SmallTitle(groupTitle)
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                ArrowPreference(
+                    title = modelTitle,
+                    summary = modelSummary,
+                    onClick = { showModelSheet = true },
+                )
+                if (effortOptions.size > 1) {
+                    GlassDropdownPreference(
+                        title = effortTitle,
+                        items = effortLabels,
+                        selectedIndex = selectedEffortIndex,
                         backdrop = currentGlassOverlayBackdrop(),
-                        title = modelTitle,
-                        onDismissRequest = { showModelSheet = false },
-                        insideMargin = DpSize(0.dp, 0.dp),
-                    ) {
-                        OptionalModelPickerContent(
-                            pickerState = pickerState,
-                            selectedSecondaryModelId = resolvedCustom?.model?.id,
-                            followTitle = followTitle,
-                            followSubtitle = followSubtitle,
-                            onSelectModel = onSelectModel,
-                        )
-                    }
-                },
-            ) {
-                item(key = "assistant_overlay_settings_group") {
-                    SmallTitle(groupTitle)
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        ArrowPreference(
-                            title = modelTitle,
-                            summary = modelSummary,
-                            onClick = { showModelSheet = true },
-                        )
-                        if (effortOptions.size > 1) {
-                            GlassDropdownPreference(
-                                title = effortTitle,
-                                items = effortLabels,
-                                selectedIndex = selectedEffortIndex,
-                                backdrop = currentGlassOverlayBackdrop(),
-                                onSelectedIndexChange = onEffortChange,
-                            )
-                        } else {
-                            BasicComponent(
-                                title = effortTitle,
-                                summary = unsupportedSummary,
-                                enabled = false,
-                            )
-                        }
-                    }
-                    MiuixFooterHint(text = noteText)
+                        onSelectedIndexChange = onEffortChange,
+                    )
+                } else {
+                    BasicComponent(
+                        title = effortTitle,
+                        summary = unsupportedSummary,
+                        enabled = false,
+                    )
                 }
             }
+            FooterHint(text = noteText)
         }
     }
 }

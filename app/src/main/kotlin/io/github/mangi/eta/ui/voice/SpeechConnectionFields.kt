@@ -3,7 +3,6 @@ package io.github.mangi.eta.ui.voice
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.runtime.Composable
@@ -14,24 +13,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.AsrProvider
 import io.github.mangi.eta.data.model.DoubaoSpeechConfig
 import io.github.mangi.eta.data.model.QwenSpeechConfig
 import io.github.mangi.eta.data.model.SpeechCredentialField
 import io.github.mangi.eta.data.model.SpeechRegion
 import io.github.mangi.eta.data.model.TtsProvider
-import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.SettingsTextField
-import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
-import io.github.mangi.eta.ui.components.coui.CouiIcon
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
@@ -98,7 +88,6 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
         else -> error("Not a provider credential")
     }
     var advanced by rememberSaveable(keyField) { mutableStateOf(false) }
-    val uiStyle = LocalUiStyle.current
 
     Column {
         SpeechGroupCard(title = stringResource(R.string.speech_group_connection)) {
@@ -111,27 +100,15 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                     stringResource(R.string.speech_region_beijing),
                     stringResource(R.string.speech_region_singapore),
                 )
-                if (uiStyle == AppearanceUiStyle.COUI) {
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.speech_region),
-                        items = regionItems,
-                        selectedIndex = config.region.ordinal,
-                        onSelectedIndexChange = { index ->
-                            SpeechRegion.entries.getOrNull(index)?.let { change(config.copy(region = it)) }
-                        },
-                    )
-                    CouiDivider()
-                } else {
-                    GlassDropdownPreference(
-                        title = stringResource(R.string.speech_region),
-                        items = regionItems,
-                        selectedIndex = config.region.ordinal,
-                        backdrop = currentGlassOverlayBackdrop(),
-                        onSelectedIndexChange = { index ->
-                            SpeechRegion.entries.getOrNull(index)?.let { change(config.copy(region = it)) }
-                        },
-                    )
-                }
+                GlassDropdownPreference(
+                    title = stringResource(R.string.speech_region),
+                    items = regionItems,
+                    selectedIndex = config.region.ordinal,
+                    backdrop = currentGlassOverlayBackdrop(),
+                    onSelectedIndexChange = { index ->
+                        SpeechRegion.entries.getOrNull(index)?.let { change(config.copy(region = it)) }
+                    },
+                )
                 SpeechFieldColumn {
                     SettingsTextField(
                         label = "API Key",
@@ -165,42 +142,20 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
             }
 
             val chevronRotation by animateFloatAsState(if (advanced) 180f else 0f)
-            if (uiStyle == AppearanceUiStyle.COUI) {
-                val colors = CouiPageDefaults.themeColors()
-                CouiDivider()
-                CouiPreference(
-                    title = stringResource(R.string.speech_advanced),
-                    showChevron = false,
-                    trailing = {
-                        CouiIcon(
-                            imageVector = Icons.Rounded.ExpandMore,
-                            contentDescription = stringResource(
-                                if (advanced) R.string.speech_collapse else R.string.speech_expand,
-                            ),
-                            tint = colors.summary,
-                            modifier = Modifier
-                                .size(22.dp)
-                                .rotate(chevronRotation),
-                        )
-                    },
-                    onClick = { advanced = !advanced },
-                )
-            } else {
-                BasicComponent(
-                    title = stringResource(R.string.speech_advanced),
-                    endActions = {
-                        Icon(
-                            imageVector = Icons.Rounded.ExpandMore,
-                            contentDescription = stringResource(
-                                if (advanced) R.string.speech_collapse else R.string.speech_expand,
-                            ),
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                            modifier = Modifier.rotate(chevronRotation),
-                        )
-                    },
-                    onClick = { advanced = !advanced },
-                )
-            }
+            BasicComponent(
+                title = stringResource(R.string.speech_advanced),
+                endActions = {
+                    Icon(
+                        imageVector = Icons.Rounded.ExpandMore,
+                        contentDescription = stringResource(
+                            if (advanced) R.string.speech_collapse else R.string.speech_expand,
+                        ),
+                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                        modifier = Modifier.rotate(chevronRotation),
+                    )
+                },
+                onClick = { advanced = !advanced },
+            )
             AnimatedVisibility(visible = advanced) {
                 Column {
                     if (qwen) {
@@ -225,20 +180,11 @@ private fun QwenDoubaoConnectionSection(store: SpeechSettingsStore, synthesis: B
                                 else settings.copy(doubaoAsr = config.copy(legacyAuth = enabled)),
                             )
                         }
-                        if (uiStyle == AppearanceUiStyle.COUI) {
-                            CouiDivider()
-                            CouiSwitchPreference(
-                                title = stringResource(R.string.speech_legacy_auth),
-                                checked = config.legacyAuth,
-                                onCheckedChange = onLegacyChange,
-                            )
-                        } else {
-                            SwitchPreference(
-                                title = stringResource(R.string.speech_legacy_auth),
-                                checked = config.legacyAuth,
-                                onCheckedChange = onLegacyChange,
-                            )
-                        }
+                        SwitchPreference(
+                            title = stringResource(R.string.speech_legacy_auth),
+                            checked = config.legacyAuth,
+                            onCheckedChange = onLegacyChange,
+                        )
                         SpeechFieldColumn {
                             SettingsTextField(
                                 label = stringResource(R.string.speech_base_url),

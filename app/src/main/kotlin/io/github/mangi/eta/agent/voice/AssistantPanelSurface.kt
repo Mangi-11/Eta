@@ -1,20 +1,31 @@
 package io.github.mangi.eta.agent.voice
 
 import android.util.LruCache
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.FocusInteraction
+import androidx.compose.foundation.interaction.HoverInteraction
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape as CouiCapsuleShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -30,26 +41,33 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChangedIgnoreConsumed
+import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalGraphicsContext
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiPressMotion
-import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import kotlin.math.PI
 import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Immutable
@@ -77,22 +95,9 @@ internal data class EtaVoicePanelColors(
 
 @Composable
 internal fun rememberEtaVoicePanelColors(): EtaVoicePanelColors {
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-    val dark = if (isCoui) {
-        CouiTheme.isDark
-    } else {
-        MiuixTheme.colorScheme.background.luminance() < 0.5f
-    }
-    val accent = if (isCoui) {
-        CouiTheme.colorScheme.primary
-    } else {
-        MiuixTheme.colorScheme.primary
-    }
-    val destructive = if (isCoui) {
-        CouiTheme.colorScheme.error
-    } else {
-        MiuixTheme.colorScheme.error
-    }
+    val dark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val accent = MiuixTheme.colorScheme.primary
+    val destructive = MiuixTheme.colorScheme.error
     return remember(dark, accent, destructive) {
         if (dark) {
             EtaVoicePanelColors(
@@ -145,11 +150,152 @@ internal fun rememberEtaVoicePanelColors(): EtaVoicePanelColors {
     }
 }
 
+/** 为需要与录音或进入动画叠加的悬浮控件提供独立的按压缩放进度。 */
+internal class AssistantPressMotion(private val scope: CoroutineScope, private val density: Float) {
+    private val animation = Animatable(1f)
+    private var motion: Job? = null
+    val scale = animation.asState()
+
+    fun press(size: IntSize) {
+        if (size.width <= 0 || size.height <= 0) return
+        val shortestSide = minOf(size.width, size.height) / density
+        val progress = ((shortestSide - 20f) / 130f).coerceIn(0f, 1f)
+        animate(0.85f + 0.12f * progress, dampingRatio = 1f, stiffness = PressStiffness)
+    }
+
+    fun release() = animate(1f, dampingRatio = 0.45f, stiffness = ReleaseStiffness)
+
+    private fun animate(target: Float, dampingRatio: Float, stiffness: Float) {
+        motion?.cancel()
+        motion = scope.launch {
+            animation.animateTo(
+                targetValue = target,
+                animationSpec = spring(dampingRatio = dampingRatio, stiffness = stiffness),
+            )
+        }
+    }
+
+    private companion object {
+        // 等价于 response = 0.25s 与 response = 0.50s 的自然角频率平方 (2π / T)^2。
+        const val PressStiffness = 631.6547f
+        const val ReleaseStiffness = 157.9137f
+    }
+}
+
+@Composable
+internal fun rememberAssistantPressMotion(): AssistantPressMotion {
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current.density
+    return remember(scope, density) { AssistantPressMotion(scope, density) }
+}
+
+internal fun Modifier.assistantPressMotion(
+    motion: AssistantPressMotion,
+    enabled: Boolean = true,
+    cancelOnConsumedMove: Boolean = false,
+): Modifier {
+    if (!enabled) return this
+    return pointerInput(motion, cancelOnConsumedMove) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            motion.press(size)
+            try {
+                do {
+                    val event = awaitPointerEvent(PointerEventPass.Final)
+                    val stolen = cancelOnConsumedMove && event.changes.any {
+                        it.isConsumed && it.pressed && it.positionChangedIgnoreConsumed()
+                    }
+                } while (!stolen && event.changes.any { it.pressed })
+            } finally {
+                motion.release()
+            }
+        }
+    }
+}
+
+@Composable
+internal fun Modifier.assistantButtonFeedback(
+    dark: Boolean,
+    interactionSource: MutableInteractionSource,
+    enabled: Boolean,
+): Modifier {
+    if (!enabled) return this
+    val ink = if (dark) Color.White else Color.Black
+    val indication = remember(dark, ink) {
+        AssistantOverlayIndication(
+            pressColor = ink.copy(alpha = if (dark) 0.16f else 0.08f),
+            hoverColor = ink.copy(alpha = if (dark) 0.08f else 0.04f),
+            focusColor = ink.copy(alpha = if (dark) 0.12f else 0.06f),
+        )
+    }
+    return indication(interactionSource, indication)
+}
+
+private data class AssistantOverlayIndication(
+    val pressColor: Color,
+    val hoverColor: Color,
+    val focusColor: Color,
+) : IndicationNodeFactory {
+    override fun create(interactionSource: InteractionSource): DelegatableNode =
+        AssistantOverlayIndicationNode(interactionSource, pressColor, hoverColor, focusColor)
+}
+
+private class AssistantOverlayIndicationNode(
+    private val interactionSource: InteractionSource,
+    private val pressColor: Color,
+    private val hoverColor: Color,
+    private val focusColor: Color,
+) : Modifier.Node(), DrawModifierNode {
+    private var isPressed = false
+    private var isHovered = false
+    private var isFocused = false
+
+    override fun onAttach() {
+        coroutineScope.launch {
+            var pressCount = 0
+            var hoverCount = 0
+            var focusCount = 0
+            interactionSource.interactions.collect { interaction ->
+                when (interaction) {
+                    is PressInteraction.Press -> pressCount++
+                    is PressInteraction.Release, is PressInteraction.Cancel -> pressCount--
+                    is HoverInteraction.Enter -> hoverCount++
+                    is HoverInteraction.Exit -> hoverCount--
+                    is FocusInteraction.Focus -> focusCount++
+                    is FocusInteraction.Unfocus -> focusCount--
+                }
+                val pressedNow = pressCount > 0
+                val hoveredNow = hoverCount > 0
+                val focusedNow = focusCount > 0
+                if (pressedNow != isPressed || hoveredNow != isHovered || focusedNow != isFocused) {
+                    isPressed = pressedNow
+                    isHovered = hoveredNow
+                    isFocused = focusedNow
+                    invalidateDraw()
+                }
+            }
+        }
+    }
+
+    override fun ContentDrawScope.draw() {
+        drawContent()
+        val overlay = when {
+            isPressed -> pressColor
+            isHovered -> hoverColor
+            isFocused -> focusColor
+            else -> Color.Transparent
+        }
+        if (overlay.alpha > 0f) {
+            drawRect(color = overlay, size = size)
+        }
+    }
+}
+
 /**
- * 顶部采用 Oplus G2 连续曲率、底部保持直角的半屏面板轮廓，使面板底边能完整贴合屏幕与导航区。
+ * 顶部采用连续曲率超椭圆、底部保持直角的半屏面板轮廓，使面板底边能完整贴合屏幕与导航区。
  */
 @Immutable
-internal data class TopCouiSheetShape(
+internal data class AssistantSheetShape(
     val topRadius: Dp,
     val cornerWeight: Float = 2.6f,
 ) : Shape {
@@ -166,7 +312,7 @@ internal data class TopCouiSheetShape(
         if (radiusPx <= 0.5f) {
             return Outline.Rectangle(Rect(0f, 0f, size.width, size.height))
         }
-        return Outline.Generic(buildTopCouiSheetPath(size, radiusPx, cornerWeight))
+        return Outline.Generic(buildAssistantSheetPath(size, radiusPx, cornerWeight))
     }
 }
 
@@ -174,7 +320,7 @@ private data class SheetCornerKey(val radiusPx: Int, val weightBits: Int)
 
 private val topSheetCornerSamples = LruCache<SheetCornerKey, FloatArray>(8)
 
-internal fun buildTopCouiSheetPath(
+internal fun buildAssistantSheetPath(
     size: Size,
     radiusPx: Float,
     cornerWeight: Float = 2.6f,
@@ -187,13 +333,13 @@ internal fun buildTopCouiSheetPath(
     }
     path.moveTo(0f, size.height)
     path.lineTo(0f, r)
-    appendTopCouiRim(path, size.width, r, cornerWeight)
+    appendTopSheetRim(path, size.width, r, cornerWeight)
     path.lineTo(size.width, size.height)
     path.close()
     return path
 }
 
-internal fun buildTopCouiRimPath(
+internal fun buildAssistantRimPath(
     size: Size,
     radiusPx: Float,
     cornerWeight: Float = 2.6f,
@@ -206,11 +352,11 @@ internal fun buildTopCouiRimPath(
         return path
     }
     path.moveTo(0f, r)
-    appendTopCouiRim(path, size.width, r, cornerWeight)
+    appendTopSheetRim(path, size.width, r, cornerWeight)
     return path
 }
 
-private fun appendTopCouiRim(
+private fun appendTopSheetRim(
     path: Path,
     width: Float,
     r: Float,
@@ -268,7 +414,7 @@ internal enum class AssistantCapsuleElevation {
  * 语音助手悬浮胶囊表面：硬件加速画布上启用投影，软件画布或窗口切换期回退为同轮廓纯色填充与细描边。
  */
 @Composable
-internal fun Modifier.couiAssistantCapsule(
+internal fun Modifier.assistantCapsule(
     surfaceColor: Color,
     strokeColor: Color,
     dark: Boolean,
@@ -277,7 +423,7 @@ internal fun Modifier.couiAssistantCapsule(
     highlightColor: Color = Color.Unspecified,
     interactive: Boolean = false,
     interactionSource: MutableInteractionSource? = null,
-    pressMotion: CouiPressMotion? = null,
+    pressMotion: AssistantPressMotion? = null,
 ): Modifier {
     val shadow = when (elevation) {
         AssistantCapsuleElevation.Composer -> Shadow(
@@ -293,13 +439,13 @@ internal fun Modifier.couiAssistantCapsule(
         AssistantCapsuleElevation.InlineControl -> null
     }
     val feedback = if (interactive && interactionSource != null) {
-        Modifier.couiButtonFeedback(dark, interactionSource, enabled = true)
+        Modifier.assistantButtonFeedback(dark, interactionSource, enabled = true)
     } else {
         Modifier
     }
     val shadowContext = LocalGraphicsContext.current.shadowContext
     val shadowPainter = remember(shadowContext, shadow) {
-        shadow?.let { shadowContext.createDropShadowPainter(CouiCapsuleShape, it) }
+        shadow?.let { shadowContext.createDropShadowPainter(CircleShape, it) }
     }
     return this
         .then(if (pressMotion == null) Modifier else Modifier.graphicsLayer {
@@ -310,7 +456,7 @@ internal fun Modifier.couiAssistantCapsule(
             if (shadowPainter != null && drawContext.canvas.nativeCanvas.isHardwareAccelerated) {
                 with(shadowPainter) { draw(size) }
             }
-            val outline = CouiCapsuleShape.createOutline(size, layoutDirection, this)
+            val outline = CircleShape.createOutline(size, layoutDirection, this)
             drawOutline(outline, surfaceColor)
             if (strokeColor.alpha > 0f) {
                 drawOutline(outline, strokeColor, style = Stroke(width = 0.75.dp.toPx()))
@@ -323,7 +469,7 @@ internal fun Modifier.couiAssistantCapsule(
                 )
             }
         }
-        .clip(CouiCapsuleShape)
+        .clip(CircleShape)
         .then(feedback)
 }
 

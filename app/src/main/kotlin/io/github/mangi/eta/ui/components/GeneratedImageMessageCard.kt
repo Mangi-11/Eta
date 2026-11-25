@@ -70,12 +70,8 @@ import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.imagegen.GeneratedImageActivityPayload
 import io.github.mangi.eta.agent.imagegen.GeneratedImageStore
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -102,7 +98,6 @@ internal fun GeneratedImageMessageCard(
     modifier: Modifier = Modifier,
 ) {
     val payload = remember(message.command) { GeneratedImageActivityPayload.decode(message.command) }
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val horizontalPad = if (assistantOverlay) 14.dp else 20.dp
 
     Box(
@@ -115,7 +110,6 @@ internal fun GeneratedImageMessageCard(
                 GeneratingPlaceholderCard(
                     messageId = message.id,
                     payload = payload,
-                    isCoui = isCoui,
                     assistantOverlay = assistantOverlay,
                 )
             }
@@ -126,7 +120,6 @@ internal fun GeneratedImageMessageCard(
                     GeneratedImagesGalleryCard(
                         messageId = message.id,
                         payload = payload!!,
-                        isCoui = isCoui,
                         assistantOverlay = assistantOverlay,
                         onEditImage = onEditImage,
                     )
@@ -135,7 +128,6 @@ internal fun GeneratedImageMessageCard(
                         isError = false,
                         title = message.resultSummary ?: stringResource(R.string.imagegen_card_completed),
                         detail = payload?.prompt,
-                        isCoui = isCoui,
                     )
                 }
             }
@@ -150,7 +142,6 @@ internal fun GeneratedImageMessageCard(
                     isError = true,
                     title = failedTitle,
                     detail = detail,
-                    isCoui = isCoui,
                 )
             }
         }
@@ -161,7 +152,6 @@ internal fun GeneratedImageMessageCard(
 private fun GeneratingPlaceholderCard(
     messageId: String,
     payload: GeneratedImageActivityPayload?,
-    isCoui: Boolean,
     assistantOverlay: Boolean,
 ) {
     var elapsedSeconds by remember(messageId) { mutableIntStateOf(0) }
@@ -183,34 +173,18 @@ private fun GeneratingPlaceholderCard(
     )
 
     val aspectRatio = remember(payload?.aspectRatio) { parsePlaceholderRatio(payload?.aspectRatio) }
-    val couiDark = if (isCoui) CouiTheme.isDark else false
-    val surfaceBg = if (isCoui) {
-        if (couiDark) Color(0xFF1F2229) else Color(0xFFF2F4F8)
-    } else {
-        MiuixTheme.colorScheme.surfaceContainerHigh
-    }
-    val accent = if (isCoui) CouiPageDefaults.themeColors().accent else MiuixTheme.colorScheme.primary
-    val titleColor = if (isCoui) CouiPageDefaults.themeColors().title else MiuixTheme.colorScheme.onSurface
-    val summaryColor = if (isCoui) CouiPageDefaults.themeColors().summary else MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val surfaceBg = MiuixTheme.colorScheme.surfaceContainerHigh
+    val accent = MiuixTheme.colorScheme.primary
+    val titleColor = MiuixTheme.colorScheme.onSurface
+    val summaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
     val maxCardWidth = if (assistantOverlay) 260.dp else 300.dp
-    val cornerShape = RoundedCornerShape(18.dp)
 
     Column(
         modifier = Modifier
             .widthIn(max = maxCardWidth)
             .fillMaxWidth()
-            .then(
-                if (isCoui) {
-                    Modifier
-                        .clip(cornerShape)
-                        .background(surfaceBg)
-                        .border(0.75.dp, accent.copy(alpha = 0.16f), cornerShape)
-                } else {
-                    Modifier
-                        .squircleSurface(color = surfaceBg, cornerRadius = 18.dp)
-                        .squircleBorder(0.75.dp, accent.copy(alpha = 0.16f), 18.dp)
-                },
-            ),
+            .squircleSurface(color = surfaceBg, cornerRadius = 18.dp)
+            .squircleBorder(0.75.dp, accent.copy(alpha = 0.16f), 18.dp),
     ) {
         Box(
             modifier = Modifier
@@ -290,7 +264,6 @@ private fun GeneratingPlaceholderCard(
 private fun GeneratedImagesGalleryCard(
     messageId: String,
     payload: GeneratedImageActivityPayload,
-    isCoui: Boolean,
     assistantOverlay: Boolean,
     onEditImage: ((String) -> Unit)?,
 ) {
@@ -304,19 +277,10 @@ private fun GeneratedImagesGalleryCard(
     var promptExpanded by rememberSaveable(messageId) { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
 
-    val couiDark = if (isCoui) CouiTheme.isDark else false
-    val surfaceBg = if (isCoui) {
-        if (couiDark) Color(0xFF1F2229) else Color(0xFFF4F6FA)
-    } else {
-        MiuixTheme.colorScheme.surfaceContainerHigh
-    }
-    val titleColor = if (isCoui) CouiPageDefaults.themeColors().title else MiuixTheme.colorScheme.onSurface
-    val summaryColor = if (isCoui) CouiPageDefaults.themeColors().summary else MiuixTheme.colorScheme.onSurfaceVariantSummary
-    val borderColor = if (isCoui) {
-        if (couiDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
-    } else {
-        MiuixTheme.colorScheme.outline.copy(alpha = 0.14f)
-    }
+    val surfaceBg = MiuixTheme.colorScheme.surfaceContainerHigh
+    val titleColor = MiuixTheme.colorScheme.onSurface
+    val summaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val borderColor = MiuixTheme.colorScheme.outline.copy(alpha = 0.14f)
     val maxWidth = if (assistantOverlay) 276.dp else 324.dp
 
     val openPreviewAt: (Int) -> Unit = { idx ->
@@ -350,7 +314,6 @@ private fun GeneratedImagesGalleryCard(
                 groupKey = messageId,
                 index = 0,
                 previewer = previewer,
-                isCoui = isCoui,
                 surfaceBg = surfaceBg,
                 borderColor = borderColor,
                 modifier = Modifier
@@ -374,7 +337,6 @@ private fun GeneratedImagesGalleryCard(
                                 groupKey = messageId,
                                 index = globalIdx,
                                 previewer = previewer,
-                                isCoui = isCoui,
                                 surfaceBg = surfaceBg,
                                 borderColor = borderColor,
                                 modifier = Modifier
@@ -541,7 +503,6 @@ private fun GeneratedImageTile(
     groupKey: Any,
     index: Int,
     previewer: ChatImagePreviewer?,
-    isCoui: Boolean,
     surfaceBg: Color,
     borderColor: Color,
     modifier: Modifier = Modifier,
@@ -550,7 +511,6 @@ private fun GeneratedImageTile(
 ) {
     val bitmap = rememberChatImageBitmap(source = filePath, maxDimensionPx = 1600)
     val fileMissing = remember(filePath, bitmap) { bitmap == null && !File(filePath.removePrefix("file://")).isFile }
-    val cornerShape = RoundedCornerShape(16.dp)
 
     Box(
         modifier = modifier
@@ -560,18 +520,8 @@ private fun GeneratedImageTile(
             .graphicsLayer {
                 alpha = if (previewer?.isPresenting(groupKey, index) == true) 0f else 1f
             }
-            .then(
-                if (isCoui) {
-                    Modifier
-                        .clip(cornerShape)
-                        .background(surfaceBg)
-                        .border(0.75.dp, borderColor, cornerShape)
-                } else {
-                    Modifier
-                        .squircleSurface(color = surfaceBg, cornerRadius = 16.dp)
-                        .squircleBorder(0.75.dp, borderColor, 16.dp)
-                },
-            )
+            .squircleSurface(color = surfaceBg, cornerRadius = 16.dp)
+            .squircleBorder(0.75.dp, borderColor, 16.dp)
             .clickable(enabled = bitmap != null && previewer != null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -652,19 +602,16 @@ private fun GeneratedImageStatusNotice(
     isError: Boolean,
     title: String,
     detail: String?,
-    isCoui: Boolean,
 ) {
-    val dark = if (isCoui) CouiTheme.isDark else MiuixTheme.colorScheme.surface.luminance() < 0.5f
+    val dark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
     val bg = if (isError) {
         StatusError.copy(alpha = if (dark) 0.16f else 0.09f)
-    } else if (isCoui) {
-        CouiTheme.colorScheme.cardBackground
     } else {
         MiuixTheme.colorScheme.surfaceContainerHigh
     }
     val tint = if (isError) StatusError else MiuixTheme.colorScheme.primary
-    val titleColor = if (isCoui) CouiPageDefaults.themeColors().title else MiuixTheme.colorScheme.onSurface
-    val summaryColor = if (isCoui) CouiPageDefaults.themeColors().summary else MiuixTheme.colorScheme.onSurfaceVariantSummary
+    val titleColor = MiuixTheme.colorScheme.onSurface
+    val summaryColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
 
     Row(
         modifier = Modifier

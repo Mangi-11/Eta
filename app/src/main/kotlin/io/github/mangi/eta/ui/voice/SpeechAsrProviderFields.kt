@@ -3,13 +3,9 @@ package io.github.mangi.eta.ui.voice
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.MimoAsrLanguage
 import io.github.mangi.eta.data.model.SpeechCredentialField
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 
 @Composable
@@ -37,26 +33,13 @@ internal fun MimoAsrConnectionSection(store: SpeechSettingsStore) {
         onApiKey = { store.credential(SpeechCredentialField.MIMO_ASR, it) },
         note = stringResource(R.string.speech_mimo_asr_connection_note),
     ) {
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiDropdownPreference(
-                    title = stringResource(R.string.speech_recognition_language),
-                    items = items,
-                    selectedIndex = config.language.ordinal,
-                    onSelectedIndexChange = onLanguageChange,
-                )
-                CouiDivider()
-            }
-            AppearanceUiStyle.MIUIX -> {
-                GlassDropdownPreference(
-                    title = stringResource(R.string.speech_recognition_language),
-                    items = items,
-                    selectedIndex = config.language.ordinal,
-                    backdrop = currentGlassOverlayBackdrop(),
-                    onSelectedIndexChange = onLanguageChange,
-                )
-            }
-        }
+        GlassDropdownPreference(
+            title = stringResource(R.string.speech_recognition_language),
+            items = items,
+            selectedIndex = config.language.ordinal,
+            backdrop = currentGlassOverlayBackdrop(),
+            onSelectedIndexChange = onLanguageChange,
+        )
     }
 }
 

@@ -89,15 +89,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.repository.SpeechSettingsRepository
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiMenu
-import io.github.mangi.eta.ui.components.coui.CouiMenuItem
-import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
-import io.github.mangi.eta.ui.components.coui.couiMenuAnchor
-import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
 import io.github.mangi.eta.ui.markdown.EditorialLineHeightStyle
 import io.github.mangi.eta.ui.model.AgentContextUsageUi
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
@@ -106,8 +99,6 @@ import io.github.mangi.eta.ui.model.QueuedMessageUi
 import io.github.mangi.eta.ui.voice.SpeechDictationButton
 import io.github.mangi.eta.ui.voice.SpeechInputFeedback
 import io.github.mangi.eta.ui.voice.rememberSpeechInput
-import io.github.suqi8.coui.kmp.blur.ViewBlurDefaults
-import io.github.suqi8.coui.kmp.blur.couiViewBlur
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -130,9 +121,6 @@ import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import io.github.suqi8.coui.kmp.blur.LayerBackdrop as CouiLayerBackdrop
-import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
 
 private val SendButtonVisualSize = ChatInputActionIconSize
 private val SendIconSize = 16.dp
@@ -176,7 +164,6 @@ internal fun AgentChatInputBar(
     onRemoveFileReference: (String) -> Unit,
     onCancelMessageEdit: () -> Unit,
     glassBackdrop: Backdrop? = null,
-    couiBackdrop: CouiLayerBackdrop? = null,
     modifier: Modifier = Modifier,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
@@ -334,21 +321,13 @@ internal fun AgentChatInputBar(
             )
         }
 
-        val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-        val couiDark = CouiTheme.isDark
-        val couiColors = CouiTheme.colorScheme
-        val couiInputShape = remember { CouiShape(24.dp, 2.3f) }
         val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
-        val miuixInputBg = if (!isDark && MiuixTheme.colorScheme.surfaceContainer == MiuixTheme.colorScheme.surface) {
+        val inputBg = if (!isDark && MiuixTheme.colorScheme.surfaceContainer == MiuixTheme.colorScheme.surface) {
             Color(0xFFF5F6F8)
         } else {
             MiuixTheme.colorScheme.surfaceContainer
         }
-        val defaultInputBorderColor = if (isCoui) {
-            couiColors.divider
-        } else {
-            MiuixTheme.colorScheme.outline.copy(alpha = 0.5f)
-        }
+        val defaultInputBorderColor = MiuixTheme.colorScheme.outline.copy(alpha = 0.5f)
         val inputBorderColor by animateColorAsState(
             targetValue = when {
                 isHoldingSpeech && holdCancelling -> StatusError.copy(alpha = 0.45f)
@@ -363,7 +342,7 @@ internal fun AgentChatInputBar(
             animationSpec = tween(durationMillis = 160),
             label = "input_container_border_width",
         )
-        val miuixInputShape = remember { GlassShape(24.dp) }
+        val inputShape = remember { GlassShape(24.dp) }
         var inputContainerTopPx by remember { mutableFloatStateOf(0f) }
         Box(
             modifier = Modifier
@@ -375,62 +354,34 @@ internal fun AgentChatInputBar(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .glassPanel(
+                        backdrop = glassBackdrop,
+                        shape = inputShape,
+                        style = GlassDefaults.style(isDark),
+                        material = GlassMaterials.puredThinGlass(isDark),
+                        stroke = GlassEdgeStrokes.forTheme(
+                            isDark = isDark,
+                            light = GlassEdgeStrokes.SmallLight,
+                            dark = GlassEdgeStrokes.SmallDark,
+                        ),
+                        shadow = GlassShadows.Regular,
+                        shading = false,
+                        fallback = Modifier
+                            .squircleSurface(
+                                color = inputBg,
+                                cornerRadius = 24.dp,
+                            )
+                            .squircleBorder(
+                                width = inputBorderWidth,
+                                color = inputBorderColor,
+                                cornerRadius = 24.dp,
+                            ),
+                    )
                     .then(
-                        if (isCoui) {
-                            Modifier
-                                .dropShadow(
-                                    shape = couiInputShape,
-                                    shadow = Shadow(
-                                        radius = 16.dp,
-                                        color = Color.Black,
-                                        alpha = if (couiDark) 0.22f else 0.045f,
-                                    ),
-                                )
-                                .clip(couiInputShape)
-                                .then(
-                                    if (couiBackdrop != null) Modifier.couiViewBlur(
-                                        backdrop = couiBackdrop,
-                                        style = ViewBlurDefaults.frameworkBottomBar(couiDark),
-                                        shape = couiInputShape,
-                                    ) else Modifier.background(couiColors.surface, couiInputShape),
-                                )
-                                .border(
-                                    width = inputBorderWidth,
-                                    color = inputBorderColor,
-                                    shape = couiInputShape,
-                                )
+                        if (isHoldingSpeech && glassBackdrop != null && isRuntimeShaderSupported()) {
+                            Modifier.border(inputBorderWidth, inputBorderColor, inputShape)
                         } else {
                             Modifier
-                                .glassPanel(
-                                    backdrop = glassBackdrop,
-                                    shape = miuixInputShape,
-                                    style = GlassDefaults.style(isDark),
-                                    material = GlassMaterials.puredThinGlass(isDark),
-                                    stroke = GlassEdgeStrokes.forTheme(
-                                        isDark = isDark,
-                                        light = GlassEdgeStrokes.SmallLight,
-                                        dark = GlassEdgeStrokes.SmallDark,
-                                    ),
-                                    shadow = GlassShadows.Regular,
-                                    shading = false,
-                                    fallback = Modifier
-                                        .squircleSurface(
-                                            color = miuixInputBg,
-                                            cornerRadius = 24.dp,
-                                        )
-                                        .squircleBorder(
-                                            width = inputBorderWidth,
-                                            color = inputBorderColor,
-                                            cornerRadius = 24.dp,
-                                        ),
-                                )
-                                .then(
-                                    if (isHoldingSpeech && glassBackdrop != null && isRuntimeShaderSupported()) {
-                                        Modifier.border(inputBorderWidth, inputBorderColor, miuixInputShape)
-                                    } else {
-                                        Modifier
-                                    },
-                                )
                         },
                     )
                     .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -500,7 +451,7 @@ internal fun AgentChatInputBar(
                                 minHeight = ChatInputActionSize,
                             ) {
                                 Icon(
-                                    imageVector = if (isCoui) Icons.Rounded.Close else MiuixIcons.Glass.Close,
+                                    imageVector = MiuixIcons.Glass.Close,
                                     contentDescription = stringResource(R.string.ui_cancel_edit_c698df),
                                     modifier = Modifier.size(ChatInputActionIconSize),
                                     tint = MiuixTheme.colorScheme.onSurface,
@@ -700,7 +651,6 @@ private fun ThinkingEffortChip(
             null
         }
     }
-    val anchor = rememberCouiMenuAnchor()
     val popupAnchor = rememberGlassPopupAnchor()
     val haptic = LocalHapticFeedback.current
     LaunchedEffect(interactive) {
@@ -709,7 +659,6 @@ private fun ThinkingEffortChip(
 
     val colors = MiuixTheme.colorScheme
     val isDark = colors.surface.luminance() < 0.5f
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val ink = colors.onSurface.copy(alpha = 1f)
     val contentColor by animateColorAsState(
         targetValue = if (active) {
@@ -746,7 +695,7 @@ private fun ThinkingEffortChip(
     }
     val accessibilityLabel = stringResource(R.string.chat_reasoning_effort, effort.displayName)
     val interactionSource = remember { MutableInteractionSource() }
-    val useTransformPopup = !isCoui && binaryToggleTarget == null
+    val useTransformPopup = binaryToggleTarget == null
     val popupLayout = rememberInputBarPopupLayout(
         inputContainerTopPx = inputContainerTopPx,
         anchorTopPx = chipTopPx,
@@ -792,20 +741,14 @@ private fun ThinkingEffortChip(
                                 chipBottomPx = bounds.bottom
                             }
                     } else {
-                        Modifier.couiMenuAnchor(anchor)
+                        Modifier
                     },
                 )
                 .heightIn(min = 30.dp)
                 .clip(CircleShape)
                 .background(bgColor, CircleShape)
                 .border(0.5.dp, borderColor, CircleShape)
-                .then(
-                    if (isCoui) {
-                        Modifier.couiButtonFeedback(isDark, interactionSource, enabled = interactive)
-                    } else {
-                        Modifier.glassPress(interactionSource, enabled = interactive)
-                    },
-                )
+                .glassPress(interactionSource, enabled = interactive)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -815,8 +758,6 @@ private fun ThinkingEffortChip(
                         if (binaryToggleTarget != null) {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onEffortChange(binaryToggleTarget)
-                        } else if (isCoui) {
-                            anchor.open { showPopup = true }
                         } else {
                             showPopup = true
                         }
@@ -830,64 +771,39 @@ private fun ThinkingEffortChip(
             chipContent()
         }
         if (binaryToggleTarget == null) {
-            when (LocalUiStyle.current) {
-                AppearanceUiStyle.COUI -> {
-                    val menuItems = remember(options, effort) {
-                        options.map { option ->
-                            CouiMenuItem(
-                                value = option,
-                                text = option.displayName,
-                                selected = option == effort,
-                            )
-                        }
-                    }
-                    CouiMenu(
-                        expanded = showPopup && interactive,
-                        onDismissRequest = { showPopup = false },
-                        items = menuItems,
-                        onItemClick = { item ->
-                            showPopup = false
-                            onEffortChange(item.value)
-                        },
-                        anchor = anchor,
-                    )
-                }
-                AppearanceUiStyle.MIUIX -> {
-                    val overlayBackdrop = currentGlassOverlayBackdrop() ?: glassBackdrop
-                    EtaTopLayer {
-                        GlassTransformPopup(
-                            show = showPopup && interactive,
-                            onDismissRequest = { showPopup = false },
-                            anchor = popupAnchor,
-                            backdrop = overlayBackdrop,
-                            gap = popupLayout.gap,
-                            sizing = GlassPopupSizing(maxHeight = popupLayout.maxHeight),
-                            onMeasured = { measuredPopupHeightPx = it.height },
-                            anchorContent = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .heightIn(min = 30.dp)
-                                        .clip(CircleShape)
-                                        .background(bgColor, CircleShape)
-                                        .border(0.5.dp, borderColor, CircleShape)
-                                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                                ) {
-                                    chipContent()
-                                }
-                            },
+            val overlayBackdrop = currentGlassOverlayBackdrop() ?: glassBackdrop
+            TopLayer {
+                GlassTransformPopup(
+                    show = showPopup && interactive,
+                    onDismissRequest = { showPopup = false },
+                    anchor = popupAnchor,
+                    backdrop = overlayBackdrop,
+                    gap = popupLayout.gap,
+                    sizing = GlassPopupSizing(maxHeight = popupLayout.maxHeight),
+                    onMeasured = { measuredPopupHeightPx = it.height },
+                    anchorContent = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .heightIn(min = 30.dp)
+                                .clip(CircleShape)
+                                .background(bgColor, CircleShape)
+                                .border(0.5.dp, borderColor, CircleShape)
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
                         ) {
-                            options.forEach { option ->
-                                GlassPopupItem(
-                                    text = option.displayName,
-                                    selected = option == effort,
-                                    onClick = {
-                                        showPopup = false
-                                        onEffortChange(option)
-                                    },
-                                )
-                            }
+                            chipContent()
                         }
+                    },
+                ) {
+                    options.forEach { option ->
+                        GlassPopupItem(
+                            text = option.displayName,
+                            selected = option == effort,
+                            onClick = {
+                                showPopup = false
+                                onEffortChange(option)
+                            },
+                        )
                     }
                 }
             }

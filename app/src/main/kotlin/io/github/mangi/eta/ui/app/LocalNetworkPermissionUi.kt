@@ -18,9 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.device.LocalNetworkPermission
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.components.MiuixDialogActions
-import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
+import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.LOCAL_NETWORK_PERMISSION_ITEM_ID
 import io.github.mangi.eta.ui.model.PermissionHealthItemUi
@@ -54,32 +52,18 @@ internal fun rememberLocalNetworkPermissionRequest(onResult: () -> Unit): () -> 
         showSettingsGuide = false
         openLocalNetworkPermissionSettings(context)
     }
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiConfirmDialog(
-                visible = showSettingsGuide,
-                title = stringResource(R.string.permission_local_network_title),
-                message = stringResource(R.string.permission_local_network_denied),
-                confirmText = stringResource(R.string.state_ui_go_to_settings_1f2998),
-                onConfirm = onConfirmSettings,
-                onDismissRequest = { showSettingsGuide = false },
-            )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            GlassDialog(
-                show = showSettingsGuide,
-                backdrop = currentGlassOverlayBackdrop(),
-                title = stringResource(R.string.permission_local_network_title),
-                summary = stringResource(R.string.permission_local_network_denied),
-                onDismissRequest = { showSettingsGuide = false },
-            ) {
-                MiuixDialogActions(
-                    confirmText = stringResource(R.string.state_ui_go_to_settings_1f2998),
-                    onCancel = { showSettingsGuide = false },
-                    onConfirm = onConfirmSettings,
-                )
-            }
-        }
+    GlassDialog(
+        show = showSettingsGuide,
+        backdrop = currentGlassOverlayBackdrop(),
+        title = stringResource(R.string.permission_local_network_title),
+        summary = stringResource(R.string.permission_local_network_denied),
+        onDismissRequest = { showSettingsGuide = false },
+    ) {
+        DialogActions(
+            confirmText = stringResource(R.string.state_ui_go_to_settings_1f2998),
+            onCancel = { showSettingsGuide = false },
+            onConfirm = onConfirmSettings,
+        )
     }
     return {
         when (LocalNetworkPermission.accessState(context)) {

@@ -3,17 +3,12 @@ package io.github.mangi.eta.ui.voice
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.GeminiTtsModel
 import io.github.mangi.eta.data.model.MiniMaxTtsModel
 import io.github.mangi.eta.data.model.SpeechCredentialField
 import io.github.mangi.eta.data.model.TtsProvider
-import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.SettingsTextField
-import io.github.mangi.eta.ui.components.coui.CouiDropdownPreference
-import io.github.mangi.eta.ui.components.coui.CouiSwitchPreference
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.coui.CouiCardDivider as CouiDivider
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
@@ -31,34 +26,17 @@ internal fun GeminiConnectionSection(store: SpeechSettingsStore) {
         onApiKey = { store.credential(SpeechCredentialField.GEMINI_TTS, it) },
         note = stringResource(R.string.speech_gemini_connection_note),
     ) {
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiDropdownPreference(
-                    title = stringResource(R.string.speech_tts_model),
-                    items = items,
-                    selectedIndex = config.model.ordinal,
-                    onSelectedIndexChange = { index ->
-                        GeminiTtsModel.entries.getOrNull(index)?.let {
-                            store.edit(store.settings.copy(geminiTts = config.copy(model = it)))
-                        }
-                    },
-                )
-                CouiDivider()
-            }
-            AppearanceUiStyle.MIUIX -> {
-                GlassDropdownPreference(
-                    title = stringResource(R.string.speech_tts_model),
-                    items = items,
-                    selectedIndex = config.model.ordinal,
-                    backdrop = currentGlassOverlayBackdrop(),
-                    onSelectedIndexChange = { index ->
-                        GeminiTtsModel.entries.getOrNull(index)?.let {
-                            store.edit(store.settings.copy(geminiTts = config.copy(model = it)))
-                        }
-                    },
-                )
-            }
-        }
+        GlassDropdownPreference(
+            title = stringResource(R.string.speech_tts_model),
+            items = items,
+            selectedIndex = config.model.ordinal,
+            backdrop = currentGlassOverlayBackdrop(),
+            onSelectedIndexChange = { index ->
+                GeminiTtsModel.entries.getOrNull(index)?.let {
+                    store.edit(store.settings.copy(geminiTts = config.copy(model = it)))
+                }
+            },
+        )
     }
 }
 
@@ -76,34 +54,17 @@ internal fun MiniMaxConnectionSection(store: SpeechSettingsStore) {
         onApiKey = { store.credential(SpeechCredentialField.MINIMAX_TTS, it) },
         note = stringResource(R.string.speech_minimax_connection_note),
     ) {
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                CouiDropdownPreference(
-                    title = stringResource(R.string.speech_tts_model),
-                    items = items,
-                    selectedIndex = config.model.ordinal,
-                    onSelectedIndexChange = { index ->
-                        MiniMaxTtsModel.entries.getOrNull(index)?.let {
-                            store.edit(store.settings.copy(minimaxTts = config.copy(model = it)))
-                        }
-                    },
-                )
-                CouiDivider()
-            }
-            AppearanceUiStyle.MIUIX -> {
-                GlassDropdownPreference(
-                    title = stringResource(R.string.speech_tts_model),
-                    items = items,
-                    selectedIndex = config.model.ordinal,
-                    backdrop = currentGlassOverlayBackdrop(),
-                    onSelectedIndexChange = { index ->
-                        MiniMaxTtsModel.entries.getOrNull(index)?.let {
-                            store.edit(store.settings.copy(minimaxTts = config.copy(model = it)))
-                        }
-                    },
-                )
-            }
-        }
+        GlassDropdownPreference(
+            title = stringResource(R.string.speech_tts_model),
+            items = items,
+            selectedIndex = config.model.ordinal,
+            backdrop = currentGlassOverlayBackdrop(),
+            onSelectedIndexChange = { index ->
+                MiniMaxTtsModel.entries.getOrNull(index)?.let {
+                    store.edit(store.settings.copy(minimaxTts = config.copy(model = it)))
+                }
+            },
+        )
     }
 }
 
@@ -162,57 +123,28 @@ internal fun SpeechDeliveryFields(store: SpeechSettingsStore) {
             val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
                 .plus(config.speed).distinct().sorted()
             val items = speeds.map { "$it×" }
-            when (LocalUiStyle.current) {
-                AppearanceUiStyle.COUI -> {
-                    CouiDivider()
-                    CouiDropdownPreference(
-                        title = stringResource(R.string.speech_speed),
-                        items = items,
-                        selectedIndex = speeds.indexOf(config.speed),
-                        onSelectedIndexChange = { index ->
-                            speeds.getOrNull(index)?.let {
-                                store.edit(store.settings.copy(minimaxTts = config.copy(speed = it)))
-                            }
-                        },
-                    )
-                }
-                AppearanceUiStyle.MIUIX -> {
-                    GlassDropdownPreference(
-                        title = stringResource(R.string.speech_speed),
-                        items = items,
-                        selectedIndex = speeds.indexOf(config.speed),
-                        backdrop = currentGlassOverlayBackdrop(),
-                        onSelectedIndexChange = { index ->
-                            speeds.getOrNull(index)?.let {
-                                store.edit(store.settings.copy(minimaxTts = config.copy(speed = it)))
-                            }
-                        },
-                    )
-                }
-            }
+            GlassDropdownPreference(
+                title = stringResource(R.string.speech_speed),
+                items = items,
+                selectedIndex = speeds.indexOf(config.speed),
+                backdrop = currentGlassOverlayBackdrop(),
+                onSelectedIndexChange = { index ->
+                    speeds.getOrNull(index)?.let {
+                        store.edit(store.settings.copy(minimaxTts = config.copy(speed = it)))
+                    }
+                },
+            )
         }
         TtsProvider.DEEPSEEK -> {
             val config = store.settings.deepseekTts
             val onToggle: (Boolean) -> Unit = { checked ->
                 store.edit(store.settings.copy(deepseekTts = config.copy(filterMarkdown = checked)))
             }
-            when (LocalUiStyle.current) {
-                AppearanceUiStyle.COUI -> {
-                    CouiDivider()
-                    CouiSwitchPreference(
-                        title = stringResource(R.string.speech_filter_markdown),
-                        checked = config.filterMarkdown,
-                        onCheckedChange = onToggle,
-                    )
-                }
-                AppearanceUiStyle.MIUIX -> {
-                    SwitchPreference(
-                        title = stringResource(R.string.speech_filter_markdown),
-                        checked = config.filterMarkdown,
-                        onCheckedChange = onToggle,
-                    )
-                }
-            }
+            SwitchPreference(
+                title = stringResource(R.string.speech_filter_markdown),
+                checked = config.filterMarkdown,
+                onCheckedChange = onToggle,
+            )
         }
         TtsProvider.NONE, TtsProvider.QWEN, TtsProvider.DOUBAO -> Unit
     }

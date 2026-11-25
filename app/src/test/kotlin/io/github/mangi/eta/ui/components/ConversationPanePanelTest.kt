@@ -6,8 +6,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
-import java.util.Locale
-import java.util.concurrent.TimeUnit
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,11 +26,12 @@ import androidx.compose.ui.semantics.getOrNull
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceSettings
 import io.github.mangi.eta.data.model.AppearanceThemeMode
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.AgentAppTheme
 import io.github.mangi.eta.ui.model.ConversationModeUi
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -68,7 +67,7 @@ class ConversationPanePanelTest {
     }
 
     @Test
-    fun sidePaneComposesAcrossStylesAndThemeModesAndHandlesNavigationActions() {
+    fun sidePaneComposesAcrossThemeModesAndHandlesNavigationActions() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
         val activity = controller.get()
         val frameClock = BroadcastFrameClock()
@@ -76,10 +75,7 @@ class ConversationPanePanelTest {
         val recomposer = Recomposer(recomposeScope.coroutineContext)
 
         var appearance by mutableStateOf(
-            AppearanceSettings(
-                uiStyle = AppearanceUiStyle.COUI,
-                themeMode = AppearanceThemeMode.LIGHT,
-            ),
+            AppearanceSettings(themeMode = AppearanceThemeMode.LIGHT),
         )
         var paneState by mutableStateOf(
             ConversationPaneUiState(
@@ -132,9 +128,7 @@ class ConversationPanePanelTest {
 
         try {
             mountWithDeterministicRecomposer(activity, recomposeScope, recomposer) {
-                AgentAppTheme(
-                    appearance = appearance,
-                ) {
+                AgentAppTheme(appearance = appearance) {
                     composedQuery = paneState.searchQuery
                     composedAttention = hasPermissionAttention
                     ConversationSidePaneScaffold(
@@ -166,29 +160,23 @@ class ConversationPanePanelTest {
                 }
             }
 
-            for (style in listOf(AppearanceUiStyle.COUI, AppearanceUiStyle.MIUIX)) {
-                for (theme in listOf(AppearanceThemeMode.LIGHT, AppearanceThemeMode.DARK)) {
-                    appearance = AppearanceSettings(uiStyle = style, themeMode = theme)
-                    pumpFrames(activity, frameClock)
+            for (theme in listOf(AppearanceThemeMode.LIGHT, AppearanceThemeMode.DARK)) {
+                appearance = AppearanceSettings(themeMode = theme)
+                pumpFrames(activity, frameClock)
 
-                    val nodes = collectSemanticsNodes(activity.window.decorView)
-                    val allTexts = nodes.flatMap { node ->
-                        (node.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }) +
-                            node.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
-                    }
-                    assertTrue(
-                        "Expected workbench models entry for $style / $theme",
-                        allTexts.any { it.contains("claude-sonnet-4") },
-                    )
-                    assertTrue(
-                        "Expected conversation title for $style / $theme",
-                        allTexts.any { it == "你好，你是谁呀" },
-                    )
-                }
+                val allTexts = collectAllTexts(activity)
+                assertTrue(
+                    "Expected workbench models entry for $theme",
+                    allTexts.any { it.contains("claude-sonnet-4") },
+                )
+                assertTrue(
+                    "Expected conversation title for $theme",
+                    allTexts.any { it == "你好，你是谁呀" },
+                )
             }
 
-            // 切回 COUI 浅色验证工作台、底栏与新建按钮交互
-            appearance = AppearanceSettings(uiStyle = AppearanceUiStyle.COUI, themeMode = AppearanceThemeMode.LIGHT)
+            // 切回浅色验证工作台、底栏与新建按钮交互
+            appearance = AppearanceSettings(themeMode = AppearanceThemeMode.LIGHT)
             pumpFrames(activity, frameClock)
 
             clickByLabel(activity, activity.getString(R.string.action_new_conversation))
@@ -217,11 +205,7 @@ class ConversationPanePanelTest {
             assertEquals(false, composedAttention)
             assertEquals("咖啡", composedQuery)
 
-            val searchNodes = collectSemanticsNodes(activity.window.decorView)
-            val searchTexts = searchNodes.flatMap { node ->
-                (node.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }) +
-                    node.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
-            }
+            val searchTexts = collectAllTexts(activity)
             assertFalse(
                 "Workbench should hide while searching: $searchTexts",
                 searchTexts.any { it == "claude-sonnet-4" },
@@ -231,8 +215,8 @@ class ConversationPanePanelTest {
                 searchTexts.any { it == activity.getString(R.string.route_permissions) },
             )
 
-            // 点击原生搜索框清空按钮恢复工作台展示（COUI 原生 InputField 内置清空按钮文案为 "Clear text"）
-            clickByLabel(activity, "Clear text")
+            // 点击清空按钮恢复工作台展示
+            clickByLabel(activity, activity.getString(R.string.page_clear_84fcd7))
             pumpFrames(activity, frameClock)
             assertEquals("", paneState.searchQuery)
             val restoredTexts = collectAllTexts(activity)
@@ -241,8 +225,8 @@ class ConversationPanePanelTest {
                 restoredTexts.any { it == "claude-sonnet-4" },
             )
 
-            // 在 MIUIX 模式下也验证新建对话、工作台入口与底栏圆形按钮点击
-            appearance = AppearanceSettings(uiStyle = AppearanceUiStyle.MIUIX, themeMode = AppearanceThemeMode.DARK)
+            // 深色模式下同样验证新建对话、工作台入口与底栏圆形按钮点击
+            appearance = AppearanceSettings(themeMode = AppearanceThemeMode.DARK)
             pumpFrames(activity, frameClock)
             clickByLabel(activity, activity.getString(R.string.action_new_conversation))
             clickByLabel(activity, activity.getString(R.string.conversation_dock_models))
@@ -274,7 +258,6 @@ class ConversationPanePanelTest {
         val frameClock = BroadcastFrameClock()
         val recomposeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + frameClock)
         val recomposer = Recomposer(recomposeScope.coroutineContext)
-        var style by mutableStateOf(AppearanceUiStyle.COUI)
         var conversations by mutableStateOf(
             listOf(
                 ConversationSummaryUi(
@@ -291,10 +274,7 @@ class ConversationPanePanelTest {
         try {
             mountWithDeterministicRecomposer(activity, recomposeScope, recomposer) {
                 AgentAppTheme(
-                    appearance = AppearanceSettings(
-                        uiStyle = style,
-                        themeMode = AppearanceThemeMode.LIGHT,
-                    ),
+                    appearance = AppearanceSettings(themeMode = AppearanceThemeMode.LIGHT),
                 ) {
                     ConversationSidePaneScaffold(
                         state = ConversationPaneUiState(
@@ -329,22 +309,14 @@ class ConversationPanePanelTest {
 
             conversations = emptyList()
             pumpFrames(activity, frameClock)
-            val couiEmptyTexts = collectAllTexts(activity)
+            val emptyTexts = collectAllTexts(activity)
             assertTrue(
-                "COUI empty state title should be shown: $couiEmptyTexts",
-                couiEmptyTexts.any { it == activity.getString(R.string.conversation_empty) },
-            )
-
-            style = AppearanceUiStyle.MIUIX
-            pumpFrames(activity, frameClock)
-            val miuixEmptyTexts = collectAllTexts(activity)
-            assertTrue(
-                "MIUIX empty state title should be shown: $miuixEmptyTexts",
-                miuixEmptyTexts.any { it == activity.getString(R.string.conversation_empty) },
+                "Empty state title should be shown: $emptyTexts",
+                emptyTexts.any { it == activity.getString(R.string.conversation_empty) },
             )
             assertTrue(
-                "Empty state hint should be shown: $miuixEmptyTexts",
-                miuixEmptyTexts.any { it == activity.getString(R.string.conversation_empty_hint) },
+                "Empty state hint should be shown: $emptyTexts",
+                emptyTexts.any { it == activity.getString(R.string.conversation_empty_hint) },
             )
         } finally {
             recomposer.cancel()
@@ -362,7 +334,6 @@ class ConversationPanePanelTest {
         val frameClock = BroadcastFrameClock()
         val recomposeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + frameClock)
         val recomposer = Recomposer(recomposeScope.coroutineContext)
-        var style by mutableStateOf(AppearanceUiStyle.COUI)
         var selectedId by mutableStateOf<String?>("conv-other")
         val conversations = listOf(
             ConversationSummaryUi(
@@ -387,10 +358,7 @@ class ConversationPanePanelTest {
         try {
             mountWithDeterministicRecomposer(activity, recomposeScope, recomposer) {
                 AgentAppTheme(
-                    appearance = AppearanceSettings(
-                        uiStyle = style,
-                        themeMode = AppearanceThemeMode.LIGHT,
-                    ),
+                    appearance = AppearanceSettings(themeMode = AppearanceThemeMode.LIGHT),
                 ) {
                     ConversationSidePaneScaffold(
                         state = ConversationPaneUiState(
@@ -421,27 +389,24 @@ class ConversationPanePanelTest {
                 }
             }
 
-            for (uiStyle in listOf(AppearanceUiStyle.COUI, AppearanceUiStyle.MIUIX)) {
-                style = uiStyle
-                for (selection in listOf("conv-other", "conv-role")) {
-                    selectedId = selection
-                    pumpFrames(activity, frameClock)
-                    val avatarNode = collectSemanticsNodes(activity.window.decorView, unmerged = true)
-                        .firstOrNull { node ->
-                            node.config.getOrNull(SemanticsProperties.Text)
-                                .orEmpty()
-                                .any { it.text == "林" }
-                        }
-                    assertTrue(
-                        "Expected monogram avatar node for $uiStyle selection=$selection",
-                        avatarNode != null,
-                    )
-                    val bounds = avatarNode!!.boundsInWindow
-                    assertTrue(
-                        "Expected non-zero avatar bounds for $uiStyle selection=$selection, got $bounds",
-                        bounds.width > 0f && bounds.height > 0f,
-                    )
-                }
+            for (selection in listOf("conv-other", "conv-role")) {
+                selectedId = selection
+                pumpFrames(activity, frameClock)
+                val avatarNode = collectSemanticsNodes(activity.window.decorView, unmerged = true)
+                    .firstOrNull { node ->
+                        node.config.getOrNull(SemanticsProperties.Text)
+                            .orEmpty()
+                            .any { it.text == "林" }
+                    }
+                assertTrue(
+                    "Expected monogram avatar node for selection=$selection",
+                    avatarNode != null,
+                )
+                val bounds = avatarNode!!.boundsInWindow
+                assertTrue(
+                    "Expected non-zero avatar bounds for selection=$selection, got $bounds",
+                    bounds.width > 0f && bounds.height > 0f,
+                )
             }
         } finally {
             recomposer.cancel()
@@ -453,20 +418,13 @@ class ConversationPanePanelTest {
     }
 
     @Test
-    fun sidePaneSearchCoordinatesButtonsFocusAndBackAcrossBothStyles() {
+    fun sidePaneSearchCoordinatesButtonsFocusAndBack() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup().visible()
         val activity = controller.get()
         val frameClock = BroadcastFrameClock()
         val recomposeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + frameClock)
         val recomposer = Recomposer(recomposeScope.coroutineContext)
 
-        var appearance by mutableStateOf(
-            AppearanceSettings(
-                uiStyle = AppearanceUiStyle.COUI,
-                themeMode = AppearanceThemeMode.LIGHT,
-                blurEnabled = false,
-            ),
-        )
         var paneState by mutableStateOf(
             ConversationPaneUiState(
                 conversations = listOf(
@@ -489,7 +447,7 @@ class ConversationPanePanelTest {
 
         try {
             mountWithDeterministicRecomposer(activity, recomposeScope, recomposer) {
-                AgentAppTheme(appearance = appearance) {
+                AgentAppTheme(appearance = AppearanceSettings(themeMode = AppearanceThemeMode.LIGHT)) {
                     ConversationSidePaneScaffold(
                         state = paneState,
                         visible = true,
@@ -522,55 +480,52 @@ class ConversationPanePanelTest {
             val settingsLabel = activity.getString(R.string.route_settings)
             val cancelLabel = activity.getString(R.string.action_cancel)
 
-            for (style in listOf(AppearanceUiStyle.COUI, AppearanceUiStyle.MIUIX)) {
-                appearance = appearance.copy(uiStyle = style)
-                paneState = paneState.copy(searchQuery = "")
-                repeat(8) { pumpFrames(activity, frameClock) }
+            repeat(8) { pumpFrames(activity, frameClock) }
 
-                // 收起态：权限、设置按钮可见可点，取消按钮不展示
-                val collapsedTexts = collectAllTexts(activity)
-                assertTrue("Expected permissions button collapsed for $style", collapsedTexts.any { it == permissionsLabel })
-                assertTrue("Expected settings button collapsed for $style", collapsedTexts.any { it == settingsLabel })
-                assertFalse("Cancel button should stay hidden when collapsed for $style", collapsedTexts.any { it == cancelLabel })
+            // 收起态：权限、设置按钮可见可点，取消按钮不展示
+            val collapsedTexts = collectAllTexts(activity)
+            assertTrue("Expected permissions button collapsed", collapsedTexts.any { it == permissionsLabel })
+            assertTrue("Expected settings button collapsed", collapsedTexts.any { it == settingsLabel })
+            assertFalse("Cancel button should stay hidden when collapsed", collapsedTexts.any { it == cancelLabel })
 
-                // 点击搜索输入框展开搜索：取消按钮出现，权限/设置按钮退出语义与交互范围
-                val searchInput = collectSemanticsNodes(activity.window.decorView).first { node ->
-                    node.config.contains(SemanticsActions.SetText)
-                }
-                searchInput.config[SemanticsActions.OnClick].action?.invoke()
-                repeat(12) { pumpFrames(activity, frameClock) }
-
-                val expandedTexts = collectAllTexts(activity)
-                assertTrue("Expected cancel button when search expanded for $style: $expandedTexts", expandedTexts.any { it == cancelLabel })
-                assertFalse("Permissions button should hide when search expanded for $style", expandedTexts.any { it == permissionsLabel })
-                assertFalse("Settings button should hide when search expanded for $style", expandedTexts.any { it == settingsLabel })
-
-                // 输入查询后点击取消：清空查询并恢复权限/设置按钮
-                paneState = paneState.copy(searchQuery = "周末")
-                pumpFrames(activity, frameClock)
-                clickByLabel(activity, cancelLabel)
-                repeat(12) { pumpFrames(activity, frameClock) }
-
-                assertEquals("Query should clear on cancel for $style", "", paneState.searchQuery)
-                val restoredTexts = collectAllTexts(activity)
-                assertTrue("Permissions button should return after cancel for $style", restoredTexts.any { it == permissionsLabel })
-                assertTrue("Settings button should return after cancel for $style", restoredTexts.any { it == settingsLabel })
-
-                // 再次展开并用系统返回收起：返回优先关闭搜索，不关闭侧栏
-                val searchInputAgain = collectSemanticsNodes(activity.window.decorView).first { node ->
-                    node.config.contains(SemanticsActions.SetText)
-                }
-                searchInputAgain.config[SemanticsActions.OnClick].action?.invoke()
-                repeat(12) { pumpFrames(activity, frameClock) }
-                val previousDismiss = paneDismissCount
-                activity.onBackPressedDispatcher.onBackPressed()
-                repeat(12) { pumpFrames(activity, frameClock) }
-
-                assertEquals("Back while searching should not dismiss side pane for $style", previousDismiss, paneDismissCount)
-                val afterBackTexts = collectAllTexts(activity)
-                assertTrue("Permissions button should return after back for $style", afterBackTexts.any { it == permissionsLabel })
-                assertTrue("Settings button should return after back for $style", afterBackTexts.any { it == settingsLabel })
+            // 点击搜索输入框展开搜索：取消按钮出现，权限/设置按钮退出语义与交互范围
+            val searchInput = collectSemanticsNodes(activity.window.decorView).first { node ->
+                node.config.contains(SemanticsActions.SetText)
             }
+            searchInput.config[SemanticsActions.OnClick].action?.invoke()
+            repeat(12) { pumpFrames(activity, frameClock) }
+
+            val expandedTexts = collectAllTexts(activity)
+            assertTrue("Expected cancel button when search expanded: $expandedTexts", expandedTexts.any { it == cancelLabel })
+            assertFalse("Permissions button should hide when search expanded", expandedTexts.any { it == permissionsLabel })
+            assertFalse("Settings button should hide when search expanded", expandedTexts.any { it == settingsLabel })
+
+            // 输入查询后点击取消：清空查询并恢复权限/设置按钮
+            paneState = paneState.copy(searchQuery = "周末")
+            pumpFrames(activity, frameClock)
+            clickByLabel(activity, cancelLabel)
+            repeat(12) { pumpFrames(activity, frameClock) }
+
+            assertEquals("Query should clear on cancel", "", paneState.searchQuery)
+            val restoredTexts = collectAllTexts(activity)
+            assertTrue("Permissions button should return after cancel", restoredTexts.any { it == permissionsLabel })
+            assertTrue("Settings button should return after cancel", restoredTexts.any { it == settingsLabel })
+
+            // 再次展开并用系统返回收起：返回优先关闭搜索，不关闭侧栏
+            val searchInputAgain = collectSemanticsNodes(activity.window.decorView).first { node ->
+                node.config.contains(SemanticsActions.SetText)
+            }
+            searchInputAgain.config[SemanticsActions.OnClick].action?.invoke()
+            repeat(12) { pumpFrames(activity, frameClock) }
+            val previousDismiss = paneDismissCount
+            activity.onBackPressedDispatcher.onBackPressed()
+            repeat(12) { pumpFrames(activity, frameClock) }
+
+            assertEquals("Back while searching should not dismiss side pane", previousDismiss, paneDismissCount)
+            val afterBackTexts = collectAllTexts(activity)
+            assertTrue("Permissions button should return after back", afterBackTexts.any { it == permissionsLabel })
+            assertTrue("Settings button should return after back", afterBackTexts.any { it == settingsLabel })
+
             assertEquals(0, permissionsClicks)
             assertEquals(0, settingsClicks)
         } finally {

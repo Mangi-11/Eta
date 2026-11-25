@@ -71,22 +71,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiIcon
-import io.github.mangi.eta.ui.components.coui.CouiMenu
-import io.github.mangi.eta.ui.components.coui.CouiMenuItem
-import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
-import io.github.mangi.eta.ui.components.coui.CouiText
-import io.github.mangi.eta.ui.components.coui.CouiTextKind
-import io.github.mangi.eta.ui.components.coui.couiButtonFeedback
-import io.github.mangi.eta.ui.components.coui.couiMenuAnchor
-import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
-import io.github.mangi.eta.ui.components.coui.rememberCouiPageBackdrop
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
-import io.github.suqi8.coui.kmp.blur.layerBackdrop
-import io.github.suqi8.coui.kmp.utils.rememberCOUIFlingBehavior
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
@@ -110,14 +96,6 @@ import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
-import io.github.suqi8.coui.kmp.basic.Card as CouiCard
-import io.github.suqi8.coui.kmp.basic.CardDefaults as CouiCardDefaults
-import io.github.suqi8.coui.kmp.basic.CardListGroup as CouiCardListGroup
-import io.github.suqi8.coui.kmp.preference.ArrowPreference as CouiArrowPreference
-import io.github.suqi8.coui.kmp.squircle.SquircleShape as CouiShape
-import io.github.suqi8.coui.kmp.theme.COUITheme as CouiTheme
-import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
-import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 
 @Stable
 private class PaneBarInsets {
@@ -154,29 +132,21 @@ internal fun ConversationPanePanel(
     val isSearching = query.isNotBlank()
     val groups = remember(state.conversations) { state.conversations.groupForDrawer() }
     val containerColor = conversationPaneContainerColor()
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-    val couiBackdrop = if (isCoui && isRevealed) rememberCouiPageBackdrop(containerColor) else null
-    val miuixBackdrop = if (!isCoui) rememberGlassBackdrop(containerColor) else null
+    val paneBackdrop = rememberGlassBackdrop(containerColor)
     val barInsets = remember { PaneBarInsets() }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress) keyboard?.hide()
     }
-    val bodyCaptureModifier = when {
-        isCoui && couiBackdrop != null -> Modifier.layerBackdrop(couiBackdrop)
-        !isCoui && isRevealed && miuixBackdrop != null -> Modifier.captureGlassBackdrop(miuixBackdrop)
-        else -> Modifier
-    }
-    val listScrollModifier = if (isCoui) {
-        Modifier
-            .couiScrollEndHaptic()
-            .couiOverScrollVertical()
+    val bodyCaptureModifier = if (isRevealed && paneBackdrop != null) {
+        Modifier.captureGlassBackdrop(paneBackdrop)
     } else {
         Modifier
-            .scrollEndHaptic()
-            .overScrollVertical()
     }
-    val flingBehavior = if (isCoui) rememberCOUIFlingBehavior() else androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
+    val listScrollModifier = Modifier
+        .scrollEndHaptic()
+        .overScrollVertical()
+    val flingBehavior = androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
 
     Box(
         modifier = modifier
@@ -246,7 +216,7 @@ internal fun ConversationPanePanel(
                                         ConversationHistoryRow(
                                             conversation = conversation,
                                             selected = conversation.id == state.selectedConversationId,
-                                            miuixBackdrop = miuixBackdrop,
+                                            backdrop = paneBackdrop,
                                             onClick = { onConversationSelected(conversation.id) },
                                             onTogglePin = { onConversationTogglePin(conversation) },
                                             onRename = { onConversationRename(conversation) },
@@ -260,8 +230,7 @@ internal fun ConversationPanePanel(
                     }
                     ConversationPaneTopBar(
                         containerColor = containerColor,
-                        couiBackdrop = couiBackdrop,
-                        miuixBackdrop = miuixBackdrop,
+                        backdrop = paneBackdrop,
                         onNewConversation = onNewConversation,
                     )
                     ConversationPaneBottomDock(
@@ -269,8 +238,7 @@ internal fun ConversationPanePanel(
                         isRevealed = isRevealed,
                         hasPermissionAttention = hasPermissionAttention,
                         containerColor = containerColor,
-                        couiBackdrop = couiBackdrop,
-                        miuixBackdrop = miuixBackdrop,
+                        backdrop = paneBackdrop,
                         onSearchChange = onSearchChange,
                         onOpenPermissions = onOpenPermissions,
                         onOpenSettings = onOpenSettings,
@@ -356,77 +324,31 @@ private fun PaneWorkbenchSection(
         ConversationPanelMetrics.WorkbenchIconSize +
         ConversationPanelMetrics.WorkbenchIconGap
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val couiColors = CouiPageDefaults.themeColors()
-            CouiCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = ConversationPanelMetrics.PaneHorizontalPadding),
-                insideMargin = PaddingValues(0.dp),
-                colors = CouiCardDefaults.defaultColors(color = cardColor),
-            ) {
-                CouiCardListGroup {
-                    entries.forEach { entry ->
-                        item(key = entry.title) {
-                            CouiArrowPreference(
-                                title = entry.title,
-                                startAction = {
-                                    CouiIcon(
-                                        imageVector = entry.icon,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(ConversationPanelMetrics.WorkbenchIconSize),
-                                        tint = couiColors.title.copy(alpha = 0.86f),
-                                    )
-                                },
-                                endActions = {
-                                    if (!entry.trailingValue.isNullOrEmpty()) {
-                                        CouiText(
-                                            text = entry.trailingValue,
-                                            kind = CouiTextKind.ItemValue,
-                                            color = CouiTheme.colorScheme.labelTertiary,
-                                            modifier = Modifier.widthIn(max = 136.dp),
-                                            textAlign = TextAlign.End,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                },
-                                onClick = entry.onClick,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        AppearanceUiStyle.MIUIX -> {
-            val colors = MiuixTheme.colorScheme
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = ConversationPanelMetrics.PaneHorizontalPadding),
-                colors = CardDefaults.defaultColors(color = cardColor),
-            ) {
-                entries.forEachIndexed { index, entry ->
-                    MiuixWorkbenchRow(entry = entry)
-                    if (index < entries.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(
-                                start = dividerIndent,
-                                end = ConversationPanelMetrics.WorkbenchRowHorizontalPadding,
-                            ),
-                            thickness = 0.5.dp,
-                            color = colors.dividerLine.copy(alpha = 0.45f),
-                        )
-                    }
-                }
+    val colors = MiuixTheme.colorScheme
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ConversationPanelMetrics.PaneHorizontalPadding),
+        colors = CardDefaults.defaultColors(color = cardColor),
+    ) {
+        entries.forEachIndexed { index, entry ->
+            WorkbenchRow(entry = entry)
+            if (index < entries.lastIndex) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(
+                        start = dividerIndent,
+                        end = ConversationPanelMetrics.WorkbenchRowHorizontalPadding,
+                    ),
+                    thickness = 0.5.dp,
+                    color = colors.dividerLine.copy(alpha = 0.45f),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun MiuixWorkbenchRow(entry: WorkbenchEntry) {
+private fun WorkbenchRow(entry: WorkbenchEntry) {
     val colors = MiuixTheme.colorScheme
     Row(
         modifier = Modifier
@@ -492,43 +414,21 @@ private fun ConversationSectionHeader(
     val horizontalInset = ConversationPanelMetrics.PaneHorizontalPadding +
         ConversationPanelMetrics.RowHorizontalPadding
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val colors = CouiPageDefaults.themeColors()
-            CouiText(
-                text = label,
-                kind = CouiTextKind.GroupTitle,
-                color = colors.summary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        start = horizontalInset,
-                        top = topPadding,
-                        end = horizontalInset,
-                        bottom = ConversationPanelMetrics.SectionBottomPadding,
-                    )
-                    .semantics { heading() },
-                textAlign = TextAlign.Start,
+    Text(
+        text = label,
+        style = MiuixTheme.textStyles.footnote1,
+        fontWeight = FontWeight.Medium,
+        color = MiuixTheme.colorScheme.onBackgroundVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = horizontalInset,
+                top = topPadding,
+                end = horizontalInset,
+                bottom = ConversationPanelMetrics.SectionBottomPadding,
             )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            Text(
-                text = label,
-                style = MiuixTheme.textStyles.footnote1,
-                fontWeight = FontWeight.Medium,
-                color = MiuixTheme.colorScheme.onBackgroundVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        start = horizontalInset,
-                        top = topPadding,
-                        end = horizontalInset,
-                        bottom = ConversationPanelMetrics.SectionBottomPadding,
-                    )
-                    .semantics { heading() },
-            )
-        }
-    }
+            .semantics { heading() },
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -536,7 +436,7 @@ private fun ConversationSectionHeader(
 private fun ConversationHistoryRow(
     conversation: ConversationSummaryUi,
     selected: Boolean,
-    miuixBackdrop: Backdrop?,
+    backdrop: Backdrop?,
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
     onRename: () -> Unit,
@@ -547,59 +447,23 @@ private fun ConversationHistoryRow(
     var rowBounds by remember { mutableStateOf(Rect.Zero) }
     val hapticFeedback = LocalHapticFeedback.current
     val moreAnchor = rememberGlassPopupAnchor()
-    val anchor = rememberCouiMenuAnchor()
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-    val couiDark = CouiTheme.isDark
-    val couiRowShape = remember { CouiShape(ConversationPanelMetrics.RowCornerRadius, 2.1f) }
-    val miuixColors = MiuixTheme.colorScheme
-    val miuixDark = miuixColors.surface.luminance() < 0.5f
+    val colors = MiuixTheme.colorScheme
+    val isDark = colors.surface.luminance() < 0.5f
 
-    val couiScheme = if (isCoui) CouiTheme.colorScheme else null
-    val rowBackground = when {
-        !selected -> Color.Transparent
-        isCoui -> couiScheme!!.cardBackground
-        else -> miuixColors.tertiaryContainer.copy(alpha = if (miuixDark) 0.72f else 0.90f)
-    }
-    val rowModifier = if (isCoui) {
-        val source = remember { MutableInteractionSource() }
-        Modifier
-            .clip(couiRowShape)
-            .background(rowBackground, couiRowShape)
-            .then(
-                if (selected) {
-                    Modifier.border(
-                        width = 0.5.dp,
-                        color = couiScheme!!.divider,
-                        shape = couiRowShape,
-                    )
-                } else {
-                    Modifier
-                },
-            )
-            .couiButtonFeedback(couiDark, source, enabled = true, list = true)
+    val rowBackground = if (selected) {
+        colors.tertiaryContainer.copy(alpha = if (isDark) 0.72f else 0.90f)
     } else {
-        Modifier.squircleSurface(
-            color = rowBackground,
-            cornerRadius = ConversationPanelMetrics.RowCornerRadius,
-        )
+        Color.Transparent
     }
+    val rowModifier = Modifier.squircleSurface(
+        color = rowBackground,
+        cornerRadius = ConversationPanelMetrics.RowCornerRadius,
+    )
 
-    val titleColor = if (isCoui) {
-        CouiPageDefaults.themeColors().title
-    } else {
-        miuixColors.onSurface
-    }
-    val summaryColor = if (isCoui) {
-        CouiPageDefaults.themeColors().summary
-    } else {
-        miuixColors.onSurfaceVariantSummary
-    }
-    val accentColor = if (isCoui) {
-        CouiTheme.colorScheme.primary
-    } else {
-        miuixColors.primary
-    }
-    val avatarBorderColor = if (if (isCoui) couiDark else miuixDark) {
+    val titleColor = colors.onSurface
+    val summaryColor = colors.onSurfaceVariantSummary
+    val accentColor = colors.primary
+    val avatarBorderColor = if (isDark) {
         Color.White.copy(alpha = 0.14f)
     } else {
         Color.Black.copy(alpha = 0.08f)
@@ -615,13 +479,12 @@ private fun ConversationHistoryRow(
                 .fillMaxWidth()
                 .heightIn(min = ConversationPanelMetrics.RowMinHeight)
                 .onGloballyPositioned { rowBounds = it.boundsInWindow() }
-                .couiMenuAnchor(anchor)
                 .then(rowModifier)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                        anchor.open { showActionMenu = true }
+                        showActionMenu = true
                     },
                 )
                 .padding(
@@ -687,11 +550,11 @@ private fun ConversationHistoryRow(
                 )
             } else if (conversation.isPinned) {
                 Icon(
-                    imageVector = if (isCoui) ConversationPaneIcons.Pin else MiuixIcons.Glass.Pin,
+                    imageVector = MiuixIcons.Glass.Pin,
                     contentDescription = null,
                     modifier = Modifier
                         .padding(start = 6.dp)
-                        .size(if (isCoui) 13.dp else 16.dp),
+                        .size(16.dp),
                     tint = summaryColor.copy(alpha = 0.72f),
                 )
             }
@@ -701,15 +564,9 @@ private fun ConversationHistoryRow(
                 Box(
                     modifier = Modifier
                         .padding(start = 4.dp)
-                        .then(
-                            if (isCoui) {
-                                Modifier
-                            } else {
-                                Modifier.glassPopupAnchor(
-                                    anchor = moreAnchor,
-                                    cornerRadius = 14.dp,
-                                )
-                            },
+                        .glassPopupAnchor(
+                            anchor = moreAnchor,
+                            cornerRadius = 14.dp,
                         )
                         .size(28.dp)
                         .clip(CircleShape)
@@ -717,16 +574,16 @@ private fun ConversationHistoryRow(
                             role = Role.Button,
                             onClickLabel = moreLabel,
                         ) {
-                            anchor.open { showActionMenu = true }
+                            showActionMenu = true
                         },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = if (isCoui) Icons.Outlined.MoreHoriz else MiuixIcons.Glass.More,
+                        imageVector = MiuixIcons.Glass.More,
                         contentDescription = moreLabel,
                         modifier = Modifier
-                            .size(if (isCoui) 17.dp else 20.dp)
-                            .then(if (isCoui) Modifier else Modifier.glassPopupAnchorContent(moreAnchor)),
+                            .size(20.dp)
+                            .glassPopupAnchorContent(moreAnchor),
                         tint = summaryColor,
                     )
                 }
@@ -756,110 +613,74 @@ private fun ConversationHistoryRow(
         val renameText = stringResource(R.string.action_rename)
         val exportText = stringResource(R.string.action_export)
         val deleteText = stringResource(R.string.action_delete)
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                val destructiveColor = CouiTheme.colorScheme.error
-                val menuItems = remember(pinText, renameText, exportText, deleteText, destructiveColor) {
-                    listOf(
-                        CouiMenuItem(value = 0, text = pinText, icon = Icons.Outlined.PushPin),
-                        CouiMenuItem(value = 1, text = renameText, icon = Icons.Outlined.Edit),
-                        CouiMenuItem(value = 2, text = exportText, icon = Icons.Outlined.Download),
-                        CouiMenuItem(
-                            value = 3,
-                            text = deleteText,
-                            icon = Icons.Outlined.Delete,
-                            iconTint = destructiveColor,
-                            dividerBefore = true,
-                        ),
-                    )
-                }
-                CouiMenu(
-                    expanded = showActionMenu,
+        val overlayBackdrop = currentGlassOverlayBackdrop() ?: backdrop
+        val menuContent: @Composable ColumnScope.() -> Unit = {
+            GlassPopupItem(
+                text = pinText,
+                icon = MiuixIcons.Glass.Pin,
+                onClick = {
+                    showActionMenu = false
+                    onTogglePin()
+                },
+            )
+            GlassPopupItem(
+                text = renameText,
+                icon = MiuixIcons.Glass.Edit,
+                onClick = {
+                    showActionMenu = false
+                    onRename()
+                },
+            )
+            GlassPopupItem(
+                text = exportText,
+                icon = MiuixIcons.Glass.Download,
+                onClick = {
+                    showActionMenu = false
+                    onExport()
+                },
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(
+                    horizontal = GlassPopupDefaults.DividerPaddingHorizontal,
+                    vertical = GlassPopupDefaults.DividerPaddingVertical,
+                ),
+                thickness = GlassPopupDefaults.DividerThickness,
+            )
+            GlassPopupItem(
+                text = deleteText,
+                icon = MiuixIcons.Glass.Delete,
+                contentColor = MiuixTheme.colorScheme.error,
+                onClick = {
+                    showActionMenu = false
+                    onDelete()
+                },
+            )
+        }
+        TopLayer {
+            if (selected) {
+                GlassTransformPopup(
+                    show = showActionMenu,
                     onDismissRequest = { showActionMenu = false },
-                    items = menuItems,
-                    onItemClick = { item ->
-                        showActionMenu = false
-                        when (item.value) {
-                            0 -> onTogglePin()
-                            1 -> onRename()
-                            2 -> onExport()
-                            3 -> onDelete()
-                        }
+                    anchor = moreAnchor,
+                    backdrop = overlayBackdrop,
+                    anchorContent = {
+                        Icon(
+                            imageVector = MiuixIcons.Glass.More,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = summaryColor,
+                        )
                     },
-                    anchor = anchor,
+                    content = menuContent,
                 )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                val overlayBackdrop = currentGlassOverlayBackdrop() ?: miuixBackdrop
-                val menuContent: @Composable ColumnScope.() -> Unit = {
-                    GlassPopupItem(
-                        text = pinText,
-                        icon = MiuixIcons.Glass.Pin,
-                        onClick = {
-                            showActionMenu = false
-                            onTogglePin()
-                        },
-                    )
-                    GlassPopupItem(
-                        text = renameText,
-                        icon = MiuixIcons.Glass.Edit,
-                        onClick = {
-                            showActionMenu = false
-                            onRename()
-                        },
-                    )
-                    GlassPopupItem(
-                        text = exportText,
-                        icon = MiuixIcons.Glass.Download,
-                        onClick = {
-                            showActionMenu = false
-                            onExport()
-                        },
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(
-                            horizontal = GlassPopupDefaults.DividerPaddingHorizontal,
-                            vertical = GlassPopupDefaults.DividerPaddingVertical,
-                        ),
-                        thickness = GlassPopupDefaults.DividerThickness,
-                    )
-                    GlassPopupItem(
-                        text = deleteText,
-                        icon = MiuixIcons.Glass.Delete,
-                        contentColor = MiuixTheme.colorScheme.error,
-                        onClick = {
-                            showActionMenu = false
-                            onDelete()
-                        },
-                    )
-                }
-                EtaTopLayer {
-                    if (selected) {
-                        GlassTransformPopup(
-                            show = showActionMenu,
-                            onDismissRequest = { showActionMenu = false },
-                            anchor = moreAnchor,
-                            backdrop = overlayBackdrop,
-                            anchorContent = {
-                                Icon(
-                                    imageVector = MiuixIcons.Glass.More,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = summaryColor,
-                                )
-                            },
-                            content = menuContent,
-                        )
-                    } else {
-                        GlassPopup(
-                            show = showActionMenu,
-                            onDismissRequest = { showActionMenu = false },
-                            anchorBounds = rowBounds,
-                            backdrop = overlayBackdrop,
-                            content = menuContent,
-                        )
-                    }
-                }
+            } else {
+                GlassPopup(
+                    show = showActionMenu,
+                    onDismissRequest = { showActionMenu = false },
+                    anchorBounds = rowBounds,
+                    backdrop = overlayBackdrop,
+                    content = menuContent,
+                )
             }
         }
     }
@@ -867,13 +688,7 @@ private fun ConversationHistoryRow(
 
 @Composable
 private fun EmptyConversations(isSearching: Boolean) {
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
-    val dark = if (isCoui) CouiTheme.isDark else MiuixTheme.colorScheme.surface.luminance() < 0.5f
-    val primaryTextColor = if (isCoui) {
-        CouiPageDefaults.themeColors().summary
-    } else {
-        MiuixTheme.colorScheme.onSurfaceVariantSummary
-    }
+    val primaryTextColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
     val badgeBg = conversationPaneCardColor()
 
     Column(
@@ -888,15 +703,7 @@ private fun EmptyConversations(isSearching: Boolean) {
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .then(
-                    if (isCoui) {
-                        Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(badgeBg)
-                    } else {
-                        Modifier.squircleSurface(color = badgeBg, cornerRadius = 14.dp)
-                    },
-                ),
+                .squircleSurface(color = badgeBg, cornerRadius = 14.dp),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

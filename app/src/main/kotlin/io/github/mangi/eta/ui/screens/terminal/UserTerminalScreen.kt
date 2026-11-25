@@ -63,21 +63,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.isLinux
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.app.TerminalBlockUi
 import io.github.mangi.eta.ui.app.UserTerminalStore
 import io.github.mangi.eta.ui.components.EtaMonospace
-import io.github.mangi.eta.ui.components.EtaTopLayer
+import io.github.mangi.eta.ui.components.TopLayer
 import io.github.mangi.eta.ui.components.ansiPlainText
 import io.github.mangi.eta.ui.components.ansiToAnnotatedString
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiMenu
-import io.github.mangi.eta.ui.components.coui.CouiMenuAnchor
-import io.github.mangi.eta.ui.components.coui.CouiMenuItem
-import io.github.mangi.eta.ui.components.coui.couiMenuAnchor
-import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -259,18 +250,16 @@ private fun CommandBlock(
     val colors = MiuixTheme.colorScheme
     val exitCode = block.exitCode
     val failed = exitCode != null && exitCode != 0
-    val anchor = rememberCouiMenuAnchor()
     Box {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .onGloballyPositioned { blockBounds = it.boundsInWindow() }
-                .couiMenuAnchor(anchor)
                 .combinedClickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {},
-                    onLongClick = { anchor.open { showMenu = true } },
+                    onLongClick = { showMenu = true },
                 ),
         ) {
             if (block.cwdAtStart.isNotEmpty()) {
@@ -302,7 +291,6 @@ private fun CommandBlock(
         BlockMenu(
             show = showMenu,
             hasOutput = block.output.isNotEmpty(),
-            anchor = anchor,
             anchorBounds = blockBounds,
             onDismiss = { showMenu = false },
             onCopyCommand = { scope.launch { clipboard.setPlainText(block.command) } },
@@ -356,7 +344,6 @@ private suspend fun Clipboard.setPlainText(text: String) {
 private fun BlockMenu(
     show: Boolean,
     hasOutput: Boolean,
-    anchor: CouiMenuAnchor,
     anchorBounds: Rect,
     onDismiss: () -> Unit,
     onCopyCommand: () -> Unit,
@@ -366,66 +353,39 @@ private fun BlockMenu(
     val copyCommandText = stringResource(R.string.terminal_copy_command)
     val copyOutputText = stringResource(R.string.terminal_copy_output)
     val reinputText = stringResource(R.string.terminal_reinput)
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            val menuItems = remember(copyCommandText, copyOutputText, reinputText, hasOutput) {
-                listOf(
-                    CouiMenuItem(value = 0, text = copyCommandText),
-                    CouiMenuItem(value = 1, text = copyOutputText, enabled = hasOutput),
-                    CouiMenuItem(value = 2, text = reinputText),
-                )
-            }
-            CouiMenu(
-                expanded = show,
-                onDismissRequest = onDismiss,
-                items = menuItems,
-                onItemClick = { item ->
+    val overlayBackdrop = currentGlassOverlayBackdrop()
+    TopLayer {
+        GlassPopup(
+            show = show,
+            onDismissRequest = onDismiss,
+            anchorBounds = anchorBounds,
+            backdrop = overlayBackdrop,
+        ) {
+            GlassPopupItem(
+                text = copyCommandText,
+                icon = MiuixIcons.Glass.Copy,
+                onClick = {
                     onDismiss()
-                    when (item.value) {
-                        0 -> onCopyCommand()
-                        1 -> onCopyOutput()
-                        2 -> onReinput()
-                    }
+                    onCopyCommand()
                 },
-                anchor = anchor,
             )
-        }
-        AppearanceUiStyle.MIUIX -> {
-            val overlayBackdrop = currentGlassOverlayBackdrop()
-            EtaTopLayer {
-                GlassPopup(
-                    show = show,
-                    onDismissRequest = onDismiss,
-                    anchorBounds = anchorBounds,
-                    backdrop = overlayBackdrop,
-                ) {
-                    GlassPopupItem(
-                        text = copyCommandText,
-                        icon = MiuixIcons.Glass.Copy,
-                        onClick = {
-                            onDismiss()
-                            onCopyCommand()
-                        },
-                    )
-                    GlassPopupItem(
-                        text = copyOutputText,
-                        icon = MiuixIcons.Glass.Copy,
-                        enabled = hasOutput,
-                        onClick = {
-                            onDismiss()
-                            onCopyOutput()
-                        },
-                    )
-                    GlassPopupItem(
-                        text = reinputText,
-                        icon = MiuixIcons.Glass.Reply,
-                        onClick = {
-                            onDismiss()
-                            onReinput()
-                        },
-                    )
-                }
-            }
+            GlassPopupItem(
+                text = copyOutputText,
+                icon = MiuixIcons.Glass.Copy,
+                enabled = hasOutput,
+                onClick = {
+                    onDismiss()
+                    onCopyOutput()
+                },
+            )
+            GlassPopupItem(
+                text = reinputText,
+                icon = MiuixIcons.Glass.Reply,
+                onClick = {
+                    onDismiss()
+                    onReinput()
+                },
+            )
         }
     }
 }
@@ -575,36 +535,19 @@ internal fun TerminalPlaceholder(
             modifier = Modifier.padding(top = 14.dp),
         )
         if (actionText != null && onAction != null) {
-            if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-                CouiButton(
-                    text = actionText,
-                    onClick = onAction,
-                    role = CouiButtonRole.Primary,
-                    modifier = Modifier.padding(top = 18.dp),
-                )
-            } else {
-                TextButton(
-                    text = actionText,
-                    onClick = onAction,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.padding(top = 18.dp),
-                )
-            }
+            TextButton(
+                text = actionText,
+                onClick = onAction,
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+                modifier = Modifier.padding(top = 18.dp),
+            )
         }
         if (secondaryActionText != null && onSecondaryAction != null) {
-            if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-                CouiButton(
-                    text = secondaryActionText,
-                    onClick = onSecondaryAction,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-            } else {
-                TextButton(
-                    text = secondaryActionText,
-                    onClick = onSecondaryAction,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-            }
+            TextButton(
+                text = secondaryActionText,
+                onClick = onSecondaryAction,
+                modifier = Modifier.padding(top = 12.dp),
+            )
         }
     }
 }

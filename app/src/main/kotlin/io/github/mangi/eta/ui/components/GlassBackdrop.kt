@@ -2,8 +2,6 @@ package io.github.mangi.eta.ui.components
 
 import android.os.Handler
 import android.os.Looper
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -14,21 +12,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.semantics.disabled
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.ui.app.LocalGlassPageBackdrop
 import io.github.mangi.eta.ui.app.LocalGlassSceneBackdrop
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.TextFieldColors
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassTextFieldDefaults
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -119,34 +111,6 @@ internal fun currentGlassOverlayBackdrop(): Backdrop? =
     LocalGlassSceneBackdrop.current ?: LocalGlassPageBackdrop.current
 
 /**
- * 玻璃顶栏内的动作按钮：统一 28.dp Glass 图标尺寸，并在禁用态阻断点击与补齐无障碍语义。
- */
-@Composable
-internal fun MiuixTopBarActionButton(
-    icon: ImageVector,
-    contentDescription: String?,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    backdrop: Backdrop? = null,
-    tint: Color = MiuixTheme.colorScheme.onSurface,
-) {
-    val resolvedTint = if (enabled) tint else MiuixTheme.colorScheme.disabledOnSecondaryVariant
-    GlassIconButton(
-        onClick = { if (enabled) onClick() },
-        backdrop = backdrop,
-        modifier = modifier.then(if (!enabled) Modifier.semantics { disabled() } else Modifier),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            modifier = Modifier.size(28.dp),
-            tint = resolvedTint,
-        )
-    }
-}
-
-/**
  * 玻璃弹窗 / 底部抽屉内输入框与嵌套容器的通透底色：与 `GlassTextFieldDefaults`
  * 共用 `onBackground` 半透明体系，兼顾浅/深色与动态取色下的层次与对比度。
  */
@@ -160,5 +124,3 @@ internal fun glassOverlayFieldBackgroundColor(): Color {
 @Composable
 internal fun glassOverlayTextFieldColors(): TextFieldColors =
     GlassTextFieldDefaults.textFieldColors()
-
-internal val MiuixSheetZeroMargin = PaddingValues(0.dp)

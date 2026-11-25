@@ -50,13 +50,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.BrowserSessionSnapshot
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.EtaTopLayer
-import io.github.mangi.eta.ui.components.coui.CouiMenu
-import io.github.mangi.eta.ui.components.coui.CouiMenuItem
-import io.github.mangi.eta.ui.components.coui.couiMenuAnchor
-import io.github.mangi.eta.ui.components.coui.rememberCouiMenuAnchor
+import io.github.mangi.eta.ui.components.TopLayer
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -251,78 +245,43 @@ private fun BrowserSubmitAction(
 @Composable
 private fun BrowserOverflowMenu(items: List<DropdownItem>) {
     var expanded by remember { mutableStateOf(false) }
-    val isCoui = LocalUiStyle.current == AppearanceUiStyle.COUI
     val moreAnchor = rememberGlassPopupAnchor()
-    val anchor = rememberCouiMenuAnchor()
+    val overlayBackdrop = currentGlassOverlayBackdrop()
     Box {
         BrowserControlButton(
             icon = Icons.Rounded.MoreVert,
             description = stringResource(R.string.action_more),
-            onClick = { anchor.open { expanded = true } },
-            modifier = Modifier
-                .then(
-                    if (isCoui) {
-                        Modifier
-                    } else {
-                        Modifier.glassPopupAnchor(
-                            anchor = moreAnchor,
-                            cornerRadius = 20.dp,
-                        )
-                    },
-                )
-                .couiMenuAnchor(anchor),
-            iconModifier = if (isCoui) Modifier else Modifier.glassPopupAnchorContent(moreAnchor),
+            onClick = { expanded = true },
+            modifier = Modifier.glassPopupAnchor(
+                anchor = moreAnchor,
+                cornerRadius = 20.dp,
+            ),
+            iconModifier = Modifier.glassPopupAnchorContent(moreAnchor),
         )
-        when (LocalUiStyle.current) {
-            AppearanceUiStyle.COUI -> {
-                val menuItems = remember(items) {
-                    items.mapIndexed { index, item ->
-                        CouiMenuItem(
-                            value = index,
-                            text = item.text,
-                            enabled = item.enabled,
-                        )
-                    }
-                }
-                CouiMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                    items = menuItems,
-                    onItemClick = { menuItem ->
-                        expanded = false
-                        items.getOrNull(menuItem.value)?.onClick?.invoke()
-                    },
-                    anchor = anchor,
-                )
-            }
-            AppearanceUiStyle.MIUIX -> {
-                val overlayBackdrop = currentGlassOverlayBackdrop()
-                EtaTopLayer {
-                    GlassTransformPopup(
-                        show = expanded,
-                        onDismissRequest = { expanded = false },
-                        anchor = moreAnchor,
-                        backdrop = overlayBackdrop,
-                        anchorContent = {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = MiuixTheme.colorScheme.onSurface,
-                            )
+        TopLayer {
+            GlassTransformPopup(
+                show = expanded,
+                onDismissRequest = { expanded = false },
+                anchor = moreAnchor,
+                backdrop = overlayBackdrop,
+                anchorContent = {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreVert,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MiuixTheme.colorScheme.onSurface,
+                    )
+                },
+            ) {
+                items.forEach { item ->
+                    GlassPopupItem(
+                        text = item.text,
+                        enabled = item.enabled,
+                        onClick = {
+                            expanded = false
+                            item.onClick?.invoke()
                         },
-                    ) {
-                        items.forEach { item ->
-                            GlassPopupItem(
-                                text = item.text,
-                                enabled = item.enabled,
-                                onClick = {
-                                    expanded = false
-                                    item.onClick?.invoke()
-                                },
-                            )
-                        }
-                    }
+                    )
                 }
             }
         }

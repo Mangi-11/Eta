@@ -11,11 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FileUpload
-import androidx.compose.runtime.remember
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.SportsBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -23,23 +22,11 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.roleplay.CharacterProfile
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
-import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.ListEmptyState
-import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.MiuixTopBarActionButton
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiLazyScaffoldPage
-import io.github.mangi.eta.ui.components.coui.CouiPageSearch
-import io.github.mangi.eta.ui.components.coui.CouiPreference
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceFooter
-import io.github.mangi.eta.ui.components.coui.CouiPreferenceGroup
-import io.github.mangi.eta.ui.components.coui.CouiTopAppBarIconButton
+import io.github.mangi.eta.ui.components.ScaffoldPage
+import io.github.mangi.eta.ui.components.TopBarActionButton
 import io.github.mangi.eta.ui.navigation.AppRoute
-import io.github.suqi8.coui.kmp.icon.COUIIcons
-import io.github.suqi8.coui.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
@@ -92,241 +79,131 @@ internal fun CharacterLibraryScreen(
     val personaTitle = stringResource(R.string.character_persona_title)
     val personaSummary = stringResource(R.string.character_persona_entry_summary)
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiLazyScaffoldPage(
-                title = libraryTitle,
-                onBack = onBack,
-                search = CouiPageSearch(store.query, { store.query = it }, searchHint),
-                actions = {
-                    CouiTopAppBarIconButton(
-                        icon = Icons.Rounded.FileUpload,
-                        contentDescription = importCardDesc,
-                        enabled = !store.busy,
-                        onClick = importCard,
-                    )
-                    CouiTopAppBarIconButton(
-                        icon = COUIIcons.Add,
-                        contentDescription = createCharacterText,
-                        enabled = !store.busy,
-                        onClick = createCharacter,
+    ScaffoldPage(
+        title = libraryTitle,
+        onBack = onBack,
+        actions = {
+            TopBarActionButton(
+                icon = MiuixIcons.Glass.Import,
+                contentDescription = importCardDesc,
+                enabled = !store.busy,
+                onClick = importCard,
+            )
+            Spacer(Modifier.width(8.dp))
+            TopBarActionButton(
+                icon = MiuixIcons.Glass.Add,
+                contentDescription = createCharacterText,
+                enabled = !store.busy,
+                onClick = createCharacter,
+            )
+        },
+    ) {
+        item(key = "search") {
+            SearchBar(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = CharacterCardPadding)
+                    .padding(top = 4.dp, bottom = 12.dp),
+                insideMargin = DpSize(0.dp, 0.dp),
+                expanded = false,
+                onExpandedChange = {},
+                inputField = {
+                    InputField(
+                        query = store.query,
+                        onQueryChange = { store.query = it },
+                        onSearch = { store.query = it },
+                        expanded = false,
+                        onExpandedChange = {},
+                        label = searchHint,
                     )
                 },
-            ) { searching ->
-                when {
-                    (store.isLoadingLibrary || store.busy) && store.characters.isEmpty() -> {
-                        item(key = "loading") {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                InfiniteProgressIndicator(size = 28.dp)
-                            }
-                        }
-                    }
-                    store.characters.isEmpty() -> {
-                        item(key = "empty-library") {
-                            ListEmptyState(
-                                title = emptyTitle,
-                                summary = emptySummary,
-                                icon = Icons.Rounded.SportsBar,
-                                action = {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        CouiButton(
-                                            text = restoreDefaultText,
-                                            onClick = { store.restoreDefaultCharacter() },
-                                            enabled = !store.busy,
-                                        )
-                                        CouiButton(
-                                            text = createCharacterText,
-                                            onClick = createCharacter,
-                                            role = CouiButtonRole.Primary,
-                                        )
-                                    }
-                                },
-                            )
-                        }
-                    }
-                    store.filteredCharacters.isEmpty() -> {
-                        item(key = "empty-search") {
-                            ListEmptyState(
-                                title = noResultsTitle,
-                                summary = noResultsSummary,
-                                icon = Icons.Rounded.SearchOff,
-                            )
-                        }
-                    }
-                }
-                items(rows, key = { row -> row.joinToString("|") { it?.id ?: "add" } }) { row ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .padding(bottom = CharacterGridSpacing),
-                        horizontalArrangement = Arrangement.spacedBy(CharacterGridSpacing),
+                content = {},
+            )
+        }
+        when {
+            (store.isLoadingLibrary || store.busy) && store.characters.isEmpty() -> {
+                item(key = "loading") {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        row.forEach { profile ->
-                            if (profile == null) {
-                                CharacterAddTile(
-                                    enabled = !store.busy,
-                                    onCreate = createCharacter,
-                                    onImport = importCard,
-                                    modifier = Modifier.weight(1f),
-                                )
-                            } else {
-                                CharacterPortraitCard(
-                                    profile = profile,
-                                    onClick = { if (!store.busy) onNavigate(AppRoute.CharacterDetail(profile.id)) },
-                                    onToggleFavorite = { store.toggleFavorite(profile.id) },
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                        }
-                        if (row.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                }
-                if (!searching) item(key = "persona") {
-                    CouiPreferenceGroup(title = mineSectionTitle) {
-                        item {
-                            CouiPreference(
-                                title = personaTitle,
-                                summary = personaSummary,
-                                onClick = { onNavigate(AppRoute.CharacterPersona) },
-                            )
-                        }
+                        InfiniteProgressIndicator(size = 28.dp)
                     }
                 }
             }
-        }
-
-        AppearanceUiStyle.MIUIX -> {
-            MiuixScaffoldPage(
-                title = libraryTitle,
-                onBack = onBack,
-                actions = {
-                    MiuixTopBarActionButton(
-                        icon = MiuixIcons.Glass.Import,
-                        contentDescription = importCardDesc,
-                        enabled = !store.busy,
-                        onClick = importCard,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    MiuixTopBarActionButton(
-                        icon = MiuixIcons.Glass.Add,
-                        contentDescription = createCharacterText,
-                        enabled = !store.busy,
-                        onClick = createCharacter,
-                    )
-                },
-            ) {
-                item(key = "search") {
-                    SearchBar(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = CharacterCardPadding)
-                            .padding(top = 4.dp, bottom = 12.dp),
-                        insideMargin = DpSize(0.dp, 0.dp),
-                        expanded = false,
-                        onExpandedChange = {},
-                        inputField = {
-                            InputField(
-                                query = store.query,
-                                onQueryChange = { store.query = it },
-                                onSearch = { store.query = it },
-                                expanded = false,
-                                onExpandedChange = {},
-                                label = searchHint,
-                            )
-                        },
-                        content = {},
-                    )
-                }
-                when {
-                    (store.isLoadingLibrary || store.busy) && store.characters.isEmpty() -> {
-                        item(key = "loading") {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                InfiniteProgressIndicator(size = 28.dp)
-                            }
-                        }
-                    }
-                    store.characters.isEmpty() -> {
-                        item(key = "empty-library") {
-                            ListEmptyState(
-                                title = emptyTitle,
-                                summary = emptySummary,
-                                icon = Icons.Rounded.SportsBar,
-                                action = {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        TextButton(
-                                            text = restoreDefaultText,
-                                            onClick = { store.restoreDefaultCharacter() },
-                                            enabled = !store.busy,
-                                        )
-                                        TextButton(
-                                            text = createCharacterText,
-                                            onClick = createCharacter,
-                                            colors = ButtonDefaults.textButtonColorsPrimary(),
-                                        )
-                                    }
-                                },
-                            )
-                        }
-                    }
-                    store.filteredCharacters.isEmpty() -> {
-                        item(key = "empty-search") {
-                            ListEmptyState(
-                                title = noResultsTitle,
-                                summary = noResultsSummary,
-                                icon = Icons.Rounded.SearchOff,
-                            )
-                        }
-                    }
-                }
-                items(rows, key = { row -> row.joinToString("|") { it?.id ?: "add" } }) { row ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = CharacterCardPadding)
-                            .padding(bottom = CharacterGridSpacing),
-                        horizontalArrangement = Arrangement.spacedBy(CharacterGridSpacing),
-                    ) {
-                        row.forEach { profile ->
-                            if (profile == null) {
-                                CharacterAddTile(
+            store.characters.isEmpty() -> {
+                item(key = "empty-library") {
+                    ListEmptyState(
+                        title = emptyTitle,
+                        summary = emptySummary,
+                        icon = Icons.Rounded.SportsBar,
+                        action = {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                TextButton(
+                                    text = restoreDefaultText,
+                                    onClick = { store.restoreDefaultCharacter() },
                                     enabled = !store.busy,
-                                    onCreate = createCharacter,
-                                    onImport = importCard,
-                                    modifier = Modifier.weight(1f),
                                 )
-                            } else {
-                                CharacterPortraitCard(
-                                    profile = profile,
-                                    onClick = { if (!store.busy) onNavigate(AppRoute.CharacterDetail(profile.id)) },
-                                    onToggleFavorite = { store.toggleFavorite(profile.id) },
-                                    modifier = Modifier.weight(1f),
+                                TextButton(
+                                    text = createCharacterText,
+                                    onClick = createCharacter,
+                                    colors = ButtonDefaults.textButtonColorsPrimary(),
                                 )
                             }
-                        }
-                        if (row.size == 1) Spacer(Modifier.weight(1f))
-                    }
+                        },
+                    )
                 }
-                item(key = "persona") {
-                    SmallTitle(mineSectionTitle)
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        ArrowPreference(
-                            title = personaTitle,
-                            summary = personaSummary,
-                            onClick = { onNavigate(AppRoute.CharacterPersona) },
+            }
+            store.filteredCharacters.isEmpty() -> {
+                item(key = "empty-search") {
+                    ListEmptyState(
+                        title = noResultsTitle,
+                        summary = noResultsSummary,
+                        icon = Icons.Rounded.SearchOff,
+                    )
+                }
+            }
+        }
+        items(rows, key = { row -> row.joinToString("|") { it?.id ?: "add" } }) { row ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = CharacterCardPadding)
+                    .padding(bottom = CharacterGridSpacing),
+                horizontalArrangement = Arrangement.spacedBy(CharacterGridSpacing),
+            ) {
+                row.forEach { profile ->
+                    if (profile == null) {
+                        CharacterAddTile(
+                            enabled = !store.busy,
+                            onCreate = createCharacter,
+                            onImport = importCard,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        CharacterPortraitCard(
+                            profile = profile,
+                            onClick = { if (!store.busy) onNavigate(AppRoute.CharacterDetail(profile.id)) },
+                            onToggleFavorite = { store.toggleFavorite(profile.id) },
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        item(key = "persona") {
+            SmallTitle(mineSectionTitle)
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                ArrowPreference(
+                    title = personaTitle,
+                    summary = personaSummary,
+                    onClick = { onNavigate(AppRoute.CharacterPersona) },
+                )
             }
         }
     }
@@ -334,17 +211,10 @@ internal fun CharacterLibraryScreen(
 
 @Composable
 internal fun CharacterPageMessage(text: String) {
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiPreferenceFooter(text = text)
-        }
-        AppearanceUiStyle.MIUIX -> {
-            Text(
-                text = text,
-                style = MiuixTheme.textStyles.body2,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp),
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-        }
-    }
+    Text(
+        text = text,
+        style = MiuixTheme.textStyles.body2,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp),
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+    )
 }

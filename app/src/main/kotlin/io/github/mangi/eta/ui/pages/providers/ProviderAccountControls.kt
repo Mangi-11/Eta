@@ -15,12 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ProviderAuthModes
-import io.github.mangi.eta.ui.app.LocalUiStyle
-import io.github.mangi.eta.ui.components.coui.CouiButton
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
-import io.github.mangi.eta.ui.components.coui.CouiPreference
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -76,105 +71,38 @@ internal fun ProviderAccountControls(
     val manageUsageText = stringResource(R.string.provider_i18n_manage_usage)
     val signOutText = stringResource(R.string.provider_i18n_sign_out)
 
-    when (LocalUiStyle.current) {
-        AppearanceUiStyle.COUI -> {
-            CouiPreference(
-                title = title,
-                summary = summary,
-                showChevron = false,
-            )
-            Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                prompt?.userCode?.let { userCode ->
-                    SelectionContainer {
-                        Text(
-                            text = userCode,
-                            style = MiuixTheme.textStyles.headline1,
-                            modifier = Modifier.padding(bottom = 12.dp),
-                        )
-                    }
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (state.isBusy) {
-                        if (prompt != null) {
-                            CouiButton(
-                                text = openBrowserText,
-                                onClick = onOpenBrowser,
-                                role = CouiButtonRole.Primary,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        if (state.phase in setOf(ProviderLoginPhase.Saving, ProviderLoginPhase.Authorizing, ProviderLoginPhase.SyncingModels)) {
-                            CouiButton(
-                                text = cancelText,
-                                onClick = onCancel,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    } else {
-                        if (needsLogin) {
-                            CouiButton(
-                                text = loginActionText,
-                                enabled = enabled,
-                                onClick = onLogin,
-                                role = CouiButtonRole.Primary,
-                                modifier = Modifier.weight(1f),
-                            )
-                        } else if (authMode == ProviderAuthModes.OPENAI_CHATGPT) {
-                            CouiButton(
-                                text = manageUsageText,
-                                enabled = enabled,
-                                onClick = onManageUsage,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        if (loggedIn) {
-                            CouiButton(
-                                text = signOutText,
-                                enabled = enabled,
-                                onClick = onDisconnect,
-                                role = CouiButtonRole.Destructive,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
+    BasicComponent(title = title, summary = summary)
+    Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+        prompt?.userCode?.let { userCode ->
+            SelectionContainer {
+                Text(
+                    text = userCode,
+                    style = MiuixTheme.textStyles.headline1,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
             }
         }
-        AppearanceUiStyle.MIUIX -> {
-            BasicComponent(title = title, summary = summary)
-            Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                prompt?.userCode?.let { userCode ->
-                    SelectionContainer {
-                        Text(
-                            text = userCode,
-                            style = MiuixTheme.textStyles.headline1,
-                            modifier = Modifier.padding(bottom = 12.dp),
-                        )
-                    }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (state.isBusy) {
+                if (prompt != null) {
+                    TextButton(text = openBrowserText, onClick = onOpenBrowser, modifier = Modifier.weight(1f))
                 }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (state.isBusy) {
-                        if (prompt != null) {
-                            TextButton(text = openBrowserText, onClick = onOpenBrowser, modifier = Modifier.weight(1f))
-                        }
-                        if (state.phase in setOf(ProviderLoginPhase.Saving, ProviderLoginPhase.Authorizing, ProviderLoginPhase.SyncingModels)) {
-                            TextButton(text = cancelText, onClick = onCancel, modifier = Modifier.weight(1f))
-                        }
-                    } else {
-                        if (needsLogin) {
-                            TextButton(
-                                text = loginActionText,
-                                enabled = enabled,
-                                onClick = onLogin,
-                                modifier = Modifier.weight(1f),
-                            )
-                        } else if (authMode == ProviderAuthModes.OPENAI_CHATGPT) {
-                            TextButton(text = manageUsageText, enabled = enabled, onClick = onManageUsage, modifier = Modifier.weight(1f))
-                        }
-                        if (loggedIn) {
-                            TextButton(text = signOutText, enabled = enabled, onClick = onDisconnect, modifier = Modifier.weight(1f))
-                        }
-                    }
+                if (state.phase in setOf(ProviderLoginPhase.Saving, ProviderLoginPhase.Authorizing, ProviderLoginPhase.SyncingModels)) {
+                    TextButton(text = cancelText, onClick = onCancel, modifier = Modifier.weight(1f))
+                }
+            } else {
+                if (needsLogin) {
+                    TextButton(
+                        text = loginActionText,
+                        enabled = enabled,
+                        onClick = onLogin,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else if (authMode == ProviderAuthModes.OPENAI_CHATGPT) {
+                    TextButton(text = manageUsageText, enabled = enabled, onClick = onManageUsage, modifier = Modifier.weight(1f))
+                }
+                if (loggedIn) {
+                    TextButton(text = signOutText, enabled = enabled, onClick = onDisconnect, modifier = Modifier.weight(1f))
                 }
             }
         }

@@ -50,12 +50,8 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.roleplay.CharacterMacros
 import io.github.mangi.eta.agent.roleplay.CharacterProfile
-import io.github.mangi.eta.data.model.AppearanceUiStyle
-import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.components.CharacterAvatar
-import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.monogramGradient
-import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.rememberCharacterImage
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -259,24 +255,13 @@ internal fun CharacterHero(
                 )
             }
             Spacer(Modifier.height(20.dp))
-            val startChatText = stringResource(R.string.character_action_start_chat)
-            if (LocalUiStyle.current == AppearanceUiStyle.COUI) {
-                CouiButton(
-                    text = startChatText,
-                    enabled = !busy,
-                    onClick = onStart,
-                    role = CouiButtonRole.Primary,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            } else {
-                TextButton(
-                    text = startChatText,
-                    enabled = !busy,
-                    onClick = onStart,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            }
+            TextButton(
+                text = stringResource(R.string.character_action_start_chat),
+                enabled = !busy,
+                onClick = onStart,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+            )
         }
     }
 }
