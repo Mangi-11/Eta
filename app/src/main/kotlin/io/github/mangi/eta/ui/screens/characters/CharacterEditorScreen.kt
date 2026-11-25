@@ -40,7 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.app.CharacterLibraryStore
+import io.github.mangi.eta.ui.state.CharacterLibraryStore
 import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.components.TopBarActionButton
 import io.github.mangi.eta.ui.components.rememberDraftTextFieldState

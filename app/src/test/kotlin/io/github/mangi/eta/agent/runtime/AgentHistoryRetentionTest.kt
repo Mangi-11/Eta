@@ -14,7 +14,7 @@ import io.github.mangi.eta.agent.model.AgentContextSnapshot
 import io.github.mangi.eta.agent.model.AgentConversationCodec
 import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.data.db.EtaDatabase
-import io.github.mangi.eta.ui.app.AgentConversationStore
+import io.github.mangi.eta.ui.state.AgentConversationStore
 import io.github.mangi.eta.ui.model.AgentChatUiState
 import io.github.mangi.eta.ui.model.UserMessageUi
 import kotlinx.coroutines.runBlocking

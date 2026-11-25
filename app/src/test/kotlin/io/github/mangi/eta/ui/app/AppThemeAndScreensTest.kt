@@ -92,6 +92,9 @@ import org.robolectric.annotation.LooperMode
 import org.robolectric.util.ReflectionHelpers
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import io.github.mangi.eta.ui.state.CharacterLibraryStore
+import io.github.mangi.eta.ui.state.CommunityCatalogStore
+import io.github.mangi.eta.ui.state.description
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = EtaApp::class, sdk = [36])

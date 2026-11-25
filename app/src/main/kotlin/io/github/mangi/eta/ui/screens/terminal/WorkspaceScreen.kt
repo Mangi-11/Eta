@@ -33,8 +33,8 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.app.WorkspaceEntry
-import io.github.mangi.eta.ui.app.WorkspaceFileStore
+import io.github.mangi.eta.ui.state.WorkspaceEntry
+import io.github.mangi.eta.ui.state.WorkspaceFileStore
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.PreferenceGroupItem
 import io.github.mangi.eta.ui.components.ScaffoldPage

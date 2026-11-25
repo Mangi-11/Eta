@@ -8,6 +8,8 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import io.github.mangi.eta.ui.state.ConsoleStore
+import io.github.mangi.eta.ui.state.UserTerminalStore
 
 /** 终端会话属于运行任务；Activity 重建或退出只断开界面，不终止用户启动的进程。 */
 internal class TerminalSessionHost private constructor(context: Context) {

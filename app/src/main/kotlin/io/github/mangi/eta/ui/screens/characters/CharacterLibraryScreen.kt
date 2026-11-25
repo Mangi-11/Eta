@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.roleplay.CharacterProfile
-import io.github.mangi.eta.ui.app.CharacterLibraryStore
+import io.github.mangi.eta.ui.state.CharacterLibraryStore
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.components.TopBarActionButton

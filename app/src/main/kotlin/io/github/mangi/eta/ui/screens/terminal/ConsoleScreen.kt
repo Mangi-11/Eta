@@ -42,9 +42,9 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.TerminalKey
 import io.github.mangi.eta.agent.terminal.TerminalModifiers
-import io.github.mangi.eta.ui.app.ConsoleStore
-import io.github.mangi.eta.ui.app.ConsoleUiState
-import io.github.mangi.eta.ui.app.UserTerminalStore
+import io.github.mangi.eta.ui.state.ConsoleStore
+import io.github.mangi.eta.ui.state.ConsoleUiState
+import io.github.mangi.eta.ui.state.UserTerminalStore
 import io.github.mangi.eta.ui.components.EtaMonospace
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

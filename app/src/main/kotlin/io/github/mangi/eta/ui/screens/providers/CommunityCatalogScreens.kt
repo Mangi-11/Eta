@@ -30,7 +30,7 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.data.provider.CommunityCatalog
 import io.github.mangi.eta.data.provider.CommunityCatalogProvider
 import io.github.mangi.eta.data.provider.CommunityCatalogSource
-import io.github.mangi.eta.ui.app.CommunityCatalogStore
+import io.github.mangi.eta.ui.state.CommunityCatalogStore
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.PreferenceGroupItem
 import io.github.mangi.eta.ui.components.ScaffoldPage

@@ -79,6 +79,7 @@ import top.yukonga.miuix.kmp.icon.glass.VolumeUp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import io.github.mangi.eta.ui.state.displayName
 
 /**
  * Agent App 统一壳层。

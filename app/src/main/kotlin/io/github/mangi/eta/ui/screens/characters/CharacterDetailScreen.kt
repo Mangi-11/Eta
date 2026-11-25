@@ -17,7 +17,7 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.roleplay.CharacterCardFormat
 import io.github.mangi.eta.agent.roleplay.CharacterMacros
 import io.github.mangi.eta.agent.roleplay.RoleplayBinding
-import io.github.mangi.eta.ui.app.CharacterLibraryStore
+import io.github.mangi.eta.ui.state.CharacterLibraryStore
 import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.ItemDescriptionDialog
 import io.github.mangi.eta.ui.components.ScaffoldPage

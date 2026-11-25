@@ -1,0 +1,864 @@
+package io.github.mangi.eta.ui.state
+
+import android.os.SystemClock
+import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
+import io.github.mangi.eta.agent.runtime.AgentTokenUsage
+import io.github.mangi.eta.agent.runtime.SearchSuggestionsBudget
+import io.github.mangi.eta.agent.subagent.AgentSubagentToolCatalog
+import io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot
+import io.github.mangi.eta.ui.model.AgentChatMessageUi
+import io.github.mangi.eta.ui.model.AgentMessageUi
+import io.github.mangi.eta.ui.model.SystemNoticeCode
+import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
+import io.github.mangi.eta.ui.model.ThinkingMessageUi
+import io.github.mangi.eta.ui.model.ToolActivityMessageUi
+import io.github.mangi.eta.ui.model.TokenUsageUi
+import io.github.mangi.eta.ui.model.ToolActivityStatusUi
+import io.github.mangi.eta.ui.model.UserMessageUi
+
+internal class AgentRunMessageProjector(
+    private val nowElapsedRealtime: () -> Long = { SystemClock.elapsedRealtime() },
+) {
+    private val thinkingStartedAt = mutableMapOf<String, Long>()
+
+    /**
+     * App 与系统助手浮层共用的事件到消息投影。无可见变化的事件原样返回同一列表，
+     * 调用方据此跳过保存与时间戳更新；补充输入的插入位置与持久化由调用方决定，这里不处理。
+     */
+    fun applyEvent(
+        runId: String,
+        event: AgentEvent,
+        messages: List<AgentChatMessageUi>,
+        replayEpochMs: Long? = null,
+    ): List<AgentChatMessageUi> = when (event) {
+        is AgentEvent.GuiControlChanged -> messages
+        is AgentEvent.AssistantBlockStart ->
+            startAssistantBlock(runId, event, messages, replayEpochMs = replayEpochMs)
+        is AgentEvent.AssistantBlockDelta -> when (event.kind) {
+            AgentEvent.AssistantBlockKind.TEXT ->
+                appendTextDelta(runId, event.round, event.index, event.delta, messages)
+            AgentEvent.AssistantBlockKind.THINKING ->
+                appendReasoningDelta(runId, event.round, event.index, event.delta, messages)
+            AgentEvent.AssistantBlockKind.TOOL_CALL -> messages
+        }
+        is AgentEvent.AssistantBlockEnd -> when (event.kind) {
+            AgentEvent.AssistantBlockKind.TEXT ->
+                finalizeTextBlock(runId, event.round, event.index, event.replacementContent, messages)
+            AgentEvent.AssistantBlockKind.THINKING ->
+                finalizeThinkingBlock(
+                    runId = runId,
+                    round = event.round,
+                    index = event.index,
+                    replacementContent = event.replacementContent,
+                    messages = messages,
+                    elapsedMs = event.elapsedMs,
+                )
+            AgentEvent.AssistantBlockKind.TOOL_CALL -> messages
+        }
+        is AgentEvent.SearchSuggestions -> attachSearchSuggestions(runId, event, messages)
+        is AgentEvent.UsageReceived -> attachUsage(runId, event.round, event.usage.toUi(), messages)
+        is AgentEvent.ToolStarted ->
+            startTool(runId, event, finalizeTextRound(runId, event.round, finalizeThinkingRound(runId, event.round, messages)))
+        is AgentEvent.ToolFinished -> finishTool(runId, event, messages)
+        is AgentEvent.SubagentProgress -> updateSubagentProgress(runId, event, messages)
+        is AgentEvent.HostedToolStarted ->
+            startHostedTool(runId, event, finalizeTextRound(runId, event.round, finalizeThinkingRound(runId, event.round, messages)))
+        is AgentEvent.HostedToolFinished -> finishHostedTool(runId, event, messages)
+        is AgentEvent.ContextCompaction -> {
+            val id = "assistant-$runId-compaction-${event.operationId}"
+            messages.filterNot { it.id == id } + SystemNoticeMessageUi(
+                id = id,
+                code = SystemNoticeCode.ContextCompaction,
+                detail = event.displayMessage,
+                contextTokens = event.tokensAfter,
+                running = event.phase == AgentEvent.ContextCompaction.PHASE_STARTED,
+                usage = event.usage?.takeUnless { it.isEmpty }?.toUi()?.copy(
+                    requestKind = AgentTokenUsage.REQUEST_KIND_COMPACTION,
+                ),
+                archiveId = event.archiveId,
+                tokensBefore = event.tokensBefore,
+            )
+        }
+        is AgentEvent.ModelRetryScheduled -> scheduleModelRetry(runId, event, messages)
+        is AgentEvent.RunFailed -> failRunningTools(event.reason, finalizeText(runId, finalizeThinking(runId, messages)))
+        is AgentEvent.AssistantReceived -> if (event.reasoningContent.isBlank()) messages else {
+            ensureCompletedThinking(runId, event.round, event.reasoningContent, messages)
+        }
+        is AgentEvent.RunFinished -> finalizeText(runId, finalizeThinking(runId, messages))
+        is AgentEvent.UserSupplementReceived,
+        is AgentEvent.RunStarted,
+        is AgentEvent.ProviderRequestStarted,
+        is AgentEvent.ProviderResponseStarted,
+        is AgentEvent.ToolImagesAttached,
+        is AgentEvent.RoundStarted,
+        -> messages
+    }
+
+    private fun attachSearchSuggestions(
+        runId: String,
+        event: AgentEvent.SearchSuggestions,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        val targetId = assistantMessageId(runId, event.round, event.index)
+        val target = messages.filterIsInstance<AgentMessageUi>().firstOrNull { it.id == targetId } ?: return messages
+        if (event.html in target.searchSuggestionsHtml) return messages
+        val budget = SearchSuggestionsBudget()
+        messages.filterIsInstance<AgentMessageUi>()
+            .filter { isAssistantMessageForRound(it.id, runId, event.round) }
+            .forEachIndexed { ordinal, message ->
+                message.searchSuggestionsHtml.forEach { budget.accept(event.round, ordinal, it) }
+            }
+        if (!budget.accept(event.round, messages.size, event.html)) return messages
+        return messages.map { message ->
+            if (message === target) target.copy(searchSuggestionsHtml = target.searchSuggestionsHtml + event.html) else message
+        }
+    }
+
+    /**
+     * 只补充 token 用量，不触碰 isStreaming：用量事件紧跟文本块结束，
+     * 改回流式会让渲染在流式/静态视图间反复切换并整段重渲染。
+     */
+    private fun attachUsage(
+        runId: String,
+        round: Int,
+        usage: TokenUsageUi,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        if (usage.isEmpty) return messages
+        val targetIndex = messages.indexOfLast { message ->
+            message is AgentMessageUi && isAssistantMessageForRound(message.id, runId, round)
+        }
+        if (targetIndex < 0) return messages
+        val turnStartIndex = messages.indexOfLast { message ->
+            message is UserMessageUi ||
+                (message is SystemNoticeMessageUi && message.code == SystemNoticeCode.ModelRetry && message.id.startsWith("assistant-$runId-retry-"))
+        }
+        return messages.mapIndexed { index, message ->
+            when {
+                index == targetIndex && message is AgentMessageUi -> message.copy(usage = usage)
+                index > turnStartIndex && index < targetIndex &&
+                    message is AgentMessageUi &&
+                    isAssistantMessageForRun(message.id, runId) &&
+                    message.usage != null -> message.copy(usage = null)
+                else -> message
+            }
+        }
+    }
+
+    /** 回放从该 run 的空轨迹重建；仅重排有回放事件的补充输入，旧 handoff 独有的输入必须保留。 */
+    fun resetForReplay(
+        runId: String,
+        messages: List<AgentChatMessageUi>,
+        replaySupplementIndexes: Set<Int> = emptySet(),
+    ): List<AgentChatMessageUi> {
+        if (runId.isBlank()) return messages
+        clearRun(runId)
+        val replaySupplementIds = replaySupplementIndexes.mapTo(mutableSetOf()) { index ->
+            AgentPendingResultRecovery.supplementMessageId(runId, index)
+        }
+        return messages.filterNot { message ->
+            when (message) {
+                is AgentMessageUi -> isAssistantMessageForRun(message.id, runId)
+                is ThinkingMessageUi -> message.id.startsWith("$runId-thinking-")
+                is ToolActivityMessageUi -> message.id.startsWith("$runId-tool-")
+                is SystemNoticeMessageUi ->
+                    isAssistantMessageForRun(message.id, runId) || message.id == "interrupted-$runId"
+                is UserMessageUi -> message.id in replaySupplementIds
+                else -> false
+            }
+        }
+    }
+
+    fun finishContextCompaction(
+        runId: String,
+        messages: List<AgentChatMessageUi>,
+        detail: String,
+    ): List<AgentChatMessageUi> = messages.map { message ->
+        if (message is SystemNoticeMessageUi && message.code == SystemNoticeCode.ContextCompaction &&
+            message.id.startsWith("assistant-$runId-compaction-") && message.running) {
+            message.copy(detail = detail, running = false)
+        } else message
+    }
+
+    fun scheduleModelRetry(
+        runId: String,
+        event: AgentEvent.ModelRetryScheduled,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        val finalized = finalizeTextRound(
+            runId, event.round, finalizeThinkingRound(runId, event.round, messages),
+        )
+        val notice = SystemNoticeMessageUi(
+            id = "assistant-$runId-retry-${event.round}",
+            code = SystemNoticeCode.ModelRetry,
+            detail = event.displayMessage,
+        )
+        return finalized.filterNot { it.id == notice.id } + notice
+    }
+
+    fun startAssistantBlock(
+        runId: String,
+        event: AgentEvent.AssistantBlockStart,
+        messages: List<AgentChatMessageUi>,
+        replayEpochMs: Long? = null,
+    ): List<AgentChatMessageUi> {
+        if (event.kind == AgentEvent.AssistantBlockKind.THINKING) {
+            recordThinkingStart(
+                thinkingId = thinkingMessageId(runId, event.round, event.index),
+                startedAtEpochMs = event.startedAtEpochMs,
+                replayEpochMs = replayEpochMs,
+            )
+        }
+        return transitionVisibleBlock(
+            runId = runId,
+            round = event.round,
+            kind = event.kind,
+            index = event.index,
+            messages = messages,
+        )
+    }
+
+    fun appendTextDelta(
+        runId: String,
+        round: Int,
+        index: Int,
+        delta: String,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        if (delta.isEmpty()) return messages
+
+        val transitioned = transitionVisibleBlock(
+            runId = runId,
+            round = round,
+            kind = AgentEvent.AssistantBlockKind.TEXT,
+            index = index,
+            messages = messages,
+        )
+        val assistantId = assistantMessageId(runId, round, index)
+        var updated = false
+        val next = transitioned.map { message ->
+            if (message is AgentMessageUi && message.id == assistantId) {
+                updated = true
+                message.copy(
+                    content = message.content + delta,
+                    isStreaming = true,
+                    renderMarkdown = false,
+                )
+            } else {
+                message
+            }
+        }
+        if (updated) return next
+
+        return next + AgentMessageUi(
+            id = assistantId,
+            content = delta,
+            isStreaming = true,
+            renderMarkdown = false,
+        )
+    }
+
+    fun appendReasoningDelta(
+        runId: String,
+        round: Int,
+        index: Int,
+        delta: String,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        if (delta.isEmpty()) return messages
+
+        val transitioned = transitionVisibleBlock(
+            runId = runId,
+            round = round,
+            kind = AgentEvent.AssistantBlockKind.THINKING,
+            index = index,
+            messages = messages,
+        )
+        val thinkingId = thinkingMessageId(runId, round, index)
+        val elapsedSeconds = elapsedSeconds(thinkingId)
+        var updated = false
+        val next = transitioned.map { message ->
+            if (message is ThinkingMessageUi && message.id == thinkingId) {
+                updated = true
+                message.copy(
+                    content = message.content + delta,
+                    isStreaming = true,
+                    elapsedSeconds = elapsedSeconds,
+                    collapsed = false,
+                )
+            } else {
+                message
+            }
+        }
+        if (updated) return next
+
+        return next + ThinkingMessageUi(
+            id = thinkingId,
+            content = delta,
+            isStreaming = true,
+            elapsedSeconds = elapsedSeconds,
+            collapsed = false,
+        )
+    }
+
+    fun ensureCompletedThinking(
+        runId: String,
+        round: Int,
+        content: String,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        if (messages.any {
+                it is ThinkingMessageUi && isThinkingMessageForRound(it.id, runId, round)
+            }
+        ) {
+            return finalizeThinkingRound(runId, round, messages)
+        }
+
+        val thinkingId = thinkingFallbackMessageId(runId, round)
+        return messages.insertBeforeFirstAssistant(
+            runId = runId,
+            round = round,
+            message = ThinkingMessageUi(
+                id = thinkingId,
+                content = content,
+                isStreaming = false,
+                elapsedSeconds = 0,
+                collapsed = true,
+            )
+        )
+    }
+
+    fun finalizeThinking(runId: String, messages: List<AgentChatMessageUi>): List<AgentChatMessageUi> {
+        if (messages.none { it is ThinkingMessageUi && it.isStreaming && it.id.startsWith("$runId-thinking-") }) {
+            return messages
+        }
+        return messages.map { message ->
+            if (message is ThinkingMessageUi && message.isStreaming && message.id.startsWith("$runId-thinking-")) {
+                message.finished()
+            } else {
+                message
+            }
+        }
+    }
+
+    /** 终态不依赖各块结束事件全部到齐；缺少工具结果时只能标为未知，不能推断执行成功。 */
+    fun finalizeRun(runId: String, messages: List<AgentChatMessageUi>): List<AgentChatMessageUi> =
+        finalizeText(runId, finalizeThinking(runId, messages)).map { message ->
+            if (
+                message is ToolActivityMessageUi &&
+                message.id.startsWith("$runId-tool-") &&
+                message.status == ToolActivityStatusUi.Running
+            ) {
+                message.copy(status = ToolActivityStatusUi.Unknown)
+            } else {
+                message
+            }
+        }
+
+    fun finalizeThinkingRound(
+        runId: String,
+        round: Int,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        if (messages.none { it is ThinkingMessageUi && it.isStreaming && isThinkingMessageForRound(it.id, runId, round) }) {
+            return messages
+        }
+        return messages.map { message ->
+            if (message is ThinkingMessageUi && message.isStreaming && isThinkingMessageForRound(message.id, runId, round)) {
+                message.finished()
+            } else {
+                message
+            }
+        }
+    }
+
+    fun finalizeThinkingBlock(
+        runId: String,
+        round: Int,
+        index: Int,
+        replacementContent: String?,
+        messages: List<AgentChatMessageUi>,
+        elapsedMs: Long? = null,
+    ): List<AgentChatMessageUi> {
+        val thinkingId = thinkingMessageId(runId, round, index)
+        var changed = false
+        val next = messages.map { message ->
+            if (message is ThinkingMessageUi && message.id == thinkingId) {
+                val updated = if (message.isStreaming) {
+                    message.finished(replacementContent, elapsedMs)
+                } else {
+                    thinkingStartedAt.remove(thinkingId)
+                    val nextContent = replacementContent ?: message.content
+                    val nextElapsed = elapsedMs
+                        ?.let { (it / 1000L).toInt().coerceAtLeast(0) }
+                        ?: message.elapsedSeconds
+                    if (nextContent != message.content || nextElapsed != message.elapsedSeconds) {
+                        message.copy(content = nextContent, elapsedSeconds = nextElapsed)
+                    } else {
+                        message
+                    }
+                }
+                if (updated !== message) changed = true
+                updated
+            } else {
+                message
+            }
+        }
+        return if (changed) next else messages
+    }
+
+    fun finalizeText(
+        runId: String,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> =
+        messages.map { message ->
+            if (message is AgentMessageUi && isAssistantMessageForRun(message.id, runId)) {
+                message.copy(
+                    content = message.content.trimEnd(),
+                    isStreaming = false,
+                    renderMarkdown = true,
+                )
+            } else {
+                message
+            }
+        }
+
+    fun finalizeTextRound(
+        runId: String,
+        round: Int,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        // 定稿时裁掉尾部空白：模型输出常以换行收尾，Markdown 渲染会把每个尾部
+        // 换行节点变成一段固定间距，在正文与后续工具卡片之间形成莫名的空行。
+        return messages.map { message ->
+            if (message is AgentMessageUi && isAssistantMessageForRound(message.id, runId, round)) {
+                message.copy(
+                    content = message.content.trimEnd(),
+                    isStreaming = false,
+                    renderMarkdown = true,
+                )
+            } else {
+                message
+            }
+        }
+    }
+
+    fun finalizeTextBlock(
+        runId: String,
+        round: Int,
+        index: Int,
+        replacementContent: String?,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        val assistantId = assistantMessageId(runId, round, index)
+        return messages.map { message ->
+            if (message is AgentMessageUi && message.id == assistantId) {
+                message.copy(
+                    content = replacementContent?.trimEnd() ?: message.content.trimEnd(),
+                    isStreaming = false,
+                    renderMarkdown = true,
+                )
+            } else {
+                message
+            }
+        }
+    }
+
+    fun startTool(
+        runId: String,
+        event: AgentEvent.ToolStarted,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        // 工具执行发生在对应 assistant 工具块完整返回之后；此时直接追加即可保留
+        // 工具前说明、工具活动与下一轮结果的真实时间顺序。
+        val message = ToolActivityMessageUi(
+            id = toolActivityMessageId(runId, event.round, event.toolCallId),
+            toolName = event.name,
+            status = ToolActivityStatusUi.Running,
+            argumentsSummary = event.argsPreview,
+            command = event.command,
+        )
+        if (messages.any { it.id == message.id }) return messages
+        return messages + message
+    }
+
+    fun finishTool(
+        runId: String,
+        event: AgentEvent.ToolFinished,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        val targetId = toolActivityMessageId(runId, event.round, event.toolCallId)
+        // success 字段优先；旧版本 Runtime/归档事件缺省时回退到摘要文本判断
+        val status = when (event.success) {
+            true -> ToolActivityStatusUi.Success
+            false -> ToolActivityStatusUi.Failed
+            null -> if (event.resultSummary.contains("ok=false", ignoreCase = true)) {
+                ToolActivityStatusUi.Failed
+            } else {
+                ToolActivityStatusUi.Success
+            }
+        }
+        val targetIndex = messages.indexOfLast { it is ToolActivityMessageUi && it.id == targetId }
+        if (targetIndex < 0) return messages
+
+        return messages.mapIndexed { index, message ->
+            if (index == targetIndex && message is ToolActivityMessageUi) {
+                val nextCommand = if (message.toolName == AgentSubagentToolCatalog.TOOL_NAME) {
+                    val incoming = event.command
+                    when {
+                        incoming == null -> message.command
+                        SubagentActivitySnapshot.decode(incoming) != null -> incoming
+                        else -> message.command
+                    }
+                } else {
+                    event.command ?: message.command
+                }
+                message.copy(
+                    status = status,
+                    command = nextCommand,
+                    resultSummary = event.resultSummary,
+                    imageCount = event.imageCount,
+                )
+            } else {
+                message
+            }
+        }
+    }
+
+    fun updateSubagentProgress(
+        runId: String,
+        event: AgentEvent.SubagentProgress,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        val targetId = toolActivityMessageId(runId, event.round, event.toolCallId)
+        val targetIndex = messages.indexOfLast { it is ToolActivityMessageUi && it.id == targetId }
+        if (targetIndex < 0) return messages
+        val target = messages[targetIndex] as? ToolActivityMessageUi ?: return messages
+        // 忽略终态后迟到进度、重复进度与损坏快照，避免把正常详情覆盖回退态。
+        if (target.status != ToolActivityStatusUi.Running) return messages
+        if (target.command == event.snapshotJson) return messages
+        if (SubagentActivitySnapshot.decode(event.snapshotJson) == null) return messages
+        return messages.mapIndexed { index, message ->
+            if (index == targetIndex && message is ToolActivityMessageUi) {
+                message.copy(command = event.snapshotJson)
+            } else {
+                message
+            }
+        }
+    }
+
+    fun startHostedTool(
+        runId: String,
+        event: AgentEvent.HostedToolStarted,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        val message = ToolActivityMessageUi(
+            id = toolActivityMessageId(runId, event.round, event.toolCallId),
+            toolName = event.name,
+            status = ToolActivityStatusUi.Running,
+            argumentsSummary = "",
+        )
+        return if (messages.any { it.id == message.id }) messages else messages + message
+    }
+
+    fun finishHostedTool(
+        runId: String,
+        event: AgentEvent.HostedToolFinished,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        val targetId = toolActivityMessageId(runId, event.round, event.toolCallId)
+        return messages.map { message ->
+            if (message is ToolActivityMessageUi && message.id == targetId) {
+                message.copy(
+                    status = if (event.success) ToolActivityStatusUi.Success else ToolActivityStatusUi.Failed,
+                    resultSummary = null,
+                )
+            } else {
+                message
+            }
+        }
+    }
+
+    fun failRunningTools(
+        reason: String,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> =
+        messages.map { message ->
+            if (message is ToolActivityMessageUi && message.status == ToolActivityStatusUi.Running) {
+                message.copy(
+                    status = ToolActivityStatusUi.Failed,
+                    resultSummary = reason.take(MAX_TOOL_RESULT_PREVIEW_CHARS),
+                )
+            } else {
+                message
+            }
+        }
+
+    fun interruptRunningTools(
+        reason: String,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> =
+        messages.map { message ->
+            if (message is ToolActivityMessageUi && message.status == ToolActivityStatusUi.Running) {
+                message.copy(
+                    status = ToolActivityStatusUi.Unknown,
+                    resultSummary = reason.take(MAX_TOOL_RESULT_PREVIEW_CHARS),
+                )
+            } else {
+                message
+            }
+        }
+
+    fun clearRun(runId: String) {
+        thinkingStartedAt.keys.removeAll { it.startsWith("$runId-thinking-") }
+    }
+
+    private fun ThinkingMessageUi.finished(
+        authoritativeContent: String? = null,
+        authoritativeElapsedMs: Long? = null,
+    ): ThinkingMessageUi {
+        val startedAt = thinkingStartedAt.remove(id)
+        val settledElapsedSeconds = authoritativeElapsedMs
+            ?.let { (it / 1000L).toInt().coerceAtLeast(0) }
+            ?: if (isStreaming) {
+                startedAt?.let {
+                    ((nowElapsedRealtime() - it) / 1000L).toInt().coerceAtLeast(0)
+                } ?: elapsedSeconds
+            } else {
+                elapsedSeconds
+            }
+        return copy(
+            content = authoritativeContent ?: content,
+            isStreaming = false,
+            elapsedSeconds = settledElapsedSeconds,
+            collapsed = true,
+        )
+    }
+
+    private fun recordThinkingStart(
+        thinkingId: String,
+        startedAtEpochMs: Long?,
+        replayEpochMs: Long?,
+    ) {
+        val nowElapsed = nowElapsedRealtime()
+        val startedElapsed = if (replayEpochMs != null && startedAtEpochMs != null) {
+            nowElapsed - (replayEpochMs - startedAtEpochMs).coerceAtLeast(0L)
+        } else {
+            nowElapsed
+        }
+        thinkingStartedAt.putIfAbsent(thinkingId, startedElapsed)
+    }
+
+    private fun elapsedSeconds(thinkingId: String): Int {
+        val startedAt = thinkingStartedAt.getOrPut(thinkingId, nowElapsedRealtime)
+        return ((nowElapsedRealtime() - startedAt) / 1000).toInt().coerceAtLeast(0)
+    }
+
+    private fun transitionVisibleBlock(
+        runId: String,
+        round: Int,
+        kind: AgentEvent.AssistantBlockKind,
+        index: Int,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        val activeAssistantId = if (kind == AgentEvent.AssistantBlockKind.TEXT) {
+            assistantMessageId(runId, round, index)
+        } else {
+            null
+        }
+        val activeThinkingId = if (kind == AgentEvent.AssistantBlockKind.THINKING) {
+            thinkingMessageId(runId, round, index)
+        } else {
+            null
+        }
+        return messages.map { message ->
+            when {
+                message is AgentMessageUi &&
+                    message.isStreaming &&
+                    isAssistantMessageForRound(message.id, runId, round) &&
+                    message.id != activeAssistantId ->
+                    message.copy(
+                        content = message.content.trimEnd(),
+                        isStreaming = false,
+                        renderMarkdown = true,
+                    )
+
+                message is ThinkingMessageUi &&
+                    message.isStreaming &&
+                    isThinkingMessageForRound(message.id, runId, round) &&
+                    message.id != activeThinkingId ->
+                    message.finished()
+
+                else -> message
+            }
+        }
+    }
+
+    private fun List<AgentChatMessageUi>.insertBeforeFirstAssistant(
+        runId: String,
+        round: Int,
+        message: AgentChatMessageUi,
+    ): List<AgentChatMessageUi> {
+        val assistantIndex = indexOfFirst {
+            it is AgentMessageUi && isAssistantMessageForRound(it.id, runId, round)
+        }
+        return if (assistantIndex >= 0) {
+            toMutableList().apply { add(assistantIndex, message) }
+        } else {
+            this + message
+        }
+    }
+
+    private fun assistantMessageId(runId: String, round: Int, index: Int): String =
+        "${assistantMessagePrefix(runId)}$round-$index"
+
+    private fun thinkingMessageId(runId: String, round: Int, index: Int): String =
+        "$runId-thinking-$round-$index"
+
+    private fun thinkingFallbackMessageId(runId: String, round: Int): String =
+        "$runId-thinking-$round-fallback"
+
+    private fun isAssistantMessageForRound(messageId: String, runId: String, round: Int): Boolean {
+        val legacyId = "${assistantMessagePrefix(runId)}$round"
+        return messageId == legacyId || messageId.startsWith("$legacyId-")
+    }
+
+    private fun isThinkingMessageForRound(messageId: String, runId: String, round: Int): Boolean {
+        val prefix = "$runId-thinking-$round"
+        return messageId == prefix || messageId.startsWith("$prefix-")
+    }
+
+    private fun toolActivityMessageId(runId: String, round: Int, toolCallId: String): String =
+        "$runId-tool-$round-${toolCallId.ifBlank { "unknown" }}"
+
+    companion object {
+        /**
+         * 手动压缩 run 的结果与压缩事件共用同一条时间线标记：事件标记已携带压缩前后的
+         * token 信息，成功时原样保留；仍在进行中、失败或事件缺失时才改写或补写。
+         */
+        fun mergeCompactionResultNotice(
+            runId: String,
+            messages: List<AgentChatMessageUi>,
+            ok: Boolean,
+            detail: String,
+        ): List<AgentChatMessageUi> {
+            val index = messages.indexOfLast {
+                it is SystemNoticeMessageUi && it.code == SystemNoticeCode.ContextCompaction &&
+                    it.id.startsWith("assistant-$runId-compaction-")
+            }
+            if (index < 0) {
+                return messages + SystemNoticeMessageUi(
+                    id = "assistant-$runId-compaction-result",
+                    code = SystemNoticeCode.ContextCompaction,
+                    detail = detail,
+                )
+            }
+            val notice = messages[index] as SystemNoticeMessageUi
+            if (ok && !notice.running) return messages
+            return messages.mapIndexed { i, message ->
+                if (i == index && message is SystemNoticeMessageUi) {
+                    message.copy(detail = detail, running = false)
+                } else {
+                    message
+                }
+            }
+        }
+
+        /** 终态只能补全最后一次重试之后的回答，不能覆盖已标记失败的半截输出。 */
+        fun resultTargetIndex(
+            runId: String,
+            messages: List<AgentChatMessageUi>,
+            includeNotices: Boolean = false,
+        ): Int {
+            val retryIndex = lastRetryIndex(runId, messages)
+            return messages.indices.lastOrNull { index ->
+                val message = messages[index]
+                index > retryIndex &&
+                    (message is AgentMessageUi || includeNotices && message is SystemNoticeMessageUi) &&
+                    isAssistantMessageForRun(message.id, runId)
+            } ?: -1
+        }
+
+        fun resultFallbackId(runId: String, messages: List<AgentChatMessageUi>): String {
+            val retry = messages.getOrNull(lastRetryIndex(runId, messages))
+            if (retry == null) return "assistant-$runId-1"
+            val round = retry.id.substringAfterLast('-').toIntOrNull()?.plus(1) ?: 1
+            return "assistant-$runId-$round-result"
+        }
+
+        /**
+         * 用终态补全最后一条回答：notice 为 null 时写入正文，否则替换为系统提示。
+         * 同一轮已有多个文本块时，流式内容已完整，终态正文只在当前块为空时补写。
+         */
+        fun applyResult(
+            runId: String,
+            messages: List<AgentChatMessageUi>,
+            content: String,
+            notice: SystemNoticeCode?,
+            detail: String? = null,
+        ): List<AgentChatMessageUi> {
+            val targetIndex = resultTargetIndex(runId, messages)
+            if (targetIndex < 0) {
+                val id = resultFallbackId(runId, messages)
+                return messages + if (notice == null) {
+                    AgentMessageUi(id = id, content = content, isStreaming = false, renderMarkdown = true)
+                } else {
+                    SystemNoticeMessageUi(id, notice, detail)
+                }
+            }
+            val target = messages[targetIndex] as AgentMessageUi
+            val replacement = if (notice != null) SystemNoticeMessageUi(target.id, notice, detail) else {
+                val round = target.id.assistantRound(runId)
+                val sameRoundBlocks = round?.let {
+                    messages.count { message -> message is AgentMessageUi && message.id.assistantRound(runId) == it }
+                } ?: 0
+                target.copy(
+                    content = if (sameRoundBlocks <= 1) content else target.content.ifBlank { content },
+                    isStreaming = false,
+                    renderMarkdown = true,
+                )
+            }
+            return messages.mapIndexed { index, message -> if (index == targetIndex) replacement else message }
+        }
+
+        private fun String.assistantRound(runId: String): Int? =
+            removePrefix(assistantMessagePrefix(runId))
+                .takeIf { it != this }
+                ?.substringBefore('-')
+                ?.toIntOrNull()
+
+        private fun lastRetryIndex(runId: String, messages: List<AgentChatMessageUi>): Int =
+            messages.indexOfLast {
+                it is SystemNoticeMessageUi && it.code == SystemNoticeCode.ModelRetry &&
+                    it.id.startsWith("assistant-$runId-retry-")
+            }
+
+        private fun assistantMessagePrefix(runId: String): String =
+            "assistant-$runId-"
+
+        private fun isAssistantMessageForRun(messageId: String, runId: String): Boolean =
+            messageId == "assistant-$runId" ||
+                messageId.startsWith(assistantMessagePrefix(runId))
+    }
+
+}
+
+private const val MAX_TOOL_RESULT_PREVIEW_CHARS = 48
+
+internal fun AgentTokenUsage.toUi(): TokenUsageUi =
+    TokenUsageUi(
+        contextTokens = contextTokens,
+        inputTokens = inputTokens,
+        outputTokens = outputTokens,
+        reasoningTokens = reasoningTokens,
+        cachedTokens = cachedTokens,
+        cacheWriteTokens = cacheWriteTokens,
+        requestKind = requestKind,
+        stepCount = stepCount,
+        llmMs = llmMs,
+        toolMs = toolMs,
+        ttftMs = ttftMs,
+        ttftSteps = ttftSteps,
+        decodeMs = decodeMs,
+        decodeTokens = decodeTokens,
+    )

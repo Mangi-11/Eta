@@ -40,7 +40,7 @@ import io.github.mangi.eta.agent.terminal.linux.PackageProfileInstallResult
 import io.github.mangi.eta.agent.terminal.linux.PackageProfileInstallStage
 import io.github.mangi.eta.data.repository.LinuxEnvironmentSettingsRepository
 import io.github.mangi.eta.ui.app.launchForegroundExecution
-import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
+import io.github.mangi.eta.ui.state.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.app.rememberExecutionNotificationRequest
 import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.navigation.AppRoute

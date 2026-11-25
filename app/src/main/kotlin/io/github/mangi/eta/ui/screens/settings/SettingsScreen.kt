@@ -81,7 +81,7 @@ import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.data.update.AppLatestRelease
 import io.github.mangi.eta.data.update.AppUpdateChecker
-import io.github.mangi.eta.ui.app.EnhancementSettingsHistory
+import io.github.mangi.eta.ui.state.EnhancementSettingsHistory
 import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.LanguagePreference
 import io.github.mangi.eta.ui.components.ScaffoldPage

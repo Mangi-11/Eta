@@ -63,8 +63,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.isLinux
-import io.github.mangi.eta.ui.app.TerminalBlockUi
-import io.github.mangi.eta.ui.app.UserTerminalStore
+import io.github.mangi.eta.ui.state.TerminalBlockUi
+import io.github.mangi.eta.ui.state.UserTerminalStore
 import io.github.mangi.eta.ui.components.EtaMonospace
 import io.github.mangi.eta.ui.components.TopLayer
 import io.github.mangi.eta.ui.components.ansiPlainText

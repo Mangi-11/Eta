@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import io.github.mangi.eta.data.repository.catalog.normalizedModelId
 
 internal object ProviderRepository {
     /** 配置与模型共用修改锁，避免旧连接的目录在认证方式切换后落库。 */

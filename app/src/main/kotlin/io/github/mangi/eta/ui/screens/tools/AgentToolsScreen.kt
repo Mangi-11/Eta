@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.sp
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.config.Prefs
-import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
+import io.github.mangi.eta.ui.state.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.components.PageBottomSpacer
 import io.github.mangi.eta.ui.components.PageScaffold
 import io.github.mangi.eta.ui.components.PreferenceGroupItem

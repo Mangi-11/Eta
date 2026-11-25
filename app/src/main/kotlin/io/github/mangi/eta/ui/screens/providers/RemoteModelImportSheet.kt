@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.Model
-import io.github.mangi.eta.data.repository.RemoteModelCatalog
+import io.github.mangi.eta.data.repository.catalog.RemoteModelCatalog
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.glassOverlayFieldBackgroundColor
 import io.github.mangi.eta.ui.model.ModelSearchQuery

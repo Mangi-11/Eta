@@ -61,8 +61,8 @@ import io.github.mangi.eta.data.repository.AppearanceSettingsRepository
 import io.github.mangi.eta.ui.MainActivity
 import io.github.mangi.eta.ui.conversationHandoffStartMode
 import io.github.mangi.eta.ui.app.AgentAppTheme
-import io.github.mangi.eta.ui.app.AgentRunEventCoalescer
-import io.github.mangi.eta.ui.app.AgentRunMessageProjector
+import io.github.mangi.eta.ui.state.AgentRunEventCoalescer
+import io.github.mangi.eta.ui.state.AgentRunMessageProjector
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.SystemNoticeCode

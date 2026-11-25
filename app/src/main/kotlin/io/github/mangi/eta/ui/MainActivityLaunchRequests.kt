@@ -7,7 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.core.content.IntentCompat
 import io.github.mangi.eta.agent.voice.EtaAssistantOverlayService
-import io.github.mangi.eta.ui.app.ArchivedConversationRequest
+import io.github.mangi.eta.ui.state.ArchivedConversationRequest
 import io.github.mangi.eta.ui.components.ACTION_SPEECH_SETTINGS
 internal fun conversationHandoffStartMode(): Int =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {

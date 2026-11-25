@@ -13,6 +13,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import io.github.mangi.eta.data.repository.catalog.RemoteModelCatalog
+import io.github.mangi.eta.data.repository.catalog.normalizedModelId
+import io.github.mangi.eta.data.repository.catalog.reconcileRemoteModels
 
 internal object ModelRepository {
     fun modelsByProviderFlow(providerId: String): Flow<List<Model>> =
