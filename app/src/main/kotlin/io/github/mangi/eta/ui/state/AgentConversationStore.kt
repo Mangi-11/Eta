@@ -214,7 +214,8 @@ internal object AgentConversationStore {
                 }),
                 input = "", isStreaming = false, thinkingEnabled = effort.enablesReasoning,
                 reasoningEffort = effort, modelId = conversation.modelId, isConversationLoaded = false,
-                conversationCharacterName = character?.first, conversationCharacterAvatarPath = character?.second,
+                conversationCharacterId = character?.id,
+                conversationCharacterName = character?.name, conversationCharacterAvatarPath = character?.avatarPath,
             )
             titles[conversation.id] = conversation.title.takeUnless { it == LEGACY_UNNAMED_TITLE }.orEmpty()
             updatedAt[conversation.id] = conversation.updatedAt
@@ -346,20 +347,62 @@ internal object AgentConversationStore {
         } }),
         history = emptyList(), journal = emptyList(), roleplay = null, roleplayMessages = RoleplayMessageState(),
         appliedRuntimeRunIds = emptyList(), isConversationLoaded = false, messageStartIndex = 0, hasEarlierMessages = false,
+        conversationCharacterId = state.roleplay?.characterId ?: state.conversationCharacterId,
         conversationCharacterName = state.roleplay?.characterName ?: state.conversationCharacterName,
         conversationCharacterAvatarPath = state.roleplay?.avatarPath ?: state.conversationCharacterAvatarPath,
         roleplayOriginalContents = emptyMap(),
     )
 
-    private suspend fun loadCharacterSummary(dao: ConversationDao, conversationId: String): Pair<String?, String?>? {
+    suspend fun syncCharacterBindings(
+        context: Context,
+        conversationIds: Set<String>,
+        characterId: String,
+        cardSnapshotJson: String,
+        characterName: String,
+        avatarPath: String?,
+    ) {
+        if (conversationIds.isEmpty()) return
+        val appContext = context.applicationContext
+        saveMutex.withLock {
+            withContext(Dispatchers.IO) {
+                val database = EtaDatabase.get(appContext)
+                val dao = database.conversationDao()
+                database.withTransaction {
+                    for (conversationId in conversationIds) {
+                        val raw = dao.roleplayJson(conversationId)?.takeIf(String::isNotBlank) ?: continue
+                        val binding = json.decodeFromString<RoleplayBinding>(raw)
+                        if (binding.characterId != characterId) continue
+                        val updated = binding.copy(
+                            cardSnapshotJson = cardSnapshotJson,
+                            characterName = characterName,
+                            avatarPath = avatarPath,
+                        )
+                        if (updated != binding) {
+                            dao.updateRoleplayJson(conversationId, json.encodeToString(updated))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private data class CharacterSummary(
+        val id: String?,
+        val name: String?,
+        val avatarPath: String?,
+    )
+
+    private suspend fun loadCharacterSummary(dao: ConversationDao, conversationId: String): CharacterSummary? {
         val stored = dao.roleplayJsonRow(conversationId)?.takeIf { it.isNotBlank() } ?: return null
         return dao.openTextStream("conversations", conversationId, "roleplay", stored).use { stream ->
             JsonReader(stream.reader(Charsets.UTF_8)).use { reader ->
+                var id: String? = null
                 var name: String? = null
                 var avatarPath: String? = null
                 reader.beginObject()
                 while (reader.hasNext()) {
                     when (reader.nextName()) {
+                        "characterId" -> id = reader.nextString()
                         "characterName" -> name = reader.nextString()
                         "avatarPath" -> if (reader.peek() == JsonToken.NULL) reader.nextNull() else avatarPath = reader.nextString()
                         else -> reader.skipValue()
@@ -367,7 +410,7 @@ internal object AgentConversationStore {
                 }
                 reader.endObject()
                 check(reader.peek() == JsonToken.END_DOCUMENT) { "Invalid roleplay payload trailing data" }
-                name to avatarPath
+                CharacterSummary(id = id, name = name, avatarPath = avatarPath)
             }
         }
     }

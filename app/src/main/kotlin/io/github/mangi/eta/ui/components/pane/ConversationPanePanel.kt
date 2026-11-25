@@ -518,7 +518,7 @@ private fun ConversationHistoryRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                // 标题与角色名相同（如未改名的角色会话）时不再重复第二行。
+                // 标题与角色名相同（如尚未发起首轮对话的角色会话）时不再重复第二行。
                 conversation.characterName?.takeIf { it != title }?.let { name ->
                     Text(
                         text = name,

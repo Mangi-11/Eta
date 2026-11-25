@@ -26,6 +26,10 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 
 internal object CharacterRepository {
@@ -33,6 +37,12 @@ internal object CharacterRepository {
     private const val SEED_PREFS = "eta_roleplay"
     private const val KEY_DEFAULT_CHARACTER_SEEDED = "default_character_seeded"
     @Volatile private var context: Context? = null
+    private val characterUpdatesFlow = MutableSharedFlow<CharacterProfile>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    fun characterUpdates(): SharedFlow<CharacterProfile> = characterUpdatesFlow.asSharedFlow()
 
     /** 仅绑定上下文；普通工作台启动不读取角色库。 */
     fun initialize(context: Context) { this.context = context.applicationContext }
@@ -79,6 +89,7 @@ internal object CharacterRepository {
             discardNewAvatar(avatar, failure)
             throw failure
         }
+        characterUpdatesFlow.tryEmit(saved)
         saved
     }
 

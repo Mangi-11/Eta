@@ -110,6 +110,7 @@ internal class ConversationSummaryProjector(
         contentMatchCache.keys.retainAll(conversationsById.keys)
         return summaries.filter { summary ->
             summary.title.contains(query, ignoreCase = true) ||
+                summary.characterName?.contains(query, ignoreCase = true) == true ||
                 summary.preview.contains(query, ignoreCase = true) ||
                 summary.id in persistedSearchMatches ||
                 conversationContentMatches(conversationsById, summary.id, query)

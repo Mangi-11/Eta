@@ -75,6 +75,17 @@ internal interface ConversationDao : ChunkedTextDao {
         restoreText("conversations", conversationId, "roleplay", it)
     }
 
+    @Query("UPDATE conversations SET roleplay_json = :roleplayJson WHERE id = :conversationId")
+    suspend fun updateRoleplayJsonRow(conversationId: String, roleplayJson: String)
+
+    @Transaction
+    suspend fun updateRoleplayJson(conversationId: String, roleplayJson: String) {
+        updateRoleplayJsonRow(
+            conversationId,
+            storeText("conversations", conversationId, "roleplay", roleplayJson),
+        )
+    }
+
     @Query("SELECT * FROM conversation_messages ORDER BY conversation_id ASC, sort_index ASC")
     suspend fun messageRows(): List<ConversationMessageEntity>
 
