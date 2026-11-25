@@ -2,12 +2,8 @@ package io.github.mangi.eta.ui.state
 
 import io.github.mangi.eta.agent.model.AgentContextSnapshot
 
-import android.content.ContentResolver
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
-import android.net.Uri
-import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,11 +11,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.agent.device.AgentFileReferenceGateway
 import io.github.mangi.eta.agent.device.RootAccess
-import io.github.mangi.eta.agent.media.AgentImageCodec
 import io.github.mangi.eta.agent.model.AgentFileReference
-import io.github.mangi.eta.agent.model.AgentFileReferenceKind
 import io.github.mangi.eta.agent.model.AgentFileReferencePolicy
 import io.github.mangi.eta.agent.model.AgentFileReferencePromptCodec
 import io.github.mangi.eta.agent.model.provider.AgentModelClient
@@ -32,7 +25,6 @@ import io.github.mangi.eta.agent.roleplay.RoleplayMessageState
 import io.github.mangi.eta.data.repository.ConversationBranchUnavailable
 import io.github.mangi.eta.data.repository.CharacterRepository
 import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
-import io.github.mangi.eta.agent.runtime.GuiControlStatus
 import io.github.mangi.eta.agent.runtime.AgentConversationIdentity
 import io.github.mangi.eta.agent.runtime.AgentConversationIdentity.archiveConversationId
 import io.github.mangi.eta.agent.browser.BrowserSessionRegistry
@@ -62,9 +54,7 @@ import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
-import io.github.mangi.eta.ui.model.ConversationModeUi
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
-import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import io.github.mangi.eta.ui.model.ConversationHistoryLoadState
 import io.github.mangi.eta.ui.model.MessageEditUiState
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
@@ -72,11 +62,7 @@ import io.github.mangi.eta.ui.model.PendingImageUi
 import io.github.mangi.eta.ui.model.QueuedMessageUi
 import io.github.mangi.eta.ui.model.SystemNoticeCode
 import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
-import io.github.mangi.eta.ui.model.ThinkingMessageUi
-import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.UserMessageUi
-import io.github.mangi.eta.ui.model.contentMatches
-import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
@@ -123,7 +109,21 @@ internal class AgentAppState(
     private var providers: List<ProviderSetting> = emptyList()
     private var defaultModelId: String? = null
     private var defaultProviderId: String? = null
-    private var fileAttachmentOwnerVersion = 0L
+    private val attachmentController = AgentAttachmentController(
+        appContext = appContext,
+        scope = scope,
+        currentHomeState = { homeState },
+        selectedConversationId = { selectedConversationId },
+        createConversation = ::createConversation,
+        updateCurrentConversation = { next, updateTimestamp ->
+            updateCurrentConversation(next, updateTimestamp = updateTimestamp)
+        },
+    )
+    private val summaryProjector = ConversationSummaryProjector(
+        appContext = appContext,
+        noticeText = ::noticeText,
+        guiStatus = runStore::guiStatus,
+    )
     private val conversationLoadMutex = Mutex()
     private val conversationContentPins = mutableMapOf<String, Int>()
     private var conversationSelectionJob: Job? = null
@@ -393,7 +393,7 @@ internal class AgentAppState(
             conversationSelectionJob?.cancel()
             isLoadingConversation = false
             conversationLoadFailed = false
-            contentMatchCache.clear()
+            summaryProjector.clearCache()
             conversationSearchJob?.cancel()
             persistedSearchMatches = emptySet()
             titleGenerationJobs.values.forEach(Job::cancel)
@@ -407,7 +407,7 @@ internal class AgentAppState(
             conversationUpdatedAt = snapshot.updatedAt
             conversationPinnedIds = snapshot.pinnedIds
             conversationPersistence = AgentConversationPersistence(snapshot)
-            fileAttachmentOwnerVersion += 1
+            attachmentController.invalidatePendingOwner()
             currentDraftReasoningCustomized = false
             homeState = selectedConversationId
                 ?.let(conversationsById::get)
@@ -974,7 +974,7 @@ internal class AgentAppState(
         conversationPaneState = conversationPaneState.copy(searchQuery = query)
         conversationSearchJob?.cancel()
         persistedSearchMatches = emptySet()
-        contentMatchCache.clear()
+        summaryProjector.clearCache()
         refreshConversationSummaries()
         if (query.isBlank()) return
         conversationSearchJob = scope.launch {
@@ -999,7 +999,7 @@ internal class AgentAppState(
         val selectionVersion = ++conversationSelectionVersion
         cancelHistoryPageLoad()
         conversationSelectionJob?.cancel()
-        fileAttachmentOwnerVersion += 1
+        attachmentController.invalidatePendingOwner()
         currentDraftReasoningCustomized = false
         selectedConversationId = conversationId
         homeState = state
@@ -1191,7 +1191,7 @@ internal class AgentAppState(
                 if (id == selectedConversationId || id in conversationContentPins ||
                     runStore.activeRunId(id) != null || conversationsById[id] !== state) continue
                 conversationsById = conversationsById + (id to AgentConversationStore.unloadConversation(state))
-                contentMatchCache.remove(id)
+                summaryProjector.evict(id)
             }
         }
     }
@@ -1203,7 +1203,7 @@ internal class AgentAppState(
         isLoadingConversation = false
         conversationLoadFailed = false
         if (homeState.messageEdit != null) cancelMessageEdit()
-        fileAttachmentOwnerVersion += 1
+        attachmentController.invalidatePendingOwner()
         currentDraftReasoningCustomized = false
         selectedConversationId = null
         homeState = emptyChatState(defaultReasoningEffort())
@@ -1337,7 +1337,7 @@ internal class AgentAppState(
             conversationSelectionJob?.cancel()
             isLoadingConversation = false
             conversationLoadFailed = false
-            fileAttachmentOwnerVersion += 1
+            attachmentController.invalidatePendingOwner()
             val nextId = conversationsById.keys.firstOrNull()
             if (nextId != null) {
                 selectedConversationId = nextId
@@ -1872,7 +1872,7 @@ internal class AgentAppState(
             conversationsById = conversationsById - conversationId
             conversationTitles = conversationTitles - conversationId
             conversationUpdatedAt = conversationUpdatedAt - conversationId
-            fileAttachmentOwnerVersion += 1
+            attachmentController.invalidatePendingOwner()
             currentDraftReasoningCustomized = false
             selectedConversationId = null
             homeState = emptyChatState(defaultReasoningEffort())
@@ -2152,344 +2152,19 @@ internal class AgentAppState(
         ).show()
     }
 
-    fun attachImage(uri: String) {
-        scope.launch(Dispatchers.IO) {
-            try {
-                val staged = AgentImageCodec.stageAttachment(
-                    context = appContext,
-                    value = uri,
-                    source = "user_attach",
-                )
-                val image = when (staged) {
-                    is AgentImageCodec.StageResult.Success -> staged.image
-                    AgentImageCodec.StageResult.InsufficientStorage -> {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(
-                                appContext,
-                                appContext.getString(R.string.capability_import_insufficient_storage),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                        return@launch
-                    }
-                    AgentImageCodec.StageResult.InvalidImage -> {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(
-                                appContext,
-                                appContext.getString(R.string.state_ui_unable_to_read_this_image_please_try_again_or_us_d94978),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                        return@launch
-                    }
-                }
-                val preview = AgentImageCodec.previewFromReference(appContext, image)
-                if (preview == null) {
-                    deleteStagedAttachmentIfLocal(image.reference)
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            appContext,
-                            appContext.getString(R.string.state_ui_unable_to_read_this_image_please_try_again_or_us_d94978),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                    return@launch
-                }
-                val pending = PendingImageUi(
-                    id = "img-${UUID.randomUUID()}",
-                    // 后续发送直接对私有暂存文件开只读 fd 零拷贝传输，既脱离 Photo Picker URI 生命周期，
-                    // 也不在 UI 堆内存中囤积整张原图的 Base64。
-                    uri = image.reference,
-                    dataUrl = preview.reference,
-                    mimeType = image.mimeType,
-                )
-                withContext(Dispatchers.Main) {
-                    updateCurrentConversation(homeState.copy(pendingImages = homeState.pendingImages + pending))
-                }
-            } finally {
-                val selectedUri = Uri.parse(uri)
-                if (selectedUri.scheme == ContentResolver.SCHEME_CONTENT) {
-                    runCatching {
-                        appContext.contentResolver.releasePersistableUriPermission(
-                            selectedUri,
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                        )
-                    }
-                }
-            }
-        }
-    }
+    fun attachImage(uri: String) = attachmentController.attachImage(uri)
 
-    private fun deleteStagedAttachmentIfLocal(reference: String) {
-        if (reference.startsWith("/")) {
-            runCatching { File(reference).delete() }
-        }
-    }
+    fun removePendingImage(id: String) = attachmentController.removePendingImage(id)
 
-    fun removePendingImage(id: String) {
-        updateCurrentConversation(homeState.copy(pendingImages = homeState.pendingImages.filterNot { it.id == id }))
-    }
+    fun attachFiles(uris: List<String>) = attachmentController.attachFiles(uris)
 
-    fun attachFiles(uris: List<String>) {
-        if (uris.isEmpty()) return
-        resolveAndAttachFileReferences {
-            val gateway = AgentFileReferenceGateway(appContext, AndroidAgentLogger)
-            uris.map { uri ->
-                gateway.resolveDocumentUri(
-                    uri = Uri.parse(uri),
-                    expectedKind = AgentFileReferenceKind.File,
-                )
-            }
-        }
-    }
+    fun attachFolder(uri: String) = attachmentController.attachFolder(uri)
 
-    fun attachFolder(uri: String) {
-        resolveAndAttachFileReferences {
-            val gateway = AgentFileReferenceGateway(appContext, AndroidAgentLogger)
-            listOf(
-                gateway.resolveDocumentUri(
-                    uri = Uri.parse(uri),
-                    expectedKind = AgentFileReferenceKind.Directory,
-                )
-            )
-        }
-    }
+    fun attachFilePath(path: String) = attachmentController.attachFilePath(path)
 
-    fun attachFilePath(path: String) {
-        resolveAndAttachFileReferences {
-            listOf(AgentFileReferenceGateway(AndroidAgentLogger).resolveAbsolutePath(path))
-        }
-    }
+    fun removePendingFileReference(id: String) = attachmentController.removePendingFileReference(id)
 
-    fun removePendingFileReference(id: String) {
-        updateCurrentConversation(
-            homeState.copy(
-                pendingFileReferences = homeState.pendingFileReferences.filterNot { it.id == id }
-            )
-        )
-    }
-
-    fun acceptSharedContent(request: IncomingShareRequest) {
-        val canReuseCurrentDraft = homeState.isConversationLoaded &&
-            homeState.roleplay == null &&
-            selectedConversationId?.isReadOnlyExternalArchiveConversation() != true &&
-            homeState.messages.isEmpty() &&
-            !homeState.hasEarlierMessages &&
-            !homeState.isStreaming &&
-            !homeState.isCompacting &&
-            homeState.messageEdit == null &&
-            homeState.input.isBlank() &&
-            homeState.pendingImages.isEmpty() &&
-            homeState.pendingFileReferences.isEmpty() &&
-            homeState.queuedMessages.isEmpty()
-        if (!canReuseCurrentDraft) {
-            createConversation()
-        }
-        request.text?.takeIf(String::isNotBlank)?.let { sharedText ->
-            val mergedInput = when {
-                homeState.input.isBlank() -> sharedText
-                else -> homeState.input.trimEnd() + "\n" + sharedText
-            }
-            updateCurrentConversation(
-                homeState.copy(
-                    input = mergedInput,
-                    inputSyncVersion = homeState.inputSyncVersion + 1,
-                    focusInputOnSync = false,
-                ),
-                updateTimestamp = false,
-            )
-        }
-        if (request.uris.isEmpty()) return
-        val ownerVersion = fileAttachmentOwnerVersion
-        scope.launch(Dispatchers.IO) {
-            val gateway = AgentFileReferenceGateway(appContext, AndroidAgentLogger)
-            val resolvedImages = mutableListOf<PendingImageUi>()
-            val resolvedFileReferences = mutableListOf<AgentFileReference>()
-            val failures = mutableListOf<AgentFileReferenceGateway.Error>()
-            request.uris.forEach { rawUri ->
-                val uri = Uri.parse(rawUri)
-                if (isSharedImageCandidate(uri, request.mimeType, isSingleUri = request.uris.size == 1)) {
-                    when (
-                        val staged = AgentImageCodec.stageAttachment(
-                            context = appContext,
-                            value = rawUri,
-                            source = "user_attach",
-                        )
-                    ) {
-                        is AgentImageCodec.StageResult.Success -> {
-                            val preview = AgentImageCodec.previewFromReference(appContext, staged.image)
-                            if (preview != null) {
-                                resolvedImages += PendingImageUi(
-                                    id = "img-${UUID.randomUUID()}",
-                                    uri = staged.image.reference,
-                                    dataUrl = preview.reference,
-                                    mimeType = staged.image.mimeType,
-                                )
-                                return@forEach
-                            }
-                            deleteStagedAttachmentIfLocal(staged.image.reference)
-                        }
-                        AgentImageCodec.StageResult.InsufficientStorage -> {
-                            failures += AgentFileReferenceGateway.Error.InsufficientStorage
-                            return@forEach
-                        }
-                        AgentImageCodec.StageResult.InvalidImage -> Unit
-                    }
-                }
-                when (val resolution = resolveSharedFileUri(gateway, uri)) {
-                    is AgentFileReferenceGateway.Resolution.Success -> resolvedFileReferences += resolution.reference
-                    is AgentFileReferenceGateway.Resolution.Failure -> failures += resolution.error
-                }
-            }
-            withContext(Dispatchers.Main) {
-                if (ownerVersion != fileAttachmentOwnerVersion) {
-                    Toast.makeText(
-                        appContext,
-                        appContext.getString(R.string.state_ui_conversation_switched_selected_path_not_added_5bf91e),
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                    return@withContext
-                }
-                val existingPaths = homeState.pendingFileReferences
-                    .mapTo(mutableSetOf()) { it.reference.absolutePath }
-                val fileAdditions = resolvedFileReferences
-                    .distinctBy { it.absolutePath }
-                    .filter { existingPaths.add(it.absolutePath) }
-                    .map { reference ->
-                        PendingFileReferenceUi(
-                            id = "file-${UUID.randomUUID()}",
-                            reference = reference,
-                        )
-                    }
-                if (resolvedImages.isNotEmpty() || fileAdditions.isNotEmpty()) {
-                    updateCurrentConversation(
-                        homeState.copy(
-                            pendingImages = homeState.pendingImages + resolvedImages,
-                            pendingFileReferences = homeState.pendingFileReferences + fileAdditions,
-                        ),
-                        updateTimestamp = false,
-                    )
-                }
-                val addedCount = resolvedImages.size + fileAdditions.size
-                val message = when {
-                    failures.size == 1 && addedCount == 0 -> failures.single().userMessage
-                    failures.isNotEmpty() -> appContext.resources.getQuantityString(
-                        R.plurals.file_references_added_with_failures,
-                        failures.size,
-                        addedCount,
-                        failures.size,
-                    )
-                    addedCount == 0 && resolvedFileReferences.isNotEmpty() ->
-                        appContext.getString(R.string.state_ui_the_selected_path_has_been_added_42b432)
-                    else -> null
-                }
-                if (message != null) {
-                    Toast.makeText(appContext, message, Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    private fun isSharedImageCandidate(
-        uri: Uri,
-        intentMimeType: String?,
-        isSingleUri: Boolean,
-    ): Boolean {
-        val resolverType = if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
-            runCatching { appContext.contentResolver.getType(uri) }.getOrNull()
-        } else {
-            null
-        }
-        if (resolverType != null && resolverType != "*/*" && resolverType != "application/octet-stream") {
-            return resolverType.startsWith("image/", ignoreCase = true)
-        }
-        val path = uri.lastPathSegment ?: uri.path.orEmpty()
-        val extension = path.substringAfterLast('.', "").lowercase()
-        if (extension in SHARED_IMAGE_EXTENSIONS) return true
-        return isSingleUri && intentMimeType?.startsWith("image/", ignoreCase = true) == true
-    }
-
-    private fun resolveSharedFileUri(
-        gateway: AgentFileReferenceGateway,
-        uri: Uri,
-    ): AgentFileReferenceGateway.Resolution = when (uri.scheme) {
-        ContentResolver.SCHEME_FILE -> gateway.resolveAbsolutePath(
-            rawPath = uri.path.orEmpty(),
-            expectedKind = AgentFileReferenceKind.File,
-        )
-        else -> gateway.resolveDocumentUri(
-            uri = uri,
-            expectedKind = AgentFileReferenceKind.File,
-        )
-    }
-
-    private fun resolveAndAttachFileReferences(
-        resolver: () -> List<AgentFileReferenceGateway.Resolution>,
-    ) {
-        val ownerVersion = fileAttachmentOwnerVersion
-        scope.launch(Dispatchers.IO) {
-            val resolutions = resolver()
-            val references = resolutions.mapNotNull { resolution ->
-                (resolution as? AgentFileReferenceGateway.Resolution.Success)?.reference
-            }
-            val failures = resolutions.mapNotNull { resolution ->
-                (resolution as? AgentFileReferenceGateway.Resolution.Failure)?.error
-            }
-            withContext(Dispatchers.Main) {
-                if (ownerVersion != fileAttachmentOwnerVersion) {
-                    Toast.makeText(appContext, appContext.getString(R.string.state_ui_conversation_switched_selected_path_not_added_5bf91e), Toast.LENGTH_SHORT).show()
-                    return@withContext
-                }
-                val existingPaths = homeState.pendingFileReferences
-                    .mapTo(mutableSetOf()) { it.reference.absolutePath }
-                val additions = references
-                    .distinctBy { it.absolutePath }
-                    .filter { existingPaths.add(it.absolutePath) }
-                    .map { reference ->
-                        PendingFileReferenceUi(
-                            id = "file-${UUID.randomUUID()}",
-                            reference = reference,
-                        )
-                    }
-                if (additions.isNotEmpty()) {
-                    updateCurrentConversation(
-                        homeState.copy(
-                            pendingFileReferences = homeState.pendingFileReferences + additions
-                        )
-                    )
-                }
-                val message = when {
-                    failures.size == 1 && references.isEmpty() -> failures.single().userMessage
-                    failures.isNotEmpty() -> appContext.resources.getQuantityString(
-                        R.plurals.file_references_added_with_failures,
-                        failures.size,
-                        additions.size,
-                        failures.size,
-                    )
-                    additions.isEmpty() -> appContext.getString(R.string.state_ui_the_selected_path_has_been_added_42b432)
-                    else -> null
-                }
-                if (message != null) {
-                    Toast.makeText(appContext, message, Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    private val AgentFileReferenceGateway.Error.userMessage: String
-        get() = when (this) {
-            AgentFileReferenceGateway.Error.UnsupportedDocumentProvider ->
-                appContext.getString(R.string.capability_import_denied)
-            AgentFileReferenceGateway.Error.InvalidPath -> appContext.getString(R.string.state_ui_please_enter_a_valid_absolute_path_6afeb4)
-            AgentFileReferenceGateway.Error.PathNotFound -> appContext.getString(R.string.state_ui_the_path_does_not_exist_or_is_no_longer_accessib_a9776e)
-            AgentFileReferenceGateway.Error.UnsupportedFileType -> appContext.getString(R.string.state_ui_only_supports_normal_files_and_folders_4adea0)
-            AgentFileReferenceGateway.Error.TypeMismatch -> appContext.getString(R.string.state_ui_the_selected_project_type_does_not_match_3a5c49)
-            AgentFileReferenceGateway.Error.RootUnavailable -> appContext.getString(R.string.state_ui_root_is_not_available_and_the_path_cannot_be_ver_fc4c81)
-            AgentFileReferenceGateway.Error.AccessDenied -> appContext.getString(R.string.capability_import_denied)
-            AgentFileReferenceGateway.Error.ImportFailed -> appContext.getString(R.string.capability_import_failed)
-            AgentFileReferenceGateway.Error.InsufficientStorage -> appContext.getString(R.string.capability_import_insufficient_storage)
-            AgentFileReferenceGateway.Error.ValidationTimedOut -> appContext.getString(R.string.state_ui_path_verification_timed_out_please_try_again_703687)
-        }
+    fun acceptSharedContent(request: IncomingShareRequest) = attachmentController.acceptSharedContent(request)
 
     fun stopCurrentRun() {
         val runId = runStore.activeRunId(selectedConversationId) ?: return
@@ -2902,95 +2577,17 @@ internal class AgentAppState(
     }
 
     private fun refreshConversationSummaries() {
-        val summaries = conversationsById.entries
-            .sortedWith(
-                compareByDescending<Map.Entry<String, AgentChatHomeUiState>> { (id, _) ->
-                    id in conversationPinnedIds
-                }.thenByDescending { (id, _) ->
-                    conversationUpdatedAt[id] ?: 0L
-                }
-            )
-            .map { (id, state) ->
-                val lastMessage = state.messages.lastOrNull()
-                ConversationSummaryUi(
-                    id = id,
-                    title = conversationTitles[id].orEmpty().ifBlank {
-                        appContext.getString(R.string.conversation_unnamed)
-                    },
-                    preview = when (lastMessage) {
-                        is UserMessageUi -> AgentFileReferencePromptCodec
-                            .parse(lastMessage.content)
-                            .let { parsed ->
-                                AgentFileReferencePolicy.titleSource(
-                                    request = parsed.request,
-                                    references = parsed.references,
-                                )
-                            }
-                        is AgentMessageUi -> lastMessage.content.ifBlank {
-                            appContext.getString(R.string.conversation_preview_reasoning)
-                        }
-                        is SystemNoticeMessageUi -> noticeText(lastMessage.code)
-                        is ThinkingMessageUi -> appContext.getString(R.string.conversation_preview_reasoning)
-                        is ToolActivityMessageUi -> appContext.getString(
-                            R.string.conversation_preview_tool_call,
-                            lastMessage.toolName,
-                        )
-                        else -> appContext.getString(R.string.conversation_preview_empty)
-                    }.take(MAX_PREVIEW_CHARS),
-                    timeLabel = if (state.isStreaming) {
-                        appContext.getString(R.string.time_now)
-                    } else {
-                        conversationUpdatedAt[id]?.let { timestamp ->
-                            ConversationTimeLabels.label(
-                                timestampMillis = timestamp,
-                                locale = appContext.resources.configuration.locales[0],
-                                use24HourClock = DateFormat.is24HourFormat(appContext),
-                                yesterdayLabel = appContext.getString(R.string.time_yesterday),
-                                recentLabel = appContext.getString(R.string.time_recent),
-                            )
-                        } ?: appContext.getString(R.string.time_recent)
-                    },
-                    updatedAtMillis = conversationUpdatedAt[id] ?: 0L,
-                    mode = ConversationModeUi.Chat,
-                    isPinned = id in conversationPinnedIds,
-                    characterName = state.roleplay?.characterName ?: state.conversationCharacterName,
-                    characterAvatarPath = state.roleplay?.avatarPath ?: state.conversationCharacterAvatarPath,
-                    isActiveRun = state.isStreaming,
-                    runStatus = when (runStore.guiStatus(id)) {
-                        GuiControlStatus.Waiting -> appContext.getString(R.string.run_waiting_for_gui)
-                        GuiControlStatus.UserPaused -> appContext.getString(R.string.run_gui_user_paused)
-                        else -> null
-                    },
-                )
-            }
-        val query = conversationPaneState.searchQuery.trim()
         conversationPaneState = conversationPaneState.copy(
             selectedConversationId = selectedConversationId,
-            conversations = if (query.isBlank()) {
-                summaries
-            } else {
-                contentMatchCache.keys.retainAll(conversationsById.keys)
-                summaries.filter { summary ->
-                    summary.title.contains(query, ignoreCase = true) ||
-                        summary.preview.contains(query, ignoreCase = true) ||
-                        summary.id in persistedSearchMatches || conversationContentMatches(summary.id, query)
-                }
-            },
+            conversations = summaryProjector.project(
+                conversationsById = conversationsById,
+                titles = conversationTitles,
+                updatedAt = conversationUpdatedAt,
+                pinnedIds = conversationPinnedIds,
+                searchQuery = conversationPaneState.searchQuery,
+                persistedSearchMatches = persistedSearchMatches,
+            ),
         )
-    }
-
-    // 内容匹配按（查询词, 会话状态引用）缓存：刷新摘要时未变化的会话不重复全文扫描。
-    private val contentMatchCache = mutableMapOf<String, ContentMatchCacheEntry>()
-
-    private fun conversationContentMatches(conversationId: String, query: String): Boolean {
-        val state = conversationsById[conversationId] ?: return false
-        val cached = contentMatchCache[conversationId]
-        if (cached != null && cached.query == query && cached.state === state) {
-            return cached.matches
-        }
-        val matches = state.contentMatches(query) { code -> noticeText(code) }
-        contentMatchCache[conversationId] = ContentMatchCacheEntry(query, state, matches)
-        return matches
     }
 
     private fun persistConversations(onSaved: (() -> Unit)? = null): Deferred<Boolean> {
@@ -3026,12 +2623,8 @@ internal class AgentAppState(
 
     private companion object {
         const val MAX_TITLE_CHARS = 24
-        const val MAX_PREVIEW_CHARS = 48
         const val LEGACY_STOPPED_ERROR = "已停止"
         const val SYNTHETIC_STATUS_STOPPED = "eta_status:stopped"
-        private val SHARED_IMAGE_EXTENSIONS = setOf(
-            "jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif",
-        )
 
         fun emptyChatState(thinkingEnabled: Boolean): AgentChatHomeUiState =
             emptyChatState(ReasoningEffort.fromLegacy(thinkingEnabled))
@@ -3053,12 +2646,6 @@ internal class AgentAppState(
 
 internal data class MessageRevisionImpact(
     val laterTurnCount: Int,
-)
-
-private data class ContentMatchCacheEntry(
-    val query: String,
-    val state: AgentChatHomeUiState,
-    val matches: Boolean,
 )
 
 private fun AgentChatHomeUiState.canReplaceMessageWindowOf(saved: AgentChatHomeUiState): Boolean =
