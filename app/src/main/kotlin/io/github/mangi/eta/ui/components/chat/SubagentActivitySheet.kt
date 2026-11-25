@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot
 import io.github.mangi.eta.agent.subagent.SubagentStepSnapshot
+import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
 import top.yukonga.miuix.kmp.basic.Icon
@@ -166,15 +168,17 @@ internal fun SubagentActivityRow(
     GlassBottomSheet(
         show = showInspector,
         backdrop = currentGlassOverlayBackdrop(),
+        progressiveBlur = LocalAppearanceSettings.current.progressiveBlurEnabled,
         title = taskTitle,
         onDismissRequest = { showInspector = false },
-    ) {
+    ) { innerPadding ->
         SubagentInspectorContent(
             messageId = message.id,
             snapshot = snapshot,
             running = running,
             cancelled = cancelled,
             failed = failed,
+            contentPadding = innerPadding,
         )
     }
 }
@@ -220,6 +224,7 @@ private fun SubagentInspectorContent(
     running: Boolean,
     cancelled: Boolean,
     failed: Boolean,
+    contentPadding: PaddingValues,
 ) {
     val density = LocalDensity.current
     val maxSheetHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() } * 0.76f
@@ -232,6 +237,7 @@ private fun SubagentInspectorContent(
             .fillMaxWidth()
             .heightIn(max = maxSheetHeight)
             .verticalScroll(rememberScrollState())
+            .padding(contentPadding)
             .navigationBarsPadding()
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),

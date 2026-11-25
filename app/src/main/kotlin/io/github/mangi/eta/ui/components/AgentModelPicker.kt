@@ -471,10 +471,11 @@ internal fun AgentTopBarChatHeader(
         GlassBottomSheet(
             show = showSheet,
             backdrop = overlayBackdrop,
+            progressiveBlur = false,
             title = stringResource(R.string.model_picker_title),
             onDismissRequest = { showSheet = false },
             insideMargin = DpSize(0.dp, 0.dp),
-        ) {
+        ) { _ ->
             key(sheetSession) {
                 ModelSheetContent(
                     state = state,

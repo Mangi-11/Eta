@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,6 +45,7 @@ import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
+import io.github.mangi.eta.ui.app.LocalAppearanceSettings
 import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.OptionalModelPickerContent
@@ -321,10 +323,11 @@ internal fun SubagentSettingsScreen(
             GlassBottomSheet(
                 show = showModelSheet,
                 backdrop = overlayBackdrop,
+                progressiveBlur = false,
                 title = stringResource(R.string.subagent_settings_model),
                 onDismissRequest = { showModelSheet = false },
                 insideMargin = DpSize(0.dp, 0.dp),
-            ) {
+            ) { _ ->
                 OptionalModelPickerContent(
                     pickerState = pickerState,
                     selectedSecondaryModelId = resolvedSecondary?.model?.id,
@@ -338,13 +341,15 @@ internal fun SubagentSettingsScreen(
             GlassBottomSheet(
                 show = inspectedProfile != null,
                 backdrop = overlayBackdrop,
+                progressiveBlur = LocalAppearanceSettings.current.progressiveBlurEnabled,
                 title = currentProfile?.name.orEmpty(),
                 onDismissRequest = { inspectedProfile = null },
                 onDismissFinished = { if (inspectedProfile == null) retainedProfile = null },
-            ) {
+            ) { innerPadding ->
                 if (currentProfile != null) {
                     SubagentProfileDetailContent(
                         profile = currentProfile,
+                        contentPadding = innerPadding,
                         onEdit = if (!currentProfile.builtin) {
                             { onStartEditProfile(currentProfile) }
                         } else {
@@ -549,6 +554,7 @@ internal fun SubagentSettingsScreen(
 @Composable
 private fun SubagentProfileDetailContent(
     profile: SubagentProfile,
+    contentPadding: PaddingValues,
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
 ) {
@@ -556,6 +562,7 @@ private fun SubagentProfileDetailContent(
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
+            .padding(contentPadding)
             .navigationBarsPadding()
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),

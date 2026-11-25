@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.unit.Density
 import io.github.mangi.eta.ui.app.LocalGlassPageBackdrop
@@ -111,15 +110,12 @@ internal fun currentGlassOverlayBackdrop(): Backdrop? =
     LocalGlassSceneBackdrop.current ?: LocalGlassPageBackdrop.current
 
 /**
- * 玻璃弹窗 / 底部抽屉内输入框与嵌套容器的通透底色：与 `GlassTextFieldDefaults`
- * 共用 `onBackground` 半透明体系，兼顾浅/深色与动态取色下的层次与对比度。
+ * 玻璃弹窗 / 底部抽屉内输入框与嵌套容器的通透底色：直接复用 `GlassTextFieldDefaults`
+ * 的背景色，自动对齐浅/深色与动态取色下的对比度。
  */
 @Composable
-internal fun glassOverlayFieldBackgroundColor(): Color {
-    val scheme = MiuixTheme.colorScheme
-    val isDark = scheme.background.luminance() < 0.5f
-    return scheme.onBackground.copy(alpha = if (isDark) 36f / 255f else 15f / 255f)
-}
+internal fun glassOverlayFieldBackgroundColor(): Color =
+    GlassTextFieldDefaults.textFieldColors().backgroundColor
 
 @Composable
 internal fun glassOverlayTextFieldColors(): TextFieldColors =

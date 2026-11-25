@@ -137,10 +137,11 @@ internal fun AssistantOverlaySettingsScreen(
             GlassBottomSheet(
                 show = showModelSheet,
                 backdrop = currentGlassOverlayBackdrop(),
+                progressiveBlur = false,
                 title = modelTitle,
                 onDismissRequest = { showModelSheet = false },
                 insideMargin = DpSize(0.dp, 0.dp),
-            ) {
+            ) { _ ->
                 OptionalModelPickerContent(
                     pickerState = pickerState,
                     selectedSecondaryModelId = resolvedCustom?.model?.id,

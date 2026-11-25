@@ -67,11 +67,12 @@ internal fun RemoteModelImportSheet(
     GlassBottomSheet(
         show = pending != null,
         backdrop = currentGlassOverlayBackdrop(),
+        progressiveBlur = false,
         title = stringResource(R.string.remote_model_import_title),
         onDismissRequest = onDismissRequest,
         onDismissFinished = { if (pending == null) shown = null },
         insideMargin = DpSize(0.dp, 0.dp),
-    ) {
+    ) { _ ->
         shown?.let { current ->
             key(current) {
                 RemoteModelImportContent(
