@@ -34,7 +34,7 @@ class AgentRuntimeScreenOnTest {
             val service = serviceController.get()
             val session = service.registerRun("active-run").session
             val capsule = ComposeView(service)
-            service.setField("capsuleView", capsule)
+            service.overlayHost.capsuleView = capsule
 
             service.invoke("updateKeepScreenOn")
             assertTrue(AgentRuntimeService.keepScreenOn.value)
@@ -202,7 +202,7 @@ class AgentRuntimeScreenOnTest {
             run.session.controller.cancel()
             shadowOf(Looper.getMainLooper()).idle()
             assertTrue(service.field<GuiControlCoordinator>("guiControl").state.value.userPaused)
-            assertEquals(AgentOverlayPhase.PAUSED, service.field<MutableState<AgentOverlayState>>("state").value.phase)
+            assertEquals(AgentOverlayPhase.PAUSED, service.overlayHost.overlayState.phase)
             service.invoke("requestResume")
             assertFalse(service.field<GuiControlCoordinator>("guiControl").state.value.userPaused)
         } finally {
@@ -228,7 +228,7 @@ class AgentRuntimeScreenOnTest {
             val guiCoordinator = service.field<GuiControlCoordinator>("guiControl")
             assertTrue(guiCoordinator.state.value.userPaused)
             assertNull(guiCoordinator.state.value.ownerRunId)
-            assertEquals(AgentOverlayPhase.PAUSED, service.field<MutableState<AgentOverlayState>>("state").value.phase)
+            assertEquals(AgentOverlayPhase.PAUSED, service.overlayHost.overlayState.phase)
             assertTrue(AgentRuntimeService.keepScreenOn.value)
 
             background.session.complete(AgentRuntimeWire.RunResult(background.runId, true, "完成"))
