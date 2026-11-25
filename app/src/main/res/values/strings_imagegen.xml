@@ -61,14 +61,14 @@
     <string name="imagegen_enable_summary">When enabled, any chat model can automatically invoke image generation and editing tools, showing generated images directly in the conversation.</string>
     <string name="imagegen_section_service">Image service</string>
     <string name="imagegen_provider_channel">Provider</string>
-    <string name="imagegen_credential_source">Credential source</string>
+    <string name="imagegen_credential_source">API key source</string>
     <string name="imagegen_link_auto_match">Auto-match existing provider</string>
     <string name="imagegen_link_provider_no_key">%1$s (No API key)</string>
     <string name="imagegen_link_standalone">Enter standalone API key</string>
     <string name="imagegen_model_presets">Model presets</string>
     <string name="imagegen_official_default">Official default</string>
     <string name="imagegen_linked_provider_footer_with_url">Reusing the API key and endpoint (%2$s) from “%1$s”. To specify a different URL or region, switch “Credential source” to “Enter standalone API key”.</string>
-    <string name="imagegen_linked_provider_footer">Reusing the API key and endpoint from “%1$s”. To specify a different URL or region, switch “Credential source” to “Enter standalone API key”.</string>
+    <string name="imagegen_linked_provider_footer">Using API key and URL from “%1$s”.</string>
     <string name="imagegen_section_connection">Connection &amp; model</string>
     <string name="imagegen_field_model_id">Model ID</string>
     <string name="imagegen_field_model_or_endpoint_id">Model ID or Endpoint ID</string>
@@ -91,16 +91,16 @@
     <string name="imagegen_field_api_key">API Key</string>
     <string name="imagegen_toggle_api_key_visibility">Toggle API key visibility</string>
     <string name="imagegen_section_defaults">Default preferences</string>
-    <string name="imagegen_default_aspect_ratio">Default aspect ratio</string>
-    <string name="imagegen_default_quality_tier">Default quality tier</string>
-    <string name="imagegen_default_resolution">Default resolution</string>
+    <string name="imagegen_default_aspect_ratio">Aspect ratio</string>
+    <string name="imagegen_default_quality_tier">Quality</string>
+    <string name="imagegen_default_resolution">Resolution</string>
     <string name="imagegen_quality_standard_auto">Standard (Auto)</string>
     <string name="imagegen_quality_high">High quality (High)</string>
     <string name="imagegen_resolution_fixed_by_model">%1$s (fixed by model)</string>
     <string name="imagegen_doubao_watermark_title">Add AI watermark</string>
-    <string name="imagegen_doubao_watermark_summary">Off by default. When enabled, adds a Volcengine Ark watermark in the bottom-right corner.</string>
+    <string name="imagegen_doubao_watermark_summary">Adds a watermark to the bottom-right corner</string>
     <string name="imagegen_qwen_prompt_extend_title">Smart prompt enhancement</string>
-    <string name="imagegen_qwen_prompt_extend_summary">Let Qwen automatically enrich scene details (recommended).</string>
+    <string name="imagegen_qwen_prompt_extend_summary">Automatically enriches prompt details</string>
     <string name="imagegen_qwen_watermark_title">Add Qwen-Image watermark</string>
     <string name="imagegen_default_off">Off by default</string>
     <string name="imagegen_action_test">Test generation</string>
@@ -108,7 +108,7 @@
     <string name="imagegen_action_save_config">Save settings</string>
     <string name="imagegen_action_saving">Saving…</string>
     <string name="imagegen_section_local_images">Local images</string>
-    <string name="imagegen_open_gallery">Generated images gallery</string>
+    <string name="imagegen_open_gallery">Generated images</string>
     <string name="imagegen_gallery_summary_empty">No local images yet</string>
     <plurals name="imagegen_gallery_summary_count">
         <item quantity="one">%1$d image · %2$s</item>
@@ -123,10 +123,10 @@
     <string name="imagegen_status_saved">Settings saved</string>
     <string name="imagegen_status_test_success">Test succeeded (%1$d×%2$d)</string>
     <string name="imagegen_error_decrypt_failed">Could not decrypt saved standalone API keys. Re-enter and save if using standalone mode.</string>
-    <string name="imagegen_error_enable_requires_api_key">Enter an API key or link a configured model provider before enabling AI image generation.</string>
+    <string name="imagegen_error_enable_requires_api_key">Enter an API key or link an existing provider first</string>
     <string name="imagegen_error_model_id_empty">Model ID cannot be empty.</string>
     <string name="imagegen_error_save_failed">Failed to save.</string>
-    <string name="imagegen_error_test_requires_api_key">Enter an API key or link a configured provider before testing.</string>
+    <string name="imagegen_error_test_requires_api_key">Enter an API key or link an existing provider before testing</string>
     <string name="imagegen_error_test_failed">Test failed: %1$s</string>
 
     <!-- Gallery screen -->
@@ -199,7 +199,7 @@
     <string name="imagegen_client_label_siliconflow">SiliconFlow Image</string>
     <string name="imagegen_client_label_doubao">Doubao Seedream</string>
     <string name="imagegen_client_label_qwen">Qwen-Image</string>
-    <string name="imagegen_error_missing_api_key">AI image generation API key is not configured. Go to Settings → AI Image Generation to enter one or link an existing provider.</string>
+    <string name="imagegen_error_missing_api_key">No image generation API key configured. Open Settings → Image Generation to set one or link a provider.</string>
     <string name="imagegen_error_missing_model">Image model ID is not configured. Check your model settings in Settings → AI Image Generation.</string>
     <string name="imagegen_error_empty_prompt">Image prompt cannot be empty</string>
     <string name="imagegen_error_edit_unsupported">The current model (%1$s) does not support image editing. Please switch to a model that supports editing.</string>

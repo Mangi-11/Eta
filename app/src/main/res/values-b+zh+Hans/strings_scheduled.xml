@@ -13,10 +13,10 @@
     <string name="scheduled_toast_toggle_failed">更新定时任务开关失败</string>
 
     <string name="scheduled_health_battery_title">建议允许后台无限制耗电</string>
-    <string name="scheduled_health_battery_summary">Android 深度休眠时会对受限应用在 10 秒后切断后台网络，开启「电池无限制」可确保定时推理与网页巡检稳定完成。</string>
+    <string name="scheduled_health_battery_summary">允许后台无限制运行，避免系统休眠中断定时任务。</string>
     <string name="scheduled_health_battery_action">前往开启</string>
     <string name="scheduled_health_exact_alarm_title">精确闹钟权限未开启</string>
-    <string name="scheduled_health_exact_alarm_summary">未开启精确闹钟时，定时任务可能延迟数分钟触发；开启后可准点唤醒执行。</string>
+    <string name="scheduled_health_exact_alarm_summary">开启后可准时触发，否则可能延迟数分钟。</string>
     <string name="scheduled_health_exact_alarm_action">授权精确闹钟</string>
     <string name="scheduled_health_notification_title">系统通知未开启</string>
     <string name="scheduled_health_notification_summary">定时任务仍会在后台执行，但无法推送结果摘要和失败告警通知。</string>

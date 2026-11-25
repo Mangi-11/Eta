@@ -178,11 +178,7 @@ internal fun DataBackupScreen(
             ) {
                 ArrowPreference(
                     title = stringResource(R.string.data_backup_export),
-                    summary = if (busy) {
-                        stringResource(R.string.data_backup_working)
-                    } else {
-                        stringResource(R.string.data_backup_export_summary)
-                    },
+                    summary = if (busy) stringResource(R.string.data_backup_working) else null,
                     enabled = !busy,
                     endActions = {
                         if (busy) {
@@ -195,7 +191,6 @@ internal fun DataBackupScreen(
                 )
                 ArrowPreference(
                     title = stringResource(R.string.data_backup_import),
-                    summary = stringResource(R.string.data_backup_import_summary),
                     enabled = !busy,
                     onClick = {
                         importLauncher.launch(arrayOf("application/json", "text/plain"))

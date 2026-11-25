@@ -60,15 +60,15 @@
     <string name="imagegen_enable_title">啟用 AI 生圖</string>
     <string name="imagegen_enable_summary">開啟後任何對話模型都能自動呼叫生圖與改圖工具，生成的圖片直接顯示在聊天串流中</string>
     <string name="imagegen_section_service">生圖服務</string>
-    <string name="imagegen_provider_channel">供應商管道</string>
-    <string name="imagegen_credential_source">憑據來源</string>
-    <string name="imagegen_link_auto_match">自動匹配現有供應商</string>
+    <string name="imagegen_provider_channel">提供商</string>
+    <string name="imagegen_credential_source">金鑰來源</string>
+    <string name="imagegen_link_auto_match">自動匹配現有提供商</string>
     <string name="imagegen_link_provider_no_key">%1$s（未填 Key）</string>
     <string name="imagegen_link_standalone">獨立填寫 API Key</string>
     <string name="imagegen_model_presets">常用模型預設</string>
     <string name="imagegen_official_default">官方預設</string>
     <string name="imagegen_linked_provider_footer_with_url">目前完整複用「%1$s」的 API Key 與連線位址（%2$s）。如需指定其他位址或地域，請將「憑據來源」切換為「獨立填寫 API Key」。</string>
-    <string name="imagegen_linked_provider_footer">目前完整複用「%1$s」的 API Key 與連線位址。如需指定其他位址或地域，請將「憑據來源」切換為「獨立填寫 API Key」。</string>
+    <string name="imagegen_linked_provider_footer">已複用「%1$s」的金鑰與位址</string>
     <string name="imagegen_section_connection">連線與模型參數</string>
     <string name="imagegen_field_model_id">模型 ID</string>
     <string name="imagegen_field_model_or_endpoint_id">模型 ID 或 Endpoint ID</string>
@@ -91,16 +91,16 @@
     <string name="imagegen_field_api_key">API Key</string>
     <string name="imagegen_toggle_api_key_visibility">切換 API Key 可見性</string>
     <string name="imagegen_section_defaults">生成預設偏好</string>
-    <string name="imagegen_default_aspect_ratio">預設畫面比例</string>
-    <string name="imagegen_default_quality_tier">預設畫質檔位</string>
-    <string name="imagegen_default_resolution">預設清晰度</string>
+    <string name="imagegen_default_aspect_ratio">畫面比例</string>
+    <string name="imagegen_default_quality_tier">畫質</string>
+    <string name="imagegen_default_resolution">清晰度</string>
     <string name="imagegen_quality_standard_auto">標準畫質（自動）</string>
     <string name="imagegen_quality_high">高畫質（High）</string>
     <string name="imagegen_resolution_fixed_by_model">%1$s（目前模型固定）</string>
     <string name="imagegen_doubao_watermark_title">加入 AI 生成浮水印</string>
-    <string name="imagegen_doubao_watermark_summary">預設關閉，開啟後在圖片右下角顯示火山方舟浮水印</string>
+    <string name="imagegen_doubao_watermark_summary">在圖片右下角加入浮水印</string>
     <string name="imagegen_qwen_prompt_extend_title">提示詞智慧潤飾</string>
-    <string name="imagegen_qwen_prompt_extend_summary">開啟後由千問模型自動補充畫面細節（建議開啟）</string>
+    <string name="imagegen_qwen_prompt_extend_summary">自動補充畫面細節</string>
     <string name="imagegen_qwen_watermark_title">加入 Qwen-Image 浮水印</string>
     <string name="imagegen_default_off">預設關閉</string>
     <string name="imagegen_action_test">試畫測試</string>
@@ -108,7 +108,7 @@
     <string name="imagegen_action_save_config">儲存設定</string>
     <string name="imagegen_action_saving">儲存中…</string>
     <string name="imagegen_section_local_images">本機圖片</string>
-    <string name="imagegen_open_gallery">已生成圖片圖庫</string>
+    <string name="imagegen_open_gallery">已生成圖片</string>
     <string name="imagegen_gallery_summary_empty">暫無本機圖片</string>
     <plurals name="imagegen_gallery_summary_count">
         <item quantity="other">%1$d 張 · %2$s</item>
@@ -122,10 +122,10 @@
     <string name="imagegen_status_saved">設定已儲存</string>
     <string name="imagegen_status_test_success">試畫成功（%1$d×%2$d）</string>
     <string name="imagegen_error_decrypt_failed">歷史獨立 API Key 解密失敗，如需獨立設定請重新輸入並儲存</string>
-    <string name="imagegen_error_enable_requires_api_key">開啟 AI 生圖前，請填寫 API Key 或關聯已設定 Key 的模型供應商</string>
+    <string name="imagegen_error_enable_requires_api_key">請先填寫 API Key 或關聯現有提供商</string>
     <string name="imagegen_error_model_id_empty">模型 ID 不能為空</string>
     <string name="imagegen_error_save_failed">儲存失敗</string>
-    <string name="imagegen_error_test_requires_api_key">請先填寫 API Key 或關聯已設定 Key 的供應商後再試畫</string>
+    <string name="imagegen_error_test_requires_api_key">請先填寫 API Key 或關聯現有提供商後再試畫</string>
     <string name="imagegen_error_test_failed">試畫失敗：%1$s</string>
 
     <!-- Gallery screen -->
@@ -195,7 +195,7 @@
     <string name="imagegen_client_label_siliconflow">矽基流動生圖</string>
     <string name="imagegen_client_label_doubao">豆包 Seedream</string>
     <string name="imagegen_client_label_qwen">千問 Qwen-Image</string>
-    <string name="imagegen_error_missing_api_key">未設定 AI 生圖 API Key，請前往「設定 → AI 生圖」填寫或關聯現有供應商</string>
+    <string name="imagegen_error_missing_api_key">未設定 AI 生圖 API Key，請前往「設定 → AI 生圖」填寫或關聯現有提供商</string>
     <string name="imagegen_error_missing_model">未設定生圖模型 ID，請前往「設定 → AI 生圖」檢查模型設定</string>
     <string name="imagegen_error_empty_prompt">生圖提示詞不能為空</string>
     <string name="imagegen_error_edit_unsupported">目前生圖模型（%1$s）不支援以圖生圖編輯，請切換支援圖像編輯的模型</string>

@@ -13,10 +13,10 @@
     <string name="scheduled_toast_toggle_failed">Failed to update scheduled task switch</string>
 
     <string name="scheduled_health_battery_title">Allow unrestricted background battery</string>
-    <string name="scheduled_health_battery_summary">Android Doze cuts off background network access after 10 seconds for restricted apps. Enabling unrestricted battery helps scheduled reasoning and web checks finish reliably.</string>
+    <string name="scheduled_health_battery_summary">Allow unrestricted background activity so system Doze does not interrupt tasks.</string>
     <string name="scheduled_health_battery_action">Open settings</string>
     <string name="scheduled_health_exact_alarm_title">Exact alarm permission not granted</string>
-    <string name="scheduled_health_exact_alarm_summary">Without exact alarm permission, scheduled tasks may trigger several minutes late. Grant it for on-time wake-ups.</string>
+    <string name="scheduled_health_exact_alarm_summary">Grant for on-time runs; otherwise tasks may be delayed by several minutes.</string>
     <string name="scheduled_health_exact_alarm_action">Allow exact alarms</string>
     <string name="scheduled_health_notification_title">Notifications are turned off</string>
     <string name="scheduled_health_notification_summary">Scheduled tasks will still run in the background, but result summaries and failure alerts cannot be delivered.</string>

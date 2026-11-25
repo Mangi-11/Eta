@@ -258,7 +258,6 @@ internal fun ImageGenSettingsScreen(
             ) {
                 SwitchPreference(
                     title = stringResource(R.string.imagegen_enable_title),
-                    summary = stringResource(R.string.imagegen_enable_summary),
                     checked = settings.enabled,
                     onCheckedChange = { store.edit(settings.copy(enabled = it)) },
                 )
@@ -542,7 +541,6 @@ internal fun ImageGenSettingsScreen(
                     )
                     SwitchPreference(
                         title = stringResource(R.string.imagegen_qwen_watermark_title),
-                        summary = stringResource(R.string.imagegen_default_off),
                         checked = settings.qwen.watermark,
                         onCheckedChange = {
                             store.edit(settings.copy(qwen = settings.qwen.copy(watermark = it)))

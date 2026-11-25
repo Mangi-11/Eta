@@ -13,10 +13,10 @@
     <string name="scheduled_toast_toggle_failed">更新排程任務開關失敗</string>
 
     <string name="scheduled_health_battery_title">建議允許背景無限制耗電</string>
-    <string name="scheduled_health_battery_summary">Android 深度休眠時會對受限應用程式在 10 秒後切斷背景網路，開啟「電池無限制」可確保排程推理與網頁巡檢穩定完成。</string>
+    <string name="scheduled_health_battery_summary">允許背景無限制執行，避免系統休眠中斷排程任務。</string>
     <string name="scheduled_health_battery_action">前往開啟</string>
     <string name="scheduled_health_exact_alarm_title">精確鬧鐘權限未開啟</string>
-    <string name="scheduled_health_exact_alarm_summary">未開啟精確鬧鐘時，排程任務可能延遲數分鐘觸發；開啟後可準時喚醒執行。</string>
+    <string name="scheduled_health_exact_alarm_summary">開啟後可準時觸發，否則可能延遲數分鐘。</string>
     <string name="scheduled_health_exact_alarm_action">授權精確鬧鐘</string>
     <string name="scheduled_health_notification_title">系統通知未開啟</string>
     <string name="scheduled_health_notification_summary">排程任務仍會在背景執行，但無法推播結果摘要和失敗告警通知。</string>

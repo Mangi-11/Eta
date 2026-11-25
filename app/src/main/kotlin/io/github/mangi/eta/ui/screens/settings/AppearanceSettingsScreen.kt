@@ -97,7 +97,6 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                 )
                 SwitchPreference(
                     title = stringResource(R.string.appearance_monet),
-                    summary = stringResource(R.string.appearance_monet_summary),
                     checked = appearance.monetEnabled,
                     onCheckedChange = { enabled ->
                         update { current -> current.copy(monetEnabled = enabled) }
@@ -133,7 +132,6 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                         )
                         SwitchPreference(
                             title = stringResource(R.string.appearance_pure_black),
-                            summary = stringResource(R.string.appearance_pure_black_summary),
                             checked = appearance.pureBlackEnabled,
                             onCheckedChange = { enabled ->
                                 update { current -> current.copy(pureBlackEnabled = enabled) }
@@ -153,7 +151,6 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
             ) {
                 SwitchPreference(
                     title = stringResource(R.string.appearance_swipe_dismiss),
-                    summary = stringResource(R.string.appearance_swipe_dismiss_summary),
                     checked = appearance.swipeDismissEnabled,
                     onCheckedChange = { enabled ->
                         update { current -> current.copy(swipeDismissEnabled = enabled) }
@@ -161,7 +158,6 @@ internal fun AppearanceSettingsScreen(onBack: () -> Unit) {
                 )
                 SwitchPreference(
                     title = stringResource(R.string.appearance_predictive_back),
-                    summary = stringResource(R.string.appearance_predictive_back_summary),
                     checked = appearance.predictiveBackEnabled,
                     onCheckedChange = { enabled ->
                         update { current -> current.copy(predictiveBackEnabled = enabled) }

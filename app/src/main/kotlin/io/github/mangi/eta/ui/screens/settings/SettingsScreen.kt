@@ -4,10 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.database.ContentObserver
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.layout.padding
@@ -22,6 +19,7 @@ import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.Compress
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Image
@@ -30,9 +28,10 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.JoinLeft
 import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Security
@@ -45,7 +44,6 @@ import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -67,16 +65,11 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.accessibility.AccessibilityProtectionClient
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.voice.AssistantRoleHelper
-import io.github.mangi.eta.agent.voice.AssistantRoleStatus
-import io.github.mangi.eta.agent.voice.DefaultAssistantOwner
 import io.github.mangi.eta.config.PowerAssistantTarget
 import io.github.mangi.eta.config.Prefs
-import io.github.mangi.eta.core.ModuleConfig
-import io.github.mangi.eta.data.model.ImageGenSettings
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.provider.BuiltinProviders
-import io.github.mangi.eta.data.repository.ImageGenSettingsRepository
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.data.update.AppLatestRelease
@@ -85,16 +78,10 @@ import io.github.mangi.eta.ui.state.EnhancementSettingsHistory
 import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.LanguagePreference
 import io.github.mangi.eta.ui.components.ScaffoldPage
-import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
 import io.github.mangi.eta.ui.navigation.AppRoute
-import io.github.mangi.eta.ui.screens.imagegen.shortName
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -104,6 +91,8 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.SecurityStatus
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -140,10 +129,8 @@ private fun SettingsIcon(
 }
 
 private data class SettingsSystemStatus(
-    val overlayGranted: Boolean = false,
     val accessibilityGranted: Boolean = false,
     val accessibilityProtectionEnabled: Boolean = false,
-    val assistantRoleStatus: AssistantRoleStatus = AssistantRoleStatus(isDefaultAssistant = false),
 )
 
 @Volatile
@@ -174,14 +161,12 @@ private fun SettingsPageContent(
     val enhancementHistory = remember(context.applicationContext) { EnhancementSettingsHistory(context) }
     var hasConnectedFramework by remember { mutableStateOf(enhancementHistory.hasConnected) }
 
-    // 悬浮窗与无障碍状态走异步查询，避免首帧进入设置页时在主线程触发同步 Binder IPC。
+    // 无障碍状态走异步查询，避免首帧进入设置页时在主线程触发同步 Binder IPC。
     var systemStatus by remember {
         mutableStateOf(cachedSettingsSystemStatus ?: SettingsSystemStatus())
     }
-    val overlayGranted = systemStatus.overlayGranted
     val accessibilityGranted = systemStatus.accessibilityGranted
     val accessibilityProtectionEnabled = systemStatus.accessibilityProtectionEnabled
-    val assistantRoleStatus = systemStatus.assistantRoleStatus
     var accessibilityProtectionPending by remember { mutableStateOf(false) }
 
     // 关于组：版本信息与更新检查。结果对话框在列表外渲染，状态需要页面级 owner。
@@ -323,121 +308,31 @@ private fun SettingsPageContent(
     var powerAssistantTarget by remember(prefs) {
         mutableStateOf(prefs?.let(Prefs::powerAssistantTarget) ?: enhancementHistory.powerTarget())
     }
-    var assistantRefreshJob by remember { mutableStateOf<Job?>(null) }
-    val scheduleAssistantRoleRefresh: () -> Unit = {
-        assistantRefreshJob?.cancel()
-        assistantRefreshJob = coroutineScope.launch {
-            val status = withContext(Dispatchers.IO) { AssistantRoleHelper.queryStatus(context) }
-            val next = systemStatus.copy(assistantRoleStatus = status)
-            cachedSettingsSystemStatus = next
-            systemStatus = next
-            delay(450L)
-            val delayedStatus = withContext(Dispatchers.IO) { AssistantRoleHelper.queryStatus(context) }
-            val settled = systemStatus.copy(assistantRoleStatus = delayedStatus)
-            cachedSettingsSystemStatus = settled
-            systemStatus = settled
-        }
-    }
-    LaunchedEffect(context) {
-        val resolver = context.contentResolver
-        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean) {
-                scheduleAssistantRoleRefresh()
-            }
-        }
-        val registered = withContext(Dispatchers.IO) {
-            runCatching {
-                resolver.registerContentObserver(
-                    Settings.Secure.getUriFor(ModuleConfig.SECURE_ASSISTANT),
-                    false,
-                    observer,
-                )
-                resolver.registerContentObserver(
-                    Settings.Secure.getUriFor(ModuleConfig.SECURE_VOICE_INTERACTION_SERVICE),
-                    false,
-                    observer,
-                )
-                true
-            }.getOrDefault(false)
-        }
-        try {
-            awaitCancellation()
-        } finally {
-            assistantRefreshJob?.cancel()
-            if (registered) {
-                withContext(NonCancellable + Dispatchers.IO) {
-                    runCatching { resolver.unregisterContentObserver(observer) }
-                }
-            }
-        }
-    }
-    val syncPowerTargetAfterManualAssistantChange: (AssistantRoleStatus) -> Unit = { updated ->
-        val targetPrefs = prefs
-        val autoConfigDefault = Prefs.Keys.BOOLEAN_DEFAULTS.getValue(Prefs.Keys.ASSISTANT_AUTO_CONFIG)
-        if (targetPrefs != null &&
-            targetPrefs.getBoolean(Prefs.Keys.ASSISTANT_AUTO_CONFIG, autoConfigDefault)
-        ) {
-            val mappedTarget = when (updated.owner) {
-                DefaultAssistantOwner.ETA -> PowerAssistantTarget.ETA
-                DefaultAssistantOwner.GEMINI -> PowerAssistantTarget.GEMINI
-                DefaultAssistantOwner.OTHER,
-                DefaultAssistantOwner.NONE -> PowerAssistantTarget.OEM
-            }
-            if (powerAssistantTarget != mappedTarget &&
-                putStringSync(
-                    prefs = targetPrefs,
-                    key = Prefs.Keys.POWER_KEY_ASSISTANT_TARGET,
-                    value = mappedTarget.persistedValue,
-                )
-            ) {
-                powerAssistantTarget = mappedTarget
-                enhancementHistory.recordCommittedTarget(mappedTarget)
-            }
-        }
-    }
-    var ownerBeforeAssistantSettings by remember { mutableStateOf<DefaultAssistantOwner?>(null) }
     val openAssistantSettings: () -> Unit = {
-        val currentStatus = AssistantRoleHelper.queryStatus(context)
-        val next = systemStatus.copy(assistantRoleStatus = currentStatus)
-        cachedSettingsSystemStatus = next
-        systemStatus = next
-        if (AssistantRoleHelper.openSystemSettings(context)) {
-            ownerBeforeAssistantSettings = currentStatus.owner
-        } else {
+        if (!AssistantRoleHelper.openSystemSettings(context)) {
             Toast.makeText(context, context.getString(R.string.settings_open_assistant_failed), Toast.LENGTH_SHORT).show()
         }
     }
     val lifecycleOwner = LocalLifecycleOwner.current
-    val refreshSystemStatuses: (Boolean) -> Unit = { checkAssistantTransition ->
+    val refreshSystemStatuses: () -> Unit = {
         coroutineScope.launch {
             val snapshot = withContext(Dispatchers.IO) {
                 SettingsSystemStatus(
-                    overlayGranted = android.provider.Settings.canDrawOverlays(context),
                     accessibilityGranted = isAgentAccessibilityEnabled(context),
                     accessibilityProtectionEnabled = AccessibilityProtectionClient.isEnabled(context),
-                    assistantRoleStatus = AssistantRoleHelper.queryStatus(context),
                 )
             }
             cachedSettingsSystemStatus = snapshot
             systemStatus = snapshot
-            if (checkAssistantTransition) {
-                val previousOwner = ownerBeforeAssistantSettings
-                if (previousOwner != null) {
-                    ownerBeforeAssistantSettings = null
-                    if (snapshot.assistantRoleStatus.owner != previousOwner) {
-                        syncPowerTargetAfterManualAssistantChange(snapshot.assistantRoleStatus)
-                    }
-                }
-            }
         }
     }
     LaunchedEffect(Unit) {
-        refreshSystemStatuses(false)
+        refreshSystemStatuses()
     }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                refreshSystemStatuses(true)
+                refreshSystemStatuses()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -446,15 +341,8 @@ private fun SettingsPageContent(
     DisposableEffect(prefs) {
         val targetPrefs = prefs ?: return@DisposableEffect onDispose {}
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { changedPrefs, key ->
-            when (key) {
-                Prefs.Keys.POWER_KEY_ASSISTANT_TARGET,
-                Prefs.Keys.POWER_KEY_TAKEOVER -> {
-                    powerAssistantTarget = Prefs.powerAssistantTarget(changedPrefs)
-                    scheduleAssistantRoleRefresh()
-                }
-                Prefs.Keys.ASSISTANT_AUTO_CONFIG -> {
-                    scheduleAssistantRoleRefresh()
-                }
+            if (key == Prefs.Keys.POWER_KEY_ASSISTANT_TARGET || key == Prefs.Keys.POWER_KEY_TAKEOVER) {
+                powerAssistantTarget = Prefs.powerAssistantTarget(changedPrefs)
             }
         }
         targetPrefs.registerOnSharedPreferenceChangeListener(listener)
@@ -505,7 +393,6 @@ private fun SettingsPageContent(
             ) {
                 powerAssistantTarget = target
                 enhancementHistory.recordCommittedTarget(target)
-                scheduleAssistantRoleRefresh()
             } else {
                 Toast.makeText(
                     context.applicationContext,
@@ -625,17 +512,17 @@ private fun SettingsPageContent(
             }
         }
 
-        item(key = "section_context_extensions_title") {
-            SmallTitle(stringResource(R.string.settings_context_extensions))
+        item(key = "section_conversation_memory_title") {
+            SmallTitle(stringResource(R.string.settings_conversation_memory))
         }
-        item(key = "section_context_extensions") {
+        item(key = "section_conversation_memory") {
             SettingsGroupCard {
                 SwitchPref(
                     context = context,
                     prefs = agentPrefs,
                     title = stringResource(R.string.settings_auto_compaction),
                     key = Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED,
-                    icon = Icons.Rounded.Layers,
+                    icon = Icons.Rounded.Compress,
                     history = enhancementHistory,
                 )
                 ArrowPreference(
@@ -648,11 +535,14 @@ private fun SettingsPageContent(
                     startAction = { SettingsIcon(Icons.AutoMirrored.Rounded.MenuBook) },
                     onClick = { onNavigate(AppRoute.Memory) },
                 )
-                ArrowPreference(
-                    title = stringResource(R.string.ui_misc_route_subagents),
-                    startAction = { SettingsIcon(Icons.Rounded.JoinLeft) },
-                    onClick = { onNavigate(AppRoute.Subagents) },
-                )
+            }
+        }
+
+        item(key = "section_extensions_title") {
+            SmallTitle(stringResource(R.string.settings_extensions))
+        }
+        item(key = "section_extensions") {
+            SettingsGroupCard {
                 ArrowPreference(
                     title = stringResource(R.string.route_skills),
                     startAction = { SettingsIcon(Icons.Rounded.ImportContacts) },
@@ -664,14 +554,19 @@ private fun SettingsPageContent(
                     onClick = { onNavigate(AppRoute.McpServers) },
                 )
                 ArrowPreference(
-                    title = stringResource(R.string.route_scheduled_tasks),
-                    startAction = { SettingsIcon(Icons.Rounded.Schedule) },
-                    onClick = { onNavigate(AppRoute.ScheduledTasks) },
+                    title = stringResource(R.string.ui_misc_route_subagents),
+                    startAction = { SettingsIcon(Icons.Rounded.JoinLeft) },
+                    onClick = { onNavigate(AppRoute.Subagents) },
                 )
                 ArrowPreference(
                     title = stringResource(R.string.conversation_dock_characters),
                     startAction = { SettingsIcon(Icons.Rounded.SportsBar) },
                     onClick = { onNavigate(AppRoute.Characters) },
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.route_scheduled_tasks),
+                    startAction = { SettingsIcon(Icons.Rounded.Schedule) },
+                    onClick = { onNavigate(AppRoute.ScheduledTasks) },
                 )
             }
         }
@@ -691,15 +586,8 @@ private fun SettingsPageContent(
                     startAction = { SettingsIcon(Icons.Rounded.TravelExplore) },
                     onClick = { onNavigate(AppRoute.WebToolsSettings) },
                 )
-                val imageGenSettings by remember { ImageGenSettingsRepository.settingsFlow() }
-                    .collectAsStateWithLifecycle(initialValue = ImageGenSettings())
                 ArrowPreference(
                     title = stringResource(R.string.image_gen_settings_title),
-                    summary = if (imageGenSettings.enabled) {
-                        stringResource(R.string.ui_misc_enabled_with_value, imageGenSettings.backend.shortName())
-                    } else {
-                        stringResource(R.string.ui_misc_not_enabled)
-                    },
                     startAction = { SettingsIcon(Icons.Rounded.Image) },
                     onClick = { onNavigate(AppRoute.ImageGenSettings) },
                 )
@@ -708,7 +596,7 @@ private fun SettingsPageContent(
                     prefs = agentPrefs,
                     title = stringResource(R.string.settings_virtual_display_title),
                     key = Prefs.Keys.AGENT_VIRTUAL_DISPLAY_ENABLED,
-                    icon = Icons.Rounded.Layers,
+                    icon = Icons.Rounded.PictureInPictureAlt,
                     history = enhancementHistory,
                 )
                 ArrowPreference(
@@ -719,12 +607,36 @@ private fun SettingsPageContent(
             }
         }
 
-        item(key = "system_enhancements") {
+        item(key = "section_general_title") {
+            SmallTitle(stringResource(R.string.settings_general))
+        }
+        item(key = "section_general") {
             SettingsGroupCard {
                 ArrowPreference(
-                    title = stringResource(R.string.capability_enhancements),
-                    startAction = { SettingsIcon(Icons.Rounded.Security) },
-                    onClick = { onNavigate(AppRoute.SystemEnhance) },
+                    title = stringResource(R.string.appearance_title),
+                    startAction = { SettingsIcon(Icons.Rounded.Palette) },
+                    onClick = { onNavigate(AppRoute.AppearanceSettings) },
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.speech_settings_title),
+                    startAction = { SettingsIcon(Icons.Rounded.Mic) },
+                    onClick = { onNavigate(AppRoute.SpeechSettings) },
+                )
+                LanguagePreference(
+                    startAction = { SettingsIcon(Icons.Rounded.Language) },
+                )
+                SwitchPref(
+                    context = context,
+                    prefs = agentPrefs,
+                    title = stringResource(R.string.settings_keep_screen_on),
+                    key = Prefs.Keys.AGENT_KEEP_SCREEN_ON_ENABLED,
+                    icon = Icons.Rounded.BrightnessHigh,
+                    history = enhancementHistory,
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.data_backup_title),
+                    startAction = { SettingsIcon(Icons.Rounded.Description) },
+                    onClick = { onNavigate(AppRoute.DataBackup) },
                 )
             }
         }
@@ -737,17 +649,6 @@ private fun SettingsPageContent(
                 ArrowPreference(
                     title = stringResource(R.string.ui_eta_system_assistant_003e9b),
                     startAction = { SettingsIcon(Icons.Rounded.SupportAgent) },
-                    endActions = {
-                        Text(
-                            text = assistantRoleStatus.displayValue(),
-                            fontSize = MiuixTheme.textStyles.body2.fontSize,
-                            color = if (assistantRoleStatus.isDefaultAssistant) {
-                                StatusSuccess
-                            } else {
-                                MiuixTheme.colorScheme.onSurfaceVariantActions
-                            },
-                        )
-                    },
                     onClick = openAssistantSettings,
                 )
                 ArrowPreference(
@@ -805,73 +706,15 @@ private fun SettingsPageContent(
             }
         }
 
-        item(key = "section_general_title") {
-            SmallTitle(stringResource(R.string.settings_general))
-        }
-        item(key = "section_general") {
-            SettingsGroupCard {
-                SwitchPref(
-                    context = context,
-                    prefs = agentPrefs,
-                    title = stringResource(R.string.settings_keep_screen_on),
-                    key = Prefs.Keys.AGENT_KEEP_SCREEN_ON_ENABLED,
-                    icon = Icons.Rounded.BrightnessHigh,
-                    history = enhancementHistory,
-                )
-                ArrowPreference(
-                    title = stringResource(R.string.appearance_title),
-                    startAction = { SettingsIcon(Icons.Rounded.Palette) },
-                    onClick = { onNavigate(AppRoute.AppearanceSettings) },
-                )
-                ArrowPreference(
-                    title = stringResource(R.string.speech_settings_title),
-                    startAction = { SettingsIcon(Icons.Rounded.Mic) },
-                    onClick = { onNavigate(AppRoute.SpeechSettings) },
-                )
-                LanguagePreference(
-                    startAction = { SettingsIcon(Icons.Rounded.Language) },
-                )
-                ArrowPreference(
-                    title = stringResource(R.string.data_backup_title),
-                    startAction = { SettingsIcon(Icons.Rounded.Description) },
-                    onClick = { onNavigate(AppRoute.DataBackup) },
-                )
-            }
-        }
-
         item(key = "section_permissions_title") {
-            SmallTitle(stringResource(R.string.ui_permissions_560165))
+            SmallTitle(stringResource(R.string.settings_permissions_enhancements))
         }
         item(key = "section_permissions") {
             SettingsGroupCard {
                 ArrowPreference(
-                    title = stringResource(R.string.ui_floating_window_permissions_076b77),
-                    startAction = { SettingsIcon(Icons.Rounded.Layers) },
-                    endActions = {
-                        Text(
-                            text = stringResource(
-                                if (overlayGranted) R.string.status_authorized else R.string.status_unauthorized,
-                            ),
-                            fontSize = MiuixTheme.textStyles.body2.fontSize,
-                            color = if (overlayGranted) {
-                                MiuixTheme.colorScheme.onSurfaceVariantActions
-                            } else {
-                                MiuixTheme.colorScheme.error
-                            },
-                        )
-                    },
-                    onClick = {
-                        if (!overlayGranted) {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${context.packageName}"),
-                                    ),
-                                )
-                            }
-                        }
-                    },
+                    title = stringResource(R.string.ui_permission_health_3048bb),
+                    startAction = { SettingsIcon(MiuixIcons.Glass.SecurityStatus) },
+                    onClick = { onNavigate(AppRoute.Permissions) },
                 )
                 ArrowPreference(
                     title = stringResource(R.string.ui_accessibility_enhancement_tools_8fd257),
@@ -905,13 +748,18 @@ private fun SettingsPageContent(
                         onCheckedChange = onAccessibilityProtectionToggle,
                         startAction = {
                             SettingsIcon(
-                                icon = Icons.Rounded.VerifiedUser,
+                                icon = Icons.Rounded.Lock,
                                 enabled = prefs != null && !accessibilityProtectionPending,
                             )
                         },
                         enabled = prefs != null && !accessibilityProtectionPending,
                     )
                 }
+                ArrowPreference(
+                    title = stringResource(R.string.capability_enhancements),
+                    startAction = { SettingsIcon(Icons.Rounded.Security) },
+                    onClick = { onNavigate(AppRoute.SystemEnhance) },
+                )
             }
         }
 
@@ -955,14 +803,6 @@ private fun SettingsPageContent(
             }
         }
     }
-}
-
-@Composable
-private fun AssistantRoleStatus.displayValue(): String = when (owner) {
-    DefaultAssistantOwner.ETA -> "Eta"
-    DefaultAssistantOwner.GEMINI -> "Gemini"
-    DefaultAssistantOwner.OTHER -> ownerLabel ?: stringResource(R.string.assistant_role_status_other)
-    DefaultAssistantOwner.NONE -> stringResource(R.string.assistant_role_status_unset)
 }
 
 @Composable
