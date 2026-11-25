@@ -3,9 +3,9 @@ package io.github.mangi.eta.agent.imagegen
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import io.github.mangi.eta.R
-import io.github.mangi.eta.agent.model.AgentHttpClient
-import io.github.mangi.eta.agent.model.CustomHeaderFilter
-import io.github.mangi.eta.agent.model.ProviderUrls
+import io.github.mangi.eta.agent.model.provider.AgentHttpClient
+import io.github.mangi.eta.agent.model.provider.CustomHeaderFilter
+import io.github.mangi.eta.agent.model.provider.ProviderUrls
 import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.core.AppStrings

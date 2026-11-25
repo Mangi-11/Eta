@@ -8,6 +8,9 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import org.json.JSONArray
+import io.github.mangi.eta.agent.terminal.linux.LinuxEnvironmentPaths
+import io.github.mangi.eta.agent.terminal.linux.ProotCommandBuilder
+import io.github.mangi.eta.agent.terminal.linux.SharedFolderMount
 
 /**
  * 守护任务（detached task）宿主：启动脱离任何命令会话进程组的长驻进程，并托管其生命周期。

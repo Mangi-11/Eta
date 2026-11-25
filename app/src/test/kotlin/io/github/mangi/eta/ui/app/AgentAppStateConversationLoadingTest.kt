@@ -1,8 +1,8 @@
 package io.github.mangi.eta.ui.app
 
 import android.content.Context
-import io.github.mangi.eta.agent.model.AgentModelClient
-import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 import io.github.mangi.eta.data.db.EtaDatabase
 import io.github.mangi.eta.data.db.ConversationMessageEntity
 import io.github.mangi.eta.ui.model.AgentChatHomeUiState

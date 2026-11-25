@@ -8,6 +8,10 @@ import kotlinx.serialization.json.decodeFromStream
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AnthropicEphemeralState
+import io.github.mangi.eta.agent.model.provider.gemini.GeminiEphemeralState
+import io.github.mangi.eta.agent.model.provider.openai.ResponsesEphemeralState
 
 /** Provider JSON 与 Eta 稳定会话 DTO 之间的转换；脱敏不改变普通文本与工具批次。 */
 internal object AgentConversationCodec {

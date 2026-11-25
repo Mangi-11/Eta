@@ -2,7 +2,7 @@ package io.github.mangi.eta.data.repository
 
 import com.sun.net.httpserver.HttpServer
 import io.github.mangi.eta.agent.auth.ProviderCredentialBinding
-import io.github.mangi.eta.agent.model.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.data.model.CustomHeader
 import io.github.mangi.eta.data.model.GeminiEndpointMode

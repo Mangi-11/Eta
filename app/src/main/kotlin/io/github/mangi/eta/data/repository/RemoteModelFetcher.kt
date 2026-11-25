@@ -3,11 +3,11 @@ package io.github.mangi.eta.data.repository
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.auth.ProviderAuthException
 import io.github.mangi.eta.agent.auth.ProviderCredentialBinding
-import io.github.mangi.eta.agent.model.AgentHttpClient
-import io.github.mangi.eta.agent.model.AgentModelFailure
-import io.github.mangi.eta.agent.model.AuthorizedProviderHttp
-import io.github.mangi.eta.agent.model.ProviderRequestHeaders
-import io.github.mangi.eta.agent.model.ProviderUrls
+import io.github.mangi.eta.agent.model.provider.AgentHttpClient
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AuthorizedProviderHttp
+import io.github.mangi.eta.agent.model.provider.ProviderRequestHeaders
+import io.github.mangi.eta.agent.model.provider.ProviderUrls
 import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.core.AndroidAgentLogger

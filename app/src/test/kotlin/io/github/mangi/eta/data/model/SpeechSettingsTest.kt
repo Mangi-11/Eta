@@ -1,7 +1,7 @@
 package io.github.mangi.eta.data.model
 
-import io.github.mangi.eta.agent.voice.SpeechFailure
-import io.github.mangi.eta.agent.voice.validateSpeechSettings
+import io.github.mangi.eta.agent.voice.audio.SpeechFailure
+import io.github.mangi.eta.agent.voice.audio.validateSpeechSettings
 import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Test

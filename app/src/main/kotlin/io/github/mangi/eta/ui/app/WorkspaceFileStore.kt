@@ -4,10 +4,10 @@ import android.content.Context
 import android.net.Uri
 import io.github.mangi.eta.agent.device.AgentFileReferenceGateway
 import io.github.mangi.eta.agent.device.RootAccess
-import io.github.mangi.eta.agent.terminal.FileToolBackend
-import io.github.mangi.eta.agent.terminal.FileToolKind
-import io.github.mangi.eta.agent.terminal.LocalFileToolBackend
-import io.github.mangi.eta.agent.terminal.ShellFileToolBackend
+import io.github.mangi.eta.agent.terminal.files.FileToolBackend
+import io.github.mangi.eta.agent.terminal.files.FileToolKind
+import io.github.mangi.eta.agent.terminal.files.LocalFileToolBackend
+import io.github.mangi.eta.agent.terminal.files.ShellFileToolBackend
 import io.github.mangi.eta.agent.terminal.ShellProcessSupervisor
 import io.github.mangi.eta.agent.terminal.TerminalPrivateStorage
 import io.github.mangi.eta.agent.terminal.runOneShotShell

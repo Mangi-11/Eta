@@ -5,6 +5,13 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentProviderClient
+import io.github.mangi.eta.agent.model.provider.EndpointKind
+import io.github.mangi.eta.agent.model.provider.ProviderCapabilities
+import io.github.mangi.eta.agent.model.provider.ProviderEvent
+import io.github.mangi.eta.agent.model.provider.ProviderRequest
+import io.github.mangi.eta.agent.model.provider.ProviderResponse
 
 class AssistantScreenContextProjectionTest {
     @Test

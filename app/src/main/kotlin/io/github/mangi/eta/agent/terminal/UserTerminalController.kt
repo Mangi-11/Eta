@@ -2,6 +2,8 @@ package io.github.mangi.eta.agent.terminal
 
 import io.github.mangi.eta.core.AgentLogger
 import kotlin.concurrent.thread
+import io.github.mangi.eta.agent.terminal.linux.LinuxEnvironmentPaths
+import io.github.mangi.eta.agent.terminal.linux.SharedFolderMount
 
 /**
  * 用户手动终端的会话控制器：多个常驻 shell 会话并存，每个会话的 cwd 与环境变量跨命令保持。

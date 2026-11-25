@@ -18,6 +18,15 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import io.github.mangi.eta.agent.model.catalog.AgentToolCatalog
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AnthropicMessagesProvider
+import io.github.mangi.eta.agent.model.provider.ProviderRequest
+import io.github.mangi.eta.agent.model.provider.ProviderRequestPurpose
+import io.github.mangi.eta.agent.model.provider.gemini.GeminiInteractionsProvider
+import io.github.mangi.eta.agent.model.provider.openai.OpenAiChatCompletionsProvider
+import io.github.mangi.eta.agent.model.provider.openai.OpenAiResponsesProvider
 
 class AgentCompactionProviderTest {
     @Test

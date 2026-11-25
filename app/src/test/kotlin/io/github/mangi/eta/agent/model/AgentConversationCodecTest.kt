@@ -1,12 +1,14 @@
 package io.github.mangi.eta.agent.model
 
-import io.github.mangi.eta.agent.runtime.AgentLegacyConversationProjection
+import io.github.mangi.eta.agent.runtime.archive.AgentLegacyConversationProjection
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.openai.ResponsesEphemeralState
 
 class AgentConversationCodecTest {
     @Test

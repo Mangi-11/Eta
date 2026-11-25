@@ -2,7 +2,7 @@ package io.github.mangi.eta.ui.app
 
 import android.content.Context
 import io.github.mangi.eta.agent.model.AgentConversationCodec
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.agent.roleplay.CharacterCardCodec
 import io.github.mangi.eta.agent.roleplay.RoleplayBinding
 import io.github.mangi.eta.agent.roleplay.RoleplayMessageLink
@@ -146,22 +146,22 @@ class AgentConversationStoreTest {
                 ),
             ),
             history = listOf(
-                io.github.mangi.eta.agent.model.AgentModelClient.ConversationMessage(
+                io.github.mangi.eta.agent.model.provider.AgentModelClient.ConversationMessage(
                     role = "user",
                     content = "看一下当前屏幕",
                 ),
-                io.github.mangi.eta.agent.model.AgentModelClient.ConversationMessage(
+                io.github.mangi.eta.agent.model.provider.AgentModelClient.ConversationMessage(
                     role = "assistant",
                     content = "",
                     reasoningContent = "需要先观察屏幕",
                     toolCallsJson = """[{"id":"toolu_1","type":"function","function":{"name":"observe_screen","arguments":"{}"}}]""",
                 ),
-                io.github.mangi.eta.agent.model.AgentModelClient.ConversationMessage(
+                io.github.mangi.eta.agent.model.provider.AgentModelClient.ConversationMessage(
                     role = "tool",
                     content = "{\"ok\":true}",
                     toolCallId = "toolu_1",
                 ),
-                io.github.mangi.eta.agent.model.AgentModelClient.ConversationMessage(
+                io.github.mangi.eta.agent.model.provider.AgentModelClient.ConversationMessage(
                     role = "assistant",
                     content = "| 项目 | 内容 |\n| --- | --- |\n| 电量 | 88% |",
                 ),

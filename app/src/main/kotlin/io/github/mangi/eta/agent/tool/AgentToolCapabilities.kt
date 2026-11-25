@@ -12,6 +12,8 @@ import io.github.mangi.eta.agent.device.RootAccessState
 import io.github.mangi.eta.agent.device.RootAccess
 import java.util.Locale
 import org.json.JSONArray
+import io.github.mangi.eta.agent.tool.device.SystemStateControls
+import io.github.mangi.eta.agent.tool.personal.AgentPersonalContextTools
 
 /** 每轮冻结的运行条件；不包含用户开关，也不触发授权请求。 */
 internal data class AgentToolCapabilities(

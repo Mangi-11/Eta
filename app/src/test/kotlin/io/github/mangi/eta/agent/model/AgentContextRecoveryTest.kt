@@ -1,12 +1,25 @@
 package io.github.mangi.eta.agent.model
 
-import io.github.mangi.eta.agent.runtime.AgentEvent
+import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
+import io.github.mangi.eta.agent.model.format.AgentTraceFormatter
+import io.github.mangi.eta.agent.model.provider.AgentHttpClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelExecutionException
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AgentModelRetry
+import io.github.mangi.eta.agent.model.provider.AgentProviderClient
+import io.github.mangi.eta.agent.model.provider.EndpointKind
+import io.github.mangi.eta.agent.model.provider.ProviderCapabilities
+import io.github.mangi.eta.agent.model.provider.ProviderEvent
+import io.github.mangi.eta.agent.model.provider.ProviderRequest
+import io.github.mangi.eta.agent.model.provider.ProviderRequestPurpose
+import io.github.mangi.eta.agent.model.provider.ProviderResponse
 
 class AgentContextRecoveryTest {
     private val config = AgentModelClient.ModelConfig(

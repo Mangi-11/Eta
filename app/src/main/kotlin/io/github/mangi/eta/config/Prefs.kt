@@ -4,9 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import io.github.libxposed.service.XposedService
 import io.github.mangi.eta.agent.context.PersonalSearchTools
-import io.github.mangi.eta.agent.model.AgentFileToolCatalog
-import io.github.mangi.eta.agent.model.AgentPhoneToolCatalog
-import io.github.mangi.eta.agent.model.AgentTerminalToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentFileToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentPhoneToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentTerminalToolCatalog
 import io.github.mangi.eta.data.model.ReasoningEffort
 import org.json.JSONArray
 

@@ -1,0 +1,506 @@
+package io.github.mangi.eta.agent.model.provider.openai
+
+import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.agent.runtime.AgentTokenUsage
+import io.github.mangi.eta.core.AppStrings
+import io.github.mangi.eta.data.model.OpenAiEndpointMode
+import io.github.mangi.eta.data.model.ProviderSourceTypes
+import io.github.mangi.eta.data.provider.ProviderSourceRegistry
+import java.util.UUID
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import io.github.mangi.eta.agent.model.ChatToolCallHistory
+import io.github.mangi.eta.agent.model.provider.AgentHttpClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AgentProviderClient
+import io.github.mangi.eta.agent.model.provider.AssistantBlockKind
+import io.github.mangi.eta.agent.model.provider.AuthorizedProviderHttp
+import io.github.mangi.eta.agent.model.provider.EndpointKind
+import io.github.mangi.eta.agent.model.provider.ProviderCapabilities
+import io.github.mangi.eta.agent.model.provider.ProviderEvent
+import io.github.mangi.eta.agent.model.provider.ProviderReasoning
+import io.github.mangi.eta.agent.model.provider.ProviderRequest
+import io.github.mangi.eta.agent.model.provider.ProviderRequestHeaders
+import io.github.mangi.eta.agent.model.provider.ProviderRequestPurpose
+import io.github.mangi.eta.agent.model.provider.ProviderResponse
+import io.github.mangi.eta.agent.model.provider.ProviderUrls
+import io.github.mangi.eta.agent.model.provider.RequestBodyMerge
+import io.github.mangi.eta.agent.model.provider.readProviderSse
+
+internal object OpenAiChatCompletionsProvider : AgentProviderClient {
+    private const val MAX_ERROR_CHARS = 600
+    private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+    private val COMPACTION_FORBIDDEN_FIELDS = setOf(
+        "model", "stream", "messages", "input", "instructions", "system",
+        "system_instruction", "tools", "tool_choice", "stream_options",
+    )
+
+    override val id: String = "openai_chat_completions"
+
+    override val capabilities: ProviderCapabilities =
+        ProviderCapabilities(
+            endpoint = EndpointKind.CHAT_COMPLETIONS,
+            streamingText = true,
+            streamingToolCalls = true,
+            imageInput = true,
+            toolResultImages = false,
+            strictTools = false,
+            parallelToolCalls = false
+        )
+
+    override fun complete(
+        request: ProviderRequest,
+        runController: AgentRunController,
+        onEvent: (ProviderEvent) -> Unit
+    ): ProviderResponse {
+        val config = request.effectiveConfig
+        require(config.openAiEndpointMode == OpenAiEndpointMode.CHAT_COMPLETIONS) {
+            AppStrings.get(R.string.provider_err_not_chat_completions_api, "当前 Provider 未配置为 Chat Completions API")
+        }
+        val url = ProviderUrls.openAiChatCompletionsUrl(config.baseUrl)
+        val headers = okhttp3.Headers.Builder()
+            .add("Content-Type", "application/json; charset=utf-8")
+            .add("Accept", "text/event-stream")
+            .apply {
+                if (config.apiKey.isNotBlank()) {
+                    add("Authorization", "Bearer ${config.apiKey}")
+                }
+            }
+            .also {
+                ProviderRequestHeaders.mergeInto(
+                    it, config.baseUrl, config.customHeaders, request.sessionId, config.authMode, config.model,
+                )
+            }
+            .build()
+
+        val requestJson = buildRequestJson(config, request.messages, request.effectiveTools, request.purpose).apply {
+            if (request.purpose == ProviderRequestPurpose.COMPACTION) {
+                if (optJSONArray("tools")?.length()?.let { it > 0 } == true) {
+                    put("tool_choice", "none")
+                } else {
+                    remove("tools")
+                    remove("tool_choice")
+                }
+            } else if (!request.purpose.allowsTools) {
+                remove("tools")
+                remove("tool_choice")
+            }
+        }
+        val existingToolCallIds = ChatToolCallHistory.referencedIds(request.messages) +
+            requestJson.optJSONArray("messages")?.let(ChatToolCallHistory::referencedIds).orEmpty()
+        val requestBody = requestJson.toString().toRequestBody(JSON_MEDIA_TYPE)
+
+        val httpRequest = Request.Builder()
+            .url(url)
+            .headers(headers)
+            .post(requestBody)
+            .build()
+
+        runController.throwIfCancelled()
+        onEvent(ProviderEvent.RequestStarted)
+        return AuthorizedProviderHttp.execute(
+            client = AgentHttpClient.modelClient(request.purpose),
+            providerId = config.providerId,
+            authMode = config.authMode,
+            request = httpRequest,
+            controller = runController,
+        ) { response ->
+            onEvent(ProviderEvent.ResponseHeaders(response.code))
+            if (!response.isSuccessful) {
+                throw AgentModelFailure.http(response.code, response.peekBody(16_384).string())
+            }
+            val assistantMessage = readStreamingAssistantMessage(
+                response.body.byteStream(), runController, existingToolCallIds, onEvent,
+            )
+            onEvent(ProviderEvent.Completed(assistantMessage.optString("finish_reason").ifBlank { null }))
+            ProviderResponse(assistantMessage)
+        }
+    }
+
+    internal fun buildRequestJson(
+        config: AgentModelClient.ModelConfig,
+        messages: JSONArray,
+        tools: JSONArray,
+        purpose: ProviderRequestPurpose = ProviderRequestPurpose.CHAT,
+    ): JSONObject {
+        val sourceType = ProviderSourceRegistry.resolve(
+            providerId = config.providerId,
+            sourceType = config.providerSourceType,
+            baseUrl = config.baseUrl,
+            providerType = config.providerType,
+        )
+        if (purpose == ProviderRequestPurpose.COMPACTION) {
+            return JSONObject().also { request ->
+                mergeExtraBody(request, config.extraBodyJson)
+                RequestBodyMerge.mergeCustomBody(request, config.customBody)
+                COMPACTION_FORBIDDEN_FIELDS.forEach(request::remove)
+                request.put("model", config.model)
+                request.put("stream", true)
+                request.put("messages", OpenAiRequestMessages.forChatCompletions(messages))
+                if (tools.length() > 0) {
+                    request.put("tools", tools)
+                    request.put("tool_choice", "none")
+                } else {
+                    request.remove("tools")
+                    request.remove("tool_choice")
+                }
+                if (sourceType != ProviderSourceTypes.OPENROUTER) {
+                    request.put("stream_options", JSONObject().put("include_usage", true))
+                }
+                ProviderReasoning.applyOpenAiCompatibleRequest(request, config)
+            }
+        }
+        return JSONObject()
+            .put("model", config.model)
+            .put("stream", true)
+            .put("messages", OpenAiRequestMessages.forChatCompletions(messages))
+            .put("tools", tools)
+            .put("tool_choice", "auto")
+            .also { request ->
+                if (sourceType != ProviderSourceTypes.OPENROUTER) {
+                    request.put("stream_options", JSONObject().put("include_usage", true))
+                }
+                mergeExtraBody(request, config.extraBodyJson)
+                RequestBodyMerge.mergeCustomBody(request, config.customBody)
+                ProviderReasoning.applyOpenAiCompatibleRequest(request, config)
+            }
+    }
+
+    private fun readStreamingAssistantMessage(
+        stream: java.io.InputStream?,
+        runController: AgentRunController,
+        existingToolCallIds: Set<String>,
+        onEvent: (ProviderEvent) -> Unit
+    ): JSONObject {
+        if (stream == null) error(AppStrings.get(R.string.provider_err_no_response_stream, "模型接口未返回响应流"))
+        val content = StringBuilder()
+        val reasoningContent = StringBuilder()
+        val toolCalls = linkedMapOf<Int, StreamingToolCall>()
+        var usage: AgentTokenUsage? = null
+        var sawStreamData = false
+        var sawDone = false
+        var finishReason: String? = null
+        var nextContentIndex = 0
+        var activeVisibleBlock: StreamingVisibleBlock? = null
+
+        fun finishActiveVisibleBlock() {
+            val block = activeVisibleBlock ?: return
+            onEvent(
+                ProviderEvent.BlockEnd(
+                    kind = block.kind,
+                    index = block.contentIndex,
+                    content = block.content.toString(),
+                )
+            )
+            activeVisibleBlock = null
+        }
+
+        fun appendVisibleDelta(kind: AssistantBlockKind, delta: String) {
+            if (delta.isEmpty()) return
+            var block = activeVisibleBlock
+            if (block?.kind != kind) {
+                finishActiveVisibleBlock()
+                block = StreamingVisibleBlock(
+                    kind = kind,
+                    contentIndex = nextContentIndex++,
+                ).also { created ->
+                    activeVisibleBlock = created
+                    onEvent(ProviderEvent.BlockStart(kind, created.contentIndex))
+                }
+            }
+            block.content.append(delta)
+            onEvent(ProviderEvent.BlockDelta(kind, block.contentIndex, delta))
+        }
+
+        readProviderSse(stream, runController) { _, data ->
+            sawStreamData = true
+            val payload = data.trim()
+            if (payload == "[DONE]") {
+                sawDone = true
+                return@readProviderSse false
+            }
+            val chunk = JSONObject(payload)
+            throwStreamingErrorIfPresent(chunk)
+            parseUsage(chunk)?.let { parsedUsage ->
+                usage = parsedUsage
+                onEvent(ProviderEvent.Usage(parsedUsage))
+            }
+            val choices = chunk.optJSONArray("choices")
+            if (choices == null || choices.length() == 0) return@readProviderSse true
+            val choice = choices.optJSONObject(0) ?: return@readProviderSse true
+            val reason = choice.optString("finish_reason")
+            if (reason.isNotBlank() && reason != "null") {
+                finishReason = reason
+            }
+            if (reason == "error") {
+                error(AppStrings.get(R.string.provider_err_sse_ended_error, "模型接口 SSE 以 error 结束"))
+            }
+            val delta = choice.optJSONObject("delta") ?: JSONObject()
+            val reasoningDelta = visibleReasoningDelta(delta)
+            if (reasoningDelta.isNotEmpty()) {
+                reasoningContent.append(reasoningDelta)
+                appendVisibleDelta(AssistantBlockKind.THINKING, reasoningDelta)
+            }
+            if (delta.has("content") && !delta.isNull("content")) {
+                val text = delta.optString("content")
+                if (text.isNotEmpty()) {
+                    content.append(text)
+                    appendVisibleDelta(AssistantBlockKind.TEXT, text)
+                }
+            }
+            val deltaToolCalls = delta.optJSONArray("tool_calls") ?: JSONArray()
+            if (deltaToolCalls.length() > 0) finishActiveVisibleBlock()
+            for (i in 0 until deltaToolCalls.length()) {
+                val item = deltaToolCalls.optJSONObject(i) ?: continue
+                val index = item.optInt("index", i)
+                val call = toolCalls.getOrPut(index) {
+                    StreamingToolCall(
+                        index = index,
+                        contentIndex = nextContentIndex++,
+                    ).also { created ->
+                        onEvent(
+                            ProviderEvent.BlockStart(
+                                kind = AssistantBlockKind.TOOL_CALL,
+                                index = created.contentIndex,
+                            )
+                        )
+                    }
+                }
+                if (item.has("id") && !item.isNull("id")) {
+                    item.optString("id").takeIf(String::isNotBlank)?.let { call.id = it }
+                }
+                if (item.has("type") && !item.isNull("type")) call.type = item.optString("type").ifBlank { "function" }
+                val function = item.optJSONObject("function")
+                val nameDelta = function?.takeIf { it.has("name") && !it.isNull("name") }?.optString("name").orEmpty()
+                val argsDelta = function?.takeIf { it.has("arguments") && !it.isNull("arguments") }?.optString("arguments").orEmpty()
+                if (nameDelta.isNotEmpty()) call.name.append(nameDelta)
+                if (argsDelta.isNotEmpty()) call.arguments.append(argsDelta)
+                if (argsDelta.isNotEmpty()) {
+                    onEvent(
+                        ProviderEvent.BlockDelta(
+                            kind = AssistantBlockKind.TOOL_CALL,
+                            index = call.contentIndex,
+                            delta = argsDelta,
+                        )
+                    )
+                }
+            }
+            if (finishReason != null) finishActiveVisibleBlock()
+            true
+        }
+
+        if (!sawStreamData) throw AgentModelFailure.incompleteStream(
+            AppStrings.get(R.string.provider_err_no_sse_chunk, "模型接口未返回 SSE data chunk"),
+        )
+        if (!sawDone && finishReason == null) throw AgentModelFailure.incompleteStream(
+            AppStrings.get(R.string.provider_err_sse_not_ended, "模型接口 SSE 流未正常结束"),
+        )
+
+        finishActiveVisibleBlock()
+        resolveToolCallIds(toolCalls.values, existingToolCallIds)
+        toolCalls.values.sortedBy { it.contentIndex }.forEach { call ->
+            onEvent(
+                ProviderEvent.BlockEnd(
+                    kind = AssistantBlockKind.TOOL_CALL,
+                    index = call.contentIndex,
+                    blockId = call.id,
+                    name = call.name.toString().ifBlank { null },
+                    content = call.arguments.toString(),
+                )
+            )
+        }
+
+        return JSONObject()
+            .put("role", "assistant")
+            .put("content", content.toString())
+            .put("reasoning_content", reasoningContent.toString())
+            .put("finish_reason", finishReason.orEmpty())
+            .also { message ->
+                usage?.let { message.put("usage", it.toJson()) }
+            }
+            .also { message ->
+                if (toolCalls.isNotEmpty()) {
+                    message.put(
+                        "tool_calls",
+                        JSONArray().also { array ->
+                            toolCalls.values.sortedBy { it.index }.forEach { call ->
+                                array.put(call.toJson())
+                            }
+                        }
+                    )
+                }
+            }
+    }
+
+    private fun resolveToolCallIds(calls: Collection<StreamingToolCall>, existingIds: Set<String>) {
+        if (calls.isEmpty()) return
+        val reservedIds = existingIds.toMutableSet().apply {
+            calls.mapNotNullTo(this) { it.id }
+        }
+        val assignedIds = existingIds.toMutableSet()
+        val prefix = "call_eta_${UUID.randomUUID().toString().replace("-", "")}_"
+        var nextId = 0
+        // 先保留所有服务端 ID，再统一补齐；结束事件和历史必须使用同一个已定稿 ID。
+        calls.sortedBy { it.index }.forEach { call ->
+            if (call.id?.let(assignedIds::add) != true) {
+                var generated: String
+                do {
+                    generated = "$prefix${nextId++}"
+                } while (!reservedIds.add(generated))
+                call.id = generated
+                assignedIds += generated
+            }
+        }
+    }
+
+    private data class StreamingToolCall(
+        val index: Int,
+        val contentIndex: Int,
+        var id: String? = null,
+        var type: String = "function",
+        val name: StringBuilder = StringBuilder(),
+        val arguments: StringBuilder = StringBuilder()
+    ) {
+        fun toJson(): JSONObject {
+            val functionName = name.toString().trim()
+            return JSONObject()
+                .put("id", requireNotNull(id))
+                .put("type", type.ifBlank { "function" })
+                .put(
+                    "function",
+                    JSONObject()
+                        .put("name", functionName)
+                        .put("arguments", arguments.toString())
+                )
+        }
+    }
+
+    private data class StreamingVisibleBlock(
+        val kind: AssistantBlockKind,
+        val contentIndex: Int,
+        val content: StringBuilder = StringBuilder(),
+    )
+
+    private fun visibleReasoningDelta(delta: JSONObject): String {
+        // 同一分片的纯文本与结构化字段可重复携带相同思考，只消费一种表示。
+        for (key in listOf("reasoning_content", "reasoning")) {
+            (delta.opt(key) as? String)?.takeIf { it.isNotEmpty() }?.let { return it }
+        }
+        val details = delta.optJSONArray("reasoning_details") ?: return ""
+        return buildString {
+            for (index in 0 until details.length()) {
+                val detail = details.optJSONObject(index) ?: continue
+                val key = when (detail.optString("type")) {
+                    "reasoning.text" -> "text"
+                    "reasoning.summary" -> "summary"
+                    else -> continue
+                }
+                (detail.opt(key) as? String)?.let(::append)
+            }
+        }
+    }
+
+    private fun mergeExtraBody(request: JSONObject, extraBodyJson: String) {
+        if (extraBodyJson.isBlank()) return
+        val extraBody = JSONObject(extraBodyJson)
+        extraBody.keys().forEach { key ->
+            request.put(key, extraBody.get(key))
+        }
+    }
+
+    private fun throwStreamingErrorIfPresent(chunk: JSONObject) {
+        val streamError = chunk.optJSONObject("error") ?: return
+        val code = streamError.opt("code")
+            ?.toString()
+            ?.takeIf { it.isNotBlank() && it != "null" }
+        val errorType = streamError.optJSONObject("metadata")
+            ?.optString("error_type")
+            ?.takeIf { it.isNotBlank() && it != "null" }
+        val context = listOfNotNull(
+            code?.let { "code=$it" },
+            errorType?.let { "type=$it" },
+        ).joinToString(", ")
+        val message = streamError.optString("message")
+            .ifBlank { AppStrings.get(R.string.provider_err_no_error_message, "未提供错误信息") }
+            .compactError()
+        val detailContext = context.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
+        throw AgentModelFailure.stream(
+            streamError,
+            AppStrings.get(R.string.provider_err_sse_error_detail, "模型接口 SSE 返回错误%1\$s：%2\$s", detailContext, message),
+        )
+    }
+
+    private fun parseUsage(chunk: JSONObject): AgentTokenUsage? {
+        val usage = chunk.optJSONObject("usage") ?: return null
+        val cacheMiss = usage.firstInt("prompt_cache_miss_tokens")
+        val explicitCached = usage.firstNestedInt(
+            "prompt_tokens_details",
+            childKey = "cached_tokens"
+        ) ?: usage.firstInt("cache_read_input_tokens", "prompt_cache_hit_tokens", "cached_tokens")
+        val rawInput = usage.firstInt("prompt_tokens", "input_tokens")
+            ?: if (explicitCached != null && cacheMiss != null) explicitCached + cacheMiss else null
+        val resolvedCached = explicitCached
+            ?: if (rawInput != null && cacheMiss != null) (rawInput - cacheMiss).coerceAtLeast(0) else null
+        val cacheWrite = usage.firstNestedInt(
+            "prompt_tokens_details",
+            childKey = "cache_write_tokens",
+        ) ?: usage.firstInt("cache_creation_input_tokens", "cache_write_tokens")
+        return AgentTokenUsage(
+            contextTokens = usage.firstInt("total_tokens"),
+            inputTokens = rawInput,
+            outputTokens = usage.firstInt("completion_tokens", "output_tokens"),
+            reasoningTokens = usage.firstNestedInt(
+                "completion_tokens_details",
+                "output_tokens_details",
+                childKey = "reasoning_tokens"
+            ),
+            // 兼容端点各用各的字段：OpenAI 嵌套在 prompt_tokens_details，DeepSeek 为 prompt_cache_hit_tokens / prompt_cache_miss_tokens，
+            // 部分端点直接放在顶层 cached_tokens。
+            cachedTokens = resolvedCached,
+            cacheWriteTokens = cacheWrite,
+        ).takeUnless { it.isEmpty }
+    }
+
+    private fun JSONObject.firstInt(vararg keys: String): Int? {
+        for (key in keys) {
+            if (!has(key) || isNull(key)) continue
+            val raw = opt(key)
+            when (raw) {
+                is Number -> return raw.toInt()
+                is String -> raw.toIntOrNull()?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun JSONObject.firstNestedInt(
+        vararg parentKeys: String,
+        childKey: String
+    ): Int? {
+        for (parentKey in parentKeys) {
+            val parent = optJSONObject(parentKey) ?: continue
+            parent.firstInt(childKey)?.let { return it }
+        }
+        return null
+    }
+
+    private fun AgentTokenUsage.toJson(): JSONObject =
+        JSONObject().also { json ->
+            contextTokens?.let { json.put("total_tokens", it) }
+            inputTokens?.let { json.put("input_tokens", it) }
+            outputTokens?.let { json.put("output_tokens", it) }
+            reasoningTokens?.let { json.put("reasoning_tokens", it) }
+            cachedTokens?.let { json.put("cached_tokens", it) }
+            cacheWriteTokens?.let { json.put("cache_write_tokens", it) }
+        }
+
+    private fun String.compactError(): String =
+        replace('\n', ' ')
+            .replace('\r', ' ')
+            .let { if (it.length > MAX_ERROR_CHARS) it.take(MAX_ERROR_CHARS) + "..." else it }
+}

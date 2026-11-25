@@ -1,6 +1,6 @@
 package io.github.mangi.eta.data.provider
 
-import io.github.mangi.eta.agent.model.ProviderUrls
+import io.github.mangi.eta.agent.model.provider.ProviderUrls
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.CustomProviderSetting

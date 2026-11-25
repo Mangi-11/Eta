@@ -87,8 +87,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.voice.ui.EtaSpeechPhase
 import io.github.mangi.eta.agent.voice.ReadAloudPlaybackService
-import io.github.mangi.eta.agent.voice.SpeechInputController
-import io.github.mangi.eta.agent.voice.SpeechPlaybackController
+import io.github.mangi.eta.agent.voice.asr.SpeechInputController
+import io.github.mangi.eta.agent.voice.tts.SpeechPlaybackController
 import io.github.mangi.eta.data.model.TtsProvider
 import io.github.mangi.eta.data.repository.SpeechSettingsRepository
 import io.github.mangi.eta.ui.MainActivity

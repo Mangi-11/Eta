@@ -1,6 +1,6 @@
 package io.github.mangi.eta.agent.scheduler
 
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.data.model.ScheduledTask
 import io.github.mangi.eta.data.model.ScheduledTaskCapabilities
 import io.github.mangi.eta.data.model.ScheduledTaskMisfirePolicy

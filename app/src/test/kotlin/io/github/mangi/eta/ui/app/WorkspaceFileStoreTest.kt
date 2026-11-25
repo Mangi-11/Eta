@@ -2,10 +2,10 @@ package io.github.mangi.eta.ui.app
 
 import android.app.Application
 import android.net.Uri
-import io.github.mangi.eta.agent.terminal.FileToolBackend
-import io.github.mangi.eta.agent.terminal.FileToolStat
-import io.github.mangi.eta.agent.terminal.FileToolKind
-import io.github.mangi.eta.agent.terminal.LocalFileToolBackend
+import io.github.mangi.eta.agent.terminal.files.FileToolBackend
+import io.github.mangi.eta.agent.terminal.files.FileToolStat
+import io.github.mangi.eta.agent.terminal.files.FileToolKind
+import io.github.mangi.eta.agent.terminal.files.LocalFileToolBackend
 import org.junit.Assert.assertArrayEquals
 import io.github.mangi.eta.agent.terminal.TerminalPrivateStorage
 import java.io.File

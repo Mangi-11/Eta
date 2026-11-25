@@ -2,9 +2,9 @@ package io.github.mangi.eta.agent.tool
 
 import org.json.JSONArray
 import org.json.JSONObject
-import io.github.mangi.eta.agent.model.AgentTerminalToolCatalog
-import io.github.mangi.eta.agent.model.AgentFileToolCatalog
-import io.github.mangi.eta.agent.model.AgentPhoneToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentTerminalToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentFileToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentPhoneToolCatalog
 import io.github.mangi.eta.agent.context.PersonalSearchTools
 
 internal enum class RootRequirement { NONE, PARTIAL, REQUIRED }

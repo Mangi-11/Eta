@@ -1,6 +1,6 @@
 package io.github.mangi.eta
 
-import io.github.mangi.eta.agent.voice.SpeechOssUpload
+import io.github.mangi.eta.agent.voice.asr.SpeechOssUpload
 import android.app.Application
 import android.content.ComponentCallbacks2
 import android.os.Handler

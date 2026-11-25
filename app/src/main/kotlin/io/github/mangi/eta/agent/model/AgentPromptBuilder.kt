@@ -6,6 +6,8 @@ import io.github.mangi.eta.agent.roleplay.RoleplayRunContext
 import io.github.mangi.eta.agent.terminal.TerminalExecutionContext
 import org.json.JSONArray
 import org.json.JSONObject
+import io.github.mangi.eta.agent.model.catalog.AgentConversationToolCatalog
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 
 /** 组装每次 run 的系统约束、历史与当前用户输入。 */
 internal object AgentPromptBuilder {

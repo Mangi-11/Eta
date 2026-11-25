@@ -1,7 +1,7 @@
 package io.github.mangi.eta.agent.tool
 
 import android.content.Context
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.core.AgentLogger
 import org.json.JSONObject
 import org.junit.Assert.assertEquals

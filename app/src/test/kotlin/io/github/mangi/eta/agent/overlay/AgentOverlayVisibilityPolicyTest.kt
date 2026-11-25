@@ -1,7 +1,7 @@
 package io.github.mangi.eta.agent.overlay
 
-import io.github.mangi.eta.agent.runtime.AgentEvent
-import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
+import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 import io.github.mangi.eta.agent.runtime.GuiControlStatus
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

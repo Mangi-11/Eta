@@ -1,7 +1,7 @@
 package io.github.mangi.eta.agent.tool
 
 import io.github.mangi.eta.agent.imagegen.ImageGenToolCatalog
-import io.github.mangi.eta.agent.model.AgentToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentToolCatalog
 import io.github.mangi.eta.agent.roleplay.CharacterMemoryTools
 import org.json.JSONArray
 import org.json.JSONObject

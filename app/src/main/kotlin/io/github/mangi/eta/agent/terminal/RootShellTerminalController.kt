@@ -9,6 +9,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import org.json.JSONArray
 import org.json.JSONObject
+import io.github.mangi.eta.agent.terminal.files.FileToolDispatcher
+import io.github.mangi.eta.agent.terminal.files.FileToolException
+import io.github.mangi.eta.agent.terminal.files.LocalFileToolBackend
+import io.github.mangi.eta.agent.terminal.files.ShellFileToolBackend
+import io.github.mangi.eta.agent.terminal.linux.LinuxEnvironmentPaths
+import io.github.mangi.eta.agent.terminal.linux.SharedFolderMount
 
 internal class RootShellTerminalController(
     private val logger: AgentLogger,

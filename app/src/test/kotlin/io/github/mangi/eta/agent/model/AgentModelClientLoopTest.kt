@@ -1,6 +1,6 @@
 package io.github.mangi.eta.agent.model
 
-import io.github.mangi.eta.agent.runtime.AgentEvent
+import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
@@ -16,6 +16,23 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import io.github.mangi.eta.agent.model.catalog.AgentToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentToolSchema
+import io.github.mangi.eta.agent.model.format.AgentTraceFormatter
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelExecutionException
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AgentModelRetry
+import io.github.mangi.eta.agent.model.provider.AgentProviderClient
+import io.github.mangi.eta.agent.model.provider.AnthropicEphemeralState
+import io.github.mangi.eta.agent.model.provider.AssistantBlockKind
+import io.github.mangi.eta.agent.model.provider.EndpointKind
+import io.github.mangi.eta.agent.model.provider.ProviderCapabilities
+import io.github.mangi.eta.agent.model.provider.ProviderEvent
+import io.github.mangi.eta.agent.model.provider.ProviderRequest
+import io.github.mangi.eta.agent.model.provider.ProviderResponse
+import io.github.mangi.eta.agent.model.provider.openai.OpenAiRequestMessages
+import io.github.mangi.eta.agent.model.provider.openai.ResponsesRequestBuilder
 
 class AgentModelClientLoopTest {
     @Test

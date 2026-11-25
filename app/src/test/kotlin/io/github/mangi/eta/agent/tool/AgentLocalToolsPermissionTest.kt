@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.ClipData
 import android.content.ClipboardManager
 import io.github.mangi.eta.agent.device.RootShellDeviceController
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.agent.model.AgentScreenObservationContract
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentRunCancelledException

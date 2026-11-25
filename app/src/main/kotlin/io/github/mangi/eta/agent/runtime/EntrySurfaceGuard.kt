@@ -5,6 +5,7 @@ import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.accessibility.PackageWindowVisibility
 import io.github.mangi.eta.core.AgentLogger
 import java.util.concurrent.atomic.AtomicBoolean
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 
 /**
  * 把外部入口从前台工具的真实操作对象中隔离开。

@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AppStrings
+import io.github.mangi.eta.agent.voice.audio.SpeechErrorCode
+import io.github.mangi.eta.agent.voice.audio.SpeechFailure
 
 /** Overlay 不等同于前台 Activity；只在可见浮窗采集或播放音频期间提升服务类型。 */
 internal class AssistantSpeechForeground(private val service: Service) {

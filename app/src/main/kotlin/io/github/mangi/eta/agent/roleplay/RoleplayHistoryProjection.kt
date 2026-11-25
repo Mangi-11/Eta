@@ -1,6 +1,6 @@
 package io.github.mangi.eta.agent.roleplay
 
-import io.github.mangi.eta.agent.model.AgentModelClient.ConversationMessage
+import io.github.mangi.eta.agent.model.provider.AgentModelClient.ConversationMessage
 
 /** 正文修订只改变模型投影，原始 journal 和已经发生的工具批次保持不变。 */
 internal object RoleplayHistoryProjection {

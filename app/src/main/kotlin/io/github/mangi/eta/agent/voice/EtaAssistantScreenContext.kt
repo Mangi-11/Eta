@@ -6,7 +6,7 @@ import android.graphics.Bitmap
 import android.os.SystemClock
 import android.service.voice.VoiceInteractionSession
 import io.github.mangi.eta.agent.media.AgentImageCodec
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.agent.model.AssistantScreenContextProjection
 import io.github.mangi.eta.core.AndroidAgentLogger
 import java.util.UUID

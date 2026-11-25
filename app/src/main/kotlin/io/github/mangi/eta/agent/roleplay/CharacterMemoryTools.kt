@@ -1,8 +1,8 @@
 package io.github.mangi.eta.agent.roleplay
 
 import android.content.Context
-import io.github.mangi.eta.agent.model.AgentMemoryToolCatalog
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.catalog.AgentMemoryToolCatalog
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.data.repository.AgentMemoryException
 import io.github.mangi.eta.data.repository.AgentMemoryMutation
 import io.github.mangi.eta.data.repository.AgentMemoryWriteResult

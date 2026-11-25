@@ -57,7 +57,7 @@ private fun buildPermissionHealthState(context: Context): PermissionHealthUiStat
     val notificationsEnabled = context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
     val locationAccess = DeviceLocationProvider.accessState(context)
     val notificationHistoryEnabled = io.github.mangi.eta.agent.device.AgentNotificationHistoryService.isEnabled(context)
-    val usageAccessEnabled = io.github.mangi.eta.agent.tool.AgentPersonalContextTools.hasUsageAccess(context)
+    val usageAccessEnabled = io.github.mangi.eta.agent.tool.personal.AgentPersonalContextTools.hasUsageAccess(context)
 
     return PermissionHealthUiState(
         items = listOfNotNull(

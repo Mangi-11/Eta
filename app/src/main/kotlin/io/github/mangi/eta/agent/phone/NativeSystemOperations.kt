@@ -6,7 +6,7 @@ import android.media.AudioManager
 import android.net.TetheringInterface
 import android.net.TetheringManager
 import android.os.Build
-import io.github.mangi.eta.agent.tool.DeviceMutationResult
+import io.github.mangi.eta.agent.tool.device.DeviceMutationResult
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit

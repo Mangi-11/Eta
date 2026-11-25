@@ -1,7 +1,7 @@
 package io.github.mangi.eta.agent.runtime
 
 import android.app.Application
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.data.db.EtaDatabase
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -13,6 +13,9 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import io.github.mangi.eta.agent.runtime.archive.AgentRunCheckpointStore
+import io.github.mangi.eta.agent.runtime.archive.AgentRuntimeResultStore
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], application = Application::class)

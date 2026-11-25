@@ -2,9 +2,9 @@ package io.github.mangi.eta.agent.subagent
 
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.memory.AgentMemoryContext
-import io.github.mangi.eta.agent.model.AgentModelClient
-import io.github.mangi.eta.agent.model.AgentModelExecutionException
-import io.github.mangi.eta.agent.runtime.AgentEvent
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelExecutionException
+import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage

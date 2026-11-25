@@ -5,13 +5,13 @@ import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityKeeper
 import io.github.mangi.eta.agent.browser.BrowserSessionRegistry
 import io.github.mangi.eta.agent.model.AgentConversationCodec
-import io.github.mangi.eta.agent.model.AgentConversationToolCatalog
-import io.github.mangi.eta.agent.tool.ConversationHistoryTool
+import io.github.mangi.eta.agent.model.catalog.AgentConversationToolCatalog
+import io.github.mangi.eta.agent.tool.chat.ConversationHistoryTool
 import io.github.mangi.eta.data.db.EtaDatabase
-import io.github.mangi.eta.agent.model.AgentModelClient
-import io.github.mangi.eta.agent.model.AgentModelExecutionException
-import io.github.mangi.eta.agent.model.AgentModelFailure
-import io.github.mangi.eta.agent.model.AgentHttpClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelExecutionException
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AgentHttpClient
 import io.github.mangi.eta.agent.imagegen.ImageGenToolCatalog
 import io.github.mangi.eta.agent.imagegen.ImageGenToolExecutor
 import io.github.mangi.eta.agent.memory.AgentMemoryContext
@@ -48,6 +48,14 @@ import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
+import io.github.mangi.eta.agent.runtime.archive.AgentExternalArchivePayload
+import io.github.mangi.eta.agent.runtime.archive.AgentRunArchiveStore
+import io.github.mangi.eta.agent.runtime.archive.AgentRunCheckpointRecorder
+import io.github.mangi.eta.agent.runtime.archive.AgentRunCheckpointStore
+import io.github.mangi.eta.agent.runtime.archive.recoveryProjection
+import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
+import io.github.mangi.eta.agent.runtime.ipc.AgentUiHandoffPayload
 
 /**
  * 单次 Runtime run 的阻塞执行器。

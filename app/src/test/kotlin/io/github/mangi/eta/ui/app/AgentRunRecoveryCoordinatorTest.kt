@@ -1,7 +1,7 @@
 package io.github.mangi.eta.ui.app
 
-import io.github.mangi.eta.agent.runtime.AgentRunCheckpointStore
-import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
+import io.github.mangi.eta.agent.runtime.archive.AgentRunCheckpointStore
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

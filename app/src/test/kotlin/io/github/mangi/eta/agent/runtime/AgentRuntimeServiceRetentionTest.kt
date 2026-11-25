@@ -1,7 +1,7 @@
 package io.github.mangi.eta.agent.runtime
 
 import android.app.Application
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -9,6 +9,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], application = Application::class)

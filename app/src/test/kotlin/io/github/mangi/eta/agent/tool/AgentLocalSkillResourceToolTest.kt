@@ -2,7 +2,7 @@ package io.github.mangi.eta.agent.tool
 
 import io.github.mangi.eta.data.db.EtaDatabase
 import android.content.Context
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.agent.skill.SkillIndexService
 import io.github.mangi.eta.agent.skill.SkillResourceReader
 import io.github.mangi.eta.core.AgentLogger

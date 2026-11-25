@@ -6,6 +6,11 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
+import io.github.mangi.eta.agent.terminal.linux.AndroidBusyBox
+import io.github.mangi.eta.agent.terminal.linux.LinuxEnvironmentPaths
+import io.github.mangi.eta.agent.terminal.linux.ProotCommandBuilder
+import io.github.mangi.eta.agent.terminal.linux.SharedFolderMount
+import io.github.mangi.eta.agent.terminal.linux.SharedFolderMounts
 
 /** 负责 Shell 进程的启动接纳、所有权识别、进程树终止与回收。 */
 internal class ShellProcessSupervisor(

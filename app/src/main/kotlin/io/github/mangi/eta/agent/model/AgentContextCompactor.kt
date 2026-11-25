@@ -6,6 +6,13 @@ import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.core.AppStrings
 import org.json.JSONArray
 import org.json.JSONObject
+import io.github.mangi.eta.agent.model.catalog.AgentConversationToolCatalog
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AgentProviderClient
+import io.github.mangi.eta.agent.model.provider.AnthropicEphemeralState
+import io.github.mangi.eta.agent.model.provider.gemini.GeminiEphemeralState
+import io.github.mangi.eta.agent.model.provider.openai.ResponsesEphemeralState
 
 /** 只在完整工具交换之间生成候选摘要；全部验证通过后由会话一次性提交。 */
 internal class AgentContextCompactor(

@@ -1,9 +1,9 @@
 package io.github.mangi.eta.data.repository
 
-import io.github.mangi.eta.agent.model.GeminiInteractionsProvider
-import io.github.mangi.eta.agent.model.ProviderClientFactory
-import io.github.mangi.eta.agent.model.VertexGenerateContentProvider
-import io.github.mangi.eta.agent.runtime.AgentRuntimeWire
+import io.github.mangi.eta.agent.model.provider.gemini.GeminiInteractionsProvider
+import io.github.mangi.eta.agent.model.provider.ProviderClientFactory
+import io.github.mangi.eta.agent.model.provider.gemini.VertexGenerateContentProvider
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.db.EtaDatabase
 import io.github.mangi.eta.data.model.CustomBody

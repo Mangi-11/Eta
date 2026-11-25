@@ -1,7 +1,7 @@
 package io.github.mangi.eta.agent.mcp
 
 import io.github.mangi.eta.R
-import io.github.mangi.eta.agent.model.AgentHttpClient
+import io.github.mangi.eta.agent.model.provider.AgentHttpClient
 import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.McpDiscoveryTruncation
 import io.github.mangi.eta.data.model.McpProtocolMode

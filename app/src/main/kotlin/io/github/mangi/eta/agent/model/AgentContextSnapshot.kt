@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.model
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 
 /** 上下文替换与 transcript 增量独立交付，摘要正文不进入事件流。 */
 @Serializable

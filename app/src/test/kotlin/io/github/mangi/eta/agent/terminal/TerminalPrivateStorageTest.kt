@@ -7,6 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import io.github.mangi.eta.agent.terminal.linux.LinuxEnvironmentPaths
 
 class TerminalPrivateStorageTest {
     @get:Rule val temporary = TemporaryFolder()

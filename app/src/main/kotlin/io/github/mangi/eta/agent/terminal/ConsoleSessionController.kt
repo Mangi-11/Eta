@@ -2,6 +2,8 @@ package io.github.mangi.eta.agent.terminal
 
 import io.github.mangi.eta.core.AgentLogger
 import kotlin.concurrent.thread
+import io.github.mangi.eta.agent.terminal.linux.LinuxEnvironmentPaths
+import io.github.mangi.eta.agent.terminal.linux.SharedFolderMount
 
 /**
  * 控制台会话控制器：PTY 字节流原样透传，无状态行协议、无输出截断。

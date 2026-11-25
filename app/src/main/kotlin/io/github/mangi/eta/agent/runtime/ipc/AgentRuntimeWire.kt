@@ -1,0 +1,1154 @@
+package io.github.mangi.eta.agent.runtime.ipc
+
+import io.github.mangi.eta.agent.model.AgentContextSnapshot
+import io.github.mangi.eta.agent.model.AssistantScreenContextProjection
+
+import android.content.ComponentName
+import android.content.Intent
+import android.os.Bundle
+import android.os.Parcel
+import android.os.ParcelFileDescriptor
+import io.github.mangi.eta.agent.model.AgentConversationCodec
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.subagent.AgentSubagentToolCatalog
+import io.github.mangi.eta.agent.subagent.SubagentActivitySnapshot
+import io.github.mangi.eta.config.Prefs
+import io.github.mangi.eta.data.model.CustomBody
+import io.github.mangi.eta.data.model.CustomHeader
+import io.github.mangi.eta.data.model.ModelReasoningCapabilities
+import io.github.mangi.eta.data.model.ProviderAuthModes
+import io.github.mangi.eta.data.model.ReasoningEffort
+import java.io.Closeable
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.Serializable
+import java.io.File
+import kotlinx.serialization.json.Json
+import io.github.mangi.eta.agent.runtime.AgentRuntimeService
+import io.github.mangi.eta.agent.runtime.AgentTokenUsage
+import io.github.mangi.eta.agent.runtime.GuiControlStatus
+import io.github.mangi.eta.agent.runtime.SearchSuggestionsPayload
+import io.github.mangi.eta.agent.runtime.archive.AgentLegacyConversationProjection
+
+/**
+ * AgentRuntime 跨进程通信协议。
+ *
+ * 入口进程通过 bind + Messenger 与模块自身进程的 [AgentRuntimeService] 通信：
+ * 发送一次运行请求，接收事件流和最终结果。
+ *
+ * 不引入 AIDL：结构化字段使用 [Bundle]，图片正文使用 [ParcelFileDescriptor]，避免占用 Binder 事务缓冲区。
+ */
+internal object AgentRuntimeWire {
+    const val MSG_READ_CONTEXT_RESULT = 15
+    const val OP_CHAT = "chat"
+    const val OP_COMPACT = "compact"
+    const val OP_REWRITE_REPLY = "rewrite_reply"
+
+    const val AGENT_UI_HANDOFF_SOURCE = "agent_ui"
+    const val ETA_VOICE_HANDOFF_SOURCE = "eta_voice"
+    const val SCHEDULED_TASK_HANDOFF_SOURCE = "scheduled_task"
+
+    internal class PayloadTooLargeException(sizeBytes: Int) : IllegalArgumentException(
+        "Agent Runtime 请求元数据过大（$sizeBytes bytes）；请缩短输入或会话历史后重试"
+    )
+
+    /** bind 获取服务端 Messenger 的 Intent action。 */
+    const val ACTION_BIND = "io.github.mangi.eta.agent.runtime.BIND"
+
+    // Messenger.what
+    /** client -> service：开始一次 Agent 运行，[Message.replyTo] 携带 client Messenger。 */
+    const val MSG_START_RUN = 1
+
+    /** service -> client：推送一个 [AgentEvent]。 */
+    const val MSG_EVENT = 2
+
+    /** service -> client：最终结果。 */
+    const val MSG_RESULT = 3
+
+    /** client -> service：取消当前运行。 */
+    const val MSG_CANCEL = 4
+
+    /** client -> service：确认一个最终结果已经被入口层成功展示。 */
+    const val MSG_ACK_RESULT = 5
+
+    /** client -> service：拉取尚未被入口层确认展示的最终结果。 */
+    const val MSG_DRAIN_RESULTS = 6
+
+    /** service -> client：返回一组尚未确认展示的最终结果。 */
+    const val MSG_DRAIN_RESULTS_RESPONSE = 7
+
+    /** service -> client：请求图片已经摄取，入口进程可以关闭文件描述符并删除临时文件。 */
+    const val MSG_REQUEST_INGESTED = 8
+
+    /** client -> service：查询当前仍在执行或提交终态的 run。 */
+    const val MSG_QUERY_ACTIVE_RUN = 9
+
+    /** service -> client：返回当前 active runId；空字符串表示没有。 */
+    const val MSG_QUERY_ACTIVE_RUN_RESPONSE = 10
+
+    /** client -> service：重新订阅指定 run 的安全事件重放、实时事件和最终结果。 */
+    const val MSG_ATTACH_RUN = 11
+
+    /** service -> client：返回是否成功重新订阅指定 run。 */
+    const val MSG_ATTACH_RUN_RESPONSE = 12
+
+    /** client -> service：枚举已接纳、尚未发布终态的运行。 */
+    const val MSG_QUERY_ACTIVE_RUNS = 16
+
+    /** service -> client：返回各运行的会话归属与当前阶段。 */
+    const val MSG_QUERY_ACTIVE_RUNS_RESPONSE = 17
+
+    /** client -> service：向运行中的 run 追加下一回合 steering 补充指令，不取消当前请求或工具。 */
+    const val MSG_STEER = 18
+
+    /** service -> client：返回 steering 是否已被当前活跃 run 接纳及分配的补充序号。 */
+    const val MSG_STEER_RESPONSE = 19
+
+    private const val MODULE_PACKAGE = "io.github.mangi.eta"
+    private const val SERVICE_CLASS = "io.github.mangi.eta.agent.runtime.AgentRuntimeService"
+
+    private const val KEY_TYPE = "type"
+    private const val KEY_RUN_ID = "run_id"
+    private const val KEY_PROMPT = "prompt"
+    private const val KEY_ASSISTANT_SCREEN_CONTEXT = "assistant_screen_context"
+    private const val KEY_MODEL_SESSION_ID = "model_session_id"
+    private const val KEY_PROVIDER_ID = "provider_id"
+    private const val KEY_PROVIDER_NAME = "provider_name"
+    private const val KEY_PROVIDER_TYPE = "provider_type"
+    private const val KEY_PROVIDER_SOURCE_TYPE = "provider_source_type"
+    private const val KEY_BASE_URL = "base_url"
+    private const val KEY_API_KEY = "api_key"
+    private const val KEY_AUTH_MODE = "auth_mode"
+    private const val KEY_MODEL = "model"
+    private const val KEY_MODEL_DISPLAY_NAME = "model_display_name"
+    private const val KEY_CONTEXT_WINDOW = "context_window"
+    private const val KEY_AUTO_COMPACTION_ENABLED = "auto_compaction_enabled"
+    private const val KEY_SYSTEM_PROMPT = "system_prompt"
+    private const val KEY_ANTHROPIC_VERSION = "anthropic_version"
+    private const val KEY_OPENAI_ENDPOINT_MODE = "openai_endpoint_mode"
+    private const val KEY_GEMINI_ENDPOINT_MODE = "gemini_endpoint_mode"
+    private const val KEY_VERTEX_PROJECT = "vertex_project"
+    private const val KEY_VERTEX_LOCATION = "vertex_location"
+    private const val KEY_SUPPORTS_SEARCH_SUGGESTIONS = "supports_search_suggestions"
+    private const val KEY_HOSTED_WEB_SEARCH_ENABLED = "hosted_web_search_enabled"
+    private const val KEY_TERMINAL_TOOLS = "terminal_tools"
+    private const val KEY_BROWSER_TOOLS = "browser_tools"
+    private const val KEY_DEVICE_DIRECT_TOOLS = "device_direct_tools"
+    private const val KEY_DEVICE_SENSITIVE_READ_TOOLS = "device_sensitive_read_tools"
+    private const val KEY_DEVICE_SENSITIVE_ACTION_TOOLS = "device_sensitive_action_tools"
+    private const val KEY_SUBAGENT_TOOLS = "subagent_tools"
+    private const val KEY_THINKING_ENABLED = "thinking_enabled"
+    private const val KEY_REASONING_EFFORT = "reasoning_effort"
+    private const val KEY_REASONING_CAPABILITIES_JSON = "reasoning_capabilities_json"
+    private const val KEY_EXTRA_BODY_JSON = "extra_body_json"
+    private const val KEY_CUSTOM_HEADERS_JSON = "custom_headers_json"
+    private const val KEY_CUSTOM_BODY_JSON = "custom_body_json"
+    private const val KEY_IMAGES = "images"
+    private const val KEY_HISTORY = "history"
+    private const val KEY_CONTENT_JSON = "content_json"
+    private const val KEY_TOOL_CALL_ID = "tool_call_id"
+    private const val KEY_TOOL_CALLS_JSON = "tool_calls_json"
+    private const val KEY_ROLE = "role"
+    private const val KEY_DATA_URL = "data_url"
+    private const val KEY_IMAGE_URL = "image_url"
+    private const val KEY_IMAGE_FD = "image_fd"
+    private const val KEY_MIME_TYPE = "mime_type"
+    private const val KEY_BYTES = "bytes"
+    private const val KEY_WIDTH = "width"
+    private const val KEY_HEIGHT = "height"
+    private const val KEY_SOURCE = "source"
+    private const val KEY_PRESERVE_ORIGINAL = "preserve_original"
+    private const val KEY_OK = "ok"
+    private const val KEY_CONTENT = "content"
+    private const val KEY_REASONING_CONTENT = "reasoning_content"
+    private const val KEY_ERROR = "error"
+    private const val KEY_RESULT = "result"
+    private const val KEY_TRANSCRIPT_JSON = "transcript_json"
+    private const val KEY_HANDOFF = "handoff"
+    private const val KEY_HANDOFF_ID = "handoff_id"
+    private const val KEY_HANDOFF_SOURCE = "handoff_source"
+    private const val KEY_HANDOFF_PAYLOAD = "handoff_payload"
+    private const val KEY_HANDOFF_DISMISS_ENTRY_SURFACE_ON_FOREGROUND_OPERATION =
+        "handoff_dismiss_entry_surface_on_foreground_operation"
+    private const val KEY_CREATED_AT = "created_at"
+    private const val KEY_RESULTS = "results"
+    private const val KEY_STEER_TEXT = "steer_text"
+    private const val KEY_SUPPLEMENT_INDEX = "supplement_index"
+    private const val MAX_RESULT_CONTENT_CHARS = 64_000
+    private const val MAX_RESULT_REASONING_CHARS = 32_000
+    private const val MAX_DRAIN_CONTENT_CHARS = 16_000
+    private const val MAX_DRAIN_REASONING_CHARS = 4_000
+    private const val TRUNCATED_SUFFIX = "\n\n[跨进程结果过长，已截断]"
+    private const val MAX_START_REQUEST_PARCEL_BYTES = 768 * 1024
+
+    data class RunRequest(
+        val runId: String,
+        val prompt: String,
+        val config: AgentModelClient.ModelConfig,
+        val images: List<AgentModelClient.ModelImage>,
+        val history: List<AgentModelClient.ConversationMessage> = emptyList(),
+        val handoff: EntryHandoff? = null,
+        val modelSessionId: String = "",
+        val operation: String = OP_CHAT,
+        val rewriteTargetMessageId: String? = null,
+        val assistantScreenContext: String = "",
+    ) {
+        // 旧入口沿用会话 handoff；无持久会话的入口以首个 run 为会话起点。
+        val effectiveModelSessionId: String
+            get() = modelSessionId.ifBlank {
+                handoff?.takeIf { it.source == AGENT_UI_HANDOFF_SOURCE }
+                    ?.let { AgentUiHandoffPayload.from(it.payload).conversationId }
+                    ?.takeIf { it.isNotBlank() } ?: runId
+            }
+    }
+
+    enum class RunPhase(val wireValue: String) {
+        Preparing("preparing"),
+        Running("running"),
+        WaitingForGui("waiting_for_gui"),
+        Paused("paused"),
+        Committing("committing");
+
+        companion object {
+            fun fromWireValue(value: String): RunPhase = entries.firstOrNull { it.wireValue == value } ?: Running
+        }
+    }
+
+    data class ActiveRunSnapshot(
+        val runId: String,
+        val conversationId: String,
+        val phase: RunPhase = RunPhase.Running,
+        val operation: String = OP_CHAT,
+        val handoffSource: String = "",
+    )
+
+    /**
+     * 单张图片在 IPC 层的表示。远程 URL 可直接放入 Bundle，本地或内联图片只传只读文件描述符。
+     */
+    data class WireImage(
+        val remoteUrl: String? = null,
+        val fileDescriptor: ParcelFileDescriptor? = null,
+        val mimeType: String,
+        val bytes: Int,
+        val width: Int? = null,
+        val height: Int? = null,
+        val source: String = "unknown",
+        val preserveOriginal: Boolean = false,
+    )
+
+    /** 接收端在后台完成图片物化前持有文件描述符；关闭后不可再次使用。 */
+    class IncomingRunRequest internal constructor(
+        val request: RunRequest,
+        val images: List<WireImage>,
+        private val textBundle: Bundle? = null,
+    ) : Closeable {
+        private val closed = AtomicBoolean(false)
+
+        val hasDeferredPrompt: Boolean get() = textBundle?.let { AgentWireText.hasDescriptor(it, KEY_PROMPT) } == true
+
+        fun materializeText(): RunRequest {
+            check(!closed.get()) { "Request already closed" }
+            return textBundle?.let { requestFromBundle(it, emptyList(), readText = true) } ?: request
+        }
+
+        override fun close() {
+            if (!closed.compareAndSet(false, true)) return
+            textBundle?.let(AgentWireText::close)
+            images.forEach { image -> runCatching { image.fileDescriptor?.close() } }
+        }
+    }
+
+    @Serializable
+    data class RunResult(
+        val runId: String,
+        val ok: Boolean,
+        val content: String,
+        val error: String? = null,
+        val reasoningContent: String = "",
+        val transcript: List<AgentModelClient.ConversationMessage> = emptyList(),
+        val contextSnapshot: AgentContextSnapshot? = null,
+        val contextSnapshotRef: String = "",
+        val operation: String = OP_CHAT,
+        val rewriteTargetMessageId: String? = null,
+    )
+
+    data class EntryHandoff(
+        val id: String,
+        val source: String,
+        val payload: String,
+        val dismissEntrySurfaceOnForegroundOperation: Boolean = false
+    )
+
+    data class CompletedRun(
+        val handoff: EntryHandoff,
+        val result: RunResult,
+        val createdAt: Long
+    )
+
+    fun serviceIntent(): Intent =
+        Intent(ACTION_BIND).setComponent(ComponentName(MODULE_PACKAGE, SERVICE_CLASS))
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = false
+    }
+
+    fun toBundle(request: RunRequest, images: List<WireImage>, payloadDirectory: File? = null): Bundle {
+        require(images.size == request.images.size) { "图片传输项与请求图片数量不一致" }
+        val imageBundles = images.map { image ->
+            require((image.remoteUrl == null) xor (image.fileDescriptor == null)) {
+                "图片传输项必须且只能包含远程 URL 或文件描述符"
+            }
+            Bundle().apply {
+                image.remoteUrl?.let { putString(KEY_IMAGE_URL, it) }
+                image.fileDescriptor?.let { putParcelable(KEY_IMAGE_FD, it) }
+                putString(KEY_MIME_TYPE, image.mimeType)
+                putInt(KEY_BYTES, image.bytes)
+                image.width?.let { putInt(KEY_WIDTH, it) }
+                image.height?.let { putInt(KEY_HEIGHT, it) }
+                putString(KEY_SOURCE, image.source)
+                putBoolean(KEY_PRESERVE_ORIGINAL, image.preserveOriginal)
+            }
+        }
+        return requestBundle(request, imageBundles, payloadDirectory)
+    }
+
+    /** 兼容旧客户端与协议测试；新请求不得通过 Binder 内联图片正文。 */
+    fun toLegacyBundle(request: RunRequest): Bundle = requestBundle(
+        request = request,
+        imageBundles = request.images.map { image ->
+            Bundle().apply {
+                putString(KEY_DATA_URL, image.reference)
+                putString(KEY_MIME_TYPE, image.mimeType)
+                putInt(KEY_BYTES, image.bytes)
+                image.width?.let { putInt(KEY_WIDTH, it) }
+                image.height?.let { putInt(KEY_HEIGHT, it) }
+                putString(KEY_SOURCE, image.source)
+                putBoolean(KEY_PRESERVE_ORIGINAL, image.preserveOriginal)
+            }
+        },
+    )
+
+    private fun requestBundle(request: RunRequest, imageBundles: List<Bundle>, payloadDirectory: File? = null): Bundle = Bundle().apply {
+        require(request.assistantScreenContext.length <= AssistantScreenContextProjection.MAX_CHARS) {
+            "助理屏幕上下文超过容量预算"
+        }
+        AgentWireText.put(this, "history_json", AgentConversationCodec.encodeTranscriptForStorage(request.history), payloadDirectory)
+        putString(KEY_RUN_ID, request.runId)
+        AgentWireText.put(this, KEY_PROMPT, request.prompt, payloadDirectory)
+        putString(KEY_ASSISTANT_SCREEN_CONTEXT, request.assistantScreenContext)
+        putString(KEY_MODEL_SESSION_ID, request.modelSessionId)
+        putString(KEY_PROVIDER_ID, request.config.providerId)
+        putString(KEY_PROVIDER_NAME, request.config.providerName)
+        putString(KEY_PROVIDER_TYPE, request.config.providerType)
+        putString(KEY_PROVIDER_SOURCE_TYPE, request.config.providerSourceType)
+        putString(KEY_BASE_URL, request.config.baseUrl)
+        putString(KEY_AUTH_MODE, request.config.authMode)
+        putString(KEY_API_KEY, request.config.apiKey.takeIf { request.config.authMode == ProviderAuthModes.API_KEY }.orEmpty())
+        putString(KEY_MODEL, request.config.model)
+        putString(KEY_MODEL_DISPLAY_NAME, request.config.modelDisplayName)
+        putString("operation", request.operation)
+        request.rewriteTargetMessageId?.let { putString("rewrite_target_message_id", it) }
+        request.config.contextWindow?.let { putInt(KEY_CONTEXT_WINDOW, it) }
+        putBoolean(KEY_AUTO_COMPACTION_ENABLED, request.config.autoCompactionEnabled)
+        AgentWireText.put(this, KEY_SYSTEM_PROMPT, request.config.systemPrompt, payloadDirectory)
+        putString(KEY_ANTHROPIC_VERSION, request.config.anthropicVersion)
+        putString(KEY_OPENAI_ENDPOINT_MODE, request.config.openAiEndpointMode)
+        putString(KEY_GEMINI_ENDPOINT_MODE, request.config.geminiEndpointMode)
+        putString(KEY_VERTEX_PROJECT, request.config.vertexProject)
+        putString(KEY_VERTEX_LOCATION, request.config.vertexLocation)
+        putBoolean(KEY_HOSTED_WEB_SEARCH_ENABLED, request.config.hostedWebSearchEnabled)
+        putBoolean(KEY_SUPPORTS_SEARCH_SUGGESTIONS, request.config.supportsSearchSuggestions)
+        putBoolean(KEY_TERMINAL_TOOLS, request.config.terminalTools)
+        putBoolean(KEY_BROWSER_TOOLS, request.config.browserTools)
+        putBoolean(KEY_DEVICE_DIRECT_TOOLS, request.config.deviceDirectTools)
+        putBoolean(KEY_DEVICE_SENSITIVE_READ_TOOLS, request.config.deviceSensitiveReadTools)
+        putBoolean(KEY_DEVICE_SENSITIVE_ACTION_TOOLS, request.config.deviceSensitiveActionTools)
+        putBoolean(KEY_SUBAGENT_TOOLS, request.config.subagentTools)
+        putBoolean(KEY_THINKING_ENABLED, request.config.effectiveReasoningEffort.enablesReasoning)
+        putString(KEY_REASONING_EFFORT, request.config.effectiveReasoningEffort.wireValue)
+        request.config.reasoningCapabilities?.let {
+            putString(KEY_REASONING_CAPABILITIES_JSON, json.encodeToString(it))
+        }
+        putString(KEY_EXTRA_BODY_JSON, request.config.extraBodyJson)
+        putString(KEY_CUSTOM_HEADERS_JSON, json.encodeToString(request.config.customHeaders))
+        putString(KEY_CUSTOM_BODY_JSON, json.encodeToString(request.config.customBody))
+        request.handoff?.let { putBundle(KEY_HANDOFF, toBundle(it)) }
+        putParcelableArrayList(
+            KEY_HISTORY,
+            ArrayList(AgentConversationCodec.decodeTranscript(AgentLegacyConversationProjection.encode(request.history, AgentLegacyConversationProjection.DIRECT_CHARS)).map { message ->
+                Bundle().apply {
+                    putString(KEY_ROLE, message.role)
+                    putString(KEY_CONTENT, message.content)
+                    putString(KEY_CONTENT_JSON, message.contentJson)
+                    putString(KEY_TOOL_CALL_ID, message.toolCallId)
+                    putString(KEY_REASONING_CONTENT, message.reasoningContent)
+                    putString(KEY_TOOL_CALLS_JSON, message.toolCallsJson)
+                }
+            })
+        )
+        putParcelableArrayList(
+            KEY_IMAGES,
+            ArrayList(imageBundles)
+        )
+    }.also { bundle ->
+        try { requireStartRequestWithinBinderBudget(bundle) } catch (failure: Exception) {
+            AgentWireText.close(bundle)
+            throw failure
+        }
+    }
+
+    fun incomingRunRequestFromBundle(bundle: Bundle): IncomingRunRequest {
+        val images = mutableListOf<WireImage>()
+        try {
+            bundle.getParcelableArrayList(KEY_IMAGES, Bundle::class.java).orEmpty().forEach { image ->
+                val descriptor = image.getParcelable(KEY_IMAGE_FD, ParcelFileDescriptor::class.java)
+                val reference = image.getString(KEY_IMAGE_URL)
+                    ?: image.getString(KEY_DATA_URL) // 兼容升级前仍内联 data URL 的入口进程。
+                require((reference == null) xor (descriptor == null)) {
+                    "图片传输项必须且只能包含引用或文件描述符"
+                }
+                images += WireImage(
+                    remoteUrl = reference,
+                    fileDescriptor = descriptor,
+                    mimeType = image.getString(KEY_MIME_TYPE).orEmpty(),
+                    bytes = image.getInt(KEY_BYTES),
+                    width = image.optionalInt(KEY_WIDTH),
+                    height = image.optionalInt(KEY_HEIGHT),
+                    source = image.getString(KEY_SOURCE).orEmpty(),
+                    preserveOriginal = image.getBoolean(KEY_PRESERVE_ORIGINAL, false),
+                )
+            }
+            return IncomingRunRequest(
+                request = requestFromBundle(bundle, images = emptyList(), readText = false),
+                images = images,
+                textBundle = bundle,
+            )
+        } catch (throwable: Throwable) {
+            closeImageDescriptors(bundle)
+            throw throwable
+        }
+    }
+
+    /** 拒绝或解析失败的请求不会进入 [IncomingRunRequest]，需显式释放其中的描述符。 */
+    fun closeImageDescriptors(bundle: Bundle?) {
+        bundle?.let(AgentWireText::close)
+        runCatching {
+            bundle?.getParcelableArrayList(KEY_IMAGES, Bundle::class.java).orEmpty().forEach { image ->
+                image.getParcelable(KEY_IMAGE_FD, ParcelFileDescriptor::class.java)?.close()
+            }
+        }
+    }
+
+    /** 只用于无文件描述符的旧协议读取。 */
+    fun runRequestFromBundle(bundle: Bundle): RunRequest =
+        incomingRunRequestFromBundle(bundle).use { incoming ->
+            require(incoming.images.none { it.fileDescriptor != null }) {
+                "包含文件描述符的请求必须先在 Runtime 后台物化"
+            }
+            incoming.materializeText().copy(
+                images = incoming.images.map { image ->
+                    AgentModelClient.ModelImage(
+                        reference = image.remoteUrl.orEmpty(),
+                        mimeType = image.mimeType,
+                        bytes = image.bytes,
+                        width = image.width,
+                        height = image.height,
+                        source = image.source,
+                        preserveOriginal = image.preserveOriginal,
+                    )
+                },
+            )
+        }
+
+    private fun requestFromBundle(
+        bundle: Bundle,
+        images: List<AgentModelClient.ModelImage>,
+        readText: Boolean,
+    ): RunRequest = RunRequest(
+            runId = bundle.getString(KEY_RUN_ID).orEmpty(),
+            prompt = if (readText) AgentWireText.read(bundle, KEY_PROMPT).orEmpty() else bundle.getString(KEY_PROMPT).orEmpty(),
+            assistantScreenContext = bundle.getString(KEY_ASSISTANT_SCREEN_CONTEXT).orEmpty().also {
+                require(it.length <= AssistantScreenContextProjection.MAX_CHARS) { "助理屏幕上下文超过容量预算" }
+            },
+            operation = bundle.getString("operation")?.also { require(it in setOf(OP_CHAT, OP_COMPACT, OP_REWRITE_REPLY)) } ?: OP_CHAT,
+            rewriteTargetMessageId = bundle.getString("rewrite_target_message_id")?.also {
+                require(it.isNotBlank() && it.length <= 256) { "Invalid rewrite target" }
+            },
+            modelSessionId = bundle.getString(KEY_MODEL_SESSION_ID).orEmpty(),
+            config = AgentModelClient.ModelConfig(
+                providerId = bundle.getString(KEY_PROVIDER_ID).orEmpty(),
+                providerName = bundle.getString(KEY_PROVIDER_NAME).orEmpty(),
+                providerType = bundle.getString(KEY_PROVIDER_TYPE).orEmpty()
+                    .ifBlank { io.github.mangi.eta.data.model.ProviderTypes.OPENAI_COMPATIBLE },
+                providerSourceType = bundle.getString(KEY_PROVIDER_SOURCE_TYPE).orEmpty(),
+                baseUrl = bundle.getString(KEY_BASE_URL).orEmpty(),
+                apiKey = bundle.getString(KEY_API_KEY).orEmpty().takeIf {
+                    bundle.getString(KEY_AUTH_MODE, ProviderAuthModes.API_KEY) == ProviderAuthModes.API_KEY
+                }.orEmpty(),
+                authMode = bundle.getString(KEY_AUTH_MODE) ?: ProviderAuthModes.API_KEY,
+                model = bundle.getString(KEY_MODEL).orEmpty(),
+                modelDisplayName = bundle.getString(KEY_MODEL_DISPLAY_NAME).orEmpty(),
+                contextWindow = bundle.optionalInt(KEY_CONTEXT_WINDOW),
+                autoCompactionEnabled = bundle.getBoolean(
+                    KEY_AUTO_COMPACTION_ENABLED,
+                    Prefs.Keys.BOOLEAN_DEFAULTS.getValue(Prefs.Keys.AGENT_AUTO_COMPACTION_ENABLED),
+                ),
+                systemPrompt = if (readText) AgentWireText.read(bundle, KEY_SYSTEM_PROMPT).orEmpty() else "",
+                anthropicVersion = bundle.getString(KEY_ANTHROPIC_VERSION).orEmpty()
+                    .ifBlank { io.github.mangi.eta.data.model.AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION },
+                openAiEndpointMode = bundle.getString(KEY_OPENAI_ENDPOINT_MODE).orEmpty()
+                    .ifBlank { io.github.mangi.eta.data.model.OpenAiEndpointMode.CHAT_COMPLETIONS },
+                geminiEndpointMode = io.github.mangi.eta.data.model.GeminiEndpointMode.normalize(
+                    bundle.getString(KEY_GEMINI_ENDPOINT_MODE),
+                ),
+                vertexProject = bundle.getString(KEY_VERTEX_PROJECT).orEmpty().trim(),
+                vertexLocation = bundle.getString(KEY_VERTEX_LOCATION).orEmpty().trim()
+                    .ifBlank { io.github.mangi.eta.data.model.GeminiProviderSetting.DEFAULT_VERTEX_LOCATION },
+                hostedWebSearchEnabled = bundle.getBoolean(KEY_HOSTED_WEB_SEARCH_ENABLED, false),
+                supportsSearchSuggestions = bundle.getBoolean(KEY_SUPPORTS_SEARCH_SUGGESTIONS, false),
+                terminalTools = bundle.getBoolean(KEY_TERMINAL_TOOLS),
+                browserTools = if (bundle.containsKey(KEY_BROWSER_TOOLS)) {
+                    bundle.getBoolean(KEY_BROWSER_TOOLS)
+                } else {
+                    true
+                },
+                deviceDirectTools = if (bundle.containsKey(KEY_DEVICE_DIRECT_TOOLS)) {
+                    bundle.getBoolean(KEY_DEVICE_DIRECT_TOOLS)
+                } else {
+                    true
+                },
+                deviceSensitiveReadTools =
+                    bundle.getBoolean(KEY_DEVICE_SENSITIVE_READ_TOOLS, false),
+                deviceSensitiveActionTools =
+                    bundle.getBoolean(KEY_DEVICE_SENSITIVE_ACTION_TOOLS, false),
+                subagentTools = bundle.getBoolean(
+                    KEY_SUBAGENT_TOOLS,
+                    Prefs.Keys.BOOLEAN_DEFAULTS.getValue(Prefs.Keys.AGENT_SUBAGENT_ENABLED),
+                ),
+                thinkingEnabled = bundle.getBoolean(KEY_THINKING_ENABLED),
+                reasoningEffort = if (bundle.containsKey(KEY_REASONING_EFFORT)) {
+                    ReasoningEffort.fromWireValue(bundle.getString(KEY_REASONING_EFFORT))
+                        ?: ReasoningEffort.DEFAULT
+                } else {
+                    ReasoningEffort.fromLegacy(bundle.getBoolean(KEY_THINKING_ENABLED))
+                },
+                reasoningCapabilities = decodeReasoningCapabilities(
+                    bundle.getString(KEY_REASONING_CAPABILITIES_JSON)
+                ),
+                extraBodyJson = bundle.getString(KEY_EXTRA_BODY_JSON).orEmpty(),
+                customHeaders = decodeCustomHeaders(bundle.getString(KEY_CUSTOM_HEADERS_JSON)),
+                customBody = decodeCustomBody(bundle.getString(KEY_CUSTOM_BODY_JSON))
+            ),
+            history = if (!readText) emptyList() else AgentWireText.read(bundle, "history_json")?.let(AgentConversationCodec::decodeTranscript)
+                ?: bundle.getParcelableArrayList(KEY_HISTORY, Bundle::class.java).orEmpty().map { message ->
+                AgentModelClient.ConversationMessage(
+                    role = message.getString(KEY_ROLE).orEmpty(),
+                    content = message.getString(KEY_CONTENT).orEmpty(),
+                    contentJson = message.getString(KEY_CONTENT_JSON).orEmpty(),
+                    toolCallId = message.getString(KEY_TOOL_CALL_ID).orEmpty(),
+                    reasoningContent = message.getString(KEY_REASONING_CONTENT).orEmpty(),
+                    toolCallsJson = message.getString(KEY_TOOL_CALLS_JSON).orEmpty(),
+                )
+            },
+            images = images,
+            handoff = bundle.getBundle(KEY_HANDOFF)?.let(::entryHandoffFromBundle)
+        )
+
+    fun toBundle(handoff: EntryHandoff): Bundle = Bundle().apply {
+        putString(KEY_HANDOFF_ID, handoff.id)
+        putString(KEY_HANDOFF_SOURCE, handoff.source)
+        putString(KEY_HANDOFF_PAYLOAD, handoff.payload)
+        putBoolean(
+            KEY_HANDOFF_DISMISS_ENTRY_SURFACE_ON_FOREGROUND_OPERATION,
+            handoff.dismissEntrySurfaceOnForegroundOperation
+        )
+    }
+
+    fun entryHandoffFromBundle(bundle: Bundle): EntryHandoff {
+        val source = bundle.getString(KEY_HANDOFF_SOURCE).orEmpty()
+        return EntryHandoff(
+            id = bundle.getString(KEY_HANDOFF_ID).orEmpty(),
+            source = source,
+            payload = bundle.getString(KEY_HANDOFF_PAYLOAD).orEmpty(),
+            dismissEntrySurfaceOnForegroundOperation = bundle.getBoolean(
+                KEY_HANDOFF_DISMISS_ENTRY_SURFACE_ON_FOREGROUND_OPERATION,
+                false,
+            ),
+        )
+    }
+
+    fun toBundle(result: RunResult, payloadDirectory: File? = null): Bundle =
+        result.toBundle(compactForDrain = false, payloadDirectory)
+
+    private fun RunResult.toBundle(compactForDrain: Boolean, payloadDirectory: File? = null): Bundle = Bundle().apply {
+        if (!compactForDrain) AgentWireText.put(this, "complete_result_json", json.encodeToString(this@toBundle), payloadDirectory)
+        putString("operation", operation)
+        rewriteTargetMessageId?.let { putString("rewrite_target_message_id", it) }
+        if (compactForDrain && runId.isNotBlank()) {
+            putString("context_snapshot_ref", runId)
+        } else {
+            contextSnapshot?.encode()?.takeIf { it.length <= 16_384 }?.let { putString("context_snapshot", it) }
+        }
+        putString(KEY_RUN_ID, runId)
+        putBoolean(KEY_OK, ok)
+        putString(
+            KEY_CONTENT,
+            content.boundedText(
+                if (compactForDrain) MAX_DRAIN_CONTENT_CHARS else MAX_RESULT_CONTENT_CHARS
+            ),
+        )
+        putString(
+            KEY_REASONING_CONTENT,
+            reasoningContent.boundedText(
+                if (compactForDrain) MAX_DRAIN_REASONING_CHARS else MAX_RESULT_REASONING_CHARS
+            ),
+        )
+        putString(KEY_ERROR, error?.boundedText(MAX_DRAIN_CONTENT_CHARS))
+        putString(
+            KEY_TRANSCRIPT_JSON,
+            if (compactForDrain) {
+                AgentLegacyConversationProjection.encode(transcript, AgentLegacyConversationProjection.DRAIN_CHARS)
+            } else {
+                AgentLegacyConversationProjection.encode(transcript, AgentLegacyConversationProjection.DIRECT_CHARS)
+            },
+        )
+    }
+
+    fun runResultFromBundle(bundle: Bundle): RunResult =
+        AgentWireText.read(bundle, "complete_result_json")?.let { json.decodeFromString<RunResult>(it) } ?: RunResult(
+            contextSnapshot = AgentContextSnapshot.decode(bundle.getString("context_snapshot")),
+            contextSnapshotRef = bundle.getString("context_snapshot_ref").orEmpty(),
+            operation = bundle.getString("operation") ?: OP_CHAT,
+            rewriteTargetMessageId = bundle.getString("rewrite_target_message_id"),
+            runId = bundle.getString(KEY_RUN_ID).orEmpty(),
+            ok = bundle.getBoolean(KEY_OK),
+            content = bundle.getString(KEY_CONTENT).orEmpty(),
+            error = bundle.getString(KEY_ERROR),
+            reasoningContent = bundle.getString(KEY_REASONING_CONTENT).orEmpty(),
+            transcript = AgentConversationCodec.decodeTranscript(bundle.getString(KEY_TRANSCRIPT_JSON)),
+        )
+
+    fun toBundle(completedRun: CompletedRun): Bundle = completedRun.toBundle(compactForDrain = false)
+
+    private fun CompletedRun.toBundle(compactForDrain: Boolean): Bundle = Bundle().apply {
+        putBundle(KEY_HANDOFF, toBundle(handoff))
+        putBundle(KEY_RESULT, result.toBundle(compactForDrain))
+        putLong(KEY_CREATED_AT, createdAt)
+    }
+
+    fun completedRunFromBundle(bundle: Bundle): CompletedRun =
+        CompletedRun(
+            handoff = entryHandoffFromBundle(bundle.getBundle(KEY_HANDOFF) ?: Bundle()),
+            result = runResultFromBundle(bundle.getBundle(KEY_RESULT) ?: Bundle()),
+            createdAt = bundle.getLong(KEY_CREATED_AT)
+        )
+
+    fun completedRunsToBundle(results: List<CompletedRun>): Bundle = Bundle().apply {
+        putParcelableArrayList(
+            KEY_RESULTS,
+            ArrayList(results.map { it.toBundle(compactForDrain = true) }),
+        )
+    }
+
+    fun completedRunsFromBundle(bundle: Bundle): List<CompletedRun> =
+        bundle.getParcelableArrayList(KEY_RESULTS, Bundle::class.java)
+            .orEmpty()
+            .map(::completedRunFromBundle)
+
+    fun ackBundle(runId: String): Bundle = Bundle().apply {
+        putString(KEY_RUN_ID, runId)
+    }
+
+    fun activeRunsToBundle(runs: List<ActiveRunSnapshot>): Bundle = Bundle().apply {
+        putParcelableArrayList("active_runs", ArrayList(runs.map { run ->
+            Bundle().apply {
+                putString(KEY_RUN_ID, run.runId)
+                putString("conversation_id", run.conversationId)
+                putString("phase", run.phase.wireValue)
+                putString("operation", run.operation)
+                putString("handoff_source", run.handoffSource)
+            }
+        }))
+    }
+
+    fun activeRunsFromBundle(bundle: Bundle): List<ActiveRunSnapshot> =
+        bundle.getParcelableArrayList("active_runs", Bundle::class.java).orEmpty().mapNotNull { item ->
+            val runId = runIdFromBundle(item).takeIf(String::isNotBlank) ?: return@mapNotNull null
+            ActiveRunSnapshot(
+                runId = runId,
+                conversationId = item.getString("conversation_id").orEmpty(),
+                phase = RunPhase.fromWireValue(item.getString("phase").orEmpty()),
+                operation = item.getString("operation") ?: OP_CHAT,
+                handoffSource = item.getString("handoff_source").orEmpty(),
+            )
+        }
+
+    fun attachRunResponseBundle(runId: String, attached: Boolean): Bundle = Bundle().apply {
+        putString(KEY_RUN_ID, runId)
+        putBoolean(KEY_OK, attached)
+    }
+
+    fun attachRunSucceeded(bundle: Bundle): Boolean = bundle.getBoolean(KEY_OK)
+
+    fun steerBundle(runId: String, text: String, textCacheDir: File? = null): Bundle = Bundle().apply {
+        putString(KEY_RUN_ID, runId)
+        AgentWireText.put(this, KEY_STEER_TEXT, text, textCacheDir)
+    }
+
+    fun steerTextFromBundle(bundle: Bundle): String =
+        AgentWireText.read(bundle, KEY_STEER_TEXT).orEmpty()
+
+    fun steerResponseBundle(
+        runId: String,
+        accepted: Boolean,
+        supplementIndex: Int = 0,
+    ): Bundle = Bundle().apply {
+        putString(KEY_RUN_ID, runId)
+        putBoolean(KEY_OK, accepted)
+        putInt(KEY_SUPPLEMENT_INDEX, supplementIndex)
+    }
+
+    fun steerAcceptedFromBundle(bundle: Bundle): Boolean = bundle.getBoolean(KEY_OK)
+
+    fun steerSupplementIndexFromBundle(bundle: Bundle): Int = bundle.getInt(KEY_SUPPLEMENT_INDEX)
+
+    fun runIdFromBundle(bundle: Bundle): String =
+        bundle.getString(KEY_RUN_ID).orEmpty()
+
+    private fun String.boundedText(maxChars: Int): String =
+        if (length <= maxChars) this else take((maxChars - TRUNCATED_SUFFIX.length).coerceAtLeast(0)) + TRUNCATED_SUFFIX
+
+    private fun requireStartRequestWithinBinderBudget(bundle: Bundle) {
+        val parcel = Parcel.obtain()
+        val sizeBytes = try {
+            parcel.writeBundle(bundle)
+            parcel.dataSize()
+        } finally {
+            parcel.recycle()
+        }
+        if (sizeBytes > MAX_START_REQUEST_PARCEL_BYTES) {
+            throw PayloadTooLargeException(sizeBytes)
+        }
+    }
+
+    /** 将 [AgentEvent] 打包为可跨进程传递的 [Bundle]。 */
+    fun eventToBundle(event: AgentEvent): Bundle = Bundle().apply {
+        when (event) {
+            is AgentEvent.GuiControlChanged -> {
+                putString(KEY_TYPE, "gui_control_changed")
+                putString("status", event.status.wireValue)
+            }
+            is AgentEvent.RunStarted -> {
+                putString(KEY_TYPE, "run_started")
+                putInt("initial_images", event.initialImages)
+                putInt("initial_image_bytes", event.initialImageBytes)
+                putInt("tool_count", event.toolCount)
+                putBoolean("terminal_tools", event.terminalTools)
+            }
+
+            is AgentEvent.RoundStarted -> {
+                putString(KEY_TYPE, "round_started")
+                putInt("round", event.round)
+                putInt("message_count", event.messageCount)
+            }
+
+            is AgentEvent.ContextCompaction -> {
+                putString(KEY_TYPE, "context_compaction")
+                putString("operation_id", event.operationId)
+                putString("phase", event.phase)
+                event.tokensBefore?.let { putInt("tokens_before", it) }
+                event.tokensAfter?.let { putInt("tokens_after", it) }
+                putString("reason_code", event.reasonCode)
+                if (event.archiveId.isNotBlank()) putString("compaction_archive_id", event.archiveId)
+                event.usage?.takeUnless { it.isEmpty }?.let { putTokenUsage(it, prefix = "compaction_usage_") }
+            }
+
+            is AgentEvent.ModelRetryScheduled -> {
+                putString(KEY_TYPE, "model_retry_scheduled")
+                putInt("round", event.round)
+                putInt("attempt", event.attempt)
+                putInt("max_attempts", event.maxAttempts)
+                putInt("delay_ms", event.delayMs)
+                putString("reason_code", event.reasonCode)
+            }
+
+            is AgentEvent.ProviderRequestStarted -> {
+                putString(KEY_TYPE, "provider_request_started")
+                putInt("round", event.round)
+            }
+
+            is AgentEvent.ProviderResponseStarted -> {
+                putString(KEY_TYPE, "provider_response_started")
+                putInt("round", event.round)
+                putInt("http_code", event.httpCode)
+            }
+
+            is AgentEvent.AssistantBlockStart -> {
+                putString(KEY_TYPE, "assistant_block_start")
+                putInt("round", event.round)
+                putString("kind", event.kind.name)
+                putInt("index", event.index)
+                putString("block_id", event.blockId)
+                putString("name", event.name)
+                event.startedAtEpochMs?.let { putLong("started_at_epoch_ms", it) }
+            }
+
+            is AgentEvent.AssistantBlockDelta -> {
+                putString(KEY_TYPE, "assistant_block_delta")
+                putInt("round", event.round)
+                putString("kind", event.kind.name)
+                putInt("index", event.index)
+                putInt("delta_chars", event.deltaChars)
+                putString("delta", event.delta)
+            }
+
+            is AgentEvent.AssistantBlockEnd -> {
+                putString(KEY_TYPE, "assistant_block_end")
+                putInt("round", event.round)
+                putString("kind", event.kind.name)
+                putInt("index", event.index)
+                putString("block_id", event.blockId)
+                putString("name", event.name)
+                putInt("content_chars", event.contentChars)
+                putString("replacement_content", event.replacementContent)
+                event.elapsedMs?.let { putLong("elapsed_ms", it) }
+            }
+
+            is AgentEvent.SearchSuggestions -> {
+                require(SearchSuggestionsPayload.isValidHtml(event.html)) { "SEARCH_SUGGESTIONS_INVALID_PAYLOAD" }
+                putString(KEY_TYPE, "search_suggestions")
+                putInt("round", event.round)
+                putInt("index", event.index)
+                putString("html", event.html)
+            }
+
+            is AgentEvent.AssistantReceived -> {
+                putString(KEY_TYPE, "assistant_received")
+                putInt("round", event.round)
+                putInt("content_chars", event.contentChars)
+                putString("reasoning_content", event.reasoningContent)
+                putStringArrayList("tool_names", ArrayList(event.toolNames))
+            }
+
+            is AgentEvent.UsageReceived -> {
+                putString(KEY_TYPE, "usage_received")
+                putInt("round", event.round)
+                putTokenUsage(event.usage)
+            }
+
+            is AgentEvent.UserSupplementReceived -> {
+                putString(KEY_TYPE, "user_supplement_received")
+                putInt("index", event.index)
+                putString("text", event.text)
+            }
+
+            is AgentEvent.ToolStarted -> {
+                putString(KEY_TYPE, "tool_started")
+                putInt("round", event.round)
+                putString("tool_call_id", event.toolCallId)
+                putString("name", event.name)
+                putString("args_preview", event.argsPreview)
+                event.command?.let { raw ->
+                    val safeCommand = if (event.name == AgentSubagentToolCatalog.TOOL_NAME) {
+                        SubagentActivitySnapshot.sanitizeForWire(raw, MAX_DRAIN_CONTENT_CHARS) ?: raw
+                    } else {
+                        raw
+                    }
+                    putString("command", safeCommand)
+                }
+            }
+
+            is AgentEvent.ToolFinished -> {
+                putString(KEY_TYPE, "tool_finished")
+                putInt("round", event.round)
+                putString("tool_call_id", event.toolCallId)
+                putString("name", event.name)
+                putString("result_summary", event.resultSummary)
+                putInt("image_count", event.imageCount)
+                putInt("image_bytes", event.imageBytes)
+                event.success?.let { putBoolean("success", it) }
+                event.command?.let { raw ->
+                    val safeCommand = if (event.name == AgentSubagentToolCatalog.TOOL_NAME) {
+                        SubagentActivitySnapshot.sanitizeForWire(raw, MAX_DRAIN_CONTENT_CHARS)
+                            ?: raw.boundedText(MAX_DRAIN_CONTENT_CHARS)
+                    } else {
+                        raw.boundedText(MAX_DRAIN_CONTENT_CHARS)
+                    }
+                    putString("command", safeCommand)
+                }
+            }
+
+            is AgentEvent.SubagentProgress -> {
+                putString(KEY_TYPE, "subagent_progress")
+                putInt("round", event.round)
+                putString("tool_call_id", event.toolCallId)
+                putString("subagent_id", event.subagentId)
+                putString("subagent_type", event.subagentType)
+                val safeSnapshot = SubagentActivitySnapshot.sanitizeForWire(
+                    event.snapshotJson,
+                    MAX_DRAIN_CONTENT_CHARS,
+                ) ?: event.snapshotJson.boundedText(MAX_DRAIN_CONTENT_CHARS)
+                putString("snapshot_json", safeSnapshot)
+            }
+
+            is AgentEvent.HostedToolStarted -> {
+                putString(KEY_TYPE, "hosted_tool_started")
+                putInt("round", event.round)
+                putString("tool_call_id", event.toolCallId)
+                putString("name", event.name)
+            }
+
+            is AgentEvent.HostedToolFinished -> {
+                putString(KEY_TYPE, "hosted_tool_finished")
+                putInt("round", event.round)
+                putString("tool_call_id", event.toolCallId)
+                putString("name", event.name)
+                putBoolean("success", event.success)
+            }
+
+            is AgentEvent.ToolImagesAttached -> {
+                putString(KEY_TYPE, "tool_images_attached")
+                putInt("round", event.round)
+                putString("tool_name", event.toolName)
+                putInt("image_count", event.imageCount)
+                putInt("image_bytes", event.imageBytes)
+            }
+
+            is AgentEvent.RunFinished -> {
+                putString(KEY_TYPE, "run_finished")
+                putInt("round", event.round)
+                putInt("content_chars", event.contentChars)
+            }
+
+            is AgentEvent.RunFailed -> {
+                putString(KEY_TYPE, "run_failed")
+                putString("reason", event.reason)
+            }
+        }
+    }
+
+    /** 将 [Bundle] 还原为 [AgentEvent]，无法识别时返回 null。 */
+    fun eventFromBundle(bundle: Bundle): AgentEvent? = when (bundle.getString(KEY_TYPE)) {
+        "gui_control_changed" -> GuiControlStatus.fromWireValue(bundle.getString("status").orEmpty())
+            ?.let { AgentEvent.GuiControlChanged(it) }
+        "run_started" -> AgentEvent.RunStarted(
+            initialImages = bundle.getInt("initial_images"),
+            initialImageBytes = bundle.getInt("initial_image_bytes"),
+            toolCount = bundle.getInt("tool_count"),
+            terminalTools = bundle.getBoolean("terminal_tools"),
+        )
+
+        "round_started" -> AgentEvent.RoundStarted(
+            round = bundle.getInt("round"),
+            messageCount = bundle.getInt("message_count"),
+        )
+
+        "context_compaction" -> AgentEvent.ContextCompaction(
+            operationId = bundle.getString("operation_id").orEmpty(),
+            phase = bundle.getString("phase").orEmpty(),
+            tokensBefore = bundle.optionalInt("tokens_before"),
+            tokensAfter = bundle.optionalInt("tokens_after"),
+            reasonCode = bundle.getString("reason_code").orEmpty(),
+            usage = bundle.getTokenUsage(prefix = "compaction_usage_").takeUnless { it.isEmpty },
+            archiveId = bundle.getString("compaction_archive_id").orEmpty(),
+        )
+        "model_retry_scheduled" -> AgentEvent.ModelRetryScheduled(
+            round = bundle.getInt("round"),
+            attempt = bundle.getInt("attempt", 1),
+            maxAttempts = bundle.getInt("max_attempts", 3),
+            delayMs = bundle.getInt("delay_ms", 2_000),
+            reasonCode = bundle.getString("reason_code").orEmpty(),
+        )
+
+        "provider_request_started" -> AgentEvent.ProviderRequestStarted(
+            round = bundle.getInt("round"),
+        )
+
+        "provider_response_started" -> AgentEvent.ProviderResponseStarted(
+            round = bundle.getInt("round"),
+            httpCode = bundle.getInt("http_code"),
+        )
+
+        "assistant_block_start" -> AgentEvent.AssistantBlockStart(
+            round = bundle.getInt("round"),
+            kind = AgentEvent.AssistantBlockKind.valueOf(
+                bundle.getString("kind").orEmpty()
+            ),
+            index = bundle.getInt("index"),
+            blockId = bundle.getString("block_id"),
+            name = bundle.getString("name"),
+            startedAtEpochMs = bundle.optionalLong("started_at_epoch_ms"),
+        )
+
+        "assistant_block_delta" -> AgentEvent.AssistantBlockDelta(
+            round = bundle.getInt("round"),
+            kind = AgentEvent.AssistantBlockKind.valueOf(
+                bundle.getString("kind").orEmpty()
+            ),
+            index = bundle.getInt("index"),
+            deltaChars = bundle.getInt("delta_chars"),
+            delta = bundle.getString("delta").orEmpty(),
+        )
+
+        "assistant_block_end" -> AgentEvent.AssistantBlockEnd(
+            round = bundle.getInt("round"),
+            kind = AgentEvent.AssistantBlockKind.valueOf(
+                bundle.getString("kind").orEmpty()
+            ),
+            index = bundle.getInt("index"),
+            blockId = bundle.getString("block_id"),
+            name = bundle.getString("name"),
+            contentChars = bundle.getInt("content_chars"),
+            replacementContent = bundle.getString("replacement_content"),
+            elapsedMs = bundle.optionalLong("elapsed_ms"),
+        )
+
+        "search_suggestions" -> bundle.getString("html")
+            ?.takeIf(SearchSuggestionsPayload::isValidHtml)
+            ?.let { html ->
+                AgentEvent.SearchSuggestions(bundle.getInt("round"), bundle.getInt("index"), html)
+                    .takeIf { it.round >= 0 && it.index >= 0 }
+            }
+
+        "assistant_received" -> AgentEvent.AssistantReceived(
+            round = bundle.getInt("round"),
+            contentChars = bundle.getInt("content_chars"),
+            reasoningContent = bundle.getString("reasoning_content").orEmpty(),
+            toolNames = bundle.getStringArrayList("tool_names").orEmpty(),
+        )
+
+        "usage_received" -> AgentEvent.UsageReceived(
+            round = bundle.getInt("round"),
+            usage = bundle.getTokenUsage(),
+        )
+
+        "user_supplement_received" -> AgentEvent.UserSupplementReceived(
+            index = bundle.getInt("index"),
+            text = bundle.getString("text").orEmpty(),
+        )
+
+        "tool_started" -> AgentEvent.ToolStarted(
+            round = bundle.getInt("round"),
+            toolCallId = bundle.getString("tool_call_id").orEmpty(),
+            name = bundle.getString("name").orEmpty(),
+            argsPreview = bundle.getString("args_preview").orEmpty(),
+            command = bundle.getString("command"),
+        )
+
+        "tool_finished" -> AgentEvent.ToolFinished(
+            round = bundle.getInt("round"),
+            toolCallId = bundle.getString("tool_call_id").orEmpty(),
+            name = bundle.getString("name").orEmpty(),
+            resultSummary = bundle.getString("result_summary").orEmpty(),
+            imageCount = bundle.getInt("image_count"),
+            imageBytes = bundle.getInt("image_bytes"),
+            // 旧版本 Runtime 不发送 success，缺省为 null 由消费端回退判断
+            success = if (bundle.containsKey("success")) bundle.getBoolean("success") else null,
+            command = bundle.getString("command"),
+        )
+
+        "subagent_progress" -> AgentEvent.SubagentProgress(
+            round = bundle.getInt("round"),
+            toolCallId = bundle.getString("tool_call_id").orEmpty(),
+            subagentId = bundle.getString("subagent_id").orEmpty(),
+            subagentType = bundle.getString("subagent_type").orEmpty(),
+            snapshotJson = bundle.getString("snapshot_json").orEmpty(),
+        )
+
+        "hosted_tool_started" -> AgentEvent.HostedToolStarted(
+            round = bundle.getInt("round"),
+            toolCallId = bundle.getString("tool_call_id").orEmpty(),
+            name = bundle.getString("name").orEmpty(),
+        )
+
+        "hosted_tool_finished" -> AgentEvent.HostedToolFinished(
+            round = bundle.getInt("round"),
+            toolCallId = bundle.getString("tool_call_id").orEmpty(),
+            name = bundle.getString("name").orEmpty(),
+            success = bundle.getBoolean("success"),
+        )
+
+        "tool_images_attached" -> AgentEvent.ToolImagesAttached(
+            round = bundle.getInt("round"),
+            toolName = bundle.getString("tool_name").orEmpty(),
+            imageCount = bundle.getInt("image_count"),
+            imageBytes = bundle.getInt("image_bytes"),
+        )
+
+        "run_finished" -> AgentEvent.RunFinished(
+            round = bundle.getInt("round"),
+            contentChars = bundle.getInt("content_chars"),
+        )
+
+        "run_failed" -> AgentEvent.RunFailed(
+            reason = bundle.getString("reason").orEmpty(),
+        )
+
+        else -> null
+    }
+
+    private fun Bundle.optionalInt(key: String): Int? =
+        if (containsKey(key)) getInt(key) else null
+
+    @Suppress("DEPRECATION")
+    private fun Bundle.optionalLong(key: String): Long? =
+        if (!containsKey(key)) {
+            null
+        } else {
+            when (val raw = get(key)) {
+                is Long -> raw
+                is Int -> raw.toLong()
+                is Number -> raw.toLong()
+                else -> null
+            }
+        }
+
+    private fun Bundle.putTokenUsage(usage: AgentTokenUsage, prefix: String = "usage_") {
+        usage.contextTokens?.let { putInt("${prefix}context", it) }
+        usage.inputTokens?.let { putInt("${prefix}input", it) }
+        usage.outputTokens?.let { putInt("${prefix}output", it) }
+        usage.reasoningTokens?.let { putInt("${prefix}reasoning", it) }
+        usage.cachedTokens?.let { putInt("${prefix}cache", it) }
+        usage.cacheWriteTokens?.let { putInt("${prefix}cache_write", it) }
+        usage.requestKind?.takeIf { it.isNotBlank() }?.let { putString("${prefix}request_kind", it) }
+        usage.stepCount?.let { putInt("${prefix}steps", it) }
+        usage.llmMs?.let { putLong("${prefix}llm_ms", it) }
+        usage.toolMs?.let { putLong("${prefix}tool_ms", it) }
+        usage.ttftMs?.let { putLong("${prefix}ttft_ms", it) }
+        usage.ttftSteps?.let { putInt("${prefix}ttft_steps", it) }
+        usage.decodeMs?.let { putLong("${prefix}decode_ms", it) }
+        usage.decodeTokens?.let { putInt("${prefix}decode_tokens", it) }
+    }
+
+    private fun Bundle.getTokenUsage(prefix: String = "usage_"): AgentTokenUsage =
+        AgentTokenUsage(
+            contextTokens = optionalInt("${prefix}context"),
+            inputTokens = optionalInt("${prefix}input"),
+            outputTokens = optionalInt("${prefix}output"),
+            reasoningTokens = optionalInt("${prefix}reasoning"),
+            cachedTokens = optionalInt("${prefix}cache"),
+            cacheWriteTokens = optionalInt("${prefix}cache_write"),
+            requestKind = getString("${prefix}request_kind")?.takeIf { it.isNotBlank() },
+            stepCount = optionalInt("${prefix}steps"),
+            llmMs = optionalLong("${prefix}llm_ms"),
+            toolMs = optionalLong("${prefix}tool_ms"),
+            ttftMs = optionalLong("${prefix}ttft_ms"),
+            ttftSteps = optionalInt("${prefix}ttft_steps"),
+            decodeMs = optionalLong("${prefix}decode_ms"),
+            decodeTokens = optionalInt("${prefix}decode_tokens"),
+        )
+
+    private fun decodeCustomHeaders(raw: String?): List<CustomHeader> =
+        if (raw.isNullOrBlank()) emptyList()
+        else runCatching { json.decodeFromString<List<CustomHeader>>(raw) }.getOrDefault(emptyList())
+
+    private fun decodeCustomBody(raw: String?): List<CustomBody> =
+        if (raw.isNullOrBlank()) emptyList()
+        else runCatching { json.decodeFromString<List<CustomBody>>(raw) }.getOrDefault(emptyList())
+
+    private fun decodeReasoningCapabilities(raw: String?): ModelReasoningCapabilities? =
+        if (raw.isNullOrBlank()) null
+        else runCatching { json.decodeFromString<ModelReasoningCapabilities>(raw) }.getOrNull()
+
+}

@@ -5,7 +5,7 @@ import android.content.pm.ApplicationInfo
 import android.database.sqlite.SQLiteDatabase
 import android.os.Binder
 import android.os.Bundle
-import io.github.mangi.eta.agent.tool.ColorOsMemoryDatabaseQuery
+import io.github.mangi.eta.agent.tool.personal.ColorOsMemoryDatabaseQuery
 import io.github.mangi.eta.core.ColorOsMemoryBridgeProtocol
 import io.github.mangi.eta.hook.support.DexKitTargets
 import io.github.mangi.eta.hook.support.HookInstallation

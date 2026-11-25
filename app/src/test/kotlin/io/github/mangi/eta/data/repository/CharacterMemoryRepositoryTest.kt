@@ -2,7 +2,7 @@ package io.github.mangi.eta.data.repository
 
 import android.content.Context
 import android.content.ContextWrapper
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.agent.roleplay.CharacterMemoryTools
 import java.io.File
 import org.json.JSONObject

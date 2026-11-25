@@ -1,6 +1,6 @@
 package io.github.mangi.eta.ui.model
 
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import org.junit.Assert.*
 import org.junit.Test
 

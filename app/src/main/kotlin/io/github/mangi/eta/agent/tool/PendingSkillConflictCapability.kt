@@ -1,6 +1,6 @@
 package io.github.mangi.eta.agent.tool
 
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener

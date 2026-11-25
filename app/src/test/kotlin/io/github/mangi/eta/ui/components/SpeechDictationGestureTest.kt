@@ -29,8 +29,8 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.voice.ui.EtaSpeechPhase
-import io.github.mangi.eta.agent.voice.SpeechAudioCapture
-import io.github.mangi.eta.agent.voice.SpeechInputController
+import io.github.mangi.eta.agent.voice.audio.SpeechAudioCapture
+import io.github.mangi.eta.agent.voice.asr.SpeechInputController
 import io.github.mangi.eta.data.model.AppearanceSettings
 import io.github.mangi.eta.data.model.SpeechCredentials
 import io.github.mangi.eta.data.model.SpeechSettings

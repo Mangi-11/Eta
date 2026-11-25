@@ -1,7 +1,7 @@
 package io.github.mangi.eta.agent.auth
 
 import io.github.mangi.eta.R
-import io.github.mangi.eta.agent.model.AgentHttpClient
+import io.github.mangi.eta.agent.model.provider.AgentHttpClient
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.core.AppStrings
 import java.io.IOException

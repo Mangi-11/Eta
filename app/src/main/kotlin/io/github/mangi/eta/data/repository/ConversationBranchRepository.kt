@@ -2,7 +2,7 @@ package io.github.mangi.eta.data.repository
 
 import androidx.room.withTransaction
 import io.github.mangi.eta.agent.model.AgentConversationCodec
-import io.github.mangi.eta.agent.model.AgentModelClient.ConversationMessage
+import io.github.mangi.eta.agent.model.provider.AgentModelClient.ConversationMessage
 import io.github.mangi.eta.agent.roleplay.RoleplayHistoryProjection
 import io.github.mangi.eta.agent.roleplay.RoleplayMessageState
 import io.github.mangi.eta.data.db.ChunkedTextDao

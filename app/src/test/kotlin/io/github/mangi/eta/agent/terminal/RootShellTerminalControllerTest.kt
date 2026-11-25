@@ -9,6 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import io.github.mangi.eta.agent.terminal.linux.AlpineEnvironmentPaths
 
 class RootShellTerminalControllerTest {
 

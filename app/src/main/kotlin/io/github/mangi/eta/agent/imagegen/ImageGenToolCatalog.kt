@@ -1,6 +1,6 @@
 package io.github.mangi.eta.agent.imagegen
 
-import io.github.mangi.eta.agent.model.AgentToolSchema
+import io.github.mangi.eta.agent.model.catalog.AgentToolSchema
 import org.json.JSONArray
 import org.json.JSONObject
 

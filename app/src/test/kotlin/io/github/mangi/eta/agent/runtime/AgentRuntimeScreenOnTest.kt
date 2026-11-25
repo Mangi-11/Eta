@@ -4,7 +4,7 @@ import android.app.Application
 import android.os.Looper
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.platform.ComposeView
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.agent.overlay.AgentOverlayPhase
 import io.github.mangi.eta.agent.overlay.AgentOverlayState
 import io.github.mangi.eta.agent.overlay.AgentOverlayStatus
@@ -21,6 +21,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowPowerManager
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], application = Application::class)

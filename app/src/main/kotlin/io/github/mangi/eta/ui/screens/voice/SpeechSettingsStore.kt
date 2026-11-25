@@ -3,9 +3,9 @@ package io.github.mangi.eta.ui.screens.voice
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import io.github.mangi.eta.R
-import io.github.mangi.eta.agent.voice.SpeechFailure
-import io.github.mangi.eta.agent.voice.SpeechInputController
-import io.github.mangi.eta.agent.voice.SpeechPlaybackController
+import io.github.mangi.eta.agent.voice.audio.SpeechFailure
+import io.github.mangi.eta.agent.voice.asr.SpeechInputController
+import io.github.mangi.eta.agent.voice.tts.SpeechPlaybackController
 import io.github.mangi.eta.data.model.SpeechCredentialField
 import io.github.mangi.eta.data.model.SpeechCredentials
 import io.github.mangi.eta.data.model.SpeechSettings

@@ -3,9 +3,9 @@ package io.github.mangi.eta.agent.subagent
 import androidx.annotation.StringRes
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.context.PersonalSearchTools
-import io.github.mangi.eta.agent.model.AgentFileToolCatalog
-import io.github.mangi.eta.agent.model.AgentPhoneToolCatalog
-import io.github.mangi.eta.agent.model.AgentTerminalToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentFileToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentPhoneToolCatalog
+import io.github.mangi.eta.agent.model.catalog.AgentTerminalToolCatalog
 import io.github.mangi.eta.core.AppStrings
 import org.json.JSONArray
 import org.json.JSONObject

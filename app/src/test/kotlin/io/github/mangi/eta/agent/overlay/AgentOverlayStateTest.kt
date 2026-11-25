@@ -1,6 +1,6 @@
 package io.github.mangi.eta.agent.overlay
 
-import io.github.mangi.eta.agent.runtime.AgentEvent
+import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

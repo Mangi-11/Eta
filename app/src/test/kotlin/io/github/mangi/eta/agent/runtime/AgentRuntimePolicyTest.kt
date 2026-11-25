@@ -1,7 +1,7 @@
 package io.github.mangi.eta.agent.runtime
 
 import android.content.SharedPreferences
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.data.model.CustomBody
 import io.github.mangi.eta.data.model.ReasoningEffort

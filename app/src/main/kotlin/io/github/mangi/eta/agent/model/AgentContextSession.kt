@@ -1,8 +1,11 @@
 package io.github.mangi.eta.agent.model
 
-import io.github.mangi.eta.agent.runtime.AgentEvent
+import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import org.json.JSONArray
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AgentProviderClient
 
 /** 管理可替换的模型上下文；持久快照先提交，运行 transcript 始终追加。 */
 internal class AgentContextSession(

@@ -3,7 +3,7 @@ package io.github.mangi.eta.agent.runtime
 import android.app.Application
 import android.content.Context
 import io.github.mangi.eta.agent.model.AgentContextSnapshot
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.data.db.EtaDatabase
 import org.junit.After
 import org.junit.Assert.*
@@ -13,6 +13,11 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import io.github.mangi.eta.agent.runtime.archive.AgentRunArchiveStore
+import io.github.mangi.eta.agent.runtime.archive.AgentRunCheckpointStore
+import io.github.mangi.eta.agent.runtime.archive.AgentRuntimeResultStore
+import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 
 @RunWith(RobolectricTestRunner::class)
 // 数据库由用例管理，避免 EtaApp 的后台预热与关闭、重开数据库竞争。

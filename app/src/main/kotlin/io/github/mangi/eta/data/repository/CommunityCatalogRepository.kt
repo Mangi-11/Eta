@@ -3,7 +3,7 @@ package io.github.mangi.eta.data.repository
 import android.content.Context
 import android.util.AtomicFile
 import io.github.mangi.eta.R
-import io.github.mangi.eta.agent.model.AgentHttpClient
+import io.github.mangi.eta.agent.model.provider.AgentHttpClient
 import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.Model

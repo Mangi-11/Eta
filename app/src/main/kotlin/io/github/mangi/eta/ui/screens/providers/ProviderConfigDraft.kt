@@ -2,8 +2,8 @@ package io.github.mangi.eta.ui.screens.providers
 
 import androidx.compose.runtime.saveable.mapSaver
 import io.github.mangi.eta.R
-import io.github.mangi.eta.agent.model.CustomHeaderFilter
-import io.github.mangi.eta.agent.model.ProviderUrls
+import io.github.mangi.eta.agent.model.provider.CustomHeaderFilter
+import io.github.mangi.eta.agent.model.provider.ProviderUrls
 import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.AnthropicProviderSetting

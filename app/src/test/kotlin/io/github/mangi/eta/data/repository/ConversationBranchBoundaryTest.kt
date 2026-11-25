@@ -1,6 +1,6 @@
 package io.github.mangi.eta.data.repository
 
-import io.github.mangi.eta.agent.model.AgentModelClient.ConversationMessage
+import io.github.mangi.eta.agent.model.provider.AgentModelClient.ConversationMessage
 import io.github.mangi.eta.agent.roleplay.RoleplayMessageState
 import io.github.mangi.eta.data.model.ConversationBranchMessage
 import org.junit.Assert.assertEquals

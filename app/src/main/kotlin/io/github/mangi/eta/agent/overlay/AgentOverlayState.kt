@@ -1,7 +1,7 @@
 package io.github.mangi.eta.agent.overlay
 
 import androidx.compose.runtime.Immutable
-import io.github.mangi.eta.agent.runtime.AgentEvent
+import io.github.mangi.eta.agent.runtime.ipc.AgentEvent
 import io.github.mangi.eta.agent.runtime.GuiControlStatus
 
 /** Agent 浮窗所处的阶段。 */

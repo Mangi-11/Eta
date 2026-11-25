@@ -1,7 +1,9 @@
 package io.github.mangi.eta.agent.runtime
 
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import java.util.UUID
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
+import io.github.mangi.eta.agent.runtime.ipc.AgentUiHandoffPayload
 
 /** 用完整增量 transcript 构造已完成 run 的后续用户回合。 */
 internal object AgentContinuationBuilder {

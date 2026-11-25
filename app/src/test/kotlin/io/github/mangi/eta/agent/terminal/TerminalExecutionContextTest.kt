@@ -8,6 +8,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import io.github.mangi.eta.agent.terminal.linux.AlpineEnvironmentPaths
+import io.github.mangi.eta.agent.terminal.linux.LinuxEnvironmentPaths
+import io.github.mangi.eta.agent.terminal.linux.SharedFolderMount
 
 class TerminalExecutionContextTest {
     @get:Rule val temporary = TemporaryFolder()

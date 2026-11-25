@@ -135,7 +135,7 @@ internal fun iconForTool(toolId: String): ImageVector = when (toolId) {
     "list_directory", "glob_files", "grep_files" -> Icons.Rounded.FolderOpen
     else -> when {
         toolId in io.github.mangi.eta.agent.context.PersonalSearchTools.names -> Icons.Rounded.Insights
-        toolId in io.github.mangi.eta.agent.model.AgentPhoneToolCatalog.names -> when {
+        toolId in io.github.mangi.eta.agent.model.catalog.AgentPhoneToolCatalog.names -> when {
             "calendar" in toolId -> Icons.Rounded.CalendarMonth
             "alarm" in toolId -> Icons.Rounded.Alarm
             "note" in toolId -> Icons.AutoMirrored.Rounded.StickyNote2

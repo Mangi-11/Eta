@@ -1,6 +1,9 @@
 package io.github.mangi.eta.agent.model
 
 import org.json.JSONArray
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AnthropicEphemeralState
+import io.github.mangi.eta.agent.model.provider.gemini.GeminiEphemeralState
 
 /** 签名工具链完成前保持请求前缀，避免压缩或目录刷新破坏下一轮回传。 */
 internal object SignedToolContext {

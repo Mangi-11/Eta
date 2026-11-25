@@ -12,7 +12,7 @@ import android.os.ParcelFileDescriptor
 import java.io.File
 import io.github.mangi.eta.agent.model.AgentContextSnapshot
 import io.github.mangi.eta.agent.model.AgentConversationCodec
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.data.db.EtaDatabase
 import io.github.mangi.eta.ui.app.AgentConversationStore
 import io.github.mangi.eta.ui.model.AgentChatUiState
@@ -27,6 +27,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import io.github.mangi.eta.agent.runtime.archive.AgentRunArchiveStore
+import io.github.mangi.eta.agent.runtime.archive.AgentRunCheckpointStore
+import io.github.mangi.eta.agent.runtime.archive.AgentRuntimeResultStore
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeImageTransfer
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
+import io.github.mangi.eta.agent.runtime.ipc.AgentWireText
 
 @RunWith(RobolectricTestRunner::class)
 // 数据库由用例管理，避免 EtaApp 的后台预热与关闭、重开数据库竞争。

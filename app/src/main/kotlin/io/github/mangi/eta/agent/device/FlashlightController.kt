@@ -7,7 +7,7 @@ import android.hardware.camera2.CameraManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import io.github.mangi.eta.agent.tool.DeviceMutationResult
+import io.github.mangi.eta.agent.tool.device.DeviceMutationResult
 import org.json.JSONObject
 
 /** 应用进程拥有灯光连接，不能随一次工具调用销毁，否则系统会立即熄灯。 */

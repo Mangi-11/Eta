@@ -9,6 +9,17 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelExecutionException
+import io.github.mangi.eta.agent.model.provider.AgentModelFailure
+import io.github.mangi.eta.agent.model.provider.AgentProviderClient
+import io.github.mangi.eta.agent.model.provider.ProviderEvent
+import io.github.mangi.eta.agent.model.provider.ProviderRequest
+import io.github.mangi.eta.agent.model.provider.ProviderRequestPurpose
+import io.github.mangi.eta.agent.model.provider.ProviderResponse
+import io.github.mangi.eta.agent.model.provider.openai.OpenAiChatCompletionsProvider
+import io.github.mangi.eta.agent.model.provider.openai.OpenAiRequestMessages
+import io.github.mangi.eta.agent.model.provider.openai.ResponsesRequestBuilder
 
 class AgentRoleplayRuntimeTest {
     @Test

@@ -8,7 +8,7 @@ import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.util.Base64
 import io.github.mangi.eta.agent.device.BoundedFileCopy
-import io.github.mangi.eta.agent.model.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
@@ -380,7 +380,7 @@ internal object AgentImageCodec {
 
     /**
      * 为跨进程请求解析图片。远程 URL 与已有 data URL 直接保留；本地 URI/路径只读取元数据，
-     * 不再对原图体积设固定上限，正文由 [io.github.mangi.eta.agent.runtime.AgentRuntimeImageTransfer]
+     * 不再对原图体积设固定上限，正文由 [io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeImageTransfer]
      * 通过只读文件描述符零拷贝传输，并在接收端按目标渠道预算流式解码压缩。
      */
     fun fromTransferReference(

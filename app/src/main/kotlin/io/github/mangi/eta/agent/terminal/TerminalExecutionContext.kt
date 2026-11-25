@@ -2,6 +2,13 @@ package io.github.mangi.eta.agent.terminal
 
 import java.io.File
 import org.json.JSONObject
+import io.github.mangi.eta.agent.terminal.linux.AlpineEnvironmentPaths
+import io.github.mangi.eta.agent.terminal.linux.LinuxEnvironmentPaths
+import io.github.mangi.eta.agent.terminal.linux.LinuxPackageProfiles
+import io.github.mangi.eta.agent.terminal.linux.SharedFolderMount
+import io.github.mangi.eta.agent.terminal.linux.SharedFolderMounts
+import io.github.mangi.eta.agent.terminal.linux.linuxApkAnalysisReady
+import io.github.mangi.eta.agent.terminal.linux.linuxPackageProfileReady
 
 /** 同一次运行固定目录和 Linux 环境；Android 默认身份根据已确认的授权选择。 */
 internal data class TerminalExecutionContext(

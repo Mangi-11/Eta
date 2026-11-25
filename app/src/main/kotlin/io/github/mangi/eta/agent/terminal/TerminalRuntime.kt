@@ -5,6 +5,7 @@ import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.runtime.AgentExecutionService
 import java.io.File
+import io.github.mangi.eta.agent.terminal.linux.LinuxEnvironmentPaths
 
 internal enum class LinuxExecutionBackend(val wireName: String) {
     CHROOT("chroot"),

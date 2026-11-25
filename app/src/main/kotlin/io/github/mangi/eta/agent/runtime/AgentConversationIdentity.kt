@@ -1,6 +1,9 @@
 package io.github.mangi.eta.agent.runtime
 
 import java.security.MessageDigest
+import io.github.mangi.eta.agent.runtime.archive.AgentExternalArchivePayload
+import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
+import io.github.mangi.eta.agent.runtime.ipc.AgentUiHandoffPayload
 
 /** 入口、归档与浏览器共同使用的会话身份；外部归档标识保持已发布算法不变。 */
 internal object AgentConversationIdentity {
