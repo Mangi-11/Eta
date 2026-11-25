@@ -48,7 +48,7 @@ import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.LocalChatImagePreviewer
 import io.github.mangi.eta.ui.components.ScaffoldPage
-import io.github.mangi.eta.ui.components.StatusError
+import io.github.mangi.eta.ui.components.TopBarActionButton
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.components.chat.rememberChatImageBitmap
 import java.text.SimpleDateFormat
@@ -58,9 +58,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -77,6 +78,8 @@ internal fun ImageGenGalleryScreen(
     var totalBytes by remember { mutableStateOf(0L) }
     var confirmClearAll by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<GeneratedImageRecord?>(null) }
+    var retainedDelete by remember { mutableStateOf<GeneratedImageRecord?>(null) }
+    if (pendingDelete != null) retainedDelete = pendingDelete
     val itemBounds = remember { mutableStateMapOf<Int, Rect>() }
 
     fun reload() {
@@ -128,53 +131,6 @@ internal fun ImageGenGalleryScreen(
         }
     }
 
-    if (confirmClearAll) {
-        val clearTitle = stringResource(R.string.imagegen_gallery_clear_title)
-        val clearMessage = pluralStringResource(
-            R.plurals.imagegen_gallery_clear_message,
-            records.size,
-            records.size,
-            formatImageStorageSize(totalBytes),
-        )
-        val clearAction = stringResource(R.string.imagegen_action_clear)
-        GlassDialog(
-            show = true,
-            title = clearTitle,
-            summary = clearMessage,
-            backdrop = currentGlassOverlayBackdrop(),
-            onDismissRequest = { confirmClearAll = false },
-        ) {
-            DialogActions(
-                cancelText = stringResource(R.string.action_cancel),
-                confirmText = clearAction,
-                destructive = true,
-                onCancel = { confirmClearAll = false },
-                onConfirm = clearAll,
-            )
-        }
-    }
-
-    pendingDelete?.let { target ->
-        val deleteTitle = stringResource(R.string.imagegen_gallery_delete_title)
-        val deleteMessage = stringResource(R.string.imagegen_gallery_delete_message)
-        val deleteAction = stringResource(R.string.action_delete)
-        GlassDialog(
-            show = true,
-            title = deleteTitle,
-            summary = deleteMessage,
-            backdrop = currentGlassOverlayBackdrop(),
-            onDismissRequest = { pendingDelete = null },
-        ) {
-            DialogActions(
-                cancelText = stringResource(R.string.action_cancel),
-                confirmText = deleteAction,
-                destructive = true,
-                onCancel = { pendingDelete = null },
-                onConfirm = { deleteSingle(target) },
-            )
-        }
-    }
-
     val rows = remember(records) { records.chunked(2) }
 
     ScaffoldPage(
@@ -182,13 +138,52 @@ internal fun ImageGenGalleryScreen(
         onBack = onBack,
         actions = {
             if (records.isNotEmpty()) {
-                IconButton(onClick = { confirmClearAll = true }) {
-                    Icon(
-                        imageVector = Icons.Rounded.DeleteOutline,
-                        contentDescription = stringResource(R.string.imagegen_gallery_clear_all_desc),
-                        tint = StatusError,
-                    )
-                }
+                TopBarActionButton(
+                    icon = MiuixIcons.Glass.Delete,
+                    contentDescription = stringResource(R.string.imagegen_gallery_clear_all_desc),
+                    onClick = { confirmClearAll = true },
+                )
+            }
+        },
+        overlay = {
+            val backdrop = currentGlassOverlayBackdrop()
+            GlassDialog(
+                show = confirmClearAll,
+                title = stringResource(R.string.imagegen_gallery_clear_title),
+                summary = pluralStringResource(
+                    R.plurals.imagegen_gallery_clear_message,
+                    records.size,
+                    records.size,
+                    formatImageStorageSize(totalBytes),
+                ),
+                backdrop = backdrop,
+                onDismissRequest = { confirmClearAll = false },
+            ) {
+                DialogActions(
+                    cancelText = stringResource(R.string.action_cancel),
+                    confirmText = stringResource(R.string.imagegen_action_clear),
+                    destructive = true,
+                    onCancel = { confirmClearAll = false },
+                    onConfirm = clearAll,
+                )
+            }
+            val activeDelete = pendingDelete ?: retainedDelete
+            GlassDialog(
+                show = pendingDelete != null,
+                title = stringResource(R.string.imagegen_gallery_delete_title),
+                summary = stringResource(R.string.imagegen_gallery_delete_message),
+                backdrop = backdrop,
+                onDismissRequest = { pendingDelete = null },
+                onDismissFinished = { if (pendingDelete == null) retainedDelete = null },
+            ) {
+                DialogActions(
+                    cancelText = stringResource(R.string.action_cancel),
+                    confirmText = stringResource(R.string.action_delete),
+                    destructive = true,
+                    confirmEnabled = activeDelete != null,
+                    onCancel = { pendingDelete = null },
+                    onConfirm = { activeDelete?.let(deleteSingle) },
+                )
             }
         },
     ) {
