@@ -1,6 +1,7 @@
 package io.github.mangi.eta.ui.app
 
 import android.content.pm.ApplicationInfo
+import android.os.Build
 import io.github.mangi.eta.core.AndroidAgentLogger
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 
@@ -8,6 +9,7 @@ internal object PredictiveBackController {
     private const val METHOD_NAME = "setEnableOnBackInvokedCallback"
 
     fun apply(applicationInfo: ApplicationInfo, enabled: Boolean): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
         return runCatching {
             HiddenApiBypass.addHiddenApiExemptions(
                 "Landroid/content/pm/ApplicationInfo;->$METHOD_NAME",

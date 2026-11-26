@@ -57,12 +57,37 @@ internal object CanvasRoutingPolicy {
             FLAG_OWN_FOCUS or
             FLAG_STEAL_TOP_FOCUS_DISABLED
 
-    fun hasRequiredDisplayFlags(flags: Int): Boolean {
+    /**
+     * Android 13 的公共虚拟屏标志组合。
+     *
+     * Android 13 的 DisplayManagerService 只接受 PUBLIC / SUPPORTS_TOUCH 等旧标志位，
+     * 且不允许公共屏与 OWN_CONTENT_ONLY 同时出现；TRUSTED、OWN_FOCUS、
+     * STEAL_TOP_FOCUS_DISABLED 由 Android 14 引入，旧系统传下去会被直接忽略。
+     */
+    const val LEGACY_INTERACTIVE_FLAGS: Int =
+        FLAG_PUBLIC or
+            FLAG_SUPPORTS_TOUCH or
+            FLAG_ALWAYS_UNLOCKED or
+            FLAG_TOUCH_FEEDBACK_DISABLED
+
+    /** Android 13 起可创建系统级公共虚拟屏；受信任独立焦点仍需 Android 14。 */
+    fun supportsBackgroundDisplay(sdkInt: Int): Boolean = sdkInt >= 33
+
+    /** 独立焦点（OWN_FOCUS）与禁止抢占顶层焦点只有 Android 14+ 具备。 */
+    fun requiresTrustedDisplayFlags(sdkInt: Int): Boolean = sdkInt >= 34
+
+    /** 按系统版本选择虚拟屏标志：Android 14+ 用受信任组合，Android 13 回退到公共可触摸组合。 */
+    fun interactiveFlags(sdkInt: Int): Int =
+        if (requiresTrustedDisplayFlags(sdkInt)) TRUSTED_INTERACTIVE_FLAGS else LEGACY_INTERACTIVE_FLAGS
+
+    fun hasRequiredDisplayFlags(flags: Int, sdkInt: Int): Boolean {
+        if (!requiresTrustedDisplayFlags(sdkInt)) return true
         val required = DISPLAY_FLAG_TRUSTED or DISPLAY_FLAG_OWN_FOCUS or DISPLAY_FLAG_STEAL_TOP_FOCUS_DISABLED
         return flags and required == required
     }
 
-    fun missingDisplayFlagsDescription(flags: Int): String {
+    fun missingDisplayFlagsDescription(flags: Int, sdkInt: Int): String {
+        if (!requiresTrustedDisplayFlags(sdkInt)) return "NONE_LEGACY_DISPLAY"
         val missing = buildList {
             if ((flags and DISPLAY_FLAG_TRUSTED) == 0) add("TRUSTED")
             if ((flags and DISPLAY_FLAG_OWN_FOCUS) == 0) add("OWN_FOCUS")

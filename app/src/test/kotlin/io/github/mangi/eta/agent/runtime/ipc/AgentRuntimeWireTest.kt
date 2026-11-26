@@ -33,7 +33,7 @@ import io.github.mangi.eta.agent.runtime.archive.recoveryProjection
 import io.github.mangi.eta.agent.runtime.archive.replayProjection
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34, 36])
+@Config(sdk = [33, 36])
 class AgentRuntimeWireTest {
     @Test
     fun searchSuggestionsCapabilityIsOptionalAndHtmlIsNeverDurable() {

@@ -12,6 +12,7 @@ import android.hardware.display.VirtualDisplay
 import android.hardware.display.VirtualDisplayConfig
 import android.media.Image
 import android.media.ImageReader
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
@@ -65,7 +66,7 @@ internal object VirtualDisplayController {
     private val mutedPackages = linkedSetOf<String>()
 
     fun isBackendAvailable(rootAvailable: Boolean, lsposedAvailable: Boolean): Boolean =
-        rootAvailable || lsposedAvailable
+        CanvasRoutingPolicy.supportsBackgroundDisplay(Build.VERSION.SDK_INT) && (rootAvailable || lsposedAvailable)
 
     fun setStageExpanded(expanded: Boolean) {
         highFrequencyPreview = expanded
@@ -91,6 +92,7 @@ internal object VirtualDisplayController {
         context: Context,
         rootAvailable: () -> Boolean = { RootAccess.isGranted },
     ): Int? {
+        if (!CanvasRoutingPolicy.supportsBackgroundDisplay(Build.VERSION.SDK_INT)) return null
         val appContext = context.applicationContext
         val manager = appContext.getSystemService(DisplayManager::class.java) ?: return null
         // 创建可包含 Binder 与 Root 等待；发布状态和释放不等待这把创建锁。
@@ -155,7 +157,7 @@ internal object VirtualDisplayController {
                         "Virtual display rejected: displayId=$id reason=DISPLAY_NOT_USABLE " +
                             "present=${display != null} valid=${display?.isValid == true} " +
                             "flags=0x${Integer.toHexString(flags)} " +
-                            "missing=${CanvasRoutingPolicy.missingDisplayFlagsDescription(flags)}",
+                            "missing=${CanvasRoutingPolicy.missingDisplayFlagsDescription(flags, Build.VERSION.SDK_INT)}",
                     )
                     return null
                 }
@@ -190,7 +192,8 @@ internal object VirtualDisplayController {
 
     private fun isDisplayUsable(manager: DisplayManager, displayId: Int): Boolean = try {
         val display = manager.getDisplay(displayId)
-        display != null && display.isValid && CanvasRoutingPolicy.hasRequiredDisplayFlags(display.flags)
+        display != null && display.isValid &&
+            CanvasRoutingPolicy.hasRequiredDisplayFlags(display.flags, Build.VERSION.SDK_INT)
     } catch (exception: Exception) {
         AndroidAgentLogger.warnThrottled("virtual_display_validation_failed") {
             "Virtual display validation failed: type=${exception.safeLogType()}"
@@ -654,18 +657,31 @@ internal object VirtualDisplayController {
         height: Int,
         densityDpi: Int,
     ): VirtualDisplay? = runCatching {
-        runCatching { HiddenApiBypass.addHiddenApiExemptions("Landroid/hardware/display/") }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            runCatching { HiddenApiBypass.addHiddenApiExemptions("Landroid/hardware/display/") }
+        }
         val dm = appContext.getSystemService(DisplayManager::class.java) ?: return@runCatching null
-        val config = VirtualDisplayConfig.Builder(
-            CanvasRoutingPolicy.VIRTUAL_DISPLAY_NAME,
-            width,
-            height,
-            densityDpi,
-        )
-            .setSurface(surface)
-            .setFlags(CanvasRoutingPolicy.TRUSTED_INTERACTIVE_FLAGS)
-            .build()
-        dm.createVirtualDisplay(config)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val config = VirtualDisplayConfig.Builder(
+                CanvasRoutingPolicy.VIRTUAL_DISPLAY_NAME,
+                width,
+                height,
+                densityDpi,
+            )
+                .setSurface(surface)
+                .setFlags(CanvasRoutingPolicy.interactiveFlags(Build.VERSION.SDK_INT))
+                .build()
+            dm.createVirtualDisplay(config)
+        } else {
+            dm.createVirtualDisplay(
+                CanvasRoutingPolicy.VIRTUAL_DISPLAY_NAME,
+                width,
+                height,
+                densityDpi,
+                surface,
+                CanvasRoutingPolicy.interactiveFlags(Build.VERSION.SDK_INT),
+            )
+        }
     }.getOrNull()
 
     private fun moveVirtualTaskToMainDisplay(
@@ -676,7 +692,9 @@ internal object VirtualDisplayController {
     ): Boolean {
         // 1. 尝试进程内通过 system_server Hook 放行的 moveRootTaskToDisplay 迁移
         val movedInProcess = runCatching {
-            HiddenApiBypass.addHiddenApiExemptions("Landroid/app/ActivityTaskManager", "Landroid/app/IActivityTaskManager")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                HiddenApiBypass.addHiddenApiExemptions("Landroid/app/ActivityTaskManager", "Landroid/app/IActivityTaskManager")
+            }
             val atmClass = Class.forName("android.app.ActivityTaskManager")
             val service = atmClass.getMethod("getService").invoke(null) ?: return@runCatching false
             val getTasks = service.javaClass.methods.firstOrNull { it.name == "getTasks" && it.parameterCount >= 1 }

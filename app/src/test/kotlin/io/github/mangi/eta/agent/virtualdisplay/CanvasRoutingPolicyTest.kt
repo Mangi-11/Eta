@@ -117,26 +117,61 @@ class CanvasRoutingPolicyTest {
     }
 
     @Test
-    fun displayMustExposeAllIsolationFlagsAfterCreation() {
+    fun backgroundDisplayAvailableFromAndroid13WithLegacyFlags() {
+        assertTrue(CanvasRoutingPolicy.supportsBackgroundDisplay(33))
+        assertTrue(CanvasRoutingPolicy.supportsBackgroundDisplay(34))
+        assertTrue(CanvasRoutingPolicy.supportsBackgroundDisplay(37))
+        assertEquals(
+            CanvasRoutingPolicy.LEGACY_INTERACTIVE_FLAGS,
+            CanvasRoutingPolicy.interactiveFlags(33),
+        )
+        assertEquals(
+            CanvasRoutingPolicy.TRUSTED_INTERACTIVE_FLAGS,
+            CanvasRoutingPolicy.interactiveFlags(34),
+        )
+    }
+
+    @Test
+    fun legacyInteractiveFlagsDoNotUseAndroid14TrustedBits() {
+        val flags = CanvasRoutingPolicy.LEGACY_INTERACTIVE_FLAGS
+        assertTrue((flags and CanvasRoutingPolicy.FLAG_PUBLIC) != 0)
+        assertTrue((flags and CanvasRoutingPolicy.FLAG_SUPPORTS_TOUCH) != 0)
+        assertFalse((flags and CanvasRoutingPolicy.FLAG_TRUSTED) != 0)
+        assertFalse((flags and CanvasRoutingPolicy.FLAG_OWN_CONTENT_ONLY) != 0)
+        assertFalse((flags and CanvasRoutingPolicy.FLAG_OWN_FOCUS) != 0)
+        assertFalse((flags and CanvasRoutingPolicy.FLAG_STEAL_TOP_FOCUS_DISABLED) != 0)
+    }
+
+    @Test
+    fun displayMustExposeAllIsolationFlagsAfterCreationOnAndroid14() {
         val platformDisplayFlags = (1 shl 7) or (1 shl 11) or (1 shl 12)
-        assertTrue(CanvasRoutingPolicy.hasRequiredDisplayFlags(platformDisplayFlags))
+        assertTrue(CanvasRoutingPolicy.hasRequiredDisplayFlags(platformDisplayFlags, 34))
         for (requiredBit in listOf(7, 11, 12)) {
-            assertFalse(CanvasRoutingPolicy.hasRequiredDisplayFlags(platformDisplayFlags and (1 shl requiredBit).inv()))
+            assertFalse(
+                CanvasRoutingPolicy.hasRequiredDisplayFlags(platformDisplayFlags and (1 shl requiredBit).inv(), 34),
+            )
         }
-        assertFalse(CanvasRoutingPolicy.hasRequiredDisplayFlags(CanvasRoutingPolicy.FLAG_TRUSTED))
+        assertFalse(CanvasRoutingPolicy.hasRequiredDisplayFlags(CanvasRoutingPolicy.FLAG_TRUSTED, 34))
+    }
+
+    @Test
+    fun android13OnlyRequiresValidDisplayBecauseTrustedBitsAreAbsent() {
+        assertTrue(CanvasRoutingPolicy.hasRequiredDisplayFlags(0, 33))
+        assertTrue(CanvasRoutingPolicy.hasRequiredDisplayFlags(1 shl 7, 33))
+        assertEquals("NONE_LEGACY_DISPLAY", CanvasRoutingPolicy.missingDisplayFlagsDescription(0, 33))
     }
 
     @Test
     fun missingDisplayFlagsDescriptionReportsMissingBits() {
         val full = (1 shl 7) or (1 shl 11) or (1 shl 12)
-        assertEquals("", CanvasRoutingPolicy.missingDisplayFlagsDescription(full))
+        assertEquals("", CanvasRoutingPolicy.missingDisplayFlagsDescription(full, 34))
         assertEquals(
             "OWN_FOCUS,STEAL_TOP_FOCUS_DISABLED",
-            CanvasRoutingPolicy.missingDisplayFlagsDescription(1 shl 7),
+            CanvasRoutingPolicy.missingDisplayFlagsDescription(1 shl 7, 34),
         )
         assertEquals(
             "TRUSTED,OWN_FOCUS,STEAL_TOP_FOCUS_DISABLED",
-            CanvasRoutingPolicy.missingDisplayFlagsDescription(0),
+            CanvasRoutingPolicy.missingDisplayFlagsDescription(0, 34),
         )
     }
 
