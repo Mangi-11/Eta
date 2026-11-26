@@ -27,10 +27,11 @@ internal object GeminiEndpointMode {
 
 internal object ProviderAuthModes {
     const val API_KEY = "api_key"
+    const val CHATGPT_PLAN = "chatgpt_plan"
     const val OPENAI_CHATGPT = "openai_chatgpt"
     const val XAI_GROK = "xai_grok"
 
-    fun isOAuth(mode: String): Boolean = mode == OPENAI_CHATGPT || mode == XAI_GROK
+    fun isOAuth(mode: String): Boolean = mode == OPENAI_CHATGPT || mode == CHATGPT_PLAN || mode == XAI_GROK
 }
 
 internal object ProviderSourceTypes {

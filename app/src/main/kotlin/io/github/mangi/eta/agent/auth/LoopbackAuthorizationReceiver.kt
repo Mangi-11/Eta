@@ -11,11 +11,17 @@ import java.net.SocketTimeoutException
 import java.security.MessageDigest
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
+internal class LoopbackCallback(val code: String, val clientId: String?) {
+    override fun toString(): String = "LoopbackCallback(redacted)"
+}
+
 internal class LoopbackAuthorizationReceiver(port: Int = CodexOAuth.CALLBACK_PORT) : AutoCloseable {
     private val server = ServerSocket(port, 4, InetAddress.getByName("127.0.0.1")).apply { soTimeout = 1_000 }
     val redirectUri: String = "http://127.0.0.1:${server.localPort}/auth/callback"
 
-    fun awaitCode(state: String, controller: AgentRunController): String {
+    fun awaitCode(state: String, controller: AgentRunController): String = awaitCallback(state, controller).code
+
+    fun awaitCallback(state: String, controller: AgentRunController): LoopbackCallback {
         val deadline = System.nanoTime() + 600_000_000_000L
         val binding = controller.register(server::close)
         try {
@@ -26,7 +32,7 @@ internal class LoopbackAuthorizationReceiver(port: Int = CodexOAuth.CALLBACK_POR
                     val socketBinding = controller.register(socket::close)
                     try {
                         val target = readRequest(socket)
-                        val result = validateCallback(target, state)
+                        val result = parseCallback(target, state)
                         try {
                             respond(
                                 socket,
@@ -72,7 +78,9 @@ internal class LoopbackAuthorizationReceiver(port: Int = CodexOAuth.CALLBACK_POR
         }
     }
 
-    internal fun validateCallback(target: String, state: String): String {
+    internal fun validateCallback(target: String, state: String): String = parseCallback(target, state).code
+
+    internal fun parseCallback(target: String, state: String): LoopbackCallback {
         fun invalid(): Nothing = throw ProviderAuthException(
             "oauth_callback_invalid",
             AppStrings.get(R.string.auth_err_callback_invalid, "登录回调无效"),
@@ -95,7 +103,7 @@ internal class LoopbackAuthorizationReceiver(port: Int = CodexOAuth.CALLBACK_POR
             )
         }
         val code = value("code")?.takeIf { it.isNotBlank() && it.length <= 8_192 } ?: invalid()
-        return code
+        return LoopbackCallback(code, value("client_id"))
     }
 
     private fun readRequest(socket: Socket): String {

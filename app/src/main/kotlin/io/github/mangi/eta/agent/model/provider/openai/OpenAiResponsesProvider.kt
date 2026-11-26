@@ -5,6 +5,7 @@ import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -68,6 +69,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
                 stream = response.body.byteStream(),
                 runController = runController,
                 onEvent = onEvent,
+                requireCompletedEvent = config.authMode == ProviderAuthModes.CHATGPT_PLAN,
             )
             onEvent(ProviderEvent.Completed(assistant.optString("finish_reason").ifBlank { null }))
             ProviderResponse(assistant)
@@ -112,6 +114,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
         stream: java.io.InputStream?,
         runController: AgentRunController,
         onEvent: (ProviderEvent) -> Unit,
+        requireCompletedEvent: Boolean = false,
     ): JSONObject {
         if (stream == null) error(AppStrings.get(R.string.provider_err_no_response_stream, "模型接口未返回响应流"))
         val streamedText = StringBuilder()
@@ -358,6 +361,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
                     finishHostedTool(itemId, AppStrings.get(R.string.provider_hosted_tool_web_search, "网页搜索"), success = false)
                 }
                 "response.completed", "response.done", "response.incomplete", "response.failed" -> {
+                    if (requireCompletedEvent && type == "response.done") return@readProviderSse true
                     terminal = event.optJSONObject("response") ?: event
                     terminalType = if (type == "response.done") {
                         when (terminal.optString("status")) {
@@ -382,6 +386,14 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
             AppStrings.get(R.string.provider_err_responses_no_terminal, "模型接口 Responses SSE 流缺少合法终止事件"),
         )
         if (terminalType == "response.failed") throwResponseFailure(finalResponse)
+        if (requireCompletedEvent && terminalType == "response.incomplete") {
+            val reason = finalResponse.optJSONObject("incomplete_details")?.optString("reason").orEmpty()
+            throw AgentModelFailure(
+                "RESPONSES_INCOMPLETE",
+                false,
+                AppStrings.get(R.string.provider_chatgpt_plan_incomplete, "ChatGPT 响应未完成（%1\$s）。", reason.ifBlank { "unknown" }),
+            )
+        }
 
         val terminalOutput = finalResponse.optJSONArray("output")
         val hasTerminalOutput = terminalOutput != null && terminalOutput.length() > 0

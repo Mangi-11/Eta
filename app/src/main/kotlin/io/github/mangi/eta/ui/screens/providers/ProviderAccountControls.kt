@@ -34,10 +34,15 @@ internal fun ProviderAccountControls(
     onCancel: () -> Unit,
 ) {
     val prompt = state.prompt
-    val account = state.account
+    val account = state.account.takeIf { state.authMode == authMode }
     val loggedIn = account != null && !account.needsReauthentication
     val needsLogin = !loggedIn || !account.planEnabled
-    val brand = if (authMode == ProviderAuthModes.XAI_GROK) "Grok" else "Codex"
+    val chatGptPlan = authMode == ProviderAuthModes.CHATGPT_PLAN
+    val brand = when (authMode) {
+        ProviderAuthModes.XAI_GROK -> "Grok"
+        ProviderAuthModes.CHATGPT_PLAN -> "ChatGPT"
+        else -> "Codex"
+    }
     val title = account?.email ?: account?.displayName ?: stringResource(R.string.provider_i18n_account_title, brand)
     val summary = browserError ?: state.message ?: when (state.phase) {
         ProviderLoginPhase.Loading -> stringResource(R.string.provider_i18n_login_loading)
@@ -49,14 +54,15 @@ internal fun ProviderAccountControls(
         ProviderLoginPhase.SyncingModels -> stringResource(R.string.provider_i18n_login_syncing_models)
         ProviderLoginPhase.Idle -> when {
             account == null -> stringResource(
-                if (authMode == ProviderAuthModes.OPENAI_CHATGPT) {
-                    R.string.provider_i18n_login_chatgpt_hint
-                } else {
-                    R.string.provider_i18n_login_grok_hint
+                when (authMode) {
+                    ProviderAuthModes.CHATGPT_PLAN -> R.string.provider_chatgpt_plan_hint
+                    ProviderAuthModes.OPENAI_CHATGPT -> R.string.provider_i18n_login_chatgpt_hint
+                    else -> R.string.provider_i18n_login_grok_hint
                 },
             )
             account.needsReauthentication -> stringResource(R.string.provider_i18n_login_reauth)
             !account.planEnabled -> stringResource(R.string.provider_i18n_login_plan_disabled)
+            chatGptPlan -> stringResource(R.string.provider_chatgpt_plan_authorized)
             authMode == ProviderAuthModes.OPENAI_CHATGPT -> stringResource(R.string.provider_i18n_logged_in_codex)
             else -> stringResource(R.string.provider_i18n_logged_in_grok)
         }
@@ -65,6 +71,8 @@ internal fun ProviderAccountControls(
     val cancelText = stringResource(R.string.action_cancel)
     val loginActionText = if (loggedIn) {
         stringResource(R.string.provider_i18n_reauthorize)
+    } else if (chatGptPlan) {
+        stringResource(R.string.provider_chatgpt_continue)
     } else {
         stringResource(R.string.provider_i18n_sign_in_with, brand)
     }
@@ -98,13 +106,21 @@ internal fun ProviderAccountControls(
                         onClick = onLogin,
                         modifier = Modifier.weight(1f),
                     )
-                } else if (authMode == ProviderAuthModes.OPENAI_CHATGPT) {
+                } else if (chatGptPlan || authMode == ProviderAuthModes.OPENAI_CHATGPT) {
                     TextButton(text = manageUsageText, enabled = enabled, onClick = onManageUsage, modifier = Modifier.weight(1f))
                 }
                 if (loggedIn) {
                     TextButton(text = signOutText, enabled = enabled, onClick = onDisconnect, modifier = Modifier.weight(1f))
                 }
             }
+        }
+        if (chatGptPlan && !state.isBusy && !needsLogin) {
+            TextButton(
+                text = loginActionText,
+                enabled = enabled,
+                onClick = onLogin,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
         }
     }
 }

@@ -34,6 +34,7 @@ internal class AgentModelFailure(
             } catch (_: org.json.JSONException) {
                 null
             }
+            chatGptPlanFailure(error)?.let { return it }
             authenticationFailure(error)?.let { return it }
             if (isContextOverflow(error)) return AgentModelFailure(
                 "CONTEXT_OVERFLOW",
@@ -75,6 +76,7 @@ internal class AgentModelFailure(
         }
 
         fun stream(error: JSONObject, message: String): AgentModelFailure {
+            chatGptPlanFailure(error)?.let { return it }
             authenticationFailure(error)?.let { return it }
             if (isContextOverflow(error)) return AgentModelFailure(
                 "CONTEXT_OVERFLOW",
@@ -120,6 +122,25 @@ internal class AgentModelFailure(
                 failure,
             )
             else -> null
+        }
+
+        private fun chatGptPlanFailure(error: JSONObject?): AgentModelFailure? {
+            val code = error?.optString("code")
+            return when (code) {
+                "subscription_sharing_usage_limit_exceeded" -> AgentModelFailure(
+                    code, false,
+                    AppStrings.get(R.string.provider_chatgpt_plan_limit, "已达到 ChatGPT 订阅用量上限，请在 ChatGPT 设置中查看用量。"),
+                )
+                "subscription_sharing_usage_unavailable", "subscription_sharing_user_unavailable" -> AgentModelFailure(
+                    code, true,
+                    AppStrings.get(R.string.provider_chatgpt_plan_unavailable, "暂时无法读取 ChatGPT 订阅状态，请稍后重试。"),
+                )
+                "subscription_sharing_user_not_eligible" -> AgentModelFailure(
+                    code, false,
+                    AppStrings.get(R.string.provider_chatgpt_plan_ineligible, "当前 ChatGPT 账号或工作区无法使用订阅额度。"),
+                )
+                else -> null
+            }
         }
 
         private fun isContextOverflow(error: JSONObject?): Boolean {

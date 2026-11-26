@@ -44,6 +44,7 @@ internal data class ProviderCredential(
     val planEnabled: Boolean
         get() = when (authMode) {
             ProviderAuthModes.OPENAI_CHATGPT -> clientId == CodexOAuth.CLIENT_ID && !accountId.isNullOrBlank()
+            ProviderAuthModes.CHATGPT_PLAN -> ChatGptPlanOAuth.PLAN_SCOPE in scopes
             ProviderAuthModes.XAI_GROK -> "grok-cli:access" in scopes
             else -> false
         }
@@ -51,7 +52,7 @@ internal data class ProviderCredential(
     fun summary() = ProviderAccountSummary(email, displayName, subject == null || accessToken.isBlank() ||
         (authMode == ProviderAuthModes.OPENAI_CHATGPT && !planEnabled), planEnabled)
 
-    fun withoutTokens() = copy(accessToken = "", refreshToken = "", idToken = "", accountId = null, expiresAt = 0)
+    fun withoutTokens() = copy(accessToken = "", refreshToken = "", idToken = "", accountId = null, expiresAt = 0, scopes = emptySet())
 
     override fun toString(): String = "ProviderCredential(redacted)"
 }
@@ -68,6 +69,13 @@ internal enum class OAuthProvider(
         "https://auth.openai.com",
         "https://auth.openai.com/oauth/token",
         null,
+        "RS256",
+    ),
+    CHATGPT_PLAN(
+        ProviderAuthModes.CHATGPT_PLAN,
+        "https://auth.openai.com",
+        "https://auth.openai.com/api/accounts/oauth/token",
+        "https://auth.openai.com/api/accounts/oauth/revoke",
         "RS256",
     ),
     XAI(

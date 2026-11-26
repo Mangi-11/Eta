@@ -87,6 +87,7 @@ internal class ProviderLoginStore(
                 }
             }
             mutableState.value = mutableState.value.copy(account = account, prompt = null, phase = ProviderLoginPhase.SyncingModels)
+            if (provider.authMode == ProviderAuthModes.CHATGPT_PLAN && !account.planEnabled) return@runOperation
             val count = withContext(ioDispatcher) { operations.syncModels(providerId, provider.authMode) }
             mutableState.value = mutableState.value.copy(
                 message = AppStrings.quantity(

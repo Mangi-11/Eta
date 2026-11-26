@@ -21,6 +21,12 @@ internal enum class ProviderConnectionProfile(
         OpenAiEndpointMode.RESPONSES,
         ProviderSourceTypes.OPENAI,
     ),
+    CHATGPT_PLAN(
+        ProviderAuthModes.CHATGPT_PLAN,
+        "https://api.openai.com/v1",
+        OpenAiEndpointMode.RESPONSES,
+        ProviderSourceTypes.OPENAI,
+    ),
     XAI_GROK(
         ProviderAuthModes.XAI_GROK,
         "https://cli-chat-proxy.grok.com/v1",
@@ -49,6 +55,7 @@ internal enum class ProviderConnectionProfile(
         fun forAuthMode(authMode: String): ProviderConnectionProfile? = when (authMode) {
             ProviderAuthModes.API_KEY -> null
             ProviderAuthModes.OPENAI_CHATGPT -> OPENAI_CODEX
+            ProviderAuthModes.CHATGPT_PLAN -> CHATGPT_PLAN
             ProviderAuthModes.XAI_GROK -> XAI_GROK
             else -> error("不支持的服务商认证方式")
         }

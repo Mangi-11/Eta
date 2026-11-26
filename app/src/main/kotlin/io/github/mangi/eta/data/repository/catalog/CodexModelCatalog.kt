@@ -14,13 +14,14 @@ import kotlinx.serialization.json.intOrNull
 
 /** Codex 账号目录是独立协议，不按公共 API 的预设或 supported_in_api 筛选。 */
 internal object CodexModelCatalog {
-    fun parse(entries: JsonArray): List<Model> = entries.mapIndexedNotNull { index, element ->
+    fun parse(entries: JsonArray, planCatalog: Boolean = false): List<Model> = entries.mapIndexedNotNull { index, element ->
         val item = element as? JsonObject ?: error(
             AppStrings.get(
                 R.string.repo_err_codex_catalog_invalid_entry,
                 "Codex 模型目录包含无效模型项",
             ),
         )
+        if (planCatalog && item.string("visibility") != "list") return@mapIndexedNotNull null
         when (item.string("visibility")) {
             "list" -> Unit
             "hide", "none" -> return@mapIndexedNotNull null
@@ -72,7 +73,7 @@ internal object CodexModelCatalog {
             displayName = item.string("display_name")?.takeIf(String::isNotBlank) ?: slug,
             source = ModelSource.REMOTE,
             ownedBy = "openai",
-            sortOrder = (item["priority"] as? JsonPrimitive)?.intOrNull ?: index,
+            sortOrder = if (planCatalog) index else (item["priority"] as? JsonPrimitive)?.intOrNull ?: index,
             contextWindow = item.positiveInt("context_window") ?: item.positiveInt("max_context_window"),
             inputModalities = modalities,
             outputModalities = listOf(Model.TEXT_MODALITY),

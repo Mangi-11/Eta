@@ -48,8 +48,13 @@ internal class ProviderCredentialSessions(
         onPrompt: (ProviderLoginPrompt) -> Unit): ProviderAccountSummary {
         val provider = OAuthProvider.fromAuthMode(authMode)
         val session = session(providerId)
-        val loginGeneration = session.stateLock.withLock { ++session.loginGeneration }
-        val credential = oauth.login(provider, controller, onPrompt)
+        val (loginGeneration, previous) = session.stateLock.withLock {
+            val previous = if (provider == OAuthProvider.CHATGPT_PLAN) {
+                storage.read(providerId)?.takeIf { it.authMode == authMode }
+            } else null
+            ++session.loginGeneration to previous
+        }
+        val credential = oauth.login(provider, previous, controller, onPrompt)
         controller.throwIfCancelled()
         val saved = session.stateLock.withLock {
             controller.throwIfCancelled()

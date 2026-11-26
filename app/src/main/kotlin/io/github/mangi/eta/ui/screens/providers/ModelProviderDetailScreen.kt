@@ -44,6 +44,7 @@ import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.withId
 import io.github.mangi.eta.data.model.withModels
@@ -417,7 +418,14 @@ private fun ProviderConfigTab(
                     enabled = !isWorking && !loginState.isBusy,
                     browserError = browserError,
                     onOpenBrowser = openBrowser,
-                    onManageUsage = { browserError = openProviderAccountLink(context, "https://chatgpt.com/codex/settings/usage") },
+                    onManageUsage = {
+                        val url = if (draft.authMode == ProviderAuthModes.CHATGPT_PLAN) {
+                            "https://chatgpt.com/settings/usage"
+                        } else {
+                            "https://chatgpt.com/codex/settings/usage"
+                        }
+                        browserError = openProviderAccountLink(context, url)
+                    },
                     onLogin = {
                         val validationError = validateProviderDraft(context, draft)
                         if (validationError != null) {
