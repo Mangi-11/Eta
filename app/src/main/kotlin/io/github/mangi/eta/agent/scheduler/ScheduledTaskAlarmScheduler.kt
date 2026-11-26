@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.data.repository.ScheduledTaskRepository
@@ -33,7 +34,11 @@ internal object ScheduledTaskAlarmScheduler {
         }
 
         val triggerAt = maxOf(nextTask.nextRunAt, nowMs + MIN_FUTURITY_MS)
-        val canExact = runCatching { alarmManager.canScheduleExactAlarms() }.getOrDefault(false)
+        val canExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            runCatching { alarmManager.canScheduleExactAlarms() }.getOrDefault(false)
+        } else {
+            true
+        }
         try {
             if (canExact) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)

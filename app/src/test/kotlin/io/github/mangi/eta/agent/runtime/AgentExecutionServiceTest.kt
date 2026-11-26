@@ -23,10 +23,10 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [33, 34], application = Application::class)
 class AgentExecutionServiceTest {
     @Test
-    @Config(sdk = [34, 36])
+    @Config(sdk = [33, 36])
     fun agentRunPromotionEndsWhileTerminalSessionRemains() {
         val context = RuntimeEnvironment.getApplication()
         val leaseId = "test:terminal-session"
@@ -64,7 +64,8 @@ class AgentExecutionServiceTest {
             val service = controller.get()
             assertNotNull(shadowOf(service).lastForegroundNotification)
             assertEquals(
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+                if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                else ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE,
                 service.foregroundServiceType,
             )
         } finally {

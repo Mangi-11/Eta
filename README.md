@@ -4,7 +4,7 @@
 
 [![GitHub Stars](https://img.shields.io/github/stars/Mangi-11/Eta?logo=github&label=Stars&color=1677FF)](https://github.com/Mangi-11/Eta/stargazers)
 [![GitHub Releases 累计下载量](https://img.shields.io/github/downloads/Mangi-11/Eta/total?logo=github&label=Downloads&color=1677FF)](https://github.com/Mangi-11/Eta/releases)
-![minSdk 34](https://img.shields.io/badge/minSdk-34-3DDC84?logo=android&logoColor=white)
+![minSdk 33](https://img.shields.io/badge/minSdk-33-3DDC84?logo=android&logoColor=white)
 ![Deep integrations for ColorOS and HyperOS](https://img.shields.io/badge/ROM%20Integrations-ColorOS%20%26%20HyperOS-1677FF)
 [![GPL-3.0 License](https://img.shields.io/github/license/Mangi-11/Eta?color=1677FF)](LICENSE)
 
@@ -21,7 +21,7 @@ Eta 对标手机厂商预装的一方系统助手，围绕 Android 系统服务�
 - **原生数字助理与系统入口**：将系统默认数字助理切换为 Eta 后，长按电源键即可带屏直唤（早期曾通过 Xposed 接管小布助手与超级小爱，现已演进为原生数字助理），支持 Android 16+ 实时活动（Live Updates / 流体云），并在适配 ROM 上支持电源键路由（唤起 Eta 或 Gemini）与解锁 Google 一圈即搜。
 - **完整的 Agent Runtime 与扩展**：独立实现 Agent Runtime 与 Agent Loop，内置并发 Subagent、定时任务、移动端 PTY 终端与 Linux、AI 生图、长期记忆、Skills、MCP 与酒馆角色陪伴。
 
-支持自备 **API Key（BYOK）** 及 **Codex（ChatGPT）/ Grok 订阅登录**，模型由你自由选择。支持 **Android 14+** 设备，不限品牌，基础功能免 Root；Root 与 LSPosed 可进一步解锁后台虚拟屏、深层个人上下文与系统入口增强。
+支持自备 **API Key（BYOK）** 及 **Codex（ChatGPT）/ Grok 订阅登录**，模型由你自由选择。支持 **Android 13+** 设备，不限品牌，基础功能免 Root；Root 与 LSPosed 可进一步解锁后台虚拟屏、深层个人上下文与系统入口增强。
 
 [下载 APK](https://github.com/Mangi-11/Eta/releases) · [使用场景](#你可以直接对-eta-说) · [核心能力](#核心能力) · [权限分层](#权限与设备支持) · [快速开始](#快速开始) · [为什么做 Eta](docs/WHY_ETA.md)
 
@@ -57,7 +57,7 @@ Eta 对标手机厂商预装的一方系统助手，围绕 Android 系统服务�
 - **全方位个人上下文**：按需检索通知历史、日历、位置、短信验证码、通话与通讯录、相册（文字 OCR 与画面搜图）、录音、剪贴板、健康汇总与聊天图片；ColorOS 上更直接打通**小布记忆**与 **ColorOS 聚合搜索服务（DMP）**，将平时一键闪记或收藏的小红书 / 抖音 / B站图文与视频摘要、随口记灵感、记忆合集、账单、行程、外卖快递、便签、录音摘要及收藏地点，全部开放给你自选的大模型调用。
 - **系统与一方原生操作**：直接调用 Android 与一方应用原生接口读写日历、管理闹钟与计时器、操作便签，并控制亮度、音量、勿扰、手电筒、Wi-Fi、蓝牙、热点、NFC、应用冻结等系统能力。
 - **原生数字助理与系统入口**：设为系统默认数字助理即可长按电源键带屏直唤（早期曾通过 Xposed 接管小布与超级小爱，现已演进为原生方案）；支持 Android 16+ 实时活动（Live Updates / 流体云 / 超级岛）、聊天长按语音输入（千问 / 豆包 / MiMo / DeepSeek）与多引擎播报；适配 ROM 支持长按电源键路由（唤起 Eta、Gemini 或系统默认助手，并自动校正默认助理）与解锁 Google 一圈即搜（手势条长按 / 双指识屏）。
-- **GUI 与后台虚拟屏**：结合无障碍与原图视觉跨应用操作；支持主屏原地接管，具备 Root 或 LSPosed 时跨应用任务默认在后台受信任虚拟屏静默运行，顶部胶囊内置实时微缩预览与随时接管，到达收银台或二维码页时一键移交主屏。
+- **GUI 与后台虚拟屏**：结合无障碍与原图视觉跨应用操作；支持主屏原地接管，Android 14+ 具备 Root 或 LSPosed 时跨应用任务默认在后台受信任虚拟屏静默运行，顶部胶囊内置实时微缩预览与随时接管，到达收银台或二维码页时一键移交主屏。
 
 ### 自主编排与移动工具箱
 
@@ -86,9 +86,9 @@ Eta 对标手机厂商预装的一方系统助手，围绕 Android 系统服务�
 
 ## 权限与设备支持
 
-- **普通设备（免 Root）**：完整对话与模型、情感陪伴与酒馆角色卡、AI 生图、Subagent、定时任务、记忆 / Skills / MCP、网页与浏览器、普通终端与 PRoot Linux、日历 / 通知 / 位置 / 应用使用统计、主屏 GUI Agent、Eta 原生数字助理。
-- **Root 设备**：后台虚拟屏、系统开关与一方应用原生操作（闹钟管理 / 便签等）、应用管理、深层个人上下文（短信 / 通话 / 相册搜图 / 健康 / 聊天图片等）、Root Shell & chroot。
-- **LSPosed + 适配 ROM**：后台虚拟屏、ColorOS / HyperOS 电源键路由（唤起 Eta 或 Gemini）、小布记忆直连查询、解锁 Google 一圈即搜（手势条长按 / 双指识屏）。
+- **普通设备（免 Root）**：完整对话与模型、情感陪伴与酒馆角色卡、AI 生图、Subagent、定时任务、记忆 / Skills / MCP、网页与浏览器、普通终端与 PRoot Linux、日历 / 通知 / 位置 / 应用使用统计、无障碍主屏 GUI、Eta 原生数字助理。
+- **Root 设备**：后台虚拟屏（Android 14+）、系统开关与一方应用原生操作（闹钟管理 / 便签等）、应用管理、深层个人上下文（短信 / 通话 / 相册搜图 / 健康 / 聊天图片等）、Root Shell & chroot。
+- **LSPosed + 适配 ROM**：后台虚拟屏（Android 14+）、ColorOS / HyperOS 电源键路由（唤起 Eta 或 Gemini）、小布记忆直连查询、解锁 Google 一圈即搜（手势条长按 / 双指识屏）。
 
 完整权限与机型说明见 [设备支持与权限边界](docs/ROOTLESS_SUPPORT.md)。
 

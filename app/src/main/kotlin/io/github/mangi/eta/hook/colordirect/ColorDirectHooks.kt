@@ -12,6 +12,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.os.Build
 import android.os.Parcelable
 import android.os.SystemClock
 import io.github.mangi.eta.config.Prefs
@@ -129,9 +130,14 @@ internal object ColorDirectHooks {
         return true
     }
 
+    @Suppress("DEPRECATION")
     private fun finishColorDirectActivity(activity: Activity) {
         activity.finishAndRemoveTask()
-        activity.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            activity.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            activity.overridePendingTransition(0, 0)
+        }
     }
 
     private fun isDoubleFingerCollectIntent(intent: Intent?, startInfoClass: Class<*>?): Boolean {

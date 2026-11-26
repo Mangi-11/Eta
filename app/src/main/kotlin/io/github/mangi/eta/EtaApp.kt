@@ -40,9 +40,16 @@ class EtaApp : Application(), XposedServiceHelper.OnServiceListener {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) {
+        if (level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW ||
+            level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
+            level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) {
             BrowserSessionRegistry.releaseIdlePages()
         }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        BrowserSessionRegistry.releaseIdlePages()
     }
 
     override fun onServiceBind(service: XposedService) {

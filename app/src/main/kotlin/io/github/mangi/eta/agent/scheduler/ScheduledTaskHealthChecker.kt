@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 
@@ -33,7 +34,11 @@ internal object ScheduledTaskHealthChecker {
         val powerManager = appContext.getSystemService(PowerManager::class.java)
         val notificationManager = appContext.getSystemService(NotificationManager::class.java)
 
-        val exactAlarm = runCatching { alarmManager?.canScheduleExactAlarms() == true }.getOrDefault(false)
+        val exactAlarm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            runCatching { alarmManager?.canScheduleExactAlarms() == true }.getOrDefault(false)
+        } else {
+            true
+        }
         val batteryUnrestricted = runCatching {
             powerManager?.isIgnoringBatteryOptimizations(appContext.packageName) == true
         }.getOrDefault(false)
@@ -49,9 +54,13 @@ internal object ScheduledTaskHealthChecker {
     }
 
     fun exactAlarmSettingsIntent(context: Context): Intent =
-        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-            data = Uri.parse("package:${context.packageName}")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        } else {
+            appDetailsIntent(context)
         }
 
     fun batteryOptimizationIntent(context: Context): Intent =

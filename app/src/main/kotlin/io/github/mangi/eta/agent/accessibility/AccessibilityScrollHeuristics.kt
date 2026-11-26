@@ -1,6 +1,7 @@
 package io.github.mangi.eta.agent.accessibility
 
 import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
@@ -85,6 +86,18 @@ internal data class ScrollTargetIdentity(
  */
 internal object AccessibilityScrollHeuristics {
 
+    /**
+     * ACTION_SCROLL_IN_DIRECTION 是 API 34 新增动作，Android 13 上读取该静态字段会抛
+     * NoSuchFieldError，因此只在 34+ 求值，旧系统统一视为不支持方向滚动。
+     */
+    private val DIRECTIONAL_SCROLL_ACTION_ID: Int? by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_IN_DIRECTION.id
+        } else {
+            null
+        }
+    }
+
     private const val MAX_UI_TREE_DEPTH = 24
     private const val MAX_SCROLL_SEARCH_NODES = 512
     private const val SCROLL_ANCHOR_NODE_LIMIT = 48
@@ -100,8 +113,9 @@ internal object AccessibilityScrollHeuristics {
         AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_DOWN.id,
         AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_LEFT.id,
         AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_RIGHT.id,
-        AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_IN_DIRECTION.id,
-    )
+    ).let { actions ->
+        DIRECTIONAL_SCROLL_ACTION_ID?.let { actions + it } ?: actions
+    }
 
     private val VERTICAL_DIRECTION_ACTION_IDS = setOf(
         AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id,
@@ -216,8 +230,8 @@ internal object AccessibilityScrollHeuristics {
                 )
             }
         }
-        val inDirection = AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_IN_DIRECTION.id
-        if (inDirection in actionIds) {
+        val inDirection = DIRECTIONAL_SCROLL_ACTION_ID
+        if (inDirection != null && inDirection in actionIds) {
             val args = Bundle().apply {
                 putInt(
                     AccessibilityNodeInfo.ACTION_ARGUMENT_DIRECTION_INT,
@@ -338,7 +352,7 @@ internal object AccessibilityScrollHeuristics {
                 AccessibilityNodeInfo.ACTION_SCROLL_FORWARD in actions ||
                     AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD in actions
                 ) -> 2
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_IN_DIRECTION.id in actions -> 1
+            DIRECTIONAL_SCROLL_ACTION_ID?.let { it in actions } == true -> 1
             else -> 0
         }
     }

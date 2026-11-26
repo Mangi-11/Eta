@@ -12,6 +12,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -1158,7 +1159,10 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                 }
             }
         val options = ActivityOptions.makeBasic().apply {
-            pendingIntentBackgroundActivityStartMode = conversationHandoffStartMode()
+            // pendingIntentBackgroundActivityStartMode 是 API 34 才有的属性，Android 13 保持默认交接行为。
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                pendingIntentBackgroundActivityStartMode = conversationHandoffStartMode()
+            }
         }
         val launched = runCatching {
             PendingIntent.getActivity(

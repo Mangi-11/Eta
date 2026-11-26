@@ -1,6 +1,7 @@
 package io.github.mangi.eta.agent.voice
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -121,7 +122,9 @@ class EtaRecognitionService : RecognitionService() {
         }
 
         override fun onLanguageDetection(results: Bundle) {
-            runCatching { callback.languageDetection(results) }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                runCatching { callback.languageDetection(results) }
+            }
         }
     }
 }

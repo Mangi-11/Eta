@@ -9,6 +9,7 @@ import android.graphics.Paint
 import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.RectF
+import android.os.Build
 import android.os.Looper
 import android.os.SystemClock
 import android.view.WindowManager
@@ -86,6 +87,11 @@ internal class AccessibilityScreenshotCapturer(
             if (windowsSubmitted.compareAndSet(false, true)) {
                 runCatching { onWindowsSubmitted?.invoke() }
             }
+        }
+        // 逐窗口截图（takeScreenshotOfWindow）是 API 34 能力；旧系统不能退化成整屏截图，
+        // 否则会破坏入口包与 Eta 浮层的排除合同，这里直接返回不可用并释放提交回调。
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return AgentAccessibilityService.ScreenshotCaptureResult.unavailable().also { signalWindowsSubmitted() }
         }
         if (Looper.myLooper() == Looper.getMainLooper()) {
             return AgentAccessibilityService.ScreenshotCaptureResult.unavailable().also { signalWindowsSubmitted() }

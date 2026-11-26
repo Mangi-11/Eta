@@ -40,7 +40,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.mangi.eta"
-        minSdk = 34
+        minSdk = 33
         targetSdk = 37
         // versionCode 规则：yyyyMMdd + 两位当日序号（01 起），发版时随 versionName 一起手动递增。
         versionCode = 2026112501
@@ -126,6 +126,9 @@ android {
         unitTests.isIncludeAndroidResources = true
         // Robolectric 在高版本 JDK 下需要访问内部 API，参数只作用于测试 JVM。
         unitTests.all {
+            // 恢复 Android 13 测试后 Robolectric 会同时加载 API 33/36 沙箱；
+            // 备份流式测试本身要处理数十兆字段，默认堆在混跑时容易 OOM。
+            it.maxHeapSize = "2g"
             it.jvmArgs(
                 "--add-opens=java.base/java.lang=ALL-UNNAMED",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
