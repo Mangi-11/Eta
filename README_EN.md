@@ -5,7 +5,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/Mangi-11/Eta?logo=github&label=Stars&color=1677FF)](https://github.com/Mangi-11/Eta/stargazers)
 [![Total GitHub Releases downloads](https://img.shields.io/github/downloads/Mangi-11/Eta/total?logo=github&label=Downloads&color=1677FF)](https://github.com/Mangi-11/Eta/releases)
 ![minSdk 34](https://img.shields.io/badge/minSdk-34-3DDC84?logo=android&logoColor=white)
-![Deep integrations for ColorOS and HyperOS](https://img.shields.io/badge/ROM%20Integrations-ColorOS%20%26%20HyperOS-1677FF)
+![Deep integrations for ColorOS and HyperOS and OriginOS](https://img.shields.io/badge/ROM%20Integrations-ColorOS%20%26%20HyperOS%20%26%20OriginOS-1677FF)
 [![GPL-3.0 License](https://img.shields.io/github/license/Mangi-11/Eta?color=1677FF)](LICENSE)
 
 <a href="https://trendshift.io/repositories/116433"><img src="https://trendshift.io/api/badge/trendshift/repositories/116433/daily?language=Kotlin" alt="Eta · Trendshift Kotlin Daily" width="250" height="55"></a>
@@ -88,7 +88,7 @@ Most mobile AI tools today fall into two camps:
 
 - **Standard Device (No Root)**: Full chat & models, emotional companionship & Tavern character cards, AI image gen, Subagents, scheduled tasks, memory / Skills / MCP, web & browser, standard terminal & PRoot Linux, calendar / notifications / location / app usage, main-screen GUI, and Eta native digital assistant.
 - **Rooted Device**: Background virtual display, system controls & native 1st-party actions (alarm management / notes), app management, deep personal context (SMS / calls / photo content search / health / chat images), and root shell & chroot.
-- **LSPosed + Compatible ROM**: Background virtual display, ColorOS / HyperOS power-button routing (Eta or Gemini), direct Xiaobu Memory access, and Google Circle to Search (handle long press / two-finger press).
+- **LSPosed + Compatible ROM**: Background virtual display, ColorOS / HyperOS / OriginOS power-button routing (Eta or Gemini), direct Xiaobu Memory access, and Google Circle to Search (handle long press / two-finger press).
 
 See [Device Support & Permissions](docs/ROOTLESS_SUPPORT.md) for full details.
 
