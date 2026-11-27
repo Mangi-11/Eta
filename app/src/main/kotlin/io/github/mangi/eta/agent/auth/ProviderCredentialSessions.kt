@@ -77,10 +77,13 @@ internal class ProviderCredentialSessions(
         return oauth.login(OAuthProvider.fromAuthMode(authMode), null, controller, onPrompt)
     }
 
-    fun chatGptSubject(providerId: String, authMode: String): String? {
+    fun matchesChatGptRegistration(providerId: String, credential: ProviderCredential): Boolean {
         val session = session(providerId)
         return session.stateLock.withLock {
-            storage.read(providerId)?.takeIf { it.authMode == authMode }?.subject
+            val saved = storage.read(providerId) ?: return@withLock false
+            saved.authMode == credential.authMode &&
+                saved.subject != null && saved.subject == credential.subject &&
+                saved.clientId == credential.clientId
         }
     }
 

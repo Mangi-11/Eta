@@ -95,13 +95,13 @@ internal object ProviderRepository {
     }
 
     suspend fun saveChatGptAccount(credential: ProviderCredential, fallbackName: String): String {
-        val subject = requireNotNull(credential.subject)
+        requireNotNull(credential.subject)
         val profile = requireNotNull(ProviderConnectionProfile.forAuthMode(credential.authMode))
         val id = mutationMutex.withLock {
             val providers = allProviders()
             val existing = providers.firstOrNull {
                 it.isStandaloneChatGpt &&
-                    ProviderCredentialRepository.chatGptSubject(it.id, profile.authMode) == subject
+                    ProviderCredentialRepository.matchesChatGptRegistration(it.id, credential)
             }
             val name = credential.displayName?.takeIf { it.isNotBlank() }
                 ?: credential.email?.takeIf { it.isNotBlank() }

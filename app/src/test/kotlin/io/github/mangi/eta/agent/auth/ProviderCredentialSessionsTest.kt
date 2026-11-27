@@ -18,6 +18,18 @@ import org.junit.Test
 
 class ProviderCredentialSessionsTest {
     @Test
+    fun chatGptRegistrationMatchesBothAccountAndIssuedClient() {
+        val registration = credential().copy(authMode = ProviderAuthModes.CHATGPT_PLAN, clientId = "oaiapp_workspace_a")
+        val storage = MemoryStorage().apply { write(PROVIDER_ID, registration.withoutTokens()) }
+        val sessions = ProviderCredentialSessions(storage, FakeOAuthClient()) { NOW }
+
+        assertTrue(sessions.matchesChatGptRegistration(PROVIDER_ID, registration))
+        assertFalse(sessions.matchesChatGptRegistration(PROVIDER_ID, registration.copy(clientId = "oaiapp_workspace_b")))
+        assertFalse(sessions.matchesChatGptRegistration(PROVIDER_ID, registration.copy(subject = "other-account")))
+        assertFalse(sessions.matchesChatGptRegistration(PROVIDER_ID, registration.copy(authMode = AUTH_MODE)))
+    }
+
+    @Test
     fun loginAndLogoutInvalidatePreviousAccountBindings() {
         val storage = MemoryStorage().apply { write(PROVIDER_ID, credential()) }
         val sessions = ProviderCredentialSessions(storage, FakeOAuthClient(login = { credential() })) { NOW }
