@@ -92,29 +92,34 @@ internal class ProviderLoginStore(
 
     fun addChatGptAccount(mode: String, fallbackName: String) {
         require(ProviderAuthModes.isChatGpt(mode))
-        addAccount(mode) { ProviderRepository.saveChatGptAccount(it, fallbackName) }
+        addAccount(mode) { operations.saveChatGptAccount(it, fallbackName) }
     }
 
     fun addXaiAccount(provider: ProviderSetting) {
         require(provider.authMode == ProviderAuthModes.XAI_GROK)
         addAccount(provider.authMode) { credential ->
             val newProvider = provider.withId(ProviderRepository.newId()).withApiKey("")
-            ProviderRepository.addProvider(newProvider, credential).id
+            operations.saveXaiAccount(newProvider, credential)
         }
     }
 
     private fun addAccount(mode: String, save: suspend (ProviderCredential) -> String) {
         if (providerId != null || mutableState.value.isBusy || mutableState.value.addedProviderId != null) return
         runOperation(mode, ProviderLoginPhase.Authorizing) { activeController, attempt ->
-            val (id, account) = withContext(ioDispatcher) {
-                val credential = ProviderCredentialRepository.authorize(
-                    mode, activeController, onPrompt(activeController, attempt),
-                )
-                activeController.throwIfCancelled()
-                val id = save(credential)
-                id to credential.summary()
+            val credential = withContext(ioDispatcher) {
+                operations.authorize(mode, activeController, onPrompt(activeController, attempt))
             }
-            mutableState.value = mutableState.value.copy(addedProviderId = id)
+            activeController.throwIfCancelled()
+            mutableState.value = mutableState.value.copy(phase = ProviderLoginPhase.Saving, prompt = null)
+            val account = credential.summary()
+            val id = withContext(NonCancellable) {
+                val savedId = withContext(ioDispatcher) {
+                    activeController.throwIfCancelled()
+                    save(credential)
+                }
+                mutableState.value = mutableState.value.copy(addedProviderId = savedId, account = account)
+                savedId
+            }
             finishLogin(id, mode, account)
         }
     }
@@ -254,6 +259,13 @@ internal interface ProviderLoginOperations {
         controller: AgentRunController,
         onPrompt: (ProviderLoginPrompt) -> Unit,
     ): ProviderAccountSummary
+    fun authorize(
+        authMode: String,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential
+    suspend fun saveChatGptAccount(credential: ProviderCredential, fallbackName: String): String
+    suspend fun saveXaiAccount(provider: ProviderSetting, credential: ProviderCredential): String
     suspend fun syncModels(providerId: String, authMode: String): Int
     fun disconnect(providerId: String, authMode: String, controller: AgentRunController): Boolean?
 }
@@ -273,6 +285,18 @@ private object RepositoryProviderLoginOperations : ProviderLoginOperations {
         controller: AgentRunController,
         onPrompt: (ProviderLoginPrompt) -> Unit,
     ): ProviderAccountSummary = ProviderCredentialRepository.login(providerId, authMode, controller, onPrompt)
+
+    override fun authorize(
+        authMode: String,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential = ProviderCredentialRepository.authorize(authMode, controller, onPrompt)
+
+    override suspend fun saveChatGptAccount(credential: ProviderCredential, fallbackName: String): String =
+        ProviderRepository.saveChatGptAccount(credential, fallbackName)
+
+    override suspend fun saveXaiAccount(provider: ProviderSetting, credential: ProviderCredential): String =
+        ProviderRepository.saveXaiAccount(provider, credential)
 
     override suspend fun syncModels(providerId: String, authMode: String): Int {
         val provider = requireNotNull(ProviderRepository.providerById(providerId)) {

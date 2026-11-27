@@ -20,6 +20,7 @@ import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
+import io.github.mangi.eta.data.model.isStandaloneChatGpt
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.ui.components.GlassSpinnerPreference
@@ -106,7 +107,8 @@ internal fun ProviderConnectionFields(
             },
         )
     }
-    if (accountMode == ProviderAuthModes.XAI_GROK) {
+    val isLegacyChatGpt = ProviderAuthModes.isChatGpt(provider.authMode) && !provider.isStandaloneChatGpt
+    if (accountMode != null && (accountMode == ProviderAuthModes.XAI_GROK || isLegacyChatGpt)) {
         val modes = listOf(ProviderAuthModes.API_KEY to "API Key", accountMode to accountLoginLabel)
         GlassSpinnerPreference(
             title = authMethodTitle,

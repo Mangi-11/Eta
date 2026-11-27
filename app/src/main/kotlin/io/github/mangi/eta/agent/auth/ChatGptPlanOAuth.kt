@@ -5,6 +5,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 internal object ChatGptPlanOAuth {
     const val RESOURCE = "https://api.openai.com/v1"
     const val PLAN_SCOPE = "chatgpt.tokens.use.direct"
+    const val SCOPE = "openid profile email offline_access resource.invoke $PLAN_SCOPE"
     private const val DYNAMIC_CLIENT = "dynamic_agent_client"
     private val issuedClientPattern = Regex("oaiapp_[a-zA-Z0-9_-]{1,256}")
 
@@ -22,7 +23,7 @@ internal object ChatGptPlanOAuth {
         .addQueryParameter("ext_agent_host_id", hostId)
         .addQueryParameter("response_type", "code")
         .addQueryParameter("redirect_uri", redirectUri)
-        .addQueryParameter("scope", "openid profile email offline_access resource.invoke $PLAN_SCOPE")
+        .addQueryParameter("scope", SCOPE)
         .addQueryParameter("resource", RESOURCE)
         .addQueryParameter("state", state)
         .addQueryParameter("nonce", nonce)

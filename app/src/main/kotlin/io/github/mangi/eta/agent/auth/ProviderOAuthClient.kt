@@ -133,7 +133,10 @@ internal class LiveProviderOAuthClient(
                 "resource" to ChatGptPlanOAuth.RESOURCE,
             ), controller)
             requireSuccess(response)
-            credential(response.json, OAuthProvider.CHATGPT_PLAN, issuedClientId, nonce, controller, previous)
+            credential(
+                response.json, OAuthProvider.CHATGPT_PLAN, issuedClientId, nonce, controller, previous,
+                defaultScopes = ChatGptPlanOAuth.SCOPE.split(' ').toSet(),
+            )
         }
     }
 
@@ -246,8 +249,12 @@ internal class LiveProviderOAuthClient(
             )
         }
         val scope = json.optString("scope").takeIf { it.isNotBlank() && it != "null" }
-        val scopes = scope?.split(' ')?.filter(String::isNotBlank)?.toSet()
-            ?: if (refreshing) previous!!.scopes else defaultScopes
+        val scopes = when {
+            scope != null -> scope.split(' ').filter(String::isNotBlank).toSet()
+            provider == OAuthProvider.CHATGPT_PLAN && json.has("scope") -> emptySet()
+            refreshing -> previous!!.scopes
+            else -> defaultScopes
+        }
         val accountId = if (provider == OAuthProvider.OPENAI) CodexOAuth.accountId(accessToken) else null
         if (refreshing && previous?.accountId != accountId) {
             throw ProviderAuthException(

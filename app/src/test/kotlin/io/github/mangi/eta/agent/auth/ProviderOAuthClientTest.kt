@@ -183,7 +183,7 @@ class ProviderOAuthClientTest {
                     200 to JSONObject().put("access_token", "fixture-access")
                         .put("id_token", CodexOAuthFixture.idToken(nonce, issuedClientId, picture))
                         .put("refresh_token", "fixture-refresh").put("token_type", "Bearer")
-                        .put("scope", ChatGptPlanOAuth.PLAN_SCOPE).put("expires_in", 3600).toString()
+                        .put("expires_in", 3600).toString()
                 }
                 else -> error("Unexpected endpoint")
             }
@@ -197,6 +197,7 @@ class ProviderOAuthClientTest {
                 assertEquals("/api/accounts/authorize", authorization.encodedPath)
                 assertEquals("dynamic_agent_client", authorization.queryParameter("client_id"))
                 assertEquals("Eta", authorization.queryParameter("agent_name_hint"))
+                assertEquals(ChatGptPlanOAuth.SCOPE, authorization.queryParameter("scope"))
                 assertEquals("urn:uuid:test-host", authorization.queryParameter("ext_agent_host_id"))
                 callback = executor.submit<Int> {
                     val uri = authorization.queryParameter("redirect_uri")!!.toHttpUrl().newBuilder()

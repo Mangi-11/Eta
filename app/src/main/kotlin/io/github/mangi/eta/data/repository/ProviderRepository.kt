@@ -85,20 +85,40 @@ internal object ProviderRepository {
     suspend fun providerByModelId(modelId: String): ProviderSetting? =
         dao().providerByModelId(modelId)?.toDomain()
 
-    suspend fun addProvider(provider: ProviderSetting, credential: ProviderCredential? = null): ProviderSetting {
-        require(credential == null || provider.authMode == credential.authMode)
+    suspend fun addProvider(provider: ProviderSetting): ProviderSetting {
         val added = mutationMutex.withLock {
             val nextOrder = (allProviders().maxOfOrNull { it.sortOrder } ?: -1) + 1
-            provider.withSortOrder(nextOrder).also {
-                if (credential == null) {
-                    replaceProvider(it)
-                } else {
-                    withContext(NonCancellable) { insertAuthorizedProvider(it, credential) }
-                }
-            }
+            provider.withSortOrder(nextOrder).also { replaceProvider(it) }
         }
         repairSelection()
         return added
+    }
+
+    suspend fun saveXaiAccount(provider: ProviderSetting, credential: ProviderCredential): String {
+        require(provider.authMode == ProviderAuthModes.XAI_GROK && provider.authMode == credential.authMode)
+        val id = mutationMutex.withLock {
+            val providers = allProviders()
+            val configuration = provider.toEntity()
+            val existing = providers.firstOrNull { saved ->
+                saved.authMode == provider.authMode &&
+                    saved.toEntity() == configuration.copy(
+                        id = saved.id,
+                        sortOrder = saved.sortOrder,
+                        createdAt = saved.createdAt,
+                    ) &&
+                    ProviderCredentialRepository.matchesRegistration(saved.id, credential)
+            }
+            if (existing != null) {
+                ProviderCredentialRepository.saveCredential(existing.id, credential)
+                existing.id
+            } else {
+                val nextOrder = (providers.maxOfOrNull { it.sortOrder } ?: -1) + 1
+                insertAuthorizedProvider(provider.withSortOrder(nextOrder), credential)
+                provider.id
+            }
+        }
+        repairSelection()
+        return id
     }
 
     suspend fun saveChatGptAccount(credential: ProviderCredential, fallbackName: String): String {
@@ -108,7 +128,7 @@ internal object ProviderRepository {
             val providers = allProviders()
             val existing = providers.firstOrNull {
                 it.isStandaloneChatGpt &&
-                    ProviderCredentialRepository.matchesChatGptRegistration(it.id, credential)
+                    ProviderCredentialRepository.matchesRegistration(it.id, credential)
             }
             val name = credential.displayName?.takeIf { it.isNotBlank() }
                 ?: credential.email?.takeIf { it.isNotBlank() }

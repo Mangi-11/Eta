@@ -65,8 +65,8 @@ internal object ProviderCredentialRepository {
         onPrompt: (ProviderLoginPrompt) -> Unit,
     ): ProviderCredential = sessions().authorize(authMode, controller, onPrompt)
 
-    fun matchesChatGptRegistration(providerId: String, credential: ProviderCredential): Boolean =
-        sessions().matchesChatGptRegistration(providerId, credential)
+    fun matchesRegistration(providerId: String, credential: ProviderCredential): Boolean =
+        sessions().matchesRegistration(providerId, credential)
 
     fun saveCredential(providerId: String, credential: ProviderCredential) =
         sessions().saveCredential(providerId, credential)

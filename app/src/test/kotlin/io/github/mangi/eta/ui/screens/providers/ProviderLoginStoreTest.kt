@@ -2,6 +2,7 @@ package io.github.mangi.eta.ui.screens.providers
 
 import io.github.mangi.eta.agent.auth.ProviderAccountSummary
 import io.github.mangi.eta.agent.auth.ProviderAuthException
+import io.github.mangi.eta.agent.auth.ProviderCredential
 import io.github.mangi.eta.agent.auth.ProviderLoginPrompt
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.data.model.CustomProviderSetting
@@ -163,12 +164,41 @@ class ProviderLoginStoreTest {
         } finally { store.close() }
     }
 
+    @Test
+    fun cancellingDuringAccountSaveKeepsTheCreatedProviderAndPreventsDuplicateRetry() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val operations = FakeOperations(accountSave = {
+            started.complete(Unit)
+            release.await()
+            "created-provider"
+        })
+        val store = ProviderLoginStore(null, this, operations)
+        val grok = provider.copy(authMode = ProviderAuthModes.XAI_GROK)
+        try {
+            store.addXaiAccount(grok)
+            withTimeout(2_000) { started.await() }
+            store.cancel()
+            release.complete(Unit)
+            val state = withTimeout(2_000) { store.state.first { !it.isBusy } }
+
+            assertEquals("created-provider", state.addedProviderId)
+            assertTrue(state.modelSyncFailed)
+            store.addXaiAccount(grok)
+            assertEquals(listOf("authorize", "save account"), operations.calls.toList())
+        } finally {
+            release.complete(Unit)
+            store.close()
+        }
+    }
+
     private class FakeOperations(
         val waitForCancellation: Boolean = false,
         val saveError: Exception? = null,
         val revoked: Boolean = true,
         val syncError: Exception? = null,
         val syncRelease: CompletableDeferred<Unit>? = null,
+        val accountSave: suspend () -> String = { error("Unexpected account save") },
     ) : ProviderLoginOperations {
         val calls = Collections.synchronizedList(mutableListOf<String>())
         @Volatile var controller: AgentRunController? = null
@@ -191,6 +221,32 @@ class ProviderLoginStoreTest {
             onPrompt(ProviderLoginPrompt("https://auth.example.com/authorize", "TEST-CODE"))
             if (waitForCancellation) controller.awaitRetryDelay(60_000)
             return account
+        }
+
+        override fun authorize(
+            authMode: String,
+            controller: AgentRunController,
+            onPrompt: (ProviderLoginPrompt) -> Unit,
+        ): ProviderCredential {
+            calls += "authorize"
+            return ProviderCredential(
+                authMode = authMode,
+                clientId = "fixture-client",
+                subject = "fixture-account",
+                accessToken = "fixture-access",
+                refreshToken = "fixture-refresh",
+                idToken = "",
+                expiresAt = Long.MAX_VALUE,
+                scopes = setOf("grok-cli:access"),
+            )
+        }
+
+        override suspend fun saveChatGptAccount(credential: ProviderCredential, fallbackName: String): String =
+            error("Unexpected ChatGPT account save")
+
+        override suspend fun saveXaiAccount(provider: ProviderSetting, credential: ProviderCredential): String {
+            calls += "save account"
+            return accountSave()
         }
 
         override suspend fun syncModels(providerId: String, authMode: String): Int {
