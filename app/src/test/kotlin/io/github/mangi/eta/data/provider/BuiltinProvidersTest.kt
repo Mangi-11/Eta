@@ -5,6 +5,7 @@ import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -33,6 +34,30 @@ class BuiltinProvidersTest {
         assertEquals(ProviderSourceTypes.STEPFUN, providers.getValue(BuiltinProviders.STEPFUN_ID).sourceType)
         assertEquals("https://api.x.ai/v1", providers.getValue(BuiltinProviders.XAI_ID).baseUrl)
         assertEquals(ProviderSourceTypes.XAI, providers.getValue(BuiltinProviders.XAI_ID).sourceType)
+    }
+
+    @Test
+    fun presetCreatesAnIndependentDraftWithTheSameConnectionDefaults() {
+        for (preset in BuiltinProviders.PROVIDERS) {
+            val draft = requireNotNull(BuiltinProviders.newProviderFromPreset(preset.id))
+
+            assertEquals(preset.javaClass, draft.javaClass)
+            assertEquals(preset.baseUrl, draft.baseUrl)
+            assertEquals(preset.sourceType, draft.sourceType)
+            assertEquals("", draft.id)
+            assertTrue(draft.apiKey.isEmpty())
+            assertFalse(draft.isBuiltIn)
+        }
+    }
+
+    @Test
+    fun existingConfiguredBuiltInsRemainVisible() {
+        val preset = BuiltinProviders.providerById(BuiltinProviders.OPENAI_ID) as OpenAiCompatibleProviderSetting
+        val persisted = preset.copy(createdAt = 1L, sortOrder = 99)
+
+        assertTrue(BuiltinProviders.isUnconfiguredPreset(persisted))
+        assertFalse(BuiltinProviders.isUnconfiguredPreset(persisted.copy(apiKey = "configured-key")))
+        assertFalse(BuiltinProviders.isUnconfiguredPreset(persisted.copy(baseUrl = "https://proxy.example/v1")))
     }
 
     @Test

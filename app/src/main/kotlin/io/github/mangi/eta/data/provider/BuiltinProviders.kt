@@ -3,8 +3,11 @@ package io.github.mangi.eta.data.provider
 import androidx.annotation.StringRes
 import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AppStrings
+import io.github.mangi.eta.data.db.toEntity
+import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.AnthropicProviderSetting
+import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderSetting
@@ -143,6 +146,24 @@ internal object BuiltinProviders {
 
     fun providerById(id: String): ProviderSetting? =
         PROVIDERS.firstOrNull { it.id == id }
+
+    fun newProviderFromPreset(id: String): ProviderSetting? {
+        val createdAt = System.currentTimeMillis()
+        return when (val preset = providerById(id)) {
+            is OpenAiCompatibleProviderSetting -> preset.copy(id = "", isBuiltIn = false, systemPrompt = null, createdAt = createdAt)
+            is AnthropicProviderSetting -> preset.copy(id = "", isBuiltIn = false, systemPrompt = null, createdAt = createdAt)
+            is GeminiProviderSetting -> preset.copy(id = "", isBuiltIn = false, systemPrompt = null, createdAt = createdAt)
+            is CustomProviderSetting -> preset.copy(id = "", isBuiltIn = false, systemPrompt = null, createdAt = createdAt)
+            null -> null
+        }
+    }
+
+    fun isUnconfiguredPreset(provider: ProviderSetting): Boolean {
+        if (!provider.isBuiltIn || provider.models.any { it.source != ModelSource.CATALOG }) return false
+        val defaults = providerById(provider.id)?.toEntity() ?: return false
+        val stored = provider.toEntity().copy(createdAt = defaults.createdAt, sortOrder = defaults.sortOrder)
+        return stored == defaults
+    }
 
     /**
      * 仅当内置 Provider 名称仍为默认名称时返回对应多语言资源；用户手动改名后保留用户自定义名称。

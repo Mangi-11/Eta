@@ -58,7 +58,7 @@
   <!-- Providers -->
   <string name="provider_i18n_builtin_bailian">阿里百炼</string>
   <string name="provider_i18n_builtin_siliconflow">硅基流动</string>
-  <string name="provider_i18n_add_gemini">新增 Gemini</string>
+  <string name="provider_i18n_add_gemini">新增 Gemini API</string>
   <string name="provider_i18n_add_gemini_summary">支持 Google AI Studio 与 Vertex AI</string>
   <string name="provider_i18n_account_title">%1$s 账号</string>
   <string name="provider_i18n_login_loading">正在读取登录状态…</string>
@@ -239,4 +239,13 @@
   <string name="ui_misc_mcp_tools_enabled_header">%1$s · 已启用 %2$d</string>
   <string name="ui_misc_collapse_description">收起说明</string>
   <string name="ui_misc_expand_description">展开说明</string>
+  <string name="provider_add_chatgpt">使用 ChatGPT 登录</string>
+  <string name="provider_add_openai_compatible">新增 OpenAI-Compatible API</string>
+  <string name="provider_add_anthropic">新增 Anthropic API</string>
+  <string name="provider_add_gemini">新增 Gemini API</string>
+  <string name="provider_more_title">更多模型提供商</string>
+  <string name="provider_presets_title">内置预设</string>
+  <string name="provider_preset_models_fetching">正在拉取模型…</string>
+  <string name="provider_preset_models_failed">拉取模型失败</string>
+  <string name="provider_preset_models_empty">提供商未返回可用于对话的模型。</string>
 </resources>

@@ -800,6 +800,13 @@ fun AgentAppRoot(
                             onBack = ::popRoute
                         )
                     }
+                    entry<AppRoute.MoreModelProviders>(swipeDismiss = activeSwipeDismiss) {
+                        ModelProviderListScreen(
+                            onNavigate = { route -> pushRoute(route) },
+                            onBack = ::popRoute,
+                            builtInOnly = true,
+                        )
+                    }
                     entry<AppRoute.CommunityCatalog>(swipeDismiss = activeSwipeDismiss) {
                         CommunityCatalogScreen(
                             store = communityCatalogStore,
@@ -884,6 +891,9 @@ fun AgentAppRoot(
                             providerId = route.providerId,
                             onBack = { if (backStack.lastOrNull() == route) popRoute() },
                         )
+                    }
+                    entry<AppRoute.ModelProviderNewFromPreset>(swipeDismiss = activeSwipeDismiss) { route ->
+                        ModelProviderDetailScreen(presetId = route.presetId, onBack = ::popRoute)
                     }
                     entry<AppRoute.ModelProviderNew>(swipeDismiss = activeSwipeDismiss) { route ->
                         if (route.providerType == NewProviderType.ChatGpt) {
