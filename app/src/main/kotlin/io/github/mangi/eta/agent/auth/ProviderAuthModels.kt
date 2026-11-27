@@ -10,6 +10,7 @@ internal data class ProviderAccountSummary(
     val displayName: String?,
     val needsReauthentication: Boolean,
     val planEnabled: Boolean,
+    val avatarUrl: String? = null,
 )
 
 internal data class ProviderCredentialBinding(
@@ -40,18 +41,22 @@ internal data class ProviderCredential(
     val accountId: String? = null,
     val expiresAt: Long = 0,
     val scopes: Set<String> = emptySet(),
+    val avatarUrl: String? = null,
 ) {
     val planEnabled: Boolean
         get() = when (authMode) {
-            ProviderAuthModes.OPENAI_CHATGPT -> clientId == CodexOAuth.CLIENT_ID && !accountId.isNullOrBlank()
+            ProviderAuthModes.OPENAI_CHATGPT -> accessToken.isNotBlank() &&
+                clientId == CodexOAuth.CLIENT_ID && !accountId.isNullOrBlank()
+            ProviderAuthModes.CHATGPT_PLAN -> ChatGptPlanOAuth.PLAN_SCOPE in scopes
             ProviderAuthModes.XAI_GROK -> "grok-cli:access" in scopes
             else -> false
         }
 
     fun summary() = ProviderAccountSummary(email, displayName, subject == null || accessToken.isBlank() ||
-        (authMode == ProviderAuthModes.OPENAI_CHATGPT && !planEnabled), planEnabled)
+        (authMode == ProviderAuthModes.OPENAI_CHATGPT && !planEnabled), planEnabled, avatarUrl)
 
-    fun withoutTokens() = copy(accessToken = "", refreshToken = "", idToken = "", accountId = null, expiresAt = 0)
+    // Keep the workspace identity so a replacement grant can be matched after expiry.
+    fun withoutTokens() = copy(accessToken = "", refreshToken = "", idToken = "", expiresAt = 0, scopes = emptySet())
 
     override fun toString(): String = "ProviderCredential(redacted)"
 }
@@ -68,6 +73,13 @@ internal enum class OAuthProvider(
         "https://auth.openai.com",
         "https://auth.openai.com/oauth/token",
         null,
+        "RS256",
+    ),
+    CHATGPT_PLAN(
+        ProviderAuthModes.CHATGPT_PLAN,
+        "https://auth.openai.com",
+        "https://auth.openai.com/api/accounts/oauth/token",
+        "https://auth.openai.com/api/accounts/oauth/revoke",
         "RS256",
     ),
     XAI(

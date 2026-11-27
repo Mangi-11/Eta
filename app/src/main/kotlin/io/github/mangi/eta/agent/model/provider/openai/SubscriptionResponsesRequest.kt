@@ -24,6 +24,33 @@ internal object SubscriptionResponsesRequest {
                 }
             }
         }
+        if (profile == ProviderConnectionProfile.CHATGPT_PLAN) {
+            PLAN_UNSUPPORTED_FIELDS.forEach(request::remove)
+            val tools = request.optJSONArray("tools")
+            if (tools != null) {
+                val functions = JSONArray()
+                val grouped = JSONArray()
+                for (index in 0 until tools.length()) {
+                    val tool = tools.getJSONObject(index)
+                    if (tool.optString("type") == "function") functions.put(tool) else grouped.put(tool)
+                }
+                if (functions.length() > 0) {
+                    grouped.put(JSONObject()
+                        .put("type", "namespace")
+                        .put("name", ETA_NAMESPACE)
+                        .put("description", "Tools executed locally by Eta")
+                        .put("tools", functions))
+                }
+                request.put("tools", grouped)
+            }
+            val input = request.getJSONArray("input")
+            for (index in 0 until input.length()) {
+                val item = input.optJSONObject(index) ?: continue
+                if (item.optString("type") == "function_call" && !item.has("namespace")) {
+                    item.put("namespace", ETA_NAMESPACE)
+                }
+            }
+        }
         val include = request.optJSONArray("include") ?: JSONArray()
         if ((0 until include.length()).none { include.optString(it) == "reasoning.encrypted_content" }) {
             include.put("reasoning.encrypted_content")
@@ -31,5 +58,11 @@ internal object SubscriptionResponsesRequest {
         request.put("include", include)
     }
 
+    private const val ETA_NAMESPACE = "eta"
+    private val PLAN_UNSUPPORTED_FIELDS = setOf(
+        "background", "conversation", "max_output_tokens", "max_tokens", "max_tool_calls", "metadata",
+        "moderation", "multi_agent", "prompt", "prompt_cache_retention", "safety_identifier",
+        "temperature", "top_logprobs", "top_p", "truncation", "user",
+    )
     private val CODEX_UNSUPPORTED_FIELDS = setOf("max_output_tokens", "max_tokens", "temperature", "top_p", "background", "conversation")
 }

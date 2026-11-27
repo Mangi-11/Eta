@@ -26,14 +26,37 @@ internal class AgentModelFailure(
             "RESOURCE_EXHAUSTED", "UNAVAILABLE", "INTERNAL", "DEADLINE_EXCEEDED",
         )
 
+        private val requestIdPattern = Regex("[A-Za-z0-9_-]{1,128}")
         private val invalidApiKeyReasons = setOf("API_KEY_INVALID", "API_KEY_EXPIRED")
 
-        fun http(status: Int, body: String, includeParameterDetails: Boolean = false): AgentModelFailure {
+        fun http(
+            status: Int,
+            body: String,
+            includeParameterDetails: Boolean = false,
+            requestId: String? = null,
+        ): AgentModelFailure {
             val error = try {
                 JSONObject(body).optJSONObject("error")
             } catch (_: org.json.JSONException) {
                 null
             }
+            val code = error?.optString("code")
+            if (status == 400 && code == "subscription_sharing_unsupported_capability") {
+                val details = listOfNotNull(
+                    ProviderParameterDiagnostics.describe(error),
+                    requestId?.takeIf(requestIdPattern::matches)?.let { "x-request-id $it" },
+                ).joinToString(AppStrings.get(R.string.provider_param_separator, "；"))
+                return AgentModelFailure(
+                    code,
+                    false,
+                    AppStrings.get(
+                        R.string.model_err_http_400_details,
+                        "模型请求参数无效（HTTP 400；%1\$s），请检查模型配置。",
+                        details,
+                    ),
+                )
+            }
+            chatGptPlanFailure(error)?.let { return it }
             authenticationFailure(error)?.let { return it }
             if (isContextOverflow(error)) return AgentModelFailure(
                 "CONTEXT_OVERFLOW",
@@ -75,6 +98,7 @@ internal class AgentModelFailure(
         }
 
         fun stream(error: JSONObject, message: String): AgentModelFailure {
+            chatGptPlanFailure(error)?.let { return it }
             authenticationFailure(error)?.let { return it }
             if (isContextOverflow(error)) return AgentModelFailure(
                 "CONTEXT_OVERFLOW",
@@ -120,6 +144,25 @@ internal class AgentModelFailure(
                 failure,
             )
             else -> null
+        }
+
+        private fun chatGptPlanFailure(error: JSONObject?): AgentModelFailure? {
+            val code = error?.optString("code")
+            return when (code) {
+                "subscription_sharing_usage_limit_exceeded" -> AgentModelFailure(
+                    code, false,
+                    AppStrings.get(R.string.provider_chatgpt_plan_limit, "已达到 ChatGPT 订阅用量上限，请在 ChatGPT 设置中查看用量。"),
+                )
+                "subscription_sharing_usage_unavailable", "subscription_sharing_user_unavailable" -> AgentModelFailure(
+                    code, true,
+                    AppStrings.get(R.string.provider_chatgpt_plan_unavailable, "暂时无法读取 ChatGPT 订阅状态，请稍后重试。"),
+                )
+                "subscription_sharing_user_not_eligible" -> AgentModelFailure(
+                    code, false,
+                    AppStrings.get(R.string.provider_chatgpt_plan_ineligible, "当前 ChatGPT 账号或工作区无法使用订阅额度。"),
+                )
+                else -> null
+            }
         }
 
         private fun isContextOverflow(error: JSONObject?): Boolean {

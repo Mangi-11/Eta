@@ -1,12 +1,16 @@
 package io.github.mangi.eta.data.repository
 
 import android.content.Context
+import android.util.AtomicFile
+import java.io.File
+import java.util.UUID
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.auth.EncryptedProviderCredentialStorage
 import io.github.mangi.eta.agent.auth.LiveProviderOAuthClient
 import io.github.mangi.eta.agent.auth.ProviderAccountSummary
 import io.github.mangi.eta.agent.auth.ProviderAuthException
 import io.github.mangi.eta.agent.auth.ProviderCredentialSessions
+import io.github.mangi.eta.agent.auth.ProviderCredential
 import io.github.mangi.eta.agent.auth.ProviderCredentialBinding
 import io.github.mangi.eta.agent.auth.ProviderLoginPrompt
 import io.github.mangi.eta.agent.runtime.AgentRunController
@@ -19,7 +23,29 @@ internal object ProviderCredentialRepository {
     @Synchronized
     fun init(context: Context) {
         if (sessions != null) return
-        sessions = ProviderCredentialSessions(EncryptedProviderCredentialStorage(context), LiveProviderOAuthClient())
+        val hostId = lazy { loadChatGptHostId(context.applicationContext) }
+        sessions = ProviderCredentialSessions(
+            EncryptedProviderCredentialStorage(context),
+            LiveProviderOAuthClient(chatGptHostId = { hostId.value }),
+        )
+    }
+
+    private fun loadChatGptHostId(context: Context): String {
+        val file = AtomicFile(File(context.noBackupFilesDir, "chatgpt-host-id"))
+        try {
+            return file.readFully().toString(Charsets.UTF_8)
+        } catch (_: java.io.FileNotFoundException) {
+            val hostId = "urn:uuid:${UUID.randomUUID()}"
+            val output = file.startWrite()
+            try {
+                output.write(hostId.toByteArray(Charsets.UTF_8))
+                file.finishWrite(output)
+            } catch (error: java.io.IOException) {
+                file.failWrite(output)
+                throw error
+            }
+            return hostId
+        }
     }
 
     fun account(providerId: String, authMode: String): ProviderAccountSummary? =
@@ -32,6 +58,18 @@ internal object ProviderCredentialRepository {
     fun login(providerId: String, authMode: String, controller: AgentRunController,
         onPrompt: (ProviderLoginPrompt) -> Unit): ProviderAccountSummary =
         sessions().login(providerId, authMode, controller, onPrompt)
+
+    fun authorize(
+        authMode: String,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential = sessions().authorize(authMode, controller, onPrompt)
+
+    fun matchesRegistration(providerId: String, credential: ProviderCredential): Boolean =
+        sessions().matchesRegistration(providerId, credential)
+
+    fun saveCredential(providerId: String, credential: ProviderCredential) =
+        sessions().saveCredential(providerId, credential)
 
     fun accessToken(providerId: String, authMode: String, controller: AgentRunController,
         rejectedAccessToken: String? = null): String =

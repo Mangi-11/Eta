@@ -22,6 +22,7 @@
     <string name="auth_err_key_unavailable">登入憑證的金鑰無法使用，請登出後重新登入</string>
     <string name="auth_err_storage_failed">無法讀寫登入憑證，請登出後重新登入</string>
     <string name="auth_callback_success_html">授權已回傳，請回到 Eta 完成登入。</string>
+    <string name="auth_callback_open_eta">開啟 Eta</string>
     <string name="auth_callback_failed_html">授權未完成，請回到 Eta 重試。</string>
     <string name="auth_err_login_timeout">登入已逾時，請重試</string>
     <string name="auth_err_callback_unavailable">無法接收登入回呼，請重試</string>

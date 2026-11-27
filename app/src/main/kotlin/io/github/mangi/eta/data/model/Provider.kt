@@ -27,10 +27,13 @@ internal object GeminiEndpointMode {
 
 internal object ProviderAuthModes {
     const val API_KEY = "api_key"
+    const val CHATGPT_PLAN = "chatgpt_plan"
     const val OPENAI_CHATGPT = "openai_chatgpt"
     const val XAI_GROK = "xai_grok"
 
-    fun isOAuth(mode: String): Boolean = mode == OPENAI_CHATGPT || mode == XAI_GROK
+    fun isChatGpt(mode: String): Boolean = mode == OPENAI_CHATGPT || mode == CHATGPT_PLAN
+
+    fun isOAuth(mode: String): Boolean = isChatGpt(mode) || mode == XAI_GROK
 }
 
 internal object ProviderSourceTypes {
@@ -176,12 +179,19 @@ internal val ProviderSetting.runtimeProviderType: String
         is CustomProviderSetting -> ProviderTypes.OPENAI_COMPATIBLE
     }
 
+internal const val CHATGPT_PROVIDER_ID_PREFIX = "chatgpt-"
+
+internal val ProviderSetting.isStandaloneChatGpt: Boolean
+    get() = ProviderAuthModes.isChatGpt(authMode) && id.startsWith(CHATGPT_PROVIDER_ID_PREFIX)
+
 internal val ProviderSetting.typeLabel: String
-    get() = when (this) {
-        is AnthropicProviderSetting -> "Anthropic Messages"
-        is GeminiProviderSetting -> if (isVertexAi) "Vertex AI" else "Gemini Interactions"
-        is OpenAiCompatibleProviderSetting -> "OpenAI-compatible"
-        is CustomProviderSetting -> "Custom OpenAI-compatible"
+    get() = when {
+        isStandaloneChatGpt && authMode == ProviderAuthModes.OPENAI_CHATGPT -> "Codex"
+        authMode == ProviderAuthModes.CHATGPT_PLAN -> "ChatGPT"
+        this is AnthropicProviderSetting -> "Anthropic Messages"
+        this is GeminiProviderSetting -> if (isVertexAi) "Vertex AI" else "Gemini Interactions"
+        this is OpenAiCompatibleProviderSetting -> "OpenAI-compatible"
+        else -> "Custom OpenAI-compatible"
     }
 
 internal val ProviderSetting.displayApiKeySummary: String

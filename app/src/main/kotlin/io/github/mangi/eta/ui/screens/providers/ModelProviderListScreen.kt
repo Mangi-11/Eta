@@ -5,9 +5,14 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.runtime.Composable
@@ -28,14 +33,18 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.ProviderSetting
-import io.github.mangi.eta.data.model.ProviderSourceTypes
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.typeLabel
 import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.components.DialogActions
+import io.github.mangi.eta.ui.app.LocalGlassPageBackdrop
 import io.github.mangi.eta.ui.components.ScaffoldPage
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
+import io.github.mangi.eta.ui.layout.WidePageContent
+import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
+import io.github.mangi.eta.ui.layout.rememberFloatingBottomBarInsets
 import io.github.mangi.eta.ui.navigation.AppRoute
 import io.github.mangi.eta.ui.navigation.NewProviderType
 import kotlinx.coroutines.launch
@@ -45,6 +54,15 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassDialog
+import top.yukonga.miuix.kmp.glass.GlassFloatingActionButton
+import top.yukonga.miuix.kmp.glass.GlassFloatingActionButtonDefaults
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
+import top.yukonga.miuix.kmp.glass.GlassTransformPopup
+import top.yukonga.miuix.kmp.glass.glassPopupAnchor
+import top.yukonga.miuix.kmp.glass.glassPopupAnchorContent
+import top.yukonga.miuix.kmp.glass.rememberGlassPopupAnchor
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Add
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.getValue
@@ -54,6 +72,7 @@ import androidx.compose.runtime.setValue
 internal fun ModelProviderListScreen(
     onNavigate: (AppRoute) -> Unit,
     onBack: () -> Unit,
+    builtInOnly: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()
     val providers by ProviderRepository.providersFlow().collectAsStateWithLifecycle(initialValue = emptyList())
@@ -67,18 +86,25 @@ internal fun ModelProviderListScreen(
         RuntimeConfigRepository.ensureDefaults(EtaApp.serviceInstance)
     }
 
-    val displayNames = providers.associate { provider ->
+    val visibleProviders = remember(providers, builtInOnly) {
+        if (builtInOnly) {
+            BuiltinProviders.PROVIDERS
+        } else {
+            providers.filterNot(BuiltinProviders::isUnconfiguredPreset)
+        }
+    }
+    val displayNames = visibleProviders.associate { provider ->
         val nameRes = BuiltinProviders.defaultNameRes(provider.id, provider.name)
         provider.id to (if (nameRes != null) stringResource(nameRes) else provider.name)
     }
-    val filteredProviders = remember(providers, searchQuery, displayNames) {
+    val filteredProviders = remember(visibleProviders, searchQuery, displayNames) {
         val query = searchQuery.trim()
-        providers.filter { provider ->
+        visibleProviders.filter { provider ->
             val localizedName = displayNames[provider.id] ?: provider.name
             query.isBlank() ||
                 provider.name.contains(query, ignoreCase = true) ||
                 localizedName.contains(query, ignoreCase = true) ||
-                provider.baseUrl.contains(query, ignoreCase = true) ||
+                (!ProviderAuthModes.isChatGpt(provider.authMode) && provider.baseUrl.contains(query, ignoreCase = true)) ||
                 provider.typeLabel.contains(query, ignoreCase = true)
         }
     }
@@ -97,7 +123,13 @@ internal fun ModelProviderListScreen(
         }
     }
 
-    ScaffoldPage(title = stringResource(R.string.ui_model_provider_e8c7f5), onBack = onBack) {
+    ScaffoldPage(
+        title = stringResource(
+            if (builtInOnly) R.string.provider_more_title else R.string.ui_model_provider_e8c7f5,
+        ),
+        onBack = onBack,
+        overlay = { if (!builtInOnly) AddProviderMenu(onNavigate) },
+    ) {
         item(key = "search") {
             InputField(
                 query = searchQuery,
@@ -113,55 +145,13 @@ internal fun ModelProviderListScreen(
             )
         }
 
-        item(key = "create_section") {
-            ProviderSection(title = stringResource(R.string.ui_add_new_provider_74df54)) {
-                ArrowPreference(
-                    title = stringResource(R.string.catalog_i18n_title),
-                    summary = stringResource(R.string.catalog_i18n_entry_summary),
-                    startAction = {
-                        Box(
-                            modifier = Modifier
-                                .padding(end = 8.dp)
-                                .size(24.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.TravelExplore,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp),
-                                tint = MiuixTheme.colorScheme.primary,
-                            )
-                        }
-                    },
-                    onClick = { onNavigate(AppRoute.CommunityCatalog) },
-                )
-                ArrowPreference(
-                    title = stringResource(R.string.ui_added_openai_compatible_6bd471),
-                    summary = stringResource(R.string.ui_support_chatgpt_deepseek_kimi_glm_qwen_etc_b31d02),
-                    startAction = {
-                        ProviderBrandIcon(ProviderSourceTypes.OPENAI)
-                    },
-                    onClick = { onNavigate(AppRoute.ModelProviderNew(NewProviderType.OpenAiCompatible)) },
-                )
-                ArrowPreference(
-                    title = stringResource(R.string.ui_new_anthropic_db6098),
-                    summary = stringResource(R.string.ui_support_anthropic_claude_official_or_compatible_api_de3f80),
-                    startAction = {
-                        ProviderBrandIcon(ProviderSourceTypes.ANTHROPIC)
-                    },
-                    onClick = { onNavigate(AppRoute.ModelProviderNew(NewProviderType.Anthropic)) },
-                )
-                ArrowPreference(
-                    title = stringResource(R.string.provider_i18n_add_gemini),
-                    summary = stringResource(R.string.provider_i18n_add_gemini_summary),
-                    startAction = { ProviderBrandIcon(ProviderSourceTypes.GEMINI) },
-                    onClick = { onNavigate(AppRoute.ModelProviderNew(NewProviderType.Gemini)) },
-                )
-            }
-        }
-
         item(key = "list_section") {
-            ProviderSection(title = pluralStringResource(R.plurals.provider_configured_count, filteredProviders.size, filteredProviders.size)) {
+            val title = if (builtInOnly) {
+                stringResource(R.string.provider_presets_title)
+            } else {
+                pluralStringResource(R.plurals.provider_configured_count, filteredProviders.size, filteredProviders.size)
+            }
+            ProviderSection(title = title) {
                 if (filteredProviders.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
@@ -179,9 +169,19 @@ internal fun ModelProviderListScreen(
                     }
                 } else {
                     filteredProviders.forEach { provider ->
+                        val displayName = displayNames[provider.id] ?: provider.name
+                        if (builtInOnly) {
+                            ArrowPreference(
+                                title = displayName,
+                                summary = provider.baseUrl,
+                                startAction = { ProviderIcon(provider) },
+                                onClick = { onNavigate(AppRoute.ModelProviderNewFromPreset(provider.id)) },
+                            )
+                            return@forEach
+                        }
                         ProviderListItem(
                             provider = provider,
-                            displayName = displayNames[provider.id] ?: provider.name,
+                            displayName = displayName,
                             isSelected = provider.id == selectedProviderId,
                             onOpen = { onNavigate(AppRoute.ModelProviderDetail(provider.id)) },
                             onDelete = if (!provider.isBuiltIn) {
@@ -200,6 +200,29 @@ internal fun ModelProviderListScreen(
                 }
             }
         }
+        if (builtInOnly) {
+            item(key = "community_catalog") {
+                ProviderSection(title = null) {
+                    ArrowPreference(
+                        title = stringResource(R.string.catalog_i18n_title),
+                        summary = stringResource(R.string.catalog_i18n_entry_summary),
+                        startAction = {
+                            Icon(
+                                imageVector = Icons.Rounded.TravelExplore,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 8.dp).size(24.dp),
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        },
+                        onClick = { onNavigate(AppRoute.CommunityCatalog) },
+                    )
+                }
+            }
+        } else {
+            item(key = "add_menu_clearance") {
+                Spacer(Modifier.height(GlassFloatingActionButtonDefaults.Size))
+            }
+        }
     }
 
     GlassDialog(
@@ -216,6 +239,81 @@ internal fun ModelProviderListScreen(
             onCancel = { providerToDelete = null },
             onConfirm = onConfirmDelete,
         )
+    }
+}
+
+@Composable
+private fun AddProviderMenu(onNavigate: (AppRoute) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val anchor = rememberGlassPopupAnchor()
+    val backdrop = LocalGlassPageBackdrop.current
+    val label = stringResource(R.string.ui_add_new_provider_74df54)
+    val actions = listOf(
+        R.string.provider_add_chatgpt to AppRoute.ModelProviderNew(NewProviderType.ChatGpt),
+        R.string.provider_add_openai_compatible to AppRoute.ModelProviderNew(NewProviderType.OpenAiCompatible),
+        R.string.provider_add_anthropic to AppRoute.ModelProviderNew(NewProviderType.Anthropic),
+        R.string.provider_add_gemini to AppRoute.ModelProviderNew(NewProviderType.Gemini),
+        R.string.provider_more_title to AppRoute.MoreModelProviders,
+    )
+
+    Box(Modifier.fillMaxSize()) {
+        WidePageContent { sidePadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .horizontalCutoutPadding()
+                    .imePadding()
+                    .windowInsetsPadding(rememberFloatingBottomBarInsets(fixedBottomPadding = 16.dp))
+                    .padding(end = sidePadding + 16.dp, bottom = 16.dp),
+                contentAlignment = Alignment.BottomEnd,
+            ) {
+                GlassFloatingActionButton(
+                    onClick = { expanded = true },
+                    backdrop = backdrop,
+                    modifier = Modifier.glassPopupAnchor(
+                        anchor = anchor,
+                        cornerRadius = GlassFloatingActionButtonDefaults.Size / 2,
+                        floating = true,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Glass.Add,
+                        contentDescription = label,
+                        tint = MiuixTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(28.dp).glassPopupAnchorContent(anchor),
+                    )
+                }
+            }
+        }
+
+        // Keep the popup in the outgoing page's navigation layer.
+        GlassTransformPopup(
+            show = expanded,
+            onDismissRequest = { expanded = false },
+            anchor = anchor,
+            backdrop = backdrop,
+            horizontalAlignment = Alignment.End,
+            anchorContent = {
+                Icon(
+                    imageVector = MiuixIcons.Glass.Add,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(28.dp),
+                )
+            },
+        ) {
+            actions.forEach { (labelRes, route) ->
+                GlassPopupItem(
+                    text = stringResource(labelRes),
+                    onClick = {
+                        if (expanded) {
+                            expanded = false
+                            onNavigate(route)
+                        }
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -268,14 +366,16 @@ private fun ProviderListItem(
                 TagChip(text = stringResource(R.string.ui_current_25e74d), tone = TagChipTone.Emphasized)
             }
         }
-        Text(
-            text = provider.baseUrl,
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp),
-        )
+        if (!ProviderAuthModes.isChatGpt(provider.authMode)) {
+            Text(
+                text = provider.baseUrl,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
         Text(
             text = subtitle,
             style = MiuixTheme.textStyles.footnote1,

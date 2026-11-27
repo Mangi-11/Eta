@@ -4,12 +4,15 @@ import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.auth.ProviderAccountSummary
 import io.github.mangi.eta.agent.auth.ProviderAuthException
+import io.github.mangi.eta.agent.auth.ProviderCredential
 import io.github.mangi.eta.agent.auth.ProviderLoginPrompt
 import io.github.mangi.eta.agent.runtime.AgentRunCancelledException
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSetting
+import io.github.mangi.eta.data.model.withApiKey
+import io.github.mangi.eta.data.model.withId
 import io.github.mangi.eta.data.repository.ModelRepository
 import io.github.mangi.eta.data.repository.catalog.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.ProviderCredentialRepository
@@ -21,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,13 +40,15 @@ internal data class ProviderLoginState(
     val prompt: ProviderLoginPrompt? = null,
     val phase: ProviderLoginPhase = ProviderLoginPhase.Idle,
     val message: String? = null,
+    val addedProviderId: String? = null,
+    val modelSyncFailed: Boolean = false,
 ) {
     val isBusy: Boolean get() = phase != ProviderLoginPhase.Idle
 }
 
 /** 登录会话归属当前配置页；浏览器切换不取消，离开页面则关闭轮询或回调监听。 */
 internal class ProviderLoginStore(
-    private val providerId: String,
+    private val providerId: String?,
     parentScope: CoroutineScope,
     private val operations: ProviderLoginOperations = RepositoryProviderLoginOperations,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -55,6 +61,7 @@ internal class ProviderLoginStore(
     private var generation = 0L
 
     fun load(authMode: String, interrupted: Boolean = false) {
+        val providerId = providerId ?: return
         if (mutableState.value.isBusy) return
         if (!ProviderAuthModes.isOAuth(authMode)) {
             mutableState.value = ProviderLoginState(authMode = authMode)
@@ -70,24 +77,73 @@ internal class ProviderLoginStore(
     }
 
     fun login(provider: ProviderSetting) {
+        val providerId = providerId ?: return
         if (mutableState.value.isBusy || provider.id != providerId) return
         runOperation(provider.authMode, ProviderLoginPhase.Saving) { activeController, attempt ->
             withContext(ioDispatcher) { operations.save(provider) }
             activeController.throwIfCancelled()
             mutableState.value = mutableState.value.copy(phase = ProviderLoginPhase.Authorizing)
             val account = withContext(ioDispatcher) {
-                operations.login(providerId, provider.authMode, activeController) { prompt ->
-                    scope.launch {
-                        if (generation == attempt && !activeController.isCancelled &&
-                            mutableState.value.phase == ProviderLoginPhase.Authorizing
-                        ) {
-                            mutableState.value = mutableState.value.copy(prompt = prompt)
-                        }
-                    }
-                }
+                operations.login(providerId, provider.authMode, activeController, onPrompt(activeController, attempt))
             }
-            mutableState.value = mutableState.value.copy(account = account, prompt = null, phase = ProviderLoginPhase.SyncingModels)
-            val count = withContext(ioDispatcher) { operations.syncModels(providerId, provider.authMode) }
+            finishLogin(providerId, provider.authMode, account)
+        }
+    }
+
+    fun addChatGptAccount(mode: String, fallbackName: String) {
+        require(ProviderAuthModes.isChatGpt(mode))
+        addAccount(mode) { operations.saveChatGptAccount(it, fallbackName) }
+    }
+
+    fun addXaiAccount(provider: ProviderSetting) {
+        require(provider.authMode == ProviderAuthModes.XAI_GROK)
+        addAccount(provider.authMode) { credential ->
+            val newProvider = provider.withId(ProviderRepository.newId()).withApiKey("")
+            operations.saveXaiAccount(newProvider, credential)
+        }
+    }
+
+    private fun addAccount(mode: String, save: suspend (ProviderCredential) -> String) {
+        if (providerId != null || mutableState.value.isBusy || mutableState.value.addedProviderId != null) return
+        runOperation(mode, ProviderLoginPhase.Authorizing) { activeController, attempt ->
+            val credential = withContext(ioDispatcher) {
+                operations.authorize(mode, activeController, onPrompt(activeController, attempt))
+            }
+            activeController.throwIfCancelled()
+            mutableState.value = mutableState.value.copy(phase = ProviderLoginPhase.Saving, prompt = null)
+            val account = credential.summary()
+            val id = withContext(NonCancellable) {
+                val savedId = withContext(ioDispatcher) {
+                    activeController.throwIfCancelled()
+                    save(credential)
+                }
+                mutableState.value = mutableState.value.copy(addedProviderId = savedId, account = account)
+                savedId
+            }
+            finishLogin(id, mode, account, newlyAdded = true)
+        }
+    }
+
+    private fun onPrompt(activeController: AgentRunController, attempt: Long): (ProviderLoginPrompt) -> Unit = { prompt ->
+        scope.launch {
+            if (generation == attempt && !activeController.isCancelled &&
+                mutableState.value.phase == ProviderLoginPhase.Authorizing
+            ) {
+                mutableState.value = mutableState.value.copy(prompt = prompt)
+            }
+        }
+    }
+
+    private suspend fun finishLogin(
+        id: String,
+        authMode: String,
+        account: ProviderAccountSummary,
+        newlyAdded: Boolean = false,
+    ) {
+        mutableState.value = mutableState.value.copy(account = account, prompt = null, phase = ProviderLoginPhase.SyncingModels)
+        if (authMode == ProviderAuthModes.CHATGPT_PLAN && !account.planEnabled) return
+        try {
+            val count = withContext(ioDispatcher) { operations.syncModels(id, authMode, newlyAdded) }
             mutableState.value = mutableState.value.copy(
                 message = AppStrings.quantity(
                     R.plurals.provider_i18n_login_synced_models,
@@ -97,14 +153,37 @@ internal class ProviderLoginStore(
                     count,
                 ),
             )
+        } catch (error: Exception) {
+            val cancelled = error is CancellationException || error is AgentRunCancelledException
+            if (!cancelled || mutableState.value.addedProviderId != null) {
+                mutableState.value = mutableState.value.copy(
+                    modelSyncFailed = true,
+                    message = AppStrings.get(
+                        R.string.provider_i18n_login_sync_failed,
+                        "已登录，模型同步失败，请在模型页重新拉取",
+                    ),
+                )
+            }
+            if (cancelled) throw error
         }
     }
 
-    fun disconnect() {
+    fun disconnect(onProviderRemoved: (() -> Unit)? = null) {
+        val providerId = providerId ?: return
         val authMode = mutableState.value.authMode
         if (mutableState.value.isBusy || !ProviderAuthModes.isOAuth(authMode)) return
         runOperation(authMode, ProviderLoginPhase.Disconnecting) { activeController, _ ->
-            val revoked = withContext(ioDispatcher) { operations.disconnect(providerId, authMode, activeController) }
+            val revoked = withContext(ioDispatcher) {
+                val result = operations.disconnect(providerId, authMode, activeController)
+                if (onProviderRemoved != null) {
+                    withContext(NonCancellable) {
+                        ProviderRepository.deleteProvider(providerId)
+                        RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                        withContext(Dispatchers.Main.immediate) { onProviderRemoved() }
+                    }
+                }
+                result
+            }
             mutableState.value = mutableState.value.copy(
                 account = null,
                 message = if (revoked == false) {
@@ -136,7 +215,9 @@ internal class ProviderLoginStore(
         val attempt = ++generation
         val activeController = AgentRunController()
         controller = activeController
-        mutableState.value = mutableState.value.copy(authMode = authMode, phase = phase, prompt = null, message = null)
+        mutableState.value = mutableState.value.copy(
+            authMode = authMode, phase = phase, prompt = null, message = null, modelSyncFailed = false,
+        )
         operation = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 action(activeController, attempt)
@@ -147,25 +228,19 @@ internal class ProviderLoginStore(
             } catch (error: Exception) {
                 if (generation == attempt && !activeController.isCancelled) {
                     mutableState.value = mutableState.value.copy(
-                        message = when (mutableState.value.phase) {
-                            ProviderLoginPhase.SyncingModels -> AppStrings.get(
-                                R.string.provider_i18n_login_sync_failed,
-                                "已登录，模型同步失败，请在模型页重新拉取",
+                        message = (error as? ProviderAuthException)?.message ?: when (phase) {
+                            ProviderLoginPhase.Loading -> AppStrings.get(
+                                R.string.provider_i18n_login_load_failed,
+                                "无法读取登录状态，请重试",
                             )
-                            else -> (error as? ProviderAuthException)?.message ?: when (phase) {
-                                ProviderLoginPhase.Loading -> AppStrings.get(
-                                    R.string.provider_i18n_login_load_failed,
-                                    "无法读取登录状态，请重试",
-                                )
-                                ProviderLoginPhase.Disconnecting -> AppStrings.get(
-                                    R.string.provider_i18n_logout_failed,
-                                    "退出登录失败，请重试",
-                                )
-                                else -> AppStrings.get(
-                                    R.string.provider_i18n_login_failed,
-                                    "登录失败，请重试",
-                                )
-                            }
+                            ProviderLoginPhase.Disconnecting -> AppStrings.get(
+                                R.string.provider_i18n_logout_failed,
+                                "退出登录失败，请重试",
+                            )
+                            else -> AppStrings.get(
+                                R.string.provider_i18n_login_failed,
+                                "登录失败，请重试",
+                            )
                         },
                     )
                 }
@@ -189,7 +264,14 @@ internal interface ProviderLoginOperations {
         controller: AgentRunController,
         onPrompt: (ProviderLoginPrompt) -> Unit,
     ): ProviderAccountSummary
-    suspend fun syncModels(providerId: String, authMode: String): Int
+    fun authorize(
+        authMode: String,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential
+    suspend fun saveChatGptAccount(credential: ProviderCredential, fallbackName: String): String
+    suspend fun saveXaiAccount(provider: ProviderSetting, credential: ProviderCredential): String
+    suspend fun syncModels(providerId: String, authMode: String, newlyAdded: Boolean): Int
     fun disconnect(providerId: String, authMode: String, controller: AgentRunController): Boolean?
 }
 
@@ -209,7 +291,19 @@ private object RepositoryProviderLoginOperations : ProviderLoginOperations {
         onPrompt: (ProviderLoginPrompt) -> Unit,
     ): ProviderAccountSummary = ProviderCredentialRepository.login(providerId, authMode, controller, onPrompt)
 
-    override suspend fun syncModels(providerId: String, authMode: String): Int {
+    override fun authorize(
+        authMode: String,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential = ProviderCredentialRepository.authorize(authMode, controller, onPrompt)
+
+    override suspend fun saveChatGptAccount(credential: ProviderCredential, fallbackName: String): String =
+        ProviderRepository.saveChatGptAccount(credential, fallbackName)
+
+    override suspend fun saveXaiAccount(provider: ProviderSetting, credential: ProviderCredential): String =
+        ProviderRepository.saveXaiAccount(provider, credential)
+
+    override suspend fun syncModels(providerId: String, authMode: String, newlyAdded: Boolean): Int {
         val provider = requireNotNull(ProviderRepository.providerById(providerId)) {
             AppStrings.get(R.string.provider_i18n_connection_missing, "服务商连接不存在")
         }
@@ -221,6 +315,9 @@ private object RepositoryProviderLoginOperations : ProviderLoginOperations {
         }
         val catalog = RemoteModelFetcher.fetchCatalog(provider).getOrThrow()
         val result = ModelRepository.syncRemoteCatalog(catalog)
+        if (newlyAdded && result.applied) {
+            RuntimeConfigRepository.selectNewAccountIfCurrentUnavailable(providerId)
+        }
         RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
         return result.fetchedCount
     }

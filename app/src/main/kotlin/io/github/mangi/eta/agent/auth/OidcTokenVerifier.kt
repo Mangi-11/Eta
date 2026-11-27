@@ -14,8 +14,14 @@ import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.core.AppStrings
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
-internal data class VerifiedProviderIdentity(val subject: String, val email: String?, val name: String?)
+internal data class VerifiedProviderIdentity(
+    val subject: String,
+    val email: String?,
+    val name: String?,
+    val avatarUrl: String? = null,
+)
 
 internal class OidcTokenVerifier(private val http: OAuthHttpClient) {
     private class CachedKeys(val keys: JWKSet, val expiresAt: Long)
@@ -93,11 +99,15 @@ internal class OidcTokenVerifier(private val http: OAuthHttpClient) {
                 require(MessageDigest.isEqual(nonce.toByteArray(Charsets.UTF_8), actual.toByteArray(Charsets.UTF_8)))
             }
             val subject = requireNotNull(claims.subject).also { require(it.isNotBlank() && it.length <= 512) }
-            VerifiedProviderIdentity(
-                subject,
-                claims.getStringClaim("email")?.takeIf { it.length <= 254 },
-                claims.getStringClaim("name")?.takeIf { it.length <= 120 },
-            )
+            val displayName = (claims.getClaim("name") as? String)?.trim()?.takeIf { it.length in 1..120 }
+            val picture = if (provider == OAuthProvider.CHATGPT_PLAN) {
+                (claims.getClaim("picture") as? String)?.takeIf { it.length <= 4096 }
+                    ?.toHttpUrlOrNull()?.takeIf { it.isHttps && it.username.isEmpty() && it.password.isEmpty() }
+                    ?.toString()
+            } else {
+                null
+            }
+            VerifiedProviderIdentity(subject, claims.getStringClaim("email")?.takeIf { it.length <= 254 }, displayName, picture)
         } catch (error: ProviderAuthException) {
             throw error
         } catch (_: Exception) {

@@ -44,6 +44,8 @@ import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
+import io.github.mangi.eta.data.model.ProviderAuthModes
+import io.github.mangi.eta.data.model.isStandaloneChatGpt
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.withId
 import io.github.mangi.eta.data.model.withModels
@@ -52,7 +54,9 @@ import io.github.mangi.eta.data.provider.OfficialModelCatalog
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.catalog.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
+import io.github.mangi.eta.data.repository.catalog.reconcileRemoteModels
 import io.github.mangi.eta.ui.components.DialogActions
+import io.github.mangi.eta.ui.components.ItemDescriptionDialog
 import io.github.mangi.eta.ui.components.PageBottomSpacer
 import io.github.mangi.eta.ui.components.PageScaffold
 import io.github.mangi.eta.ui.components.ScaffoldPage
@@ -90,6 +94,7 @@ import androidx.compose.runtime.setValue
 internal fun ModelProviderDetailScreen(
     providerId: String? = null,
     newType: NewProviderType? = null,
+    presetId: String? = null,
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -99,8 +104,8 @@ internal fun ModelProviderDetailScreen(
     val provider = remember(providers, effectiveId) {
         effectiveId?.let { id -> providers.firstOrNull { it.id == id } }
     }
-    val draft = remember(newType) {
-        when (newType) {
+    val draft = remember(newType, presetId) {
+        presetId?.let(BuiltinProviders::newProviderFromPreset) ?: when (newType) {
             NewProviderType.OpenAiCompatible -> CustomProviderSetting(
                 id = "",
                 name = "",
@@ -118,7 +123,7 @@ internal fun ModelProviderDetailScreen(
                 endpointMode = GeminiEndpointMode.AI_STUDIO,
                 baseUrl = GeminiProviderSetting.DEFAULT_BASE_URL,
             )
-            null -> null
+            NewProviderType.ChatGpt, null -> null
         }
     }
 
@@ -148,16 +153,16 @@ internal fun ModelProviderDetailScreen(
 
     val initial = provider ?: draft!!
     val isNew = provider == null
-    val providerDisplayName = BuiltinProviders.defaultNameRes(initial.id, initial.name)?.let { stringResource(it) } ?: initial.name
+    val nameResourceId = if (isNew && presetId != null) presetId else initial.id
+    val providerDisplayName = BuiltinProviders.defaultNameRes(nameResourceId, initial.name)
+        ?.let { stringResource(it) } ?: initial.name
     var currentTab by remember { mutableIntStateOf(0) }
     var configDraft by rememberSaveable(
         initial.id,
         stateSaver = ProviderConfigDraftSaver,
     ) {
         mutableStateOf(
-            ProviderConfigDraft.from(initial).let { base ->
-                if (isNew) base else base.copy(name = providerDisplayName)
-            },
+            ProviderConfigDraft.from(initial).copy(name = providerDisplayName),
         )
     }
     val title = if (isNew) stringResource(R.string.page_create_new_provider_36cab9) else providerDisplayName
@@ -223,6 +228,7 @@ internal fun ModelProviderDetailScreen(
                     onDraftChange = { configDraft = it },
                     scope = scope,
                     isNew = true,
+                    isPresetCreation = presetId != null,
                     scrollBehavior = configScrollBehavior,
                     contentSidePadding = sidePadding,
                     contentTopPadding = topPadding,
@@ -274,6 +280,7 @@ private fun ProviderConfigTab(
     onDraftChange: (ProviderConfigDraft) -> Unit,
     scope: CoroutineScope,
     isNew: Boolean,
+    isPresetCreation: Boolean = false,
     scrollBehavior: ScrollBehavior? = null,
     contentSidePadding: Dp,
     contentTopPadding: Dp = 0.dp,
@@ -288,10 +295,14 @@ private fun ProviderConfigTab(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
     var isWorking by remember { mutableStateOf(false) }
+    var isFetchingModels by remember { mutableStateOf(false) }
+    var modelFetchError by remember { mutableStateOf<String?>(null) }
     var creationCommitted by remember { mutableStateOf(false) }
     var loginInProgress by rememberSaveable(provider.id) { mutableStateOf(false) }
     var pendingInterruption by remember(provider.id) { mutableStateOf(loginInProgress) }
-    val loginStore = remember(provider.id, scope) { ProviderLoginStore(provider.id, scope) }
+    val loginStore = remember(provider.id, isNew, scope) {
+        ProviderLoginStore(provider.id.takeUnless { isNew }, scope)
+    }
     val loginState by loginStore.state.collectAsStateWithLifecycle()
     var browserError by remember(loginState.prompt) { mutableStateOf<String?>(null) }
     val openBrowser: () -> Unit = {
@@ -330,23 +341,54 @@ private fun ProviderConfigTab(
             }
         }
     }
-    val onSaveOrCreate: () -> Unit = {
-        val validationError = validateProviderDraft(context, draft)
+    val creatingWithAccount = isNew && ProviderAuthModes.isOAuth(draft.authMode)
+    val newAccountProviderId = loginState.addedProviderId
+    LaunchedEffect(newAccountProviderId, loginState.isBusy, loginState.modelSyncFailed) {
+        if (newAccountProviderId != null && !loginState.isBusy && !loginState.modelSyncFailed) {
+            onCreated(newAccountProviderId)
+        }
+    }
+    val missingRequiredApiKey = isPresetCreation && !creatingWithAccount && draft.apiKey.isBlank()
+    val onSaveOrCreate: () -> Unit = save@{
+        if (isWorking || creationCommitted) return@save
+        val validationError = if (missingRequiredApiKey) {
+            context.getString(R.string.repo_err_api_key_required)
+        } else {
+            validateProviderDraft(context, draft)
+        }
         if (validationError != null) {
             status = context.getString(R.string.provider_error, validationError)
         } else {
+            isWorking = true
             scope.launch {
-                isWorking = true
-                val built = draft.toProvider(provider)
                 try {
+                    val built = draft.toProvider(provider)
                     if (isNew) {
-                        val seeded = if (built is GeminiProviderSetting && built.isVertexAi && built.models.isEmpty()) {
-                            val presets = OfficialModelCatalog.modelsForProvider(built).map { model ->
-                                model.copy(id = ProviderRepository.newId(), isBuiltIn = false)
+                        val seeded = when {
+                            built is GeminiProviderSetting && built.isVertexAi -> {
+                                if (built.models.isEmpty()) {
+                                    val presets = OfficialModelCatalog.modelsForProvider(built).map { model ->
+                                        model.copy(id = ProviderRepository.newId(), isBuiltIn = false)
+                                    }
+                                    built.withModels(presets)
+                                } else built
                             }
-                            built.withModels(presets)
-                        } else {
-                            built
+                            isPresetCreation -> {
+                                isFetchingModels = true
+                                val fetched = RemoteModelFetcher.fetch(built).getOrThrow()
+                                val models = reconcileRemoteModels(
+                                    existing = emptyList(),
+                                    fetched = fetched,
+                                    adoptedModelIds = fetched.mapTo(mutableSetOf()) { it.modelId },
+                                    authMode = built.authMode,
+                                ).models
+                                check(models.isNotEmpty()) {
+                                    context.getString(R.string.provider_preset_models_empty)
+                                }
+                                isFetchingModels = false
+                                built.withModels(models)
+                            }
+                            else -> built
                         }
                         val added = ProviderRepository.addProvider(
                             seeded.withId(ProviderRepository.newId()),
@@ -376,11 +418,17 @@ private fun ProviderConfigTab(
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (throwable: Throwable) {
-                    status = context.getString(
-                        R.string.provider_error,
-                        throwable.message ?: context.getString(R.string.provider_save_failed),
-                    )
+                    if (isFetchingModels) {
+                        val message = throwable.message ?: context.getString(R.string.provider_preset_models_failed)
+                        modelFetchError = message.replace(draft.apiKey.trim(), "••••")
+                    } else {
+                        status = context.getString(
+                            R.string.provider_error,
+                            throwable.message ?: context.getString(R.string.provider_save_failed),
+                        )
+                    }
                 } finally {
+                    isFetchingModels = false
                     isWorking = false
                 }
             }
@@ -414,19 +462,29 @@ private fun ProviderConfigTab(
                     draft = draft,
                     onDraftChange = onDraftChange,
                     loginState = loginState,
-                    enabled = !isWorking && !loginState.isBusy,
+                    enabled = !isWorking && !loginState.isBusy && newAccountProviderId == null,
                     browserError = browserError,
                     onOpenBrowser = openBrowser,
-                    onManageUsage = { browserError = openProviderAccountLink(context, "https://chatgpt.com/codex/settings/usage") },
+                    onManageUsage = {
+                        val url = if (draft.authMode == ProviderAuthModes.CHATGPT_PLAN) {
+                            "https://chatgpt.com/settings/usage"
+                        } else {
+                            "https://chatgpt.com/codex/settings/usage"
+                        }
+                        browserError = openProviderAccountLink(context, url)
+                    },
                     onLogin = {
                         val validationError = validateProviderDraft(context, draft)
                         if (validationError != null) {
                             status = context.getString(R.string.provider_error, validationError)
                         } else {
-                            loginStore.login(draft.toProvider(provider))
+                            val updated = draft.toProvider(provider)
+                            if (isNew) loginStore.addXaiAccount(updated) else loginStore.login(updated)
                         }
                     },
-                    onDisconnect = loginStore::disconnect,
+                    onDisconnect = {
+                        loginStore.disconnect(onProviderRemoved = onDeleted.takeIf { provider.isStandaloneChatGpt })
+                    },
                     onCancel = loginStore::cancel,
                 )
                 BasicComponent(
@@ -469,6 +527,7 @@ private fun ProviderConfigTab(
         item(key = "actions") {
             val saveText = stringResource(
                 when {
+                    isFetchingModels -> R.string.provider_preset_models_fetching
                     isWorking -> R.string.page_saving_d70d42
                     creationCommitted -> R.string.page_created_62cfc5
                     isNew -> R.string.page_create_fcbd09
@@ -490,13 +549,30 @@ private fun ProviderConfigTab(
                     .padding(top = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                TextButton(
-                    text = saveText,
-                    enabled = !isWorking && !loginState.isBusy && !creationCommitted,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    onClick = onSaveOrCreate,
-                )
+                if (newAccountProviderId != null && loginState.modelSyncFailed && !loginState.isBusy) {
+                    TextButton(
+                        text = stringResource(R.string.route_provider_details),
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onCreated(newAccountProviderId) },
+                    )
+                }
+                if (!creatingWithAccount) {
+                    TextButton(
+                        text = saveText,
+                        enabled = !isWorking && !loginState.isBusy && !creationCommitted && !missingRequiredApiKey,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = onSaveOrCreate,
+                    )
+                }
+                if (missingRequiredApiKey) {
+                    Text(
+                        text = stringResource(R.string.repo_err_api_key_required),
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        style = MiuixTheme.textStyles.body2,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
                 if (!isNew) {
                     Spacer(modifier = Modifier.height(12.dp))
                     TextButton(
@@ -572,6 +648,15 @@ private fun ProviderConfigTab(
                 isWorking = false
             }
         }
+    }
+
+    if (isPresetCreation) {
+        ItemDescriptionDialog(
+            show = modelFetchError != null,
+            title = stringResource(R.string.provider_preset_models_failed),
+            description = modelFetchError.orEmpty(),
+            onDismiss = { modelFetchError = null },
+        )
     }
 
     val overlayBackdrop = currentGlassOverlayBackdrop()

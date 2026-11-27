@@ -1,0 +1,11 @@
+<resources>
+    <string name="provider_chatgpt_plan">ChatGPT plan</string>
+    <string name="provider_chatgpt_plan_hint">Connect ChatGPT and authorize Eta to use your plan.</string>
+    <string name="provider_chatgpt_plan_authorized">ChatGPT plan usage authorized</string>
+    <string name="provider_chatgpt_continue">Continue with ChatGPT</string>
+    <string name="provider_chatgpt_plan_limit">ChatGPT plan usage limit reached. Check Usage in ChatGPT settings.</string>
+    <string name="provider_chatgpt_plan_unavailable">ChatGPT plan status is temporarily unavailable. Try again later.</string>
+    <string name="provider_chatgpt_plan_ineligible">ChatGPT plan usage is unavailable for this account or workspace.</string>
+    <string name="provider_chatgpt_plan_incomplete">ChatGPT response incomplete (%1$s).</string>
+    <string name="provider_chatgpt_codex_sign_in">Sign in with ChatGPT / Codex</string>
+</resources>

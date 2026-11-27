@@ -3,19 +3,33 @@ package io.github.mangi.eta.ui.screens.providers
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.ProviderAuthModes
+import io.github.mangi.eta.ui.components.CharacterAvatar
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -34,11 +48,17 @@ internal fun ProviderAccountControls(
     onCancel: () -> Unit,
 ) {
     val prompt = state.prompt
-    val account = state.account
+    val account = state.account.takeIf { state.authMode == authMode }
     val loggedIn = account != null && !account.needsReauthentication
     val needsLogin = !loggedIn || !account.planEnabled
-    val brand = if (authMode == ProviderAuthModes.XAI_GROK) "Grok" else "Codex"
-    val title = account?.email ?: account?.displayName ?: stringResource(R.string.provider_i18n_account_title, brand)
+    val chatGptPlan = authMode == ProviderAuthModes.CHATGPT_PLAN
+    val brand = when (authMode) {
+        ProviderAuthModes.XAI_GROK -> "Grok"
+        ProviderAuthModes.CHATGPT_PLAN -> "ChatGPT"
+        else -> "Codex"
+    }
+    val accountTitle = stringResource(R.string.provider_i18n_account_title, brand)
+    val title = if (chatGptPlan) account?.displayName ?: accountTitle else account?.email ?: account?.displayName ?: accountTitle
     val summary = browserError ?: state.message ?: when (state.phase) {
         ProviderLoginPhase.Loading -> stringResource(R.string.provider_i18n_login_loading)
         ProviderLoginPhase.Saving -> stringResource(R.string.provider_i18n_login_saving)
@@ -49,14 +69,15 @@ internal fun ProviderAccountControls(
         ProviderLoginPhase.SyncingModels -> stringResource(R.string.provider_i18n_login_syncing_models)
         ProviderLoginPhase.Idle -> when {
             account == null -> stringResource(
-                if (authMode == ProviderAuthModes.OPENAI_CHATGPT) {
-                    R.string.provider_i18n_login_chatgpt_hint
-                } else {
-                    R.string.provider_i18n_login_grok_hint
+                when (authMode) {
+                    ProviderAuthModes.CHATGPT_PLAN -> R.string.provider_chatgpt_plan_hint
+                    ProviderAuthModes.OPENAI_CHATGPT -> R.string.provider_i18n_login_chatgpt_hint
+                    else -> R.string.provider_i18n_login_grok_hint
                 },
             )
             account.needsReauthentication -> stringResource(R.string.provider_i18n_login_reauth)
             !account.planEnabled -> stringResource(R.string.provider_i18n_login_plan_disabled)
+            chatGptPlan -> stringResource(R.string.provider_chatgpt_plan_authorized)
             authMode == ProviderAuthModes.OPENAI_CHATGPT -> stringResource(R.string.provider_i18n_logged_in_codex)
             else -> stringResource(R.string.provider_i18n_logged_in_grok)
         }
@@ -65,13 +86,23 @@ internal fun ProviderAccountControls(
     val cancelText = stringResource(R.string.action_cancel)
     val loginActionText = if (loggedIn) {
         stringResource(R.string.provider_i18n_reauthorize)
+    } else if (chatGptPlan) {
+        stringResource(R.string.provider_chatgpt_continue)
     } else {
         stringResource(R.string.provider_i18n_sign_in_with, brand)
     }
     val manageUsageText = stringResource(R.string.provider_i18n_manage_usage)
     val signOutText = stringResource(R.string.provider_i18n_sign_out)
 
-    BasicComponent(title = title, summary = summary)
+    BasicComponent(
+        title = title,
+        summary = summary,
+        startAction = if (chatGptPlan && loggedIn) {
+            { ProviderAccountAvatar(title, account.avatarUrl) }
+        } else {
+            null
+        },
+    )
     Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
         prompt?.userCode?.let { userCode ->
             SelectionContainer {
@@ -98,7 +129,7 @@ internal fun ProviderAccountControls(
                         onClick = onLogin,
                         modifier = Modifier.weight(1f),
                     )
-                } else if (authMode == ProviderAuthModes.OPENAI_CHATGPT) {
+                } else if (chatGptPlan || authMode == ProviderAuthModes.OPENAI_CHATGPT) {
                     TextButton(text = manageUsageText, enabled = enabled, onClick = onManageUsage, modifier = Modifier.weight(1f))
                 }
                 if (loggedIn) {
@@ -106,6 +137,60 @@ internal fun ProviderAccountControls(
                 }
             }
         }
+        if (chatGptPlan && !state.isBusy && !needsLogin) {
+            TextButton(
+                text = loginActionText,
+                enabled = enabled,
+                onClick = onLogin,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProviderAccountAvatar(name: String, url: String?) {
+    key(url) {
+        val image by produceState<ImageBitmap?>(null) {
+            value = url?.let { withContext(Dispatchers.IO) { loadProviderAvatar(it) } }
+        }
+        CharacterAvatar(
+            name = name,
+            avatarPath = null,
+            size = 40.dp,
+            shape = CircleShape,
+            image = image,
+            modifier = Modifier.padding(end = 12.dp),
+        )
+    }
+}
+
+private val avatarClient = OkHttpClient.Builder()
+    .callTimeout(5, TimeUnit.SECONDS)
+    .followSslRedirects(false)
+    .build()
+
+private fun loadProviderAvatar(url: String): ImageBitmap? {
+    return try {
+        val request = Request.Builder().url(url).build()
+        avatarClient.newCall(request).execute().use { response ->
+            val body = response.body
+            val source = body.source()
+            if (!response.isSuccessful || body.contentType()?.type != "image" || source.request(512L * 1024 + 1)) {
+                return null
+            }
+            val bytes = source.readByteArray()
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            val largestSide = maxOf(bounds.outWidth, bounds.outHeight)
+            if (largestSide !in 1..4096) return null
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = Integer.highestOneBit((largestSide / 160).coerceAtLeast(1))
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
+        }
+    } catch (_: IOException) {
+        null
     }
 }
 

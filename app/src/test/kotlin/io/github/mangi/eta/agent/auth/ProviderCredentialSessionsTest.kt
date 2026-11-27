@@ -18,6 +18,51 @@ import org.junit.Test
 
 class ProviderCredentialSessionsTest {
     @Test
+    fun chatGptRegistrationMatchesBothAccountAndIssuedClient() {
+        val registration = credential().copy(authMode = ProviderAuthModes.CHATGPT_PLAN, clientId = "oaiapp_workspace_a")
+        val storage = MemoryStorage().apply { write(PROVIDER_ID, registration.withoutTokens()) }
+        val sessions = ProviderCredentialSessions(storage, FakeOAuthClient()) { NOW }
+
+        assertTrue(sessions.matchesRegistration(PROVIDER_ID, registration))
+        assertFalse(sessions.matchesRegistration(PROVIDER_ID, registration.copy(clientId = "oaiapp_workspace_b")))
+        assertFalse(sessions.matchesRegistration(PROVIDER_ID, registration.copy(subject = "other-account")))
+        assertFalse(sessions.matchesRegistration(PROVIDER_ID, registration.copy(authMode = AUTH_MODE)))
+    }
+
+    @Test
+    fun codexRegistrationsWithTheSameSubjectAndClientKeepSeparateWorkspaces() {
+        val registration = credential().copy(accountId = "workspace-a")
+        val storage = MemoryStorage().apply { write(PROVIDER_ID, registration) }
+        val sessions = ProviderCredentialSessions(storage, FakeOAuthClient()) { NOW }
+
+        assertTrue(sessions.matchesRegistration(PROVIDER_ID, registration))
+        assertFalse(sessions.matchesRegistration(PROVIDER_ID, registration.copy(accountId = "workspace-b")))
+
+        sessions.disconnect(PROVIDER_ID, AUTH_MODE, AgentRunController())
+        assertFalse(requireNotNull(sessions.account(PROVIDER_ID, AUTH_MODE)).planEnabled)
+        assertTrue(sessions.matchesRegistration(PROVIDER_ID, registration))
+        assertFalse(sessions.matchesRegistration(PROVIDER_ID, registration.copy(accountId = "workspace-b")))
+    }
+
+    @Test
+    fun codexReauthenticationKeepsTheOriginalWorkspace() {
+        val original = credential().copy(accountId = "workspace-a").withoutTokens()
+        val storage = MemoryStorage().apply { write(PROVIDER_ID, original) }
+        var replacement = credential().copy(accountId = "workspace-b")
+        val sessions = ProviderCredentialSessions(storage, FakeOAuthClient(login = { replacement })) { NOW }
+
+        val failure = assertThrows(ProviderAuthException::class.java) {
+            sessions.login(PROVIDER_ID, AUTH_MODE, AgentRunController()) {}
+        }
+        assertEquals("oauth_account_mismatch", failure.code)
+        assertEquals(original, storage.read(PROVIDER_ID))
+
+        replacement = replacement.copy(accountId = original.accountId)
+        sessions.login(PROVIDER_ID, AUTH_MODE, AgentRunController()) {}
+        assertEquals(replacement, storage.read(PROVIDER_ID))
+    }
+
+    @Test
     fun loginAndLogoutInvalidatePreviousAccountBindings() {
         val storage = MemoryStorage().apply { write(PROVIDER_ID, credential()) }
         val sessions = ProviderCredentialSessions(storage, FakeOAuthClient(login = { credential() })) { NOW }

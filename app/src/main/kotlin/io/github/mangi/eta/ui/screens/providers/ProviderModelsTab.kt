@@ -326,7 +326,11 @@ internal fun ProviderModelsTab(
                         val pullTitle = stringResource(
                             if (isFetching) R.string.page_retrieving_a880c9 else R.string.page_automatically_pull_from_remote_f883d0,
                         )
-                        val pullSummary = stringResource(R.string.provider_models_endpoint_summary, provider.baseUrl)
+                        val pullSummary = if (ProviderAuthModes.isChatGpt(provider.authMode)) {
+                            null
+                        } else {
+                            stringResource(R.string.provider_models_endpoint_summary, provider.baseUrl)
+                        }
                         val customTitle = stringResource(R.string.ui_add_custom_model_a5ddc0)
                         val customSummary = stringResource(R.string.ui_manually_fill_in_the_display_name_and_model_id_077a7b)
                         ArrowPreference(

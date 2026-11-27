@@ -94,6 +94,42 @@ class CodexResponsesRequestTest {
         assertThrows(AgentModelFailure::class.java) { readDone(JSONObject().put("output", JSONArray())) }
     }
 
+    @Test
+    fun chatGptPlanGroupsLocalToolsAndRequiresTheCompletedEvent() {
+        val messages = JSONArray("""[
+          {"role":"assistant","tool_calls":[{"id":"call_a","type":"function",
+            "function":{"name":"read_file","arguments":"{}"}}]},
+          {"role":"tool","tool_call_id":"call_a","content":"fixture"}
+        ]""")
+        val request = OpenAiResponsesProvider.buildRequestJson(
+            config().copy(authMode = ProviderAuthModes.CHATGPT_PLAN, extraBodyJson = """{"temperature":0.2}"""),
+            messages, tools(),
+        )
+        val namespace = request.getJSONArray("tools").getJSONObject(0)
+        assertEquals("namespace", namespace.getString("type"))
+        assertEquals("read_file", namespace.getJSONArray("tools").getJSONObject(0).getString("name"))
+        val input = request.getJSONArray("input")
+        assertEquals(namespace.getString("name"), input.getJSONObject(0).getString("namespace"))
+        assertEquals("call_a", input.getJSONObject(1).getString("call_id"))
+        assertFalse(request.has("temperature"))
+        assertFalse(request.getBoolean("store"))
+        assertTrue(request.getBoolean("stream"))
+
+        fun read(type: String, response: String): JSONObject {
+            val event = JSONObject().put("type", type).put("response", JSONObject(response))
+            return OpenAiResponsesProvider.readStreamingResponse(
+                "data: $event\n\n".byteInputStream(), AgentRunController(), {}, requireCompletedEvent = true,
+            )
+        }
+        assertEquals("stop", read("response.completed", """{"status":"completed","output":[]}""").getString("finish_reason"))
+        assertEquals("STREAM_INCOMPLETE", assertThrows(AgentModelFailure::class.java) {
+            read("response.done", """{"status":"completed","output":[]}""")
+        }.code)
+        assertEquals("subscription_sharing_usage_limit_exceeded", assertThrows(AgentModelFailure::class.java) {
+            read("response.failed", """{"error":{"code":"subscription_sharing_usage_limit_exceeded"}}""")
+        }.code)
+    }
+
     private fun readDone(response: JSONObject): JSONObject {
         val event = JSONObject().put("type", "response.done").put("response", response)
         return OpenAiResponsesProvider.readStreamingResponse(

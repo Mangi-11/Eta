@@ -42,10 +42,12 @@ internal object ProviderParameterDiagnostics {
     private val parameterErrorCodes = setOf(
         "INVALID_ARGUMENT", "FAILED_PRECONDITION", "invalid_request", "invalid_argument",
         "invalid_request_error", "unsupported_parameter", "model_not_found",
+        "subscription_sharing_unsupported_capability",
     )
     private val requestParameterRoots = setOf(
         "model", "input", "system_instruction", "tools", "generation_config", "response_format",
         "stream", "store", "previous_interaction_id", "background", "safety_settings", "service_tier",
+        "parallel_tool_calls", "tool_choice", "max_tool_calls", "reasoning", "include", "instructions", "text",
     )
     private val publicParameterNames = requestParameterRoots + setOf(
         "content", "type", "role", "name", "description", "parameters", "properties", "items",

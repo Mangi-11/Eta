@@ -165,6 +165,93 @@ class ProviderOAuthClientTest {
         } finally { executor.shutdownNow() }
     }
 
+    @Test fun chatGptPlanRegistrationUsesTheCallbackClientAndItsVerifiedIdentity() {
+        val issuedClientId = "oaiapp_fixture"
+        val picture = "https://images.example.invalid/profile.png"
+        lateinit var authorization: HttpUrl
+        val client = LiveProviderOAuthClient(http { request ->
+            when (request.url.toString()) {
+                OAuthProvider.CHATGPT_PLAN.jwksUrl -> 200 to CodexOAuthFixture.jwks
+                OAuthProvider.CHATGPT_PLAN.tokenEndpoint -> {
+                    val form = request.body as FormBody
+                    val values = (0 until form.size).associate { form.name(it) to form.value(it) }
+                    assertEquals(issuedClientId, values["client_id"])
+                    assertEquals(ChatGptPlanOAuth.RESOURCE, values["resource"])
+                    assertEquals(authorization.queryParameter("redirect_uri"), values["redirect_uri"])
+                    assertEquals("fixture-code", values["code"])
+                    val nonce = requireNotNull(authorization.queryParameter("nonce"))
+                    200 to JSONObject().put("access_token", "fixture-access")
+                        .put("id_token", CodexOAuthFixture.idToken(nonce, issuedClientId, picture))
+                        .put("refresh_token", "fixture-refresh").put("token_type", "Bearer")
+                        .put("expires_in", 3600).toString()
+                }
+                else -> error("Unexpected endpoint")
+            }
+        }, chatGptHostId = { "urn:uuid:test-host" })
+
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            lateinit var callback: Future<Int>
+            val credential = client.login(OAuthProvider.CHATGPT_PLAN, AgentRunController()) { prompt ->
+                authorization = prompt.authorizationUrl.toHttpUrl()
+                assertEquals("/api/accounts/authorize", authorization.encodedPath)
+                assertEquals("dynamic_agent_client", authorization.queryParameter("client_id"))
+                assertEquals("Eta", authorization.queryParameter("agent_name_hint"))
+                assertEquals(ChatGptPlanOAuth.SCOPE, authorization.queryParameter("scope"))
+                assertEquals("urn:uuid:test-host", authorization.queryParameter("ext_agent_host_id"))
+                callback = executor.submit<Int> {
+                    val uri = authorization.queryParameter("redirect_uri")!!.toHttpUrl().newBuilder()
+                        .addQueryParameter("code", "fixture-code")
+                        .addQueryParameter("state", authorization.queryParameter("state"))
+                        .addQueryParameter("client_id", issuedClientId).build()
+                    val connection = URI(uri.toString()).toURL().openConnection() as HttpURLConnection
+                    connection.connectTimeout = 2000
+                    connection.readTimeout = 2000
+                    try {
+                        val status = connection.responseCode
+                        val page = connection.inputStream.bufferedReader().use { it.readText() }
+                        assertTrue(page.contains("content=\"0;url=io.github.mangi.eta://auth/return\""))
+                        assertTrue(page.contains("href=\"io.github.mangi.eta://auth/return\""))
+                        assertFalse(page.contains("fixture-code"))
+                        status
+                    } finally {
+                        connection.disconnect()
+                    }
+                }
+            }
+            assertEquals(200, callback.get(3, TimeUnit.SECONDS))
+            assertEquals(issuedClientId, credential.clientId)
+            assertEquals("account", credential.subject)
+            assertEquals("Fixture User", credential.summary().displayName)
+            assertEquals(picture, credential.summary().avatarUrl)
+            assertTrue(credential.planEnabled)
+        } finally { executor.shutdownNow() }
+    }
+
+    @Test fun chatGptPlanRefreshUsesTheIssuedClientAndRotatesTheGrant() {
+        val previous = ProviderCredential(
+            ProviderAuthModes.CHATGPT_PLAN, "oaiapp_fixture", "account",
+            refreshToken = "fixture-refresh", scopes = setOf(ChatGptPlanOAuth.PLAN_SCOPE),
+        )
+        val client = LiveProviderOAuthClient(http { request ->
+            assertEquals(OAuthProvider.CHATGPT_PLAN.tokenEndpoint, request.url.toString())
+            val form = request.body as FormBody
+            val values = (0 until form.size).associate { form.name(it) to form.value(it) }
+            assertEquals(mapOf(
+                "grant_type" to "refresh_token",
+                "client_id" to previous.clientId,
+                "refresh_token" to previous.refreshToken,
+                "resource" to ChatGptPlanOAuth.RESOURCE,
+            ), values)
+            200 to """{"access_token":"fixture-access","token_type":"Bearer","expires_in":3600,
+                "refresh_token":"rotated","scope":"openid profile email"}"""
+        })
+        val refreshed = client.refresh(previous, AgentRunController())
+        assertEquals(previous.subject, refreshed.subject)
+        assertEquals("rotated", refreshed.refreshToken)
+        assertFalse(refreshed.planEnabled)
+    }
+
     @Test fun codexRefreshRejectsAChangedWorkspace() {
         val previous = ProviderCredential(ProviderAuthModes.OPENAI_CHATGPT, CodexOAuth.CLIENT_ID, "account",
             refreshToken = "fixture-refresh", accountId = "original")

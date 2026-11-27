@@ -69,9 +69,11 @@ import io.github.mangi.eta.ui.model.PermissionHealthAction
 import io.github.mangi.eta.ui.model.PermissionStatusUi
 import io.github.mangi.eta.ui.model.roleplayChatUi
 import io.github.mangi.eta.ui.navigation.AgentNavigator
+import io.github.mangi.eta.ui.navigation.NewProviderType
 import io.github.mangi.eta.ui.navigation.AppRoute
 import io.github.mangi.eta.ui.screens.providers.CommunityCatalogProviderScreen
 import io.github.mangi.eta.ui.screens.providers.CommunityCatalogScreen
+import io.github.mangi.eta.ui.screens.providers.ChatGptProviderLoginScreen
 import io.github.mangi.eta.ui.screens.providers.ModelProviderDetailScreen
 import io.github.mangi.eta.ui.screens.providers.ModelProviderListScreen
 import io.github.mangi.eta.ui.screens.backup.DataBackupScreen
@@ -794,8 +796,17 @@ fun AgentAppRoot(
                     }
                     entry<AppRoute.ModelProviders>(swipeDismiss = activeSwipeDismiss) {
                         ModelProviderListScreen(
-                            onNavigate = { route -> pushRoute(route) },
+                            onNavigate = { route ->
+                                if (backStack.lastOrNull() == AppRoute.ModelProviders) pushRoute(route)
+                            },
                             onBack = ::popRoute
+                        )
+                    }
+                    entry<AppRoute.MoreModelProviders>(swipeDismiss = activeSwipeDismiss) {
+                        ModelProviderListScreen(
+                            onNavigate = { route -> pushRoute(route) },
+                            onBack = ::popRoute,
+                            builtInOnly = true,
                         )
                     }
                     entry<AppRoute.CommunityCatalog>(swipeDismiss = activeSwipeDismiss) {
@@ -880,14 +891,25 @@ fun AgentAppRoot(
                     entry<AppRoute.ModelProviderDetail>(swipeDismiss = activeSwipeDismiss) { route ->
                         ModelProviderDetailScreen(
                             providerId = route.providerId,
-                            onBack = ::popRoute
+                            onBack = { if (backStack.lastOrNull() == route) popRoute() },
                         )
                     }
+                    entry<AppRoute.ModelProviderNewFromPreset>(swipeDismiss = activeSwipeDismiss) { route ->
+                        ModelProviderDetailScreen(presetId = route.presetId, onBack = ::popRoute)
+                    }
                     entry<AppRoute.ModelProviderNew>(swipeDismiss = activeSwipeDismiss) { route ->
-                        ModelProviderDetailScreen(
-                            newType = route.providerType,
-                            onBack = ::popRoute
-                        )
+                        if (route.providerType == NewProviderType.ChatGpt) {
+                            ChatGptProviderLoginScreen(
+                                onBack = ::popRoute,
+                                onProviderAdded = { providerId ->
+                                    if (backStack.lastOrNull() == route) {
+                                        navigator.replace(AppRoute.ModelProviderDetail(providerId))
+                                    }
+                                },
+                            )
+                        } else {
+                            ModelProviderDetailScreen(newType = route.providerType, onBack = ::popRoute)
+                        }
                     }
             }
         }

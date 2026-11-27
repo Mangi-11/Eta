@@ -87,6 +87,22 @@ class AgentModelRetryTest {
         assertFalse(AgentModelFailure.http(503, "secret request text").message.orEmpty().contains("secret"))
     }
 
+    @Test
+    fun chatGptCapabilityFailureKeepsSafeParameterAndRequestId() {
+        val code = "subscription_sharing_unsupported_capability"
+        val body = """{"error":{"code":"$code","param":"tools[0].type","message":"private request content"}}"""
+        val failure = AgentModelFailure.http(400, body, requestId = "req_example")
+
+        assertEquals(code, failure.code)
+        assertFalse(failure.retryable)
+        val message = requireNotNull(failure.message)
+        assertTrue(message.contains("tools[0].type"))
+        assertTrue(message.contains("req_example"))
+        assertFalse(message.contains("private request content"))
+        val unsafe = AgentModelFailure.http(400, body, requestId = "private request content")
+        assertFalse(requireNotNull(unsafe.message).contains("private request content"))
+    }
+
     private fun complete(
         retry: AgentModelRetry,
         provider: AgentProviderClient,

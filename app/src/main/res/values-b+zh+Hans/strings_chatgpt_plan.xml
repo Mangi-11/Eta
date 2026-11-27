@@ -1,0 +1,11 @@
+<resources>
+    <string name="provider_chatgpt_plan">ChatGPT 订阅</string>
+    <string name="provider_chatgpt_plan_hint">连接 ChatGPT 并授权 Eta 使用订阅额度。</string>
+    <string name="provider_chatgpt_plan_authorized">已授权使用 ChatGPT 订阅</string>
+    <string name="provider_chatgpt_continue">使用 ChatGPT 继续</string>
+    <string name="provider_chatgpt_plan_limit">已达到 ChatGPT 订阅用量上限，请在 ChatGPT 设置中查看用量。</string>
+    <string name="provider_chatgpt_plan_unavailable">暂时无法读取 ChatGPT 订阅状态，请稍后重试。</string>
+    <string name="provider_chatgpt_plan_ineligible">当前 ChatGPT 账号或工作区无法使用订阅额度。</string>
+    <string name="provider_chatgpt_plan_incomplete">ChatGPT 响应未完成（%1$s）。</string>
+    <string name="provider_chatgpt_codex_sign_in">使用 ChatGPT / Codex 登录</string>
+</resources>

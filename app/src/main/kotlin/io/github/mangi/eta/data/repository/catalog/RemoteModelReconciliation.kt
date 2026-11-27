@@ -38,7 +38,7 @@ internal fun reconcileRemoteModels(
                     consumed += key
                     // Codex 账号目录可以声明不同于公共 API 预设的窗口；预填值不能覆盖它。
                     val configuredWindow = stored.contextWindowOverride.takeUnless {
-                        authMode == ProviderAuthModes.OPENAI_CHATGPT && stored.source == ModelSource.CATALOG &&
+                        authMode in setOf(ProviderAuthModes.OPENAI_CHATGPT, ProviderAuthModes.CHATGPT_PLAN) && stored.source == ModelSource.CATALOG &&
                             it == stored.contextWindow
                     }
                     add(remote.copy(

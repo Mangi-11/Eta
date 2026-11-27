@@ -20,6 +20,7 @@ import io.github.mangi.eta.data.model.AnthropicProviderSetting
 import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
+import io.github.mangi.eta.data.model.isStandaloneChatGpt
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.ui.components.GlassSpinnerPreference
@@ -106,14 +107,16 @@ internal fun ProviderConnectionFields(
             },
         )
     }
-    if (accountMode != null) {
+    val isLegacyChatGpt = ProviderAuthModes.isChatGpt(provider.authMode) && !provider.isStandaloneChatGpt
+    if (accountMode != null && (accountMode == ProviderAuthModes.XAI_GROK || isLegacyChatGpt)) {
+        val modes = listOf(ProviderAuthModes.API_KEY to "API Key", accountMode to accountLoginLabel)
         GlassSpinnerPreference(
             title = authMethodTitle,
-            items = listOf(DropdownItem(text = "API Key"), DropdownItem(text = accountLoginLabel)),
-            selectedIndex = if (oauth) 1 else 0,
+            items = modes.map { DropdownItem(text = it.second) },
+            selectedIndex = modes.indexOfFirst { it.first == draft.authMode }.coerceAtLeast(0),
             enabled = enabled,
             onSelectedIndexChange = { index ->
-                onDraftChange(draft.withAuthMode(if (index == 0) ProviderAuthModes.API_KEY else accountMode, provider))
+                onDraftChange(draft.withAuthMode(modes[index].first, provider))
             },
         )
     }

@@ -13,6 +13,13 @@ import org.json.JSONObject
 internal interface ProviderOAuthClient {
     fun login(provider: OAuthProvider, controller: AgentRunController,
         onPrompt: (ProviderLoginPrompt) -> Unit): ProviderCredential
+    fun login(
+        provider: OAuthProvider,
+        previous: ProviderCredential?,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential = login(provider, controller, onPrompt)
+
     fun refresh(credential: ProviderCredential, controller: AgentRunController): ProviderCredential
     fun revoke(credential: ProviderCredential, controller: AgentRunController): Boolean?
 }
@@ -22,14 +29,24 @@ internal class LiveProviderOAuthClient(
     private val verifier: OidcTokenVerifier = OidcTokenVerifier(http),
     private val monotonicNow: () -> Long = System::nanoTime,
     private val waitForPoll: (AgentRunController, Long) -> Unit = { controller, millis -> controller.awaitRetryDelay(millis) },
+    private val chatGptHostId: () -> String = { error("ChatGPT host ID is unavailable") },
+    private val chatGptCallbackReceiver: () -> LoopbackAuthorizationReceiver = { LoopbackAuthorizationReceiver(port = 0) },
     private val callbackReceiver: () -> LoopbackAuthorizationReceiver = { LoopbackAuthorizationReceiver() },
 ) : ProviderOAuthClient {
     override fun login(
         provider: OAuthProvider,
         controller: AgentRunController,
         onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential = login(provider, null, controller, onPrompt)
+
+    override fun login(
+        provider: OAuthProvider,
+        previous: ProviderCredential?,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
     ): ProviderCredential = when (provider) {
         OAuthProvider.OPENAI -> loginCodex(controller, onPrompt)
+        OAuthProvider.CHATGPT_PLAN -> loginChatGpt(previous, controller, onPrompt)
         OAuthProvider.XAI -> loginXai(controller, onPrompt)
     }
 
@@ -76,6 +93,50 @@ internal class LiveProviderOAuthClient(
             requireSuccess(response)
             credential(response.json, OAuthProvider.OPENAI, CodexOAuth.CLIENT_ID, nonce, controller, null,
                 defaultScopes = CodexOAuth.SCOPE.split(' ').toSet())
+        }
+    }
+
+    private fun loginChatGpt(
+        previous: ProviderCredential?,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential {
+        val state = randomValue()
+        val nonce = randomValue()
+        val pkceVerifier = randomValue()
+        val challenge = Base64.getUrlEncoder().withoutPadding().encodeToString(
+            MessageDigest.getInstance("SHA-256").digest(pkceVerifier.toByteArray(Charsets.US_ASCII)),
+        )
+        val receiver = try { chatGptCallbackReceiver() } catch (_: java.io.IOException) {
+            throw ProviderAuthException(
+                "oauth_callback_unavailable",
+                AppStrings.get(R.string.auth_err_callback_unavailable, "无法接收登录回调，请重试"),
+            )
+        }
+        return receiver.use {
+            val url = ChatGptPlanOAuth.authorizationUrl(
+                previous, chatGptHostId(), receiver.redirectUri, state, nonce, challenge,
+            )
+            controller.throwIfCancelled()
+            onPrompt(ProviderLoginPrompt(url))
+            val callback = receiver.awaitCallback(state, controller, returnToEta = true)
+            val clientId = previous?.clientId ?: callback.clientId
+            requireProtocol(clientId != null && ChatGptPlanOAuth.isIssuedClientId(clientId) &&
+                (callback.clientId == null || callback.clientId == clientId))
+            val issuedClientId = requireNotNull(clientId)
+            val response = http.post(OAuthProvider.CHATGPT_PLAN.tokenEndpoint, mapOf(
+                "grant_type" to "authorization_code",
+                "client_id" to issuedClientId,
+                "code" to callback.code,
+                "code_verifier" to pkceVerifier,
+                "redirect_uri" to receiver.redirectUri,
+                "resource" to ChatGptPlanOAuth.RESOURCE,
+            ), controller)
+            requireSuccess(response)
+            credential(
+                response.json, OAuthProvider.CHATGPT_PLAN, issuedClientId, nonce, controller, previous,
+                defaultScopes = ChatGptPlanOAuth.SCOPE.split(' ').toSet(),
+            )
         }
     }
 
@@ -142,7 +203,9 @@ internal class LiveProviderOAuthClient(
     override fun refresh(credential: ProviderCredential, controller: AgentRunController): ProviderCredential {
         val provider = OAuthProvider.fromAuthMode(credential.authMode)
         val form = mapOf("grant_type" to "refresh_token", "client_id" to credential.clientId,
-            "refresh_token" to credential.refreshToken)
+            "refresh_token" to credential.refreshToken).let {
+            if (provider == OAuthProvider.CHATGPT_PLAN) it + ("resource" to ChatGptPlanOAuth.RESOURCE) else it
+        }
         val response = http.post(provider.tokenEndpoint, form, controller)
         requireSuccess(response)
         return credential(response.json, provider, credential.clientId, null, controller, credential, refreshing = true)
@@ -177,7 +240,7 @@ internal class LiveProviderOAuthClient(
             verifier.verify(idToken, provider, clientId, nonce, controller)
         } else {
             requireProtocol(refreshing && previous != null)
-            VerifiedProviderIdentity(requireNotNull(previous!!.subject), previous.email, previous.displayName)
+            VerifiedProviderIdentity(requireNotNull(previous!!.subject), previous.email, previous.displayName, previous.avatarUrl)
         }
         if (previous?.subject != null && previous.subject != identity.subject) {
             throw ProviderAuthException(
@@ -186,8 +249,12 @@ internal class LiveProviderOAuthClient(
             )
         }
         val scope = json.optString("scope").takeIf { it.isNotBlank() && it != "null" }
-        val scopes = scope?.split(' ')?.filter(String::isNotBlank)?.toSet()
-            ?: if (refreshing) previous!!.scopes else defaultScopes
+        val scopes = when {
+            scope != null -> scope.split(' ').filter(String::isNotBlank).toSet()
+            provider == OAuthProvider.CHATGPT_PLAN && json.has("scope") -> emptySet()
+            refreshing -> previous!!.scopes
+            else -> defaultScopes
+        }
         val accountId = if (provider == OAuthProvider.OPENAI) CodexOAuth.accountId(accessToken) else null
         if (refreshing && previous?.accountId != accountId) {
             throw ProviderAuthException(
@@ -200,7 +267,8 @@ internal class LiveProviderOAuthClient(
             clientId = clientId,
             subject = identity.subject,
             email = identity.email,
-            displayName = identity.name,
+            displayName = identity.name ?: previous?.displayName,
+            avatarUrl = identity.avatarUrl ?: previous?.avatarUrl,
             accessToken = accessToken,
             refreshToken = json.optString("refresh_token").takeIf { it.isNotBlank() && it != "null" }
                 ?: if (refreshing) previous!!.refreshToken else "",

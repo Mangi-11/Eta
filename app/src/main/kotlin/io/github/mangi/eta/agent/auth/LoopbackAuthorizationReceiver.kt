@@ -11,11 +11,21 @@ import java.net.SocketTimeoutException
 import java.security.MessageDigest
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
+internal class LoopbackCallback(val code: String, val clientId: String?) {
+    override fun toString(): String = "LoopbackCallback(redacted)"
+}
+
 internal class LoopbackAuthorizationReceiver(port: Int = CodexOAuth.CALLBACK_PORT) : AutoCloseable {
     private val server = ServerSocket(port, 4, InetAddress.getByName("127.0.0.1")).apply { soTimeout = 1_000 }
     val redirectUri: String = "http://127.0.0.1:${server.localPort}/auth/callback"
 
-    fun awaitCode(state: String, controller: AgentRunController): String {
+    fun awaitCode(state: String, controller: AgentRunController): String = awaitCallback(state, controller).code
+
+    fun awaitCallback(
+        state: String,
+        controller: AgentRunController,
+        returnToEta: Boolean = false,
+    ): LoopbackCallback {
         val deadline = System.nanoTime() + 600_000_000_000L
         val binding = controller.register(server::close)
         try {
@@ -26,12 +36,13 @@ internal class LoopbackAuthorizationReceiver(port: Int = CodexOAuth.CALLBACK_POR
                     val socketBinding = controller.register(socket::close)
                     try {
                         val target = readRequest(socket)
-                        val result = validateCallback(target, state)
+                        val result = parseCallback(target, state)
                         try {
                             respond(
                                 socket,
                                 "200 OK",
                                 AppStrings.get(R.string.auth_callback_success_html, "授权已返回，请回到 Eta 完成登录。"),
+                                returnToEta,
                             )
                         } catch (_: java.io.IOException) {
                             // 浏览器可能在回调后立即关闭标签页，已验证的授权码仍交给 Eta 换码。
@@ -72,7 +83,9 @@ internal class LoopbackAuthorizationReceiver(port: Int = CodexOAuth.CALLBACK_POR
         }
     }
 
-    internal fun validateCallback(target: String, state: String): String {
+    internal fun validateCallback(target: String, state: String): String = parseCallback(target, state).code
+
+    internal fun parseCallback(target: String, state: String): LoopbackCallback {
         fun invalid(): Nothing = throw ProviderAuthException(
             "oauth_callback_invalid",
             AppStrings.get(R.string.auth_err_callback_invalid, "登录回调无效"),
@@ -95,7 +108,7 @@ internal class LoopbackAuthorizationReceiver(port: Int = CodexOAuth.CALLBACK_POR
             )
         }
         val code = value("code")?.takeIf { it.isNotBlank() && it.length <= 8_192 } ?: invalid()
-        return code
+        return LoopbackCallback(code, value("client_id"))
     }
 
     private fun readRequest(socket: Socket): String {
@@ -126,10 +139,29 @@ internal class LoopbackAuthorizationReceiver(port: Int = CodexOAuth.CALLBACK_POR
         )
     }
 
-    private fun respond(socket: Socket, status: String, message: String) {
-        val body = "<!doctype html><meta charset=utf-8><title>Eta</title><p>$message</p>".toByteArray(Charsets.UTF_8)
+    private fun respond(socket: Socket, status: String, message: String, returnToEta: Boolean = false) {
+        val html = if (returnToEta) {
+            val openEta = AppStrings.get(R.string.auth_callback_open_eta, "打开 Eta")
+            // The handoff only foregrounds Eta. The code stays on the verified loopback path.
+            val appUrl = "io.github.mangi.eta://auth/return"
+            """
+                <!doctype html>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <meta http-equiv="refresh" content="0;url=$appUrl">
+                <title>Eta</title>
+                <main style="max-width:28rem;margin:18vh auto;padding:1.5rem;text-align:center;font:1rem system-ui">
+                    <p>$message</p>
+                    <a href="$appUrl" style="display:inline-block;padding:.75rem 1.25rem;background:#2454ae;color:white;border-radius:1.5rem;text-decoration:none">$openEta</a>
+                </main>
+            """.trimIndent()
+        } else {
+            "<!doctype html><meta charset=utf-8><title>Eta</title><p>$message</p>"
+        }
+        val body = html.toByteArray(Charsets.UTF_8)
         val headers = "HTTP/1.1 $status\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: ${body.size}\r\n" +
-            "Cache-Control: no-store\r\nContent-Security-Policy: default-src 'none'\r\nConnection: close\r\n\r\n"
+            "Cache-Control: no-store\r\nReferrer-Policy: no-referrer\r\n" +
+            "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'\r\nConnection: close\r\n\r\n"
         socket.getOutputStream().apply { write(headers.toByteArray(Charsets.US_ASCII)); write(body); flush() }
     }
 

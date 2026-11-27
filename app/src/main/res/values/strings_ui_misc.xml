@@ -60,7 +60,7 @@
   <!-- Providers -->
   <string name="provider_i18n_builtin_bailian">Alibaba Bailian</string>
   <string name="provider_i18n_builtin_siliconflow">SiliconFlow</string>
-  <string name="provider_i18n_add_gemini">Add Gemini</string>
+  <string name="provider_i18n_add_gemini">Add Gemini API</string>
   <string name="provider_i18n_add_gemini_summary">Supports Google AI Studio and Vertex AI</string>
   <string name="provider_i18n_account_title">%1$s account</string>
   <string name="provider_i18n_login_loading">Checking sign-in status…</string>
@@ -249,4 +249,13 @@
   <string name="ui_misc_mcp_tools_enabled_header">%1$s · %2$d enabled</string>
   <string name="ui_misc_collapse_description">Collapse</string>
   <string name="ui_misc_expand_description">Expand</string>
+  <string name="provider_add_chatgpt">Sign in with ChatGPT</string>
+  <string name="provider_add_openai_compatible">Add OpenAI-Compatible API</string>
+  <string name="provider_add_anthropic">Add Anthropic API</string>
+  <string name="provider_add_gemini">Add Gemini API</string>
+  <string name="provider_more_title">More model providers</string>
+  <string name="provider_presets_title">Built-in presets</string>
+  <string name="provider_preset_models_fetching">Fetching models…</string>
+  <string name="provider_preset_models_failed">Could not fetch models</string>
+  <string name="provider_preset_models_empty">The provider returned no chat models.</string>
 </resources>

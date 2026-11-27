@@ -103,7 +103,10 @@ internal object RemoteModelFetcher {
                     profile == null && provider is AnthropicProviderSetting -> fetchAnthropic(provider, controller, client, credentials)
                     else -> fetchOpenAiCompatible(provider, controller, client, credentials)
                 }
-                val models = if (profile == ProviderConnectionProfile.OPENAI_CODEX) fetched else fetched.filter(::isChatCapableModel)
+                val models = when (profile) {
+                    ProviderConnectionProfile.OPENAI_CODEX, ProviderConnectionProfile.CHATGPT_PLAN -> fetched
+                    else -> fetched.filter(::isChatCapableModel)
+                }
                 controller.throwIfCancelled()
                 if (binding != null && !credentials.isCurrent(binding)) {
                     throw ProviderAuthException(
@@ -237,6 +240,7 @@ internal object RemoteModelFetcher {
         val body = executeJson(request, provider, controller, client, credentials)
         return when (profile) {
             ProviderConnectionProfile.OPENAI_CODEX -> parseCodexModels(body)
+            ProviderConnectionProfile.CHATGPT_PLAN -> CodexModelCatalog.parse(modelArray(body, "models"), planCatalog = true)
             ProviderConnectionProfile.XAI_GROK -> parseGrokModels(body) { count ->
                 AndroidAgentLogger.info("Provider catalog skipped unsupported protocols: count=$count")
             }

@@ -48,18 +48,61 @@ internal class ProviderCredentialSessions(
         onPrompt: (ProviderLoginPrompt) -> Unit): ProviderAccountSummary {
         val provider = OAuthProvider.fromAuthMode(authMode)
         val session = session(providerId)
-        val loginGeneration = session.stateLock.withLock { ++session.loginGeneration }
-        val credential = oauth.login(provider, controller, onPrompt)
+        val (loginGeneration, previous) = session.stateLock.withLock {
+            val previous = if (provider == OAuthProvider.CHATGPT_PLAN) {
+                storage.read(providerId)?.takeIf { it.authMode == authMode }
+            } else null
+            ++session.loginGeneration to previous
+        }
+        val credential = oauth.login(provider, previous, controller, onPrompt)
         controller.throwIfCancelled()
         val saved = session.stateLock.withLock {
             controller.throwIfCancelled()
             // 浏览器登录尚未成功时，原会话仍可刷新；取消登录不能丢掉已经轮换的凭据。
             requireGeneration(session.loginGeneration, loginGeneration)
+            val existing = storage.read(providerId)
+            if (provider == OAuthProvider.OPENAI && existing?.authMode == authMode &&
+                ((!existing.accountId.isNullOrBlank() && existing.accountId != credential.accountId) ||
+                    (existing.subject != null && existing.subject != credential.subject))
+            ) {
+                throw ProviderAuthException(
+                    "oauth_account_mismatch",
+                    AppStrings.get(R.string.auth_err_account_mismatch, "登录账号与原账号不一致，请新建服务商连接"),
+                )
+            }
             storage.write(providerId, credential)
             ++session.generation
             credential
         }
         return saved.summary()
+    }
+
+    fun authorize(
+        authMode: String,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential {
+        return oauth.login(OAuthProvider.fromAuthMode(authMode), null, controller, onPrompt)
+    }
+
+    fun matchesRegistration(providerId: String, credential: ProviderCredential): Boolean {
+        val session = session(providerId)
+        return session.stateLock.withLock {
+            val saved = storage.read(providerId) ?: return@withLock false
+            saved.authMode == credential.authMode &&
+                saved.subject != null && saved.subject == credential.subject &&
+                saved.clientId == credential.clientId &&
+                (saved.authMode != OAuthProvider.OPENAI.authMode || saved.accountId == credential.accountId)
+        }
+    }
+
+    fun saveCredential(providerId: String, credential: ProviderCredential) {
+        val session = session(providerId)
+        session.stateLock.withLock {
+            storage.write(providerId, credential)
+            ++session.loginGeneration
+            ++session.generation
+        }
     }
 
     fun accessToken(providerId: String, authMode: String, controller: AgentRunController,

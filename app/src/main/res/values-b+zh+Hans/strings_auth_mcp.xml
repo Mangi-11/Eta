@@ -22,6 +22,7 @@
     <string name="auth_err_key_unavailable">登录凭据的密钥不可用，请退出后重新登录</string>
     <string name="auth_err_storage_failed">无法读写登录凭据，请退出后重新登录</string>
     <string name="auth_callback_success_html">授权已返回，请回到 Eta 完成登录。</string>
+    <string name="auth_callback_open_eta">打开 Eta</string>
     <string name="auth_callback_failed_html">授权未完成，请回到 Eta 重试。</string>
     <string name="auth_err_login_timeout">登录已超时，请重试</string>
     <string name="auth_err_callback_unavailable">无法接收登录回调，请重试</string>
