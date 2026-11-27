@@ -85,7 +85,7 @@ class AgentPromptBuilderTest {
                 assertFalse(identity.contains(config.modelDisplayName))
                 if (modelId != config.model) assertFalse(identity.contains(config.model))
                 if (providerPrompt.isNotBlank()) {
-                    assertEquals(providerPrompt, messages.getJSONObject(0).getString("content"))
+                    assertEquals(providerPrompt, messages.getJSONObject(1).getString("content"))
                 }
             }
         }
@@ -115,10 +115,10 @@ class AgentPromptBuilderTest {
         )
 
         assertEquals(
-            listOf("system", "system", "system", "system", "user", "assistant", "user"),
+            listOf("system", "system", "system", "system", "system", "user", "assistant", "user"),
             messages.roles(),
         )
-        assertEquals("自定义系统约束", messages.getJSONObject(0).getString("content"))
+        assertEquals("自定义系统约束", messages.getJSONObject(1).getString("content"))
         assertTrue(messages.systemContents().any { it.contains("只有系统保护后端可用时才会请求有限重绑") })
         assertTrue(messages.systemContents().any { it.contains("不要改用坐标或 Shell 重放") })
         assertTrue(messages.systemContents().any { it.contains("通用 GUI 工具完成输入和点击发送") })
@@ -146,15 +146,15 @@ class AgentPromptBuilderTest {
         assertTrue(messages.systemContents().any { it.contains("合法且克制的 GitHub Flavored Markdown") })
         assertTrue(messages.systemContents().any { it.contains("不用整句粗体冒充标题") })
         assertTrue(messages.systemContents().any { it.contains("表格前后留空行") })
-        assertTrue(messages.getJSONObject(2).getString("content").contains("只需 command"))
-        assertTrue(messages.getJSONObject(2).getString("content").contains("同一轮最多读取一张"))
-        assertTrue(messages.getJSONObject(2).getString("content").contains("观察返回内容后再读下一张"))
-        assertTrue(messages.getJSONObject(3).getString("content").contains("可调用 subagent 派发子智能体"))
+        assertTrue(messages.getJSONObject(3).getString("content").contains("只需 command"))
+        assertTrue(messages.getJSONObject(3).getString("content").contains("同一轮最多读取一张"))
+        assertTrue(messages.getJSONObject(3).getString("content").contains("观察返回内容后再读下一张"))
+        assertTrue(messages.getJSONObject(4).getString("content").contains("可调用 subagent 派发子智能体"))
         assertFalse(messages.systemContents().any { it.contains("网页浏览、读取") })
-        assertEquals("旧问题", messages.getJSONObject(4).getString("content"))
-        assertEquals("旧回答", messages.getJSONObject(5).getString("content"))
+        assertEquals("旧问题", messages.getJSONObject(5).getString("content"))
+        assertEquals("旧回答", messages.getJSONObject(6).getString("content"))
 
-        val currentContent = messages.getJSONObject(6).getJSONArray("content")
+        val currentContent = messages.getJSONObject(7).getJSONArray("content")
         assertEquals("当前问题", currentContent.getJSONObject(0).getString("text"))
         assertEquals(
             image.reference,
@@ -187,18 +187,18 @@ class AgentPromptBuilderTest {
             skillContext = SkillContext(installedSkills = listOf(skill)),
         )
 
-        assertEquals(listOf("system", "system", "system", "system", "user"), messages.roles())
+        assertEquals(listOf("system", "system", "system", "system", "system", "user"), messages.roles())
         val systemContents = messages.systemContents()
         assertTrue(systemContents.any { it.contains("browser_use") })
         assertFalse(systemContents.any { it.contains("只需 command") })
-        assertTrue(messages.getJSONObject(2).getString("content").contains("可调用 subagent 派发子智能体"))
+        assertTrue(messages.getJSONObject(3).getString("content").contains("可调用 subagent 派发子智能体"))
         val skillMessage = systemContents.single { it.contains("id=screen-audit") }
-        assertEquals(skillMessage, messages.getJSONObject(3).getString("content"))
+        assertEquals(skillMessage, messages.getJSONObject(4).getString("content"))
         assertTrue(skillMessage.contains("path=/skills/screen-audit/SKILL.md"))
         assertTrue(skillMessage.contains("capabilities=scripts, assets"))
         assertTrue(skillMessage.contains("description=检查屏幕 并输出 结论"))
         assertTrue(skillMessage.contains("先调用 skills_read"))
-        assertEquals("读取网页", messages.getJSONObject(4).getString("content"))
+        assertEquals("读取网页", messages.getJSONObject(5).getString("content"))
     }
 
     @Test

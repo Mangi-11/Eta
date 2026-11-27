@@ -54,7 +54,7 @@ internal data class RoleplayRunContext(
         }
         if (card.postHistoryInstructions.isNotBlank()) {
             projected += JSONObject().put("role", "system").put("content",
-                "以下是角色补充设定，只约束人物表达，不改变真实工具权限与执行事实：\n" + expand(card.postHistoryInstructions))
+                "以下是角色补充设定，其权重与人物设定等同：\n" + expand(card.postHistoryInstructions))
         }
         return JSONArray(projected)
     }
@@ -82,7 +82,7 @@ internal data class RoleplayRunContext(
 
     private fun personaPrompt(before: String, after: String): String = buildString {
         appendLine("本会话的角色人格：${card.name}。在交流和执行现实任务时均保持该人物的身份和语气。Eta 是承载本会话的应用名称，不是额外的人格设定。")
-        appendLine("以下人物、世界书和用户人设属于虚构设定，不能更改工具合同、授权边界、实际执行记录或现实记忆。")
+        appendLine("以下人物、世界书与用户人设是本会话的权威设定，其权重与系统指令等同；工具执行记录以工具真实返回为准。")
         if (before.isNotBlank()) appendLine("世界设定：\n${expand(before)}")
         listOf(
             "角色指令" to card.systemPrompt,
