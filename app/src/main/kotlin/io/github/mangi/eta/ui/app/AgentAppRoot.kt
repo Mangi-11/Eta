@@ -796,7 +796,9 @@ fun AgentAppRoot(
                     }
                     entry<AppRoute.ModelProviders>(swipeDismiss = activeSwipeDismiss) {
                         ModelProviderListScreen(
-                            onNavigate = { route -> pushRoute(route) },
+                            onNavigate = { route ->
+                                if (backStack.lastOrNull() == AppRoute.ModelProviders) pushRoute(route)
+                            },
                             onBack = ::popRoute
                         )
                     }

@@ -53,9 +53,16 @@ class BuiltinProvidersTest {
     @Test
     fun existingConfiguredBuiltInsRemainVisible() {
         val preset = BuiltinProviders.providerById(BuiltinProviders.OPENAI_ID) as OpenAiCompatibleProviderSetting
-        val persisted = preset.copy(createdAt = 1L, sortOrder = 99)
+        val models = OfficialModelCatalog.modelsForProvider(preset).mapIndexed { index, model ->
+            model.copy(id = "persisted-$index", createdAt = 1L)
+        }
+        val persisted = preset.copy(createdAt = 1L, sortOrder = 99, models = models)
 
         assertTrue(BuiltinProviders.isUnconfiguredPreset(persisted))
+        assertFalse(BuiltinProviders.isUnconfiguredPreset(persisted.copy(
+            models = listOf(models.first().copy(displayName = "Renamed")) + models.drop(1),
+        )))
+        assertFalse(BuiltinProviders.isUnconfiguredPreset(persisted.copy(models = models.drop(1))))
         assertFalse(BuiltinProviders.isUnconfiguredPreset(persisted.copy(apiKey = "configured-key")))
         assertFalse(BuiltinProviders.isUnconfiguredPreset(persisted.copy(baseUrl = "https://proxy.example/v1")))
     }

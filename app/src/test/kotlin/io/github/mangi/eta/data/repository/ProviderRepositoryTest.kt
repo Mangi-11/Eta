@@ -14,6 +14,7 @@ import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.model.withApiKey
 import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.provider.OfficialModelCatalog
 import io.github.mangi.eta.ui.model.AgentModelPickerProjector
@@ -45,6 +46,28 @@ class ProviderRepositoryTest {
             SettingsDataStore.setSelection(providerId = null, modelId = null)
             SettingsDataStore.setOfficialModelCatalogRevision(0)
         }
+    }
+
+    @Test
+    fun newAccountReplacesUnconfiguredDefaultButPreservesConfiguredSelection() = runBlocking {
+        ProviderRepository.ensureBuiltInsMerged()
+        val default = requireNotNull(ProviderRepository.providerById(BuiltinProviders.OPENAI_ID))
+        assertTrue(BuiltinProviders.isUnconfiguredPreset(default))
+        val account = ProviderRepository.addProvider(OpenAiCompatibleProviderSetting(
+            id = "new-account", name = "Account", baseUrl = "https://api.openai.com/v1",
+            authMode = ProviderAuthModes.CHATGPT_PLAN,
+            models = listOf(Model(id = "new-account-model", modelId = "fixture-model", displayName = "Model")),
+        ))
+
+        RuntimeConfigRepository.setSelectedProviderId(default.id)
+        RuntimeConfigRepository.selectNewAccountIfCurrentUnavailable(account.id)
+        assertEquals(account.id, SettingsDataStore.settings().selectedProviderId)
+        assertEquals("new-account-model", SettingsDataStore.settings().selectedModelId)
+
+        ProviderRepository.updateProvider(default.withApiKey("fixture-key"))
+        RuntimeConfigRepository.setSelectedProviderId(default.id)
+        RuntimeConfigRepository.selectNewAccountIfCurrentUnavailable(account.id)
+        assertEquals(default.id, SettingsDataStore.settings().selectedProviderId)
     }
 
     @Test

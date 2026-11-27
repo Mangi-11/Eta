@@ -249,7 +249,7 @@ class ProviderLoginStoreTest {
             return accountSave()
         }
 
-        override suspend fun syncModels(providerId: String, authMode: String): Int {
+        override suspend fun syncModels(providerId: String, authMode: String, newlyAdded: Boolean): Int {
             assertEquals(provider.authMode, authMode)
             calls += "sync"
             syncError?.let { throw it }

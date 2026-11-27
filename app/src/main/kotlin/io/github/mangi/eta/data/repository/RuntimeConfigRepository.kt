@@ -1,6 +1,7 @@
 package io.github.mangi.eta.data.repository
 
 import android.content.SharedPreferences
+import io.github.mangi.eta.agent.auth.ProviderAuthException
 import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.data.datastore.SettingsDataStore
@@ -21,6 +22,7 @@ import io.github.mangi.eta.data.model.SubagentSettings
 import io.github.mangi.eta.data.model.enabledModel
 import io.github.mangi.eta.data.model.runtimeProviderType
 import io.github.mangi.eta.data.model.selectedOrFirstModel
+import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.provider.GeminiModelCapabilities
 import io.github.mangi.eta.data.provider.ProviderSourceRegistry
 import io.github.mangi.eta.data.provider.ProviderConnectionProfile
@@ -215,6 +217,28 @@ internal object RuntimeConfigRepository {
     suspend fun selectedProvider(): ProviderSetting? {
         val settings = ProviderRepository.repairSelection()
         return settings.selectedProviderId?.let { ProviderRepository.providerById(it) }
+    }
+
+    suspend fun selectNewAccountIfCurrentUnavailable(providerId: String) {
+        val provider = ProviderRepository.providerById(providerId) ?: return
+        if (!provider.isEnabled || provider.models.none { it.isEnabled }) return
+        val current = selectedProvider()
+        if (current?.id == providerId) return
+        val currentUsable = current != null && current.models.any { it.isEnabled } && when {
+            ProviderAuthModes.isOAuth(current.authMode) -> {
+                val account = try {
+                    ProviderCredentialRepository.account(current.id, current.authMode)
+                } catch (_: ProviderAuthException) {
+                    null
+                }
+                account != null && !account.needsReauthentication && account.planEnabled
+            }
+            else -> current.apiKey.isNotBlank() || !current.isBuiltIn ||
+                BuiltinProviders.providerById(current.id)?.baseUrl != current.baseUrl
+        }
+        if (!currentUsable) {
+            setSelectedProviderId(providerId)
+        }
     }
 
     suspend fun setSelectedProviderId(id: String?) {

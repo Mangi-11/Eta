@@ -365,6 +365,14 @@ private fun ProviderConfigTab(
                     val built = draft.toProvider(provider)
                     if (isNew) {
                         val seeded = when {
+                            built is GeminiProviderSetting && built.isVertexAi -> {
+                                if (built.models.isEmpty()) {
+                                    val presets = OfficialModelCatalog.modelsForProvider(built).map { model ->
+                                        model.copy(id = ProviderRepository.newId(), isBuiltIn = false)
+                                    }
+                                    built.withModels(presets)
+                                } else built
+                            }
                             isPresetCreation -> {
                                 isFetchingModels = true
                                 val fetched = RemoteModelFetcher.fetch(built).getOrThrow()
@@ -379,12 +387,6 @@ private fun ProviderConfigTab(
                                 }
                                 isFetchingModels = false
                                 built.withModels(models)
-                            }
-                            built is GeminiProviderSetting && built.isVertexAi && built.models.isEmpty() -> {
-                                val presets = OfficialModelCatalog.modelsForProvider(built).map { model ->
-                                    model.copy(id = ProviderRepository.newId(), isBuiltIn = false)
-                                }
-                                built.withModels(presets)
                             }
                             else -> built
                         }

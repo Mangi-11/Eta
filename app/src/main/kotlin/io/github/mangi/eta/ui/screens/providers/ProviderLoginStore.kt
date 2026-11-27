@@ -120,7 +120,7 @@ internal class ProviderLoginStore(
                 mutableState.value = mutableState.value.copy(addedProviderId = savedId, account = account)
                 savedId
             }
-            finishLogin(id, mode, account)
+            finishLogin(id, mode, account, newlyAdded = true)
         }
     }
 
@@ -134,11 +134,16 @@ internal class ProviderLoginStore(
         }
     }
 
-    private suspend fun finishLogin(id: String, authMode: String, account: ProviderAccountSummary) {
+    private suspend fun finishLogin(
+        id: String,
+        authMode: String,
+        account: ProviderAccountSummary,
+        newlyAdded: Boolean = false,
+    ) {
         mutableState.value = mutableState.value.copy(account = account, prompt = null, phase = ProviderLoginPhase.SyncingModels)
         if (authMode == ProviderAuthModes.CHATGPT_PLAN && !account.planEnabled) return
         try {
-            val count = withContext(ioDispatcher) { operations.syncModels(id, authMode) }
+            val count = withContext(ioDispatcher) { operations.syncModels(id, authMode, newlyAdded) }
             mutableState.value = mutableState.value.copy(
                 message = AppStrings.quantity(
                     R.plurals.provider_i18n_login_synced_models,
@@ -266,7 +271,7 @@ internal interface ProviderLoginOperations {
     ): ProviderCredential
     suspend fun saveChatGptAccount(credential: ProviderCredential, fallbackName: String): String
     suspend fun saveXaiAccount(provider: ProviderSetting, credential: ProviderCredential): String
-    suspend fun syncModels(providerId: String, authMode: String): Int
+    suspend fun syncModels(providerId: String, authMode: String, newlyAdded: Boolean): Int
     fun disconnect(providerId: String, authMode: String, controller: AgentRunController): Boolean?
 }
 
@@ -298,7 +303,7 @@ private object RepositoryProviderLoginOperations : ProviderLoginOperations {
     override suspend fun saveXaiAccount(provider: ProviderSetting, credential: ProviderCredential): String =
         ProviderRepository.saveXaiAccount(provider, credential)
 
-    override suspend fun syncModels(providerId: String, authMode: String): Int {
+    override suspend fun syncModels(providerId: String, authMode: String, newlyAdded: Boolean): Int {
         val provider = requireNotNull(ProviderRepository.providerById(providerId)) {
             AppStrings.get(R.string.provider_i18n_connection_missing, "服务商连接不存在")
         }
@@ -310,6 +315,9 @@ private object RepositoryProviderLoginOperations : ProviderLoginOperations {
         }
         val catalog = RemoteModelFetcher.fetchCatalog(provider).getOrThrow()
         val result = ModelRepository.syncRemoteCatalog(catalog)
+        if (newlyAdded && result.applied) {
+            RuntimeConfigRepository.selectNewAccountIfCurrentUnavailable(providerId)
+        }
         RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
         return result.fetchedCount
     }

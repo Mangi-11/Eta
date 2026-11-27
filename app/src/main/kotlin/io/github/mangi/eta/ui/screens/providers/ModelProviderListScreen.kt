@@ -41,7 +41,6 @@ import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.components.DialogActions
 import io.github.mangi.eta.ui.app.LocalGlassPageBackdrop
 import io.github.mangi.eta.ui.components.ScaffoldPage
-import io.github.mangi.eta.ui.components.TopLayer
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
 import io.github.mangi.eta.ui.layout.WidePageContent
 import io.github.mangi.eta.ui.layout.horizontalCutoutPadding
@@ -248,7 +247,6 @@ private fun AddProviderMenu(onNavigate: (AppRoute) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val anchor = rememberGlassPopupAnchor()
     val backdrop = LocalGlassPageBackdrop.current
-    val popupBackdrop = currentGlassOverlayBackdrop()
     val label = stringResource(R.string.ui_add_new_provider_74df54)
     val actions = listOf(
         R.string.provider_add_chatgpt to AppRoute.ModelProviderNew(NewProviderType.ChatGpt),
@@ -258,41 +256,42 @@ private fun AddProviderMenu(onNavigate: (AppRoute) -> Unit) {
         R.string.provider_more_title to AppRoute.MoreModelProviders,
     )
 
-    WidePageContent { sidePadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .horizontalCutoutPadding()
-                .imePadding()
-                .windowInsetsPadding(rememberFloatingBottomBarInsets(fixedBottomPadding = 16.dp))
-                .padding(end = sidePadding + 16.dp, bottom = 16.dp),
-            contentAlignment = Alignment.BottomEnd,
-        ) {
-            GlassFloatingActionButton(
-                onClick = { expanded = true },
-                backdrop = backdrop,
-                modifier = Modifier.glassPopupAnchor(
-                    anchor = anchor,
-                    cornerRadius = GlassFloatingActionButtonDefaults.Size / 2,
-                    floating = true,
-                ),
+    Box(Modifier.fillMaxSize()) {
+        WidePageContent { sidePadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .horizontalCutoutPadding()
+                    .imePadding()
+                    .windowInsetsPadding(rememberFloatingBottomBarInsets(fixedBottomPadding = 16.dp))
+                    .padding(end = sidePadding + 16.dp, bottom = 16.dp),
+                contentAlignment = Alignment.BottomEnd,
             ) {
-                Icon(
-                    imageVector = MiuixIcons.Glass.Add,
-                    contentDescription = label,
-                    tint = MiuixTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(28.dp).glassPopupAnchorContent(anchor),
-                )
+                GlassFloatingActionButton(
+                    onClick = { expanded = true },
+                    backdrop = backdrop,
+                    modifier = Modifier.glassPopupAnchor(
+                        anchor = anchor,
+                        cornerRadius = GlassFloatingActionButtonDefaults.Size / 2,
+                        floating = true,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Glass.Add,
+                        contentDescription = label,
+                        tint = MiuixTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(28.dp).glassPopupAnchorContent(anchor),
+                    )
+                }
             }
         }
-    }
 
-    TopLayer {
+        // Keep the popup in the outgoing page's navigation layer.
         GlassTransformPopup(
             show = expanded,
             onDismissRequest = { expanded = false },
             anchor = anchor,
-            backdrop = popupBackdrop,
+            backdrop = backdrop,
             horizontalAlignment = Alignment.End,
             anchorContent = {
                 Icon(
@@ -307,8 +306,10 @@ private fun AddProviderMenu(onNavigate: (AppRoute) -> Unit) {
                 GlassPopupItem(
                     text = stringResource(labelRes),
                     onClick = {
-                        expanded = false
-                        onNavigate(route)
+                        if (expanded) {
+                            expanded = false
+                            onNavigate(route)
+                        }
                     },
                 )
             }

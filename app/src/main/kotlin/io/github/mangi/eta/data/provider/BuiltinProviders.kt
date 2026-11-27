@@ -160,9 +160,16 @@ internal object BuiltinProviders {
 
     fun isUnconfiguredPreset(provider: ProviderSetting): Boolean {
         if (!provider.isBuiltIn || provider.models.any { it.source != ModelSource.CATALOG }) return false
-        val defaults = providerById(provider.id)?.toEntity() ?: return false
+        val preset = providerById(provider.id) ?: return false
+        val defaults = preset.toEntity()
         val stored = provider.toEntity().copy(createdAt = defaults.createdAt, sortOrder = defaults.sortOrder)
-        return stored == defaults
+        if (stored != defaults) return false
+
+        val catalog = OfficialModelCatalog.modelsForProvider(preset)
+        if (provider.models.size != catalog.size) return false
+        return provider.models.sortedBy { it.sortOrder }.zip(catalog).all { (model, default) ->
+            model.copy(id = default.id, createdAt = default.createdAt) == default
+        }
     }
 
     /**
