@@ -45,7 +45,8 @@ internal data class ProviderCredential(
 ) {
     val planEnabled: Boolean
         get() = when (authMode) {
-            ProviderAuthModes.OPENAI_CHATGPT -> clientId == CodexOAuth.CLIENT_ID && !accountId.isNullOrBlank()
+            ProviderAuthModes.OPENAI_CHATGPT -> accessToken.isNotBlank() &&
+                clientId == CodexOAuth.CLIENT_ID && !accountId.isNullOrBlank()
             ProviderAuthModes.CHATGPT_PLAN -> ChatGptPlanOAuth.PLAN_SCOPE in scopes
             ProviderAuthModes.XAI_GROK -> "grok-cli:access" in scopes
             else -> false
@@ -54,7 +55,8 @@ internal data class ProviderCredential(
     fun summary() = ProviderAccountSummary(email, displayName, subject == null || accessToken.isBlank() ||
         (authMode == ProviderAuthModes.OPENAI_CHATGPT && !planEnabled), planEnabled, avatarUrl)
 
-    fun withoutTokens() = copy(accessToken = "", refreshToken = "", idToken = "", accountId = null, expiresAt = 0, scopes = emptySet())
+    // Keep the workspace identity so a replacement grant can be matched after expiry.
+    fun withoutTokens() = copy(accessToken = "", refreshToken = "", idToken = "", expiresAt = 0, scopes = emptySet())
 
     override fun toString(): String = "ProviderCredential(redacted)"
 }

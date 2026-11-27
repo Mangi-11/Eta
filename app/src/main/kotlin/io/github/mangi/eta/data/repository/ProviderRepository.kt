@@ -85,10 +85,17 @@ internal object ProviderRepository {
     suspend fun providerByModelId(modelId: String): ProviderSetting? =
         dao().providerByModelId(modelId)?.toDomain()
 
-    suspend fun addProvider(provider: ProviderSetting): ProviderSetting {
+    suspend fun addProvider(provider: ProviderSetting, credential: ProviderCredential? = null): ProviderSetting {
+        require(credential == null || provider.authMode == credential.authMode)
         val added = mutationMutex.withLock {
             val nextOrder = (allProviders().maxOfOrNull { it.sortOrder } ?: -1) + 1
-            provider.withSortOrder(nextOrder).also { replaceProvider(it) }
+            provider.withSortOrder(nextOrder).also {
+                if (credential == null) {
+                    replaceProvider(it)
+                } else {
+                    withContext(NonCancellable) { insertAuthorizedProvider(it, credential) }
+                }
+            }
         }
         repairSelection()
         return added
@@ -108,7 +115,7 @@ internal object ProviderRepository {
                 ?: fallbackName
             withContext(NonCancellable) {
                 if (existing != null) {
-                    ProviderCredentialRepository.saveChatGptCredential(existing.id, credential)
+                    ProviderCredentialRepository.saveCredential(existing.id, credential)
                     // SIWC is stored as a custom or OpenAI-compatible provider.
                     val renamed = when (existing) {
                         is CustomProviderSetting -> existing.copy(name = name)
@@ -127,13 +134,7 @@ internal object ProviderRepository {
                         authMode = profile.authMode,
                         sortOrder = (providers.maxOfOrNull { it.sortOrder } ?: -1) + 1,
                     )
-                    ProviderCredentialRepository.saveChatGptCredential(provider.id, credential)
-                    try {
-                        replaceProvider(provider)
-                    } catch (error: Exception) {
-                        ProviderCredentialRepository.forget(provider.id)
-                        throw error
-                    }
+                    insertAuthorizedProvider(provider, credential)
                     provider.id
                 }
             }
@@ -327,6 +328,16 @@ internal object ProviderRepository {
             "ProviderRepository.init(context) must be called in Application.onCreate()"
         }
         return applicationContext
+    }
+
+    private suspend fun insertAuthorizedProvider(provider: ProviderSetting, credential: ProviderCredential) {
+        ProviderCredentialRepository.saveCredential(provider.id, credential)
+        try {
+            replaceProvider(provider)
+        } catch (error: Exception) {
+            ProviderCredentialRepository.forget(provider.id)
+            throw error
+        }
     }
 
     private suspend fun replaceProvider(provider: ProviderSetting) {

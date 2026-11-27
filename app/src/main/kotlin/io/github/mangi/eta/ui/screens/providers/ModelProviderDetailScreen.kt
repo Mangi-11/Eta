@@ -162,14 +162,7 @@ internal fun ModelProviderDetailScreen(
         stateSaver = ProviderConfigDraftSaver,
     ) {
         mutableStateOf(
-            ProviderConfigDraft.from(initial).let { base ->
-                when {
-                    isNew -> base.copy(name = providerDisplayName)
-                    ProviderAuthModes.isChatGpt(initial.authMode) && !initial.isStandaloneChatGpt ->
-                        base.withAuthMode(ProviderAuthModes.API_KEY, initial).copy(name = providerDisplayName)
-                    else -> base.copy(name = providerDisplayName)
-                }
-            },
+            ProviderConfigDraft.from(initial).copy(name = providerDisplayName),
         )
     }
     val title = if (isNew) stringResource(R.string.page_create_new_provider_36cab9) else providerDisplayName
@@ -307,7 +300,9 @@ private fun ProviderConfigTab(
     var creationCommitted by remember { mutableStateOf(false) }
     var loginInProgress by rememberSaveable(provider.id) { mutableStateOf(false) }
     var pendingInterruption by remember(provider.id) { mutableStateOf(loginInProgress) }
-    val loginStore = remember(provider.id, scope) { ProviderLoginStore(provider.id, scope) }
+    val loginStore = remember(provider.id, isNew, scope) {
+        ProviderLoginStore(provider.id.takeUnless { isNew }, scope)
+    }
     val loginState by loginStore.state.collectAsStateWithLifecycle()
     var browserError by remember(loginState.prompt) { mutableStateOf<String?>(null) }
     val openBrowser: () -> Unit = {
@@ -346,7 +341,14 @@ private fun ProviderConfigTab(
             }
         }
     }
-    val missingRequiredApiKey = isPresetCreation && draft.apiKey.isBlank()
+    val creatingWithAccount = isNew && ProviderAuthModes.isOAuth(draft.authMode)
+    val newAccountProviderId = loginState.addedProviderId
+    LaunchedEffect(newAccountProviderId, loginState.isBusy, loginState.modelSyncFailed) {
+        if (newAccountProviderId != null && !loginState.isBusy && !loginState.modelSyncFailed) {
+            onCreated(newAccountProviderId)
+        }
+    }
+    val missingRequiredApiKey = isPresetCreation && !creatingWithAccount && draft.apiKey.isBlank()
     val onSaveOrCreate: () -> Unit = save@{
         if (isWorking || creationCommitted) return@save
         val validationError = if (missingRequiredApiKey) {
@@ -458,8 +460,7 @@ private fun ProviderConfigTab(
                     draft = draft,
                     onDraftChange = onDraftChange,
                     loginState = loginState,
-                    allowAccountLogin = !isPresetCreation,
-                    enabled = !isWorking && !loginState.isBusy,
+                    enabled = !isWorking && !loginState.isBusy && newAccountProviderId == null,
                     browserError = browserError,
                     onOpenBrowser = openBrowser,
                     onManageUsage = {
@@ -475,7 +476,8 @@ private fun ProviderConfigTab(
                         if (validationError != null) {
                             status = context.getString(R.string.provider_error, validationError)
                         } else {
-                            loginStore.login(draft.toProvider(provider))
+                            val updated = draft.toProvider(provider)
+                            if (isNew) loginStore.addXaiAccount(updated) else loginStore.login(updated)
                         }
                     },
                     onDisconnect = {
@@ -545,13 +547,22 @@ private fun ProviderConfigTab(
                     .padding(top = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                TextButton(
-                    text = saveText,
-                    enabled = !isWorking && !loginState.isBusy && !creationCommitted && !missingRequiredApiKey,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    onClick = onSaveOrCreate,
-                )
+                if (newAccountProviderId != null && loginState.modelSyncFailed && !loginState.isBusy) {
+                    TextButton(
+                        text = stringResource(R.string.route_provider_details),
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onCreated(newAccountProviderId) },
+                    )
+                }
+                if (!creatingWithAccount) {
+                    TextButton(
+                        text = saveText,
+                        enabled = !isWorking && !loginState.isBusy && !creationCommitted && !missingRequiredApiKey,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = onSaveOrCreate,
+                    )
+                }
                 if (missingRequiredApiKey) {
                     Text(
                         text = stringResource(R.string.repo_err_api_key_required),

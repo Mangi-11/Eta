@@ -39,7 +39,6 @@ internal fun ProviderConnectionFields(
     draft: ProviderConfigDraft,
     onDraftChange: (ProviderConfigDraft) -> Unit,
     loginState: ProviderLoginState,
-    allowAccountLogin: Boolean,
     enabled: Boolean,
     browserError: String?,
     onOpenBrowser: () -> Unit,
@@ -107,7 +106,7 @@ internal fun ProviderConnectionFields(
             },
         )
     }
-    if (allowAccountLogin && accountMode == ProviderAuthModes.XAI_GROK) {
+    if (accountMode == ProviderAuthModes.XAI_GROK) {
         val modes = listOf(ProviderAuthModes.API_KEY to "API Key", accountMode to accountLoginLabel)
         GlassSpinnerPreference(
             title = authMethodTitle,

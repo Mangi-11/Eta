@@ -59,17 +59,17 @@ internal object ProviderCredentialRepository {
         onPrompt: (ProviderLoginPrompt) -> Unit): ProviderAccountSummary =
         sessions().login(providerId, authMode, controller, onPrompt)
 
-    fun authorizeChatGpt(
+    fun authorize(
         authMode: String,
         controller: AgentRunController,
         onPrompt: (ProviderLoginPrompt) -> Unit,
-    ): ProviderCredential = sessions().authorizeChatGpt(authMode, controller, onPrompt)
+    ): ProviderCredential = sessions().authorize(authMode, controller, onPrompt)
 
     fun matchesChatGptRegistration(providerId: String, credential: ProviderCredential): Boolean =
         sessions().matchesChatGptRegistration(providerId, credential)
 
-    fun saveChatGptCredential(providerId: String, credential: ProviderCredential) =
-        sessions().saveChatGptCredential(providerId, credential)
+    fun saveCredential(providerId: String, credential: ProviderCredential) =
+        sessions().saveCredential(providerId, credential)
 
     fun accessToken(providerId: String, authMode: String, controller: AgentRunController,
         rejectedAccessToken: String? = null): String =

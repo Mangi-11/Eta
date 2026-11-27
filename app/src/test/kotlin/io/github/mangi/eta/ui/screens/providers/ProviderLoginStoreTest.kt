@@ -131,6 +131,7 @@ class ProviderLoginStoreTest {
             val done = withTimeout(2_000) { store.state.first { !it.isBusy } }
             assertEquals(listOf("save", "login", "sync"), operations.calls.toList())
             assertEquals("已登录，已同步 2 个远端模型", done.message)
+            assertFalse(done.modelSyncFailed)
         } finally { store.close() }
     }
 
@@ -143,6 +144,7 @@ class ProviderLoginStoreTest {
             val state = withTimeout(2_000) { store.state.first { !it.isBusy } }
             assertEquals(account, state.account)
             assertEquals("已登录，模型同步失败，请在模型页重新拉取", state.message)
+            assertTrue(state.modelSyncFailed)
             assertEquals(listOf("save", "login", "sync"), operations.calls.toList())
         } finally { store.close() }
     }

@@ -31,6 +31,7 @@ internal fun ChatGptProviderLoginScreen(
     val state by store.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val fallbackName = stringResource(R.string.provider_i18n_account_title, "ChatGPT")
+    val codexFallbackName = stringResource(R.string.provider_i18n_account_title, "Codex")
     var browserError by remember(state.prompt) { mutableStateOf<String?>(null) }
     val openBrowser: () -> Unit = {
         state.prompt?.let { browserError = openProviderAccountLink(context, it.authorizationUrl) }
@@ -44,14 +45,14 @@ internal fun ChatGptProviderLoginScreen(
     }
 
     val addedProviderId = state.addedProviderId
-    LaunchedEffect(addedProviderId, state.isBusy) {
-        if (addedProviderId != null && !state.isBusy) onProviderAdded(addedProviderId)
+    LaunchedEffect(addedProviderId, state.isBusy, state.modelSyncFailed) {
+        if (addedProviderId != null && !state.isBusy && !state.modelSyncFailed) onProviderAdded(addedProviderId)
     }
 
     ScaffoldPage(title = "ChatGPT", onBack = onBack) {
         item(key = "account") {
             ProviderSection(title = null) {
-                if (!state.isBusy && addedProviderId == null) {
+                if (!state.isBusy) {
                     state.message?.let { message ->
                         Text(
                             text = message,
@@ -59,6 +60,8 @@ internal fun ChatGptProviderLoginScreen(
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         )
                     }
+                }
+                if (!state.isBusy && addedProviderId == null) {
                     BasicComponent(
                         title = stringResource(R.string.provider_i18n_sign_in_with, "ChatGPT"),
                         onClick = { store.addChatGptAccount(ProviderAuthModes.CHATGPT_PLAN, fallbackName) },
@@ -68,9 +71,14 @@ internal fun ChatGptProviderLoginScreen(
                         onClick = {
                             store.addChatGptAccount(
                                 ProviderAuthModes.OPENAI_CHATGPT,
-                                context.getString(R.string.provider_i18n_account_title, "Codex"),
+                                codexFallbackName,
                             )
                         },
+                    )
+                } else if (!state.isBusy && addedProviderId != null && state.modelSyncFailed) {
+                    BasicComponent(
+                        title = stringResource(R.string.route_provider_details),
+                        onClick = { onProviderAdded(addedProviderId) },
                     )
                 } else if (state.isBusy) {
                     ProviderAccountControls(

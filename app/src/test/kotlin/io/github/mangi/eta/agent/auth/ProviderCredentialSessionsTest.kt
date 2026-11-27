@@ -30,6 +30,21 @@ class ProviderCredentialSessionsTest {
     }
 
     @Test
+    fun codexRegistrationsWithTheSameSubjectAndClientKeepSeparateWorkspaces() {
+        val registration = credential().copy(accountId = "workspace-a")
+        val storage = MemoryStorage().apply { write(PROVIDER_ID, registration) }
+        val sessions = ProviderCredentialSessions(storage, FakeOAuthClient()) { NOW }
+
+        assertTrue(sessions.matchesChatGptRegistration(PROVIDER_ID, registration))
+        assertFalse(sessions.matchesChatGptRegistration(PROVIDER_ID, registration.copy(accountId = "workspace-b")))
+
+        sessions.disconnect(PROVIDER_ID, AUTH_MODE, AgentRunController())
+        assertFalse(requireNotNull(sessions.account(PROVIDER_ID, AUTH_MODE)).planEnabled)
+        assertTrue(sessions.matchesChatGptRegistration(PROVIDER_ID, registration))
+        assertFalse(sessions.matchesChatGptRegistration(PROVIDER_ID, registration.copy(accountId = "workspace-b")))
+    }
+
+    @Test
     fun loginAndLogoutInvalidatePreviousAccountBindings() {
         val storage = MemoryStorage().apply { write(PROVIDER_ID, credential()) }
         val sessions = ProviderCredentialSessions(storage, FakeOAuthClient(login = { credential() })) { NOW }
