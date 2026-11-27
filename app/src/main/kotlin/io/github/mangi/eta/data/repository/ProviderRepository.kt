@@ -2,6 +2,9 @@ package io.github.mangi.eta.data.repository
 
 import android.content.Context
 import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.auth.ProviderCredential
+import io.github.mangi.eta.data.provider.ProviderConnectionProfile
+import kotlinx.coroutines.NonCancellable
 import io.github.mangi.eta.core.AppStrings
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.db.EtaDatabase
@@ -17,7 +20,9 @@ import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ModelSource
 import io.github.mangi.eta.data.model.OpenAiCompatibleProviderSetting
 import io.github.mangi.eta.data.model.ProviderSetting
+import io.github.mangi.eta.data.model.CHATGPT_PROVIDER_ID_PREFIX
 import io.github.mangi.eta.data.model.ProviderAuthModes
+import io.github.mangi.eta.data.model.isStandaloneChatGpt
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.data.model.Settings
 import io.github.mangi.eta.data.model.selectedOrFirstModel
@@ -87,6 +92,53 @@ internal object ProviderRepository {
         }
         repairSelection()
         return added
+    }
+
+    suspend fun saveChatGptAccount(credential: ProviderCredential, fallbackName: String): String {
+        val subject = requireNotNull(credential.subject)
+        val profile = requireNotNull(ProviderConnectionProfile.forAuthMode(credential.authMode))
+        val id = mutationMutex.withLock {
+            val providers = allProviders()
+            val existing = providers.firstOrNull {
+                it.isStandaloneChatGpt &&
+                    ProviderCredentialRepository.chatGptSubject(it.id, profile.authMode) == subject
+            }
+            val name = credential.displayName?.takeIf { it.isNotBlank() }
+                ?: credential.email?.takeIf { it.isNotBlank() }
+                ?: fallbackName
+            withContext(NonCancellable) {
+                if (existing != null) {
+                    ProviderCredentialRepository.saveChatGptCredential(existing.id, credential)
+                    // SIWC is stored as a custom or OpenAI-compatible provider.
+                    val renamed = when (existing) {
+                        is CustomProviderSetting -> existing.copy(name = name)
+                        is OpenAiCompatibleProviderSetting -> existing.copy(name = name)
+                        else -> existing
+                    }
+                    dao().updateProvider(renamed.toEntity())
+                    existing.id
+                } else {
+                    val provider = OpenAiCompatibleProviderSetting(
+                        id = CHATGPT_PROVIDER_ID_PREFIX + newId(),
+                        name = name,
+                        baseUrl = profile.baseUrl,
+                        sourceType = profile.sourceType,
+                        endpointMode = profile.endpointMode,
+                        authMode = profile.authMode,
+                        sortOrder = (providers.maxOfOrNull { it.sortOrder } ?: -1) + 1,
+                    )
+                    ProviderCredentialRepository.saveChatGptCredential(provider.id, credential)
+                    try {
+                        replaceProvider(provider)
+                    } catch (error: Exception) {
+                        ProviderCredentialRepository.forget(provider.id)
+                        throw error
+                    }
+                    provider.id
+                }
+            }
+        }
+        return id
     }
 
     suspend fun updateProvider(provider: ProviderSetting) {

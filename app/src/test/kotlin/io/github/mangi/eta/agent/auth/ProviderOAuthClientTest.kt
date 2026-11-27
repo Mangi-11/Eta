@@ -167,6 +167,7 @@ class ProviderOAuthClientTest {
 
     @Test fun chatGptPlanRegistrationUsesTheCallbackClientAndItsVerifiedIdentity() {
         val issuedClientId = "oaiapp_fixture"
+        val picture = "https://images.example.invalid/profile.png"
         lateinit var authorization: HttpUrl
         val client = LiveProviderOAuthClient(http { request ->
             when (request.url.toString()) {
@@ -180,7 +181,7 @@ class ProviderOAuthClientTest {
                     assertEquals("fixture-code", values["code"])
                     val nonce = requireNotNull(authorization.queryParameter("nonce"))
                     200 to JSONObject().put("access_token", "fixture-access")
-                        .put("id_token", CodexOAuthFixture.idToken(nonce, issuedClientId))
+                        .put("id_token", CodexOAuthFixture.idToken(nonce, issuedClientId, picture))
                         .put("refresh_token", "fixture-refresh").put("token_type", "Bearer")
                         .put("scope", ChatGptPlanOAuth.PLAN_SCOPE).put("expires_in", 3600).toString()
                 }
@@ -205,12 +206,23 @@ class ProviderOAuthClientTest {
                     val connection = URI(uri.toString()).toURL().openConnection() as HttpURLConnection
                     connection.connectTimeout = 2000
                     connection.readTimeout = 2000
-                    try { connection.responseCode } finally { connection.disconnect() }
+                    try {
+                        val status = connection.responseCode
+                        val page = connection.inputStream.bufferedReader().use { it.readText() }
+                        assertTrue(page.contains("content=\"0;url=io.github.mangi.eta://auth/return\""))
+                        assertTrue(page.contains("href=\"io.github.mangi.eta://auth/return\""))
+                        assertFalse(page.contains("fixture-code"))
+                        status
+                    } finally {
+                        connection.disconnect()
+                    }
                 }
             }
             assertEquals(200, callback.get(3, TimeUnit.SECONDS))
             assertEquals(issuedClientId, credential.clientId)
             assertEquals("account", credential.subject)
+            assertEquals("Fixture User", credential.summary().displayName)
+            assertEquals(picture, credential.summary().avatarUrl)
             assertTrue(credential.planEnabled)
         } finally { executor.shutdownNow() }
     }

@@ -119,7 +119,7 @@ internal class LiveProviderOAuthClient(
             )
             controller.throwIfCancelled()
             onPrompt(ProviderLoginPrompt(url))
-            val callback = receiver.awaitCallback(state, controller)
+            val callback = receiver.awaitCallback(state, controller, returnToEta = true)
             val clientId = previous?.clientId ?: callback.clientId
             requireProtocol(clientId != null && ChatGptPlanOAuth.isIssuedClientId(clientId) &&
                 (callback.clientId == null || callback.clientId == clientId))
@@ -237,7 +237,7 @@ internal class LiveProviderOAuthClient(
             verifier.verify(idToken, provider, clientId, nonce, controller)
         } else {
             requireProtocol(refreshing && previous != null)
-            VerifiedProviderIdentity(requireNotNull(previous!!.subject), previous.email, previous.displayName)
+            VerifiedProviderIdentity(requireNotNull(previous!!.subject), previous.email, previous.displayName, previous.avatarUrl)
         }
         if (previous?.subject != null && previous.subject != identity.subject) {
             throw ProviderAuthException(
@@ -260,7 +260,8 @@ internal class LiveProviderOAuthClient(
             clientId = clientId,
             subject = identity.subject,
             email = identity.email,
-            displayName = identity.name,
+            displayName = identity.name ?: previous?.displayName,
+            avatarUrl = identity.avatarUrl ?: previous?.avatarUrl,
             accessToken = accessToken,
             refreshToken = json.optString("refresh_token").takeIf { it.isNotBlank() && it != "null" }
                 ?: if (refreshing) previous!!.refreshToken else "",

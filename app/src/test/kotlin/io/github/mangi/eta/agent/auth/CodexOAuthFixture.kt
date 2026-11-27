@@ -16,10 +16,15 @@ internal object CodexOAuthFixture {
     fun accessToken(accountId: String = "workspace"): String = sign(JWTClaimsSet.Builder()
         .claim("https://api.openai.com/auth", mapOf("chatgpt_account_id" to accountId)).build())
 
-    fun idToken(nonce: String, audience: String = CodexOAuth.CLIENT_ID): String = sign(JWTClaimsSet.Builder()
+    fun idToken(
+        nonce: String,
+        audience: String = CodexOAuth.CLIENT_ID,
+        picture: String? = null,
+    ): String = sign(JWTClaimsSet.Builder()
         .issuer(OAuthProvider.OPENAI.issuer).audience(audience).subject("account")
         .issueTime(Date()).expirationTime(Date(System.currentTimeMillis() + 3_600_000))
-        .claim("nonce", nonce).claim("email", "fixture@example.invalid").build())
+        .claim("nonce", nonce).claim("email", "fixture@example.invalid")
+        .apply { if (picture != null) claim("name", "Fixture User").claim("picture", picture) }.build())
 
     private fun sign(claims: JWTClaimsSet): String = SignedJWT(
         JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.keyID).build(), claims,

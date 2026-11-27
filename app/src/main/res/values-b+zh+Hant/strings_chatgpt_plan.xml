@@ -7,4 +7,5 @@
     <string name="provider_chatgpt_plan_unavailable">暫時無法讀取 ChatGPT 訂閱狀態，請稍後重試。</string>
     <string name="provider_chatgpt_plan_ineligible">目前的 ChatGPT 帳號或工作區無法使用訂閱額度。</string>
     <string name="provider_chatgpt_plan_incomplete">ChatGPT 回應未完成（%1$s）。</string>
+    <string name="provider_chatgpt_codex_sign_in">使用 ChatGPT / Codex 登入</string>
 </resources>

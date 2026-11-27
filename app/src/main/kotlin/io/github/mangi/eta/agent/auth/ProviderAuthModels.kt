@@ -10,6 +10,7 @@ internal data class ProviderAccountSummary(
     val displayName: String?,
     val needsReauthentication: Boolean,
     val planEnabled: Boolean,
+    val avatarUrl: String? = null,
 )
 
 internal data class ProviderCredentialBinding(
@@ -40,6 +41,7 @@ internal data class ProviderCredential(
     val accountId: String? = null,
     val expiresAt: Long = 0,
     val scopes: Set<String> = emptySet(),
+    val avatarUrl: String? = null,
 ) {
     val planEnabled: Boolean
         get() = when (authMode) {
@@ -50,7 +52,7 @@ internal data class ProviderCredential(
         }
 
     fun summary() = ProviderAccountSummary(email, displayName, subject == null || accessToken.isBlank() ||
-        (authMode == ProviderAuthModes.OPENAI_CHATGPT && !planEnabled), planEnabled)
+        (authMode == ProviderAuthModes.OPENAI_CHATGPT && !planEnabled), planEnabled, avatarUrl)
 
     fun withoutTokens() = copy(accessToken = "", refreshToken = "", idToken = "", accountId = null, expiresAt = 0, scopes = emptySet())
 

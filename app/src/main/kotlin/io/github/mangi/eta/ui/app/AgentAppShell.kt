@@ -53,6 +53,7 @@ import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import io.github.mangi.eta.ui.navigation.AppRoute
+import io.github.mangi.eta.ui.navigation.NewProviderType
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -490,6 +491,6 @@ private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.McpServers -> stringResource(R.string.route_mcp_servers)
     is AppRoute.McpServerDetail -> stringResource(R.string.route_mcp_server_detail)
     is AppRoute.ModelProviderDetail -> stringResource(R.string.route_provider_details)
-    is AppRoute.ModelProviderNew -> stringResource(R.string.route_new_provider)
+    is AppRoute.ModelProviderNew -> if (route.providerType == NewProviderType.ChatGpt) "ChatGPT" else stringResource(R.string.route_new_provider)
     null -> stringResource(R.string.app_name)
 }

@@ -29,6 +29,7 @@ import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ProviderSourceTypes
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import io.github.mangi.eta.data.model.typeLabel
 import io.github.mangi.eta.data.provider.BuiltinProviders
 import io.github.mangi.eta.data.repository.ProviderRepository
@@ -78,7 +79,7 @@ internal fun ModelProviderListScreen(
             query.isBlank() ||
                 provider.name.contains(query, ignoreCase = true) ||
                 localizedName.contains(query, ignoreCase = true) ||
-                provider.baseUrl.contains(query, ignoreCase = true) ||
+                (!ProviderAuthModes.isChatGpt(provider.authMode) && provider.baseUrl.contains(query, ignoreCase = true)) ||
                 provider.typeLabel.contains(query, ignoreCase = true)
         }
     }
@@ -134,6 +135,12 @@ internal fun ModelProviderListScreen(
                         }
                     },
                     onClick = { onNavigate(AppRoute.CommunityCatalog) },
+                )
+                ArrowPreference(
+                    title = "ChatGPT",
+                    summary = stringResource(R.string.provider_chatgpt_codex_sign_in),
+                    startAction = { ProviderBrandIcon(ProviderSourceTypes.OPENAI) },
+                    onClick = { onNavigate(AppRoute.ModelProviderNew(NewProviderType.ChatGpt)) },
                 )
                 ArrowPreference(
                     title = stringResource(R.string.ui_added_openai_compatible_6bd471),
@@ -268,14 +275,16 @@ private fun ProviderListItem(
                 TagChip(text = stringResource(R.string.ui_current_25e74d), tone = TagChipTone.Emphasized)
             }
         }
-        Text(
-            text = provider.baseUrl,
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp),
-        )
+        if (!ProviderAuthModes.isChatGpt(provider.authMode)) {
+            Text(
+                text = provider.baseUrl,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
         Text(
             text = subtitle,
             style = MiuixTheme.textStyles.footnote1,

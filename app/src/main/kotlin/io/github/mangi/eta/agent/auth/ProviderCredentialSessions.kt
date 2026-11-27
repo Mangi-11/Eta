@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.auth
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.core.AppStrings
+import io.github.mangi.eta.data.model.ProviderAuthModes
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
@@ -65,6 +66,32 @@ internal class ProviderCredentialSessions(
             credential
         }
         return saved.summary()
+    }
+
+    fun authorizeChatGpt(
+        authMode: String,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential {
+        require(ProviderAuthModes.isChatGpt(authMode))
+        return oauth.login(OAuthProvider.fromAuthMode(authMode), null, controller, onPrompt)
+    }
+
+    fun chatGptSubject(providerId: String, authMode: String): String? {
+        val session = session(providerId)
+        return session.stateLock.withLock {
+            storage.read(providerId)?.takeIf { it.authMode == authMode }?.subject
+        }
+    }
+
+    fun saveChatGptCredential(providerId: String, credential: ProviderCredential) {
+        require(ProviderAuthModes.isChatGpt(credential.authMode))
+        val session = session(providerId)
+        session.stateLock.withLock {
+            storage.write(providerId, credential)
+            ++session.loginGeneration
+            ++session.generation
+        }
     }
 
     fun accessToken(providerId: String, authMode: String, controller: AgentRunController,

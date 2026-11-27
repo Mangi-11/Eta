@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,13 +37,14 @@ internal data class ProviderLoginState(
     val prompt: ProviderLoginPrompt? = null,
     val phase: ProviderLoginPhase = ProviderLoginPhase.Idle,
     val message: String? = null,
+    val addedProviderId: String? = null,
 ) {
     val isBusy: Boolean get() = phase != ProviderLoginPhase.Idle
 }
 
 /** 登录会话归属当前配置页；浏览器切换不取消，离开页面则关闭轮询或回调监听。 */
 internal class ProviderLoginStore(
-    private val providerId: String,
+    private val providerId: String?,
     parentScope: CoroutineScope,
     private val operations: ProviderLoginOperations = RepositoryProviderLoginOperations,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -55,6 +57,7 @@ internal class ProviderLoginStore(
     private var generation = 0L
 
     fun load(authMode: String, interrupted: Boolean = false) {
+        val providerId = providerId ?: return
         if (mutableState.value.isBusy) return
         if (!ProviderAuthModes.isOAuth(authMode)) {
             mutableState.value = ProviderLoginState(authMode = authMode)
@@ -70,42 +73,77 @@ internal class ProviderLoginStore(
     }
 
     fun login(provider: ProviderSetting) {
+        val providerId = providerId ?: return
         if (mutableState.value.isBusy || provider.id != providerId) return
         runOperation(provider.authMode, ProviderLoginPhase.Saving) { activeController, attempt ->
             withContext(ioDispatcher) { operations.save(provider) }
             activeController.throwIfCancelled()
             mutableState.value = mutableState.value.copy(phase = ProviderLoginPhase.Authorizing)
             val account = withContext(ioDispatcher) {
-                operations.login(providerId, provider.authMode, activeController) { prompt ->
-                    scope.launch {
-                        if (generation == attempt && !activeController.isCancelled &&
-                            mutableState.value.phase == ProviderLoginPhase.Authorizing
-                        ) {
-                            mutableState.value = mutableState.value.copy(prompt = prompt)
-                        }
-                    }
-                }
+                operations.login(providerId, provider.authMode, activeController, onPrompt(activeController, attempt))
             }
-            mutableState.value = mutableState.value.copy(account = account, prompt = null, phase = ProviderLoginPhase.SyncingModels)
-            if (provider.authMode == ProviderAuthModes.CHATGPT_PLAN && !account.planEnabled) return@runOperation
-            val count = withContext(ioDispatcher) { operations.syncModels(providerId, provider.authMode) }
-            mutableState.value = mutableState.value.copy(
-                message = AppStrings.quantity(
-                    R.plurals.provider_i18n_login_synced_models,
-                    count,
-                    "已登录，已同步 %1\$d 个远端模型",
-                    "已登录，已同步 %1\$d 个远端模型",
-                    count,
-                ),
-            )
+            finishLogin(providerId, provider.authMode, account)
         }
     }
 
-    fun disconnect() {
+    fun addChatGptAccount(mode: String, fallbackName: String) {
+        if (providerId != null || mutableState.value.isBusy || mutableState.value.account != null) return
+        require(ProviderAuthModes.isChatGpt(mode))
+        runOperation(mode, ProviderLoginPhase.Authorizing) { activeController, attempt ->
+            val (id, account) = withContext(ioDispatcher) {
+                val credential = ProviderCredentialRepository.authorizeChatGpt(
+                    mode, activeController, onPrompt(activeController, attempt),
+                )
+                activeController.throwIfCancelled()
+                val id = ProviderRepository.saveChatGptAccount(credential, fallbackName)
+                id to credential.summary()
+            }
+            mutableState.value = mutableState.value.copy(addedProviderId = id)
+            finishLogin(id, mode, account)
+        }
+    }
+
+    private fun onPrompt(activeController: AgentRunController, attempt: Long): (ProviderLoginPrompt) -> Unit = { prompt ->
+        scope.launch {
+            if (generation == attempt && !activeController.isCancelled &&
+                mutableState.value.phase == ProviderLoginPhase.Authorizing
+            ) {
+                mutableState.value = mutableState.value.copy(prompt = prompt)
+            }
+        }
+    }
+
+    private suspend fun finishLogin(id: String, authMode: String, account: ProviderAccountSummary) {
+        mutableState.value = mutableState.value.copy(account = account, prompt = null, phase = ProviderLoginPhase.SyncingModels)
+        if (authMode == ProviderAuthModes.CHATGPT_PLAN && !account.planEnabled) return
+        val count = withContext(ioDispatcher) { operations.syncModels(id, authMode) }
+        mutableState.value = mutableState.value.copy(
+            message = AppStrings.quantity(
+                R.plurals.provider_i18n_login_synced_models,
+                count,
+                "已登录，已同步 %1\$d 个远端模型",
+                "已登录，已同步 %1\$d 个远端模型",
+                count,
+            ),
+        )
+    }
+
+    fun disconnect(onProviderRemoved: (() -> Unit)? = null) {
+        val providerId = providerId ?: return
         val authMode = mutableState.value.authMode
         if (mutableState.value.isBusy || !ProviderAuthModes.isOAuth(authMode)) return
         runOperation(authMode, ProviderLoginPhase.Disconnecting) { activeController, _ ->
-            val revoked = withContext(ioDispatcher) { operations.disconnect(providerId, authMode, activeController) }
+            val revoked = withContext(ioDispatcher) {
+                val result = operations.disconnect(providerId, authMode, activeController)
+                if (onProviderRemoved != null) {
+                    withContext(NonCancellable) {
+                        ProviderRepository.deleteProvider(providerId)
+                        RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
+                        withContext(Dispatchers.Main.immediate) { onProviderRemoved() }
+                    }
+                }
+                result
+            }
             mutableState.value = mutableState.value.copy(
                 account = null,
                 message = if (revoked == false) {

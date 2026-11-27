@@ -45,6 +45,7 @@ import io.github.mangi.eta.data.model.GeminiEndpointMode
 import io.github.mangi.eta.data.model.GeminiProviderSetting
 import io.github.mangi.eta.data.model.OpenAiEndpointMode
 import io.github.mangi.eta.data.model.ProviderAuthModes
+import io.github.mangi.eta.data.model.isStandaloneChatGpt
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.withId
 import io.github.mangi.eta.data.model.withModels
@@ -119,7 +120,7 @@ internal fun ModelProviderDetailScreen(
                 endpointMode = GeminiEndpointMode.AI_STUDIO,
                 baseUrl = GeminiProviderSetting.DEFAULT_BASE_URL,
             )
-            null -> null
+            NewProviderType.ChatGpt, null -> null
         }
     }
 
@@ -157,7 +158,12 @@ internal fun ModelProviderDetailScreen(
     ) {
         mutableStateOf(
             ProviderConfigDraft.from(initial).let { base ->
-                if (isNew) base else base.copy(name = providerDisplayName)
+                when {
+                    isNew -> base
+                    ProviderAuthModes.isChatGpt(initial.authMode) && !initial.isStandaloneChatGpt ->
+                        base.withAuthMode(ProviderAuthModes.API_KEY, initial).copy(name = providerDisplayName)
+                    else -> base.copy(name = providerDisplayName)
+                }
             },
         )
     }
@@ -434,7 +440,9 @@ private fun ProviderConfigTab(
                             loginStore.login(draft.toProvider(provider))
                         }
                     },
-                    onDisconnect = loginStore::disconnect,
+                    onDisconnect = {
+                        loginStore.disconnect(onProviderRemoved = onDeleted.takeIf { provider.isStandaloneChatGpt })
+                    },
                     onCancel = loginStore::cancel,
                 )
                 BasicComponent(

@@ -10,6 +10,7 @@ import io.github.mangi.eta.agent.auth.LiveProviderOAuthClient
 import io.github.mangi.eta.agent.auth.ProviderAccountSummary
 import io.github.mangi.eta.agent.auth.ProviderAuthException
 import io.github.mangi.eta.agent.auth.ProviderCredentialSessions
+import io.github.mangi.eta.agent.auth.ProviderCredential
 import io.github.mangi.eta.agent.auth.ProviderCredentialBinding
 import io.github.mangi.eta.agent.auth.ProviderLoginPrompt
 import io.github.mangi.eta.agent.runtime.AgentRunController
@@ -57,6 +58,17 @@ internal object ProviderCredentialRepository {
     fun login(providerId: String, authMode: String, controller: AgentRunController,
         onPrompt: (ProviderLoginPrompt) -> Unit): ProviderAccountSummary =
         sessions().login(providerId, authMode, controller, onPrompt)
+
+    fun authorizeChatGpt(
+        authMode: String,
+        controller: AgentRunController,
+        onPrompt: (ProviderLoginPrompt) -> Unit,
+    ): ProviderCredential = sessions().authorizeChatGpt(authMode, controller, onPrompt)
+
+    fun chatGptSubject(providerId: String, authMode: String): String? = sessions().chatGptSubject(providerId, authMode)
+
+    fun saveChatGptCredential(providerId: String, credential: ProviderCredential) =
+        sessions().saveChatGptCredential(providerId, credential)
 
     fun accessToken(providerId: String, authMode: String, controller: AgentRunController,
         rejectedAccessToken: String? = null): String =

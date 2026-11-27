@@ -106,16 +106,8 @@ internal fun ProviderConnectionFields(
             },
         )
     }
-    if (accountMode != null) {
-        val modes = if (accountMode == ProviderAuthModes.XAI_GROK) {
-            listOf(ProviderAuthModes.API_KEY to "API Key", accountMode to accountLoginLabel)
-        } else {
-            listOf(
-                ProviderAuthModes.API_KEY to "API Key",
-                ProviderAuthModes.OPENAI_CHATGPT to "Codex (ChatGPT)",
-                ProviderAuthModes.CHATGPT_PLAN to stringResource(R.string.provider_chatgpt_plan),
-            )
-        }
+    if (accountMode == ProviderAuthModes.XAI_GROK) {
+        val modes = listOf(ProviderAuthModes.API_KEY to "API Key", accountMode to accountLoginLabel)
         GlassSpinnerPreference(
             title = authMethodTitle,
             items = modes.map { DropdownItem(text = it.second) },
