@@ -145,8 +145,9 @@ internal object AgentConversationCodec {
                         },
                     )
                 }
-                if (source.has("reasoning_content") && !source.isNull("reasoning_content")) {
-                    message.put("reasoning_content", source.optString("reasoning_content"))
+                val reasoning = source.optString("reasoning_content")
+                if (reasoning.isNotBlank()) {
+                    message.put("reasoning_content", reasoning)
                 }
                 ResponsesEphemeralState.copyOutputItems(source, message)
                 AnthropicEphemeralState.copyContentBlocks(source, message)

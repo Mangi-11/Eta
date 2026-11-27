@@ -34,6 +34,8 @@ internal object OpenAiRequestMessages {
                     remove("_eta_message_id")
                     remove("_eta_character_profile")
                     remove("_eta_assistant_screen_context")
+                    // 严格校验的 OpenAI 兼容端点（如 Mistral）不接受空的 reasoning_content。
+                    if (optString("reasoning_content").isBlank()) remove("reasoning_content")
                 })
             }
         }
