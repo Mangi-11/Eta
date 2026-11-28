@@ -16,6 +16,8 @@ import io.github.mangi.eta.hook.google.GoogleAppHooks
 import io.github.mangi.eta.hook.google.GoogleEligibilityHooks
 import io.github.mangi.eta.hook.hyperos.HyperOsLauncherHooks
 import io.github.mangi.eta.hook.hyperos.HyperOsScreenSearchHooks
+import io.github.mangi.eta.hook.originos.OriginOsDoubleFingerHooks
+import io.github.mangi.eta.hook.originos.OriginOsGestureHooks
 import io.github.mangi.eta.hook.system.SystemServerHooks
 import io.github.mangi.eta.hook.system.SystemUiHooks
 
@@ -62,6 +64,18 @@ class ModuleMain : XposedModule() {
             ModuleConfig.SYSTEM_UI_PACKAGE -> {
                 if (currentProcessName == ModuleConfig.SYSTEM_UI_PACKAGE) {
                     recordInstallation(SystemUiHooks.install(this, logger, param.classLoader))
+                }
+            }
+
+            ModuleConfig.ORIGINOS_UPSLIDE_PACKAGE -> {
+                if (param.isFirstPackage && currentProcessName == param.packageName) {
+                    recordInstallation(OriginOsGestureHooks.install(this, logger, param.classLoader))
+                }
+            }
+
+            ModuleConfig.ORIGINOS_ACCESSIBILITY_PACKAGE -> {
+                if (param.isFirstPackage && currentProcessName == ModuleConfig.ORIGINOS_ACCESSIBILITY_PROCESS) {
+                    recordInstallation(OriginOsDoubleFingerHooks.install(this, logger, param.classLoader))
                 }
             }
 
@@ -117,6 +131,8 @@ class ModuleMain : XposedModule() {
         if (param.isSystemServer) return true
         val processName = param.processName
         return processName in ModuleConfig.XIAOMI_LAUNCHER_PACKAGES ||
+            processName == ModuleConfig.ORIGINOS_UPSLIDE_PACKAGE ||
+            processName == ModuleConfig.ORIGINOS_ACCESSIBILITY_PROCESS ||
             processName == ModuleConfig.SYSTEM_UI_PACKAGE ||
             isPackageProcess(processName, ModuleConfig.GOOGLE_PACKAGE) ||
             isPackageProcess(processName, ModuleConfig.COLOR_DIRECT_PACKAGE) ||

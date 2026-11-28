@@ -5,7 +5,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/Mangi-11/Eta?logo=github&label=Stars&color=1677FF)](https://github.com/Mangi-11/Eta/stargazers)
 [![GitHub Releases 累计下载量](https://img.shields.io/github/downloads/Mangi-11/Eta/total?logo=github&label=Downloads&color=1677FF)](https://github.com/Mangi-11/Eta/releases)
 ![minSdk 34](https://img.shields.io/badge/minSdk-34-3DDC84?logo=android&logoColor=white)
-![Deep integrations for ColorOS and HyperOS](https://img.shields.io/badge/ROM%20Integrations-ColorOS%20%26%20HyperOS-1677FF)
+![Deep integrations for ColorOS and HyperOS and OriginOS](https://img.shields.io/badge/ROM%20Integrations-ColorOS%20%26%20HyperOS%20%26%20OriginOS-1677FF)
 [![GPL-3.0 License](https://img.shields.io/github/license/Mangi-11/Eta?color=1677FF)](LICENSE)
 
 <a href="https://trendshift.io/repositories/116433"><img src="https://trendshift.io/api/badge/trendshift/repositories/116433/daily?language=Kotlin" alt="Eta · Trendshift Kotlin 日榜" width="250" height="55"></a>
@@ -88,7 +88,7 @@ Eta 对标手机厂商预装的一方系统助手，围绕 Android 系统服务�
 
 - **普通设备（免 Root）**：完整对话与模型、情感陪伴与酒馆角色卡、AI 生图、Subagent、定时任务、记忆 / Skills / MCP、网页与浏览器、普通终端与 PRoot Linux、日历 / 通知 / 位置 / 应用使用统计、主屏 GUI Agent、Eta 原生数字助理。
 - **Root 设备**：后台虚拟屏、系统开关与一方应用原生操作（闹钟管理 / 便签等）、应用管理、深层个人上下文（短信 / 通话 / 相册搜图 / 健康 / 聊天图片等）、Root Shell & chroot。
-- **LSPosed + 适配 ROM**：后台虚拟屏、ColorOS / HyperOS 电源键路由（唤起 Eta 或 Gemini）、小布记忆直连查询、解锁 Google 一圈即搜（手势条长按 / 双指识屏）。
+- **LSPosed + 适配 ROM**：后台虚拟屏、ColorOS / HyperOS / OriginOS 电源键路由（唤起 Eta 或 Gemini）、小布记忆直连查询、解锁 Google 一圈即搜（手势条长按 / 双指识屏）。
 
 完整权限与机型说明见 [设备支持与权限边界](docs/ROOTLESS_SUPPORT.md)。
 

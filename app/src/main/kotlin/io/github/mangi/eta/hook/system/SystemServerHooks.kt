@@ -1,6 +1,8 @@
 package io.github.mangi.eta.hook.system
 
 import io.github.mangi.eta.hook.hyperos.HyperOsPowerHooks
+import io.github.mangi.eta.hook.originos.OriginOsContextualSearch
+import io.github.mangi.eta.hook.originos.OriginOsPowerHooks
 import io.github.mangi.eta.hook.support.HookInstallation
 import io.github.mangi.eta.core.ModuleLogger
 
@@ -17,9 +19,11 @@ internal object SystemServerHooks {
         installations = listOf(
             AccessibilityProtectionHooks.install(module, logger, classLoader),
             ContextualSearchHooks.install(module, logger, classLoader),
+            OriginOsContextualSearch.install(module, logger, classLoader),
             AssistantManager.install(module, logger, classLoader),
             PowerHooks.install(module, logger, classLoader),
             HyperOsPowerHooks.install(module, logger, classLoader),
+            OriginOsPowerHooks.install(module, logger, classLoader),
             VirtualDisplaySystemHooks.install(module, logger, classLoader)
         )
     )

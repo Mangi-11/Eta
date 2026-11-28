@@ -25,12 +25,19 @@ internal object CircleToSearchInvoker {
         logger: ModuleLogger,
         source: String,
         fallbackMessage: String
-    ): Boolean {
+    ): Boolean = findAvailableBinder(context, logger, source, fallbackMessage) != null
+
+    fun findAvailableBinder(
+        context: Context,
+        logger: ModuleLogger,
+        source: String,
+        fallbackMessage: String,
+    ): IBinder? {
         if (!HookSupport.isPackageInstalled(context, ModuleConfig.GOOGLE_PACKAGE)) {
             logger.warnThrottled("${source}_cts_google_missing") {
                 "$source: Google App 未安装，$fallbackMessage"
             }
-            return false
+            return null
         }
 
         val intent = Intent(ModuleConfig.CONTEXTUAL_SEARCH_ACTION).setPackage(ModuleConfig.GOOGLE_PACKAGE)
@@ -38,17 +45,17 @@ internal object CircleToSearchInvoker {
             logger.warnThrottled("${source}_cts_entry_missing") {
                 "$source: Google App 未暴露 Contextual Search 入口，$fallbackMessage"
             }
-            return false
+            return null
         }
 
         val binder = getContextualSearchBinder() ?: run {
             logger.warnThrottled("${source}_cts_service_missing") {
                 "$source: contextual_search service 不可用，$fallbackMessage"
             }
-            return false
+            return null
         }
 
-        return binder.isBinderAlive
+        return binder.takeIf { it.isBinderAlive }
     }
 
     fun trigger(
