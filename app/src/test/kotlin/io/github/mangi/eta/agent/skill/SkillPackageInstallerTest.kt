@@ -321,12 +321,12 @@ class SkillPackageInstallerTest {
         assertTrue(File(fixture.skillsRoot, "replace-me/SKILL.md").readText().contains("New version"))
 
         val builtinArchive = zip(
-            "SKILL.md" to skill("self-improving-agent", "Attempt to replace a builtin."),
+            "SKILL.md" to skill("skill-creator", "Attempt to replace a builtin."),
         )
         val builtinAwareInstaller = SkillPackageInstaller(
             skillsRoot = fixture.skillsRoot,
             indexService = fixture.service,
-            builtinIdLookup = { it == "self-improving-agent" },
+            builtinIdLookup = { it == "skill-creator" },
         )
         val initialBuiltinConflict = builtinAwareInstaller.installLocalZip(
             openStream = { builtinArchive.inputStream() },
@@ -334,7 +334,7 @@ class SkillPackageInstallerTest {
         val builtinConflict = builtinAwareInstaller.installLocalZip(
             openStream = { builtinArchive.inputStream() },
             replaceUserSkill = true,
-            expectedReplacementId = "self-improving-agent",
+            expectedReplacementId = "skill-creator",
             expectedArchiveSha256 = initialBuiltinConflict.archiveSha256,
         ) as SkillInstallResult.Conflict
         assertFalse(builtinConflict.conflicts.single().replaceAllowed)

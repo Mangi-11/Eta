@@ -32,24 +32,26 @@ class SkillRuntimeTest {
 
     @Test
     fun seedBuiltinSkillsDoesNotOverwriteExistingBuiltinData() {
+        val skillsRoot = temporaryFolder.newFolder("skills")
         val service = SkillIndexService(
             context = RuntimeEnvironment.getApplication(),
-            skillsRoot = temporaryFolder.newFolder("skills"),
+            skillsRoot = skillsRoot,
         )
         service.seedBuiltinSkillsIfNeeded()
-        val errorsFile = File(
-            temporaryFolder.root,
-            "skills/self-improving-agent/data/ERRORS.md",
-        )
-        errorsFile.parentFile?.mkdirs()
-        errorsFile.writeText("preserve existing learning\n")
+        val dataFile = File(skillsRoot, "skill-creator/data/notes.md")
+        dataFile.parentFile?.mkdirs()
+        dataFile.writeText("preserve existing data\n")
 
-        service.seedBuiltinSkillsIfNeeded()
+        // 模拟旧版本遗留的英文 SKILL.md，再次 seed 应同步为最新内置版本但不清除同目录数据。
+        val skillFile = File(skillsRoot, "skill-creator/SKILL.md")
+        skillFile.writeText("---\nname: skill-creator\ndescription: Old English copy.\n---\n")
 
-        assertEquals("preserve existing learning\n", errorsFile.readText())
+        service.listSkillsForManagement(forceRefresh = true)
 
-        service.listSkillsForManagement()
-        val userSkill = File(temporaryFolder.root, "skills/cache-probe/SKILL.md")
+        assertEquals("preserve existing data\n", dataFile.readText())
+        assertFalse(skillFile.readText().contains("Old English copy."))
+
+        val userSkill = File(skillsRoot, "cache-probe/SKILL.md")
         userSkill.parentFile?.mkdirs()
         userSkill.writeText(
             """
@@ -66,6 +68,31 @@ class SkillRuntimeTest {
         assertTrue(
             service.listSkillsForManagement(forceRefresh = true).any { it.id == "cache-probe" }
         )
+    }
+
+    @Test
+    fun seedBuiltinSkillsRemovesRetiredBuiltinsWithoutTouchingUserSkills() {
+        val context = RuntimeEnvironment.getApplication()
+        val skillsRoot = temporaryFolder.newFolder("retired-skills")
+        val retiredDir = File(skillsRoot, "self-improving-agent").apply { mkdirs() }
+        File(retiredDir, "SKILL.md").writeText("---\nname: self-improving-agent\ndescription: legacy\n---\n")
+        kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            EtaDatabase.get(context).skillDao().upsertRegistryEntry(
+                io.github.mangi.eta.data.db.SkillRegistryEntity(
+                    skillId = "self-improving-agent",
+                    enabled = false,
+                    source = BUILTIN_SKILL_SOURCE,
+                    installState = "installed",
+                ),
+            )
+        }
+
+        val service = SkillIndexService(context = context, skillsRoot = skillsRoot)
+        val entries = service.listSkillsForManagement(forceRefresh = true)
+
+        assertFalse(retiredDir.exists())
+        assertTrue(entries.none { it.id == "self-improving-agent" })
+        assertEquals(setOf("skill-creator", "skill-installer"), entries.map { it.id }.toSet())
     }
 
     @Test
@@ -169,7 +196,7 @@ class SkillRuntimeTest {
         val externalMarker = File(externalRoot, "SKILL.md").also {
             it.writeText("external content must survive")
         }
-        val targetLink = File(skillsRoot, "self-improving-agent")
+        val targetLink = File(skillsRoot, "skill-creator")
         try {
             Files.createSymbolicLink(targetLink.toPath(), externalRoot.toPath())
         } catch (error: Exception) {

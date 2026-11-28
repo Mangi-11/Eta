@@ -1,27 +1,25 @@
 ---
 name: skill-creator
-description: Guide for creating and updating effective skills. Use when the user wants to add a new skill or improve an existing skill for tool workflows or reusable domain knowledge.
+description: 创建与优化 Skills 的工作流指南；当用户需要新增技能或改进现有技能时使用。
 ---
 
 # Skill Creator
 
-Use this skill when the task is to create, refine, or maintain a skill.
+当任务是创建、优化或维护一个 Skill 时使用此工作流。
 
-Skills live inside the workspace at `skills/<skill-id>/` and are discovered by the agent through the `SKILL.md` frontmatter plus any bundled `scripts/`, `references/`, or `assets/`.
+Skills 位于工作区的 `skills/<skill-id>/` 目录下，Agent 通过 `SKILL.md` 的 frontmatter 以及随附的 `scripts/`、`references/` 或 `assets/` 发现并使用它们。
 
-## Core Rules
+## 核心原则
 
-1. Keep the frontmatter precise.
-2. Keep the body short and procedural.
-3. Put detailed reference material into `references/` instead of bloating `SKILL.md`.
-4. Prefer reusable scripts or templates when the same steps will be repeated.
-5. Design for the real runtime: root shell, workspace files, built-in tools, and Android automation.
+1. frontmatter 精准简洁，明确触发边界。
+2. 正文短小精悍、面向执行步骤。
+3. 将详细参考资料放到 `references/`，避免 `SKILL.md` 臃肿。
+4. 重复出现且容易出错的操作优先沉淀为可复用脚本或模板。
+5. 面向真实运行环境设计：终端、工作区文件、内置工具与 Android 自动化能力。
 
-## Skill Shape
+## 目录结构
 
-Every skill needs a `SKILL.md` file.
-
-Recommended layout:
+每个 Skill 都必须包含 `SKILL.md`，按需附带子目录：
 
 ```text
 skill-id/
@@ -31,108 +29,47 @@ skill-id/
 └── assets/
 ```
 
-Use only the folders that are actually needed.
+只创建实际需要的目录，不留空目录。
 
-## Frontmatter
+## Frontmatter 规范
 
-Use YAML frontmatter with only these fields:
+仅保留以下字段：
 
 ```yaml
 ---
 name: my-skill
-description: What the skill does and when the agent should use it.
+description: 说明该技能解决什么问题，以及何时应该触发。
 ---
 ```
 
-Write the description as the trigger contract:
+将 `description` 写成清晰的触发契约：
 
-- State the task type clearly.
-- State the signals that should trigger the skill.
-- Mention important environments or tools when they matter.
+- 明确说明任务类型。
+- 明确说明触发信号或用户意图。
+- 涉及特定环境或工具时一并点明。
 
-Bad description:
+## 正文编写建议
 
-```text
-Helpful utility for many tasks.
-```
+正文面向 Agent 而非宣传文档，优先包含：
 
-Good description:
+- 清晰的执行步骤与边界条件
+- 简明判断规则
+- 对具体文件或目录的引用
+- 明确的异常处理方式
 
-```text
-Create or update deployment runbooks for workspaces. Use when the user asks to document setup, workspace paths, scheduled runs, or recovery steps for on-device agents.
-```
+避免冗长背景介绍、重复常识以及应归入 `references/` 的大段参考资料。
 
-## Body Guidance
+## 附属资源选择
 
-Write the body as instructions for another agent.
+- `scripts/`：流程脆弱、重复编写相同代码或需要确定性输出时使用。
+- `references/`：需要协议说明、字段结构、规范文档且每次仅需按需查阅局部内容时使用。
+- `assets/`：需要供复制或编辑的模板、图标或示例文件时使用。
 
-Prefer:
+## 创建与更新流程
 
-- imperative steps
-- short heuristics
-- references to concrete files or directories
-- explicit failure handling
-
-Avoid:
-
-- long product overviews
-- repeated basics the model already knows
-- user-facing marketing text
-- duplicate content that belongs in `references/`
-
-## Resource Choices
-
-Use `scripts/` when:
-
-- a flow is fragile
-- the same code would otherwise be rewritten often
-- deterministic output matters
-
-Use `references/` when:
-
-- the skill needs schemas, API notes, policy text, or domain documentation
-- only part of the material is needed per task
-
-Use `assets/` when:
-
-- the skill needs templates, starter projects, icons, or example files that should be copied or edited
-
-## Creation Workflow
-
-1. Understand the repeated task the skill should help with.
-2. Collect a few realistic user requests that should trigger it.
-3. Decide which knowledge belongs in `SKILL.md` and which belongs in bundled resources.
-4. Create the skill directory under `skills/<skill-id>/`.
-5. Write `SKILL.md` with a strong description and compact body.
-6. Add any needed `scripts/`, `references/`, or `assets/`.
-7. Re-read the result and cut anything that is obvious, duplicated, or too generic.
-
-## Naming Rules
-
-- Use lowercase letters, digits, and hyphens only.
-- Keep the id short and descriptive.
-- Prefer action-oriented names such as `skill-creator`, `calendar-helper`, or `workspace-audit`.
-
-## Review Checklist
-
-Before finishing, verify:
-
-- the skill id matches the folder name
-- `SKILL.md` exists
-- the description explains when to use the skill
-- the body tells the agent what to do next
-- bundled resources are referenced only when needed
-- no extra documentation files were added without a clear reason
-
-## Editing Existing Skills
-
-When updating a skill:
-
-1. Preserve the trigger intent unless the user explicitly wants to change it.
-2. Tighten the description if the skill is triggering too broadly or too narrowly.
-3. Move bulky details out of `SKILL.md` when the file starts becoming hard to scan.
-4. Keep examples realistic and aligned with the runtime.
-
-## Output Expectation
-
-When asked to create or revise a skill, produce the actual skill files in the workspace rather than only describing them.
+1. 明确该 Skill 要解决的重复任务及典型用户请求。
+2. 划分哪些内容放进 `SKILL.md`，哪些放进附属资源目录。
+3. 在 `skills/<skill-id>/` 下创建或更新文件（id 仅使用小写字母、数字与连字符，并与目录名一致）。
+4. 编写清晰的 `description` 与紧凑步骤，必要时补充附属资源。
+5. 通读检查，删去显而易见、重复或过于宽泛的内容。
+6. 请求创建或修改 Skill 时，直接在工作区落盘实际文件，而不是仅作文字说明。

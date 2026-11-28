@@ -1,19 +1,9 @@
 {
   "skills": [
     {
-      "id": "self-improving-agent",
-      "name": "self-improving-agent",
-      "description": "Built-in self-improvement loop. Use to record non-trivial failures, user corrections, and reusable best practices into structured learnings.",
-      "assetPath": "builtin_skills/self-improving-agent",
-      "hasScripts": false,
-      "hasReferences": false,
-      "hasAssets": false,
-      "hasEvals": false
-    },
-    {
       "id": "skill-creator",
       "name": "skill-creator",
-      "description": "Guide for creating and updating effective skills. Use when the user wants to add a new skill or improve an existing skill.",
+      "description": "创建与优化 Skills 的工作流指南；当用户需要新增技能或改进现有技能时使用。",
       "assetPath": "builtin_skills/skill-creator",
       "hasScripts": false,
       "hasReferences": false,

@@ -150,14 +150,32 @@ private class BuiltinSkillAssetStore(
 
     fun seedMissingBuiltins(registryStore: SkillRegistryStore) {
         val registry = registryStore.read()
+        val currentBuiltins = listBuiltins()
+        val builtinIds = currentBuiltins.mapTo(mutableSetOf()) { it.id }
         var changed = false
-        listBuiltins().forEach { builtin ->
+
+        // 清理已从 manifest 下线的旧内置技能，不动用户自行安装的同名技能。
+        val retiredIds = registry.entries
+            .filter { (id, entry) -> entry.source == BUILTIN_SOURCE && id !in builtinIds }
+            .map { it.key }
+        retiredIds.forEach { retiredId ->
+            val targetDir = File(skillsRoot, retiredId)
+            if (Files.exists(targetDir.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+                deleteSkillPathWithoutFollowingLinks(skillsRoot, targetDir)
+            }
+            registry.remove(retiredId)
+            changed = true
+        }
+
+        currentBuiltins.forEach { builtin ->
             val entry = registry[builtin.id]
             if (entry?.installState == INSTALL_STATE_REMOVED_BUILTIN) return@forEach
             if (entry?.source == USER_SOURCE) return@forEach
             val targetDir = File(skillsRoot, builtin.id)
             if (!isSafeBuiltinSkillInstallation(targetDir)) {
                 installBuiltinInternal(builtin)
+            } else {
+                syncBuiltinSkillFileIfChanged(builtin, targetDir)
             }
             if (entry?.source == BUILTIN_SOURCE && entry.installState == INSTALL_STATE_INSTALLED) {
                 return@forEach
@@ -170,6 +188,17 @@ private class BuiltinSkillAssetStore(
             changed = true
         }
         if (changed) registryStore.write(registry)
+    }
+
+    private fun syncBuiltinSkillFileIfChanged(builtin: BuiltinSkillAsset, targetDir: File) {
+        val assetBytes = runCatching {
+            context.assets.open("${builtin.assetPath}/SKILL.md").use { it.readBytes() }
+        }.getOrNull() ?: return
+        val localFile = File(targetDir, "SKILL.md")
+        val localBytes = runCatching { localFile.readBytes() }.getOrNull()
+        if (localBytes == null || !localBytes.contentEquals(assetBytes)) {
+            localFile.writeBytes(assetBytes)
+        }
     }
 
     fun installBuiltin(skillId: String, registryStore: SkillRegistryStore) {
