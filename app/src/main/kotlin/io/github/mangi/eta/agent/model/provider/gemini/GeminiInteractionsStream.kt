@@ -3,14 +3,14 @@ package io.github.mangi.eta.agent.model.provider.gemini
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
-import io.github.mangi.eta.agent.runtime.SearchSuggestionsBudget
-import io.github.mangi.eta.agent.runtime.SearchSuggestionsPayload
 import io.github.mangi.eta.core.AppStrings
 import java.io.InputStream
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import org.json.JSONArray
 import org.json.JSONObject
+import io.github.mangi.eta.agent.model.format.CitationFormatter
+import io.github.mangi.eta.agent.model.format.CitationSource
 import io.github.mangi.eta.agent.model.provider.AgentModelFailure
 import io.github.mangi.eta.agent.model.provider.AssistantBlockKind
 import io.github.mangi.eta.agent.model.provider.ProviderEvent
@@ -19,7 +19,6 @@ import io.github.mangi.eta.agent.model.provider.readProviderSse
 /** 按 step index 构建完整回放步骤，完成事件只决定终态，不能代替流内累积。 */
 internal class GeminiInteractionsStream(
     private val onEvent: (ProviderEvent) -> Unit,
-    private val pendingSuggestions: JSONArray = JSONArray(),
 ) {
     private data class StepState(
         val index: Int,
@@ -207,16 +206,22 @@ internal class GeminiInteractionsStream(
             onEvent(ProviderEvent.HostedToolFinished(state.step.getString("call_id"), "web_search", !state.step.optBoolean("is_error")))
         }
         state.kind?.let { kind ->
+            val sources = if (kind == AssistantBlockKind.TEXT) {
+                extractSources(state.step.getJSONArray("content"))
+            } else {
+                emptyList()
+            }
             onEvent(ProviderEvent.BlockEnd(
                 kind, index,
                 blockId = state.step.optString("id").ifBlank { null },
                 name = state.step.optString("name").ifBlank { null },
                 content = when (kind) {
-                    AssistantBlockKind.TEXT -> formattedText(state.step.getJSONArray("content"))
+                    AssistantBlockKind.TEXT -> plainText(state.step.getJSONArray("content"))
                     AssistantBlockKind.THINKING -> plainText(state.step.getJSONArray("summary"))
                     AssistantBlockKind.TOOL_CALL -> state.step.getJSONObject("arguments").toString()
                 },
-                replaceContent = kind == AssistantBlockKind.TEXT,
+                replaceContent = false,
+                sources = sources,
             ))
         }
     }
@@ -236,7 +241,6 @@ internal class GeminiInteractionsStream(
         if (!usage.isEmpty) onEvent(ProviderEvent.Usage(usage))
         if (status == "incomplete" || status == "budget_exceeded") {
             // 明确的预算终态不能作为成功回答，也不能按网络中断重试或执行已生成的工具调用。
-            emitSuggestions(JSONObject())
             throw AgentModelFailure(
                 "MODEL_OUTPUT_LIMIT",
                 false,
@@ -273,7 +277,7 @@ internal class GeminiInteractionsStream(
         for (state in steps.values) {
             rawSteps.put(state.step)
             when (state.type) {
-                "model_output" -> texts += formattedText(state.step.getJSONArray("content"))
+                "model_output" -> texts += plainText(state.step.getJSONArray("content"))
                 "thought" -> thoughts += plainText(state.step.getJSONArray("summary"))
             }
         }
@@ -289,31 +293,7 @@ internal class GeminiInteractionsStream(
             })
         }
         GeminiEphemeralState.attachSteps(result, rawSteps)
-        emitSuggestions(result)
         assistant = result
-    }
-
-    private fun emitSuggestions(assistant: JSONObject) {
-        val textSteps = steps.values.filter { it.type == "model_output" && plainText(it.step.getJSONArray("content")).isNotBlank() }
-        val budget = SearchSuggestionsBudget()
-        val seen = mutableSetOf<String>()
-        val deferred = JSONArray()
-        fun suggest(afterIndex: Int, html: String) {
-            if (html.isBlank() || !seen.add(html)) return
-            val target = textSteps.firstOrNull { it.index > afterIndex } ?: textSteps.lastOrNull()
-            if (!budget.accept(0, target?.index ?: 0, html)) malformed("GEMINI_SEARCH_SUGGESTIONS_LIMIT")
-            if (target != null) onEvent(ProviderEvent.SearchSuggestions(target.index, html))
-            else deferred.put(html)
-        }
-        for (index in 0 until pendingSuggestions.length()) suggest(-1, pendingSuggestions.getString(index))
-        for (state in steps.values.filter { it.type == "google_search_result" }) {
-            val results = state.step.optJSONArray("result") ?: continue
-            for (index in 0 until results.length()) {
-                val html = results.optJSONObject(index)?.optString("search_suggestions").orEmpty()
-                suggest(state.index, html)
-            }
-        }
-        GeminiEphemeralState.attachPendingSuggestions(assistant, deferred)
     }
 
     private fun mergeUsage(raw: JSONObject) {
@@ -337,11 +317,7 @@ internal class GeminiInteractionsStream(
         if (!step.has("result")) return
         val results = step.optJSONArray("result") ?: malformed()
         for (index in 0 until results.length()) {
-            val result = results.optJSONObject(index) ?: malformed()
-            if (result.has("search_suggestions")) {
-                val html = string(result, "search_suggestions", allowEmpty = true)
-                if (html.isNotBlank() && !SearchSuggestionsPayload.isValidHtml(html)) malformed("GEMINI_SEARCH_SUGGESTIONS_LIMIT")
-            }
+            results.optJSONObject(index) ?: malformed()
         }
     }
 
@@ -362,9 +338,13 @@ internal class GeminiInteractionsStream(
         return items.optJSONObject(items.length() - 1) ?: JSONObject().put("type", "text").put("text", "").also(items::put)
     }
 
-    private fun formattedText(items: JSONArray): String = (0 until items.length()).joinToString("") {
-        val item = items.getJSONObject(it)
-        GeminiCitationFormatter.apply(item.getString("text"), item.optJSONArray("annotations") ?: JSONArray())
+    private fun extractSources(items: JSONArray): List<CitationSource> {
+        var collected = emptyList<CitationSource>()
+        for (index in 0 until items.length()) {
+            val annotations = items.getJSONObject(index).optJSONArray("annotations") ?: continue
+            collected = CitationFormatter.merge(collected, GeminiCitationFormatter.extract(annotations))
+        }
+        return collected
     }
 
     private fun plainText(items: JSONArray): String = (0 until items.length()).joinToString("") { items.getJSONObject(it).getString("text") }
@@ -396,10 +376,6 @@ internal class GeminiInteractionsStream(
             "GEMINI_UNSUPPORTED_OUTPUT" -> AppStrings.get(
                 R.string.provider_err_gemini_unsupported_output,
                 "Gemini 返回了当前不支持的输出类型。",
-            )
-            "GEMINI_SEARCH_SUGGESTIONS_LIMIT" -> AppStrings.get(
-                R.string.provider_err_gemini_search_suggestions_limit,
-                "Gemini 搜索建议超过展示容量限制。",
             )
             else -> AppStrings.get(
                 R.string.provider_err_gemini_stream_invalid,

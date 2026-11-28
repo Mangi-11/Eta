@@ -29,20 +29,6 @@ class AgentRunArchiveStoreTest {
     }
 
     @Test
-    fun archiveDropsSearchSuggestionsAndKeepsAnswer() {
-        val answer = AgentEvent.AssistantBlockDelta(1, AgentEvent.AssistantBlockKind.TEXT, 0, 2, "回答")
-        AgentRunArchiveStore.add(context, AgentRunArchiveStore.ArchivedRun(
-            handoff = AgentRuntimeWire.EntryHandoff("search", "external_test", "fixture"),
-            events = listOf(answer, AgentEvent.SearchSuggestions(1, 0, "<div>不应保存</div>")),
-            result = AgentRuntimeWire.RunResult("search", true, "回答"),
-            createdAt = 1L,
-        ))
-        val restored = AgentRunArchiveStore.list(context).single()
-        assertEquals(listOf(answer), restored.events)
-        assertEquals("回答", restored.result.content)
-    }
-
-    @Test
     fun onlyRunsWithAnExternalArchiveConsumerAllocateAnEventBuffer() {
         assertNull(AgentRunArchiveStore.createEventBuffer(null))
         assertNull(AgentRunArchiveStore.createEventBuffer(

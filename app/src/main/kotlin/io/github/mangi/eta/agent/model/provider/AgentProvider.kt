@@ -1,5 +1,6 @@
 package io.github.mangi.eta.agent.model.provider
 
+import io.github.mangi.eta.agent.model.format.CitationSource
 import io.github.mangi.eta.agent.runtime.AgentRunController
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.data.provider.ProviderConnectionProfile
@@ -126,6 +127,7 @@ internal sealed interface ProviderEvent {
         val name: String? = null,
         val content: String = "",
         val replaceContent: Boolean = false,
+        val sources: List<CitationSource> = emptyList(),
     ) : ProviderEvent
 
     data class Usage(
@@ -142,11 +144,6 @@ internal sealed interface ProviderEvent {
         val id: String,
         val name: String,
         val success: Boolean,
-    ) : ProviderEvent
-
-    data class SearchSuggestions(
-        val index: Int,
-        val html: String,
     ) : ProviderEvent
 
     data class Completed(

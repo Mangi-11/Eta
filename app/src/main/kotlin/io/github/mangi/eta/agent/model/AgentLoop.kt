@@ -15,6 +15,8 @@ import kotlinx.coroutines.supervisorScope
 import org.json.JSONArray
 import org.json.JSONObject
 import io.github.mangi.eta.agent.model.format.AgentTraceFormatter
+import io.github.mangi.eta.agent.model.format.CitationFormatter
+import io.github.mangi.eta.agent.model.format.CitationSource
 import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.agent.model.provider.AgentModelFailure
 import io.github.mangi.eta.agent.model.provider.AgentModelRetry
@@ -73,6 +75,8 @@ internal class AgentLoop(
     private var pendingToolImageMessage: JSONObject? = null
     private var pendingToolResultImages = emptyMap<String, List<AgentModelClient.ModelImage>>()
     private val turnMetrics = TurnMetricsAccumulator()
+    private val fetchedWebSources = mutableListOf<CitationSource>()
+    private val searchedWebSources = mutableListOf<CitationSource>()
     private var precedingTools: JSONArray? = null
     private val context = AgentContextSession(
         config, messages, systemCount, operationId, provider, runController,
@@ -162,6 +166,8 @@ internal class AgentLoop(
             var roundUsage: AgentTokenUsage? = null
             var stepStartedAtMs = monotonicNowMs()
             var firstTokenAtMs: Long? = null
+            var lastTextBlockIndex: Int? = null
+            var lastTextBlockChars = 0
             val reasoningLengthBeforeRound = accumulatedReasoning.length
             val completedRound = try {
                 modelRetry.complete(
@@ -175,12 +181,13 @@ internal class AgentLoop(
                             roundUsage = null
                             stepStartedAtMs = monotonicNowMs()
                             firstTokenAtMs = null
+                            lastTextBlockIndex = null
+                            lastTextBlockChars = 0
                         }
                         onEvent(event)
                     },
                     onProviderEvent = { attemptRound, providerEvent ->
                         if (!purpose.allowsTools && (providerEvent is ProviderEvent.HostedToolStarted ||
-                                providerEvent is ProviderEvent.SearchSuggestions ||
                                 providerEvent is ProviderEvent.BlockStart && providerEvent.kind == AssistantBlockKind.TOOL_CALL)) {
                             throw AgentModelFailure(
                                 "REPLY_REWRITE_TOOL_CALL",
@@ -215,6 +222,21 @@ internal class AgentLoop(
                         ) {
                             thinkingBlockStartMs.putIfAbsent(attemptRound to providerEvent.index, monotonicNowMs())
                             accumulatedReasoning.append(providerEvent.delta)
+                        }
+                        if (providerEvent is ProviderEvent.BlockDelta &&
+                            providerEvent.kind == AssistantBlockKind.TEXT
+                        ) {
+                            if (lastTextBlockIndex != providerEvent.index) {
+                                lastTextBlockIndex = providerEvent.index
+                                lastTextBlockChars = 0
+                            }
+                            lastTextBlockChars += providerEvent.delta.length
+                        }
+                        if (providerEvent is ProviderEvent.BlockEnd &&
+                            providerEvent.kind == AssistantBlockKind.TEXT
+                        ) {
+                            lastTextBlockIndex = providerEvent.index
+                            lastTextBlockChars = providerEvent.content.length
                         }
                         if (providerEvent !is ProviderEvent.Usage) {
                             providerEvent.toAgentEvent(attemptRound)?.let(onEvent)
@@ -296,6 +318,7 @@ internal class AgentLoop(
             if (toolCalls.isNotEmpty()) {
                 val outcomes = executeToolBatch(round, toolCalls, providerResponse.stopReason)
                 outcomes.forEach { outcome ->
+                    collectLocalWebSources(outcome)
                     appendMessage(AgentConversationCodec.toolResultMessage(outcome.call, outcome.result))
                 }
                 publishTranscript()
@@ -303,6 +326,23 @@ internal class AgentLoop(
                 publishTranscript()
                 round += 1
                 continue
+            }
+
+            if (lastTextBlockIndex != null && (fetchedWebSources.isNotEmpty() || searchedWebSources.isNotEmpty())) {
+                val localSources = CitationFormatter.merge(fetchedWebSources, searchedWebSources)
+                if (localSources.isNotEmpty()) {
+                    onEvent(
+                        AgentEvent.AssistantBlockEnd(
+                            round = round,
+                            kind = AgentEvent.AssistantBlockKind.TEXT,
+                            index = lastTextBlockIndex!!,
+                            contentChars = lastTextBlockChars,
+                            sources = localSources,
+                        ),
+                    )
+                }
+                fetchedWebSources.clear()
+                searchedWebSources.clear()
             }
 
             publishTranscript()
@@ -404,6 +444,8 @@ internal class AgentLoop(
         appendMessageBeforePendingObservation(steeringMessage(supplement))
         context.userAppended()
         turnMetrics.reset()
+        fetchedWebSources.clear()
+        searchedWebSources.clear()
         return true
     }
 
@@ -412,7 +454,29 @@ internal class AgentLoop(
         appendMessageBeforePendingObservation(steeringMessage(supplement))
         context.userAppended()
         turnMetrics.reset()
+        fetchedWebSources.clear()
+        searchedWebSources.clear()
         return true
+    }
+
+    private fun collectLocalWebSources(outcome: ToolOutcome) {
+        val name = outcome.call.name
+        if (name != "fetch_url" && name != "web_search") return
+        val payload = runCatching { JSONObject(outcome.result.content) }.getOrNull() ?: return
+        if (!payload.optBoolean("ok", false)) return
+        if (name == "fetch_url") {
+            val url = payload.optString("final_url").ifBlank { payload.optString("requested_url") }
+            val title = if (payload.isNull("title")) "" else payload.optString("title")
+            if (url.isNotBlank()) fetchedWebSources += CitationSource(url = url, title = title)
+            return
+        }
+        val results = payload.optJSONArray("results") ?: return
+        for (index in 0 until results.length()) {
+            val item = results.optJSONObject(index) ?: continue
+            val url = item.optString("url")
+            val title = if (item.isNull("title")) "" else item.optString("title")
+            if (url.isNotBlank()) searchedWebSources += CitationSource(url = url, title = title)
+        }
     }
 
     private fun steeringPrompt(supplement: String): String =
@@ -704,6 +768,7 @@ internal class AgentLoop(
                 } else {
                     null
                 },
+                sources = sources,
             )
             is ProviderEvent.Usage -> AgentEvent.UsageReceived(round = round, usage = usage)
             is ProviderEvent.HostedToolStarted -> AgentEvent.HostedToolStarted(
@@ -717,7 +782,6 @@ internal class AgentLoop(
                 name = name,
                 success = success,
             )
-            is ProviderEvent.SearchSuggestions -> AgentEvent.SearchSuggestions(round, index, html)
             is ProviderEvent.Completed -> null
         }
 

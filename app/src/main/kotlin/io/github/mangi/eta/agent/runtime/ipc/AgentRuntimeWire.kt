@@ -24,10 +24,11 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.Serializable
 import java.io.File
 import kotlinx.serialization.json.Json
+import io.github.mangi.eta.agent.model.format.CitationFormatter
+import io.github.mangi.eta.agent.model.format.CitationSource
 import io.github.mangi.eta.agent.runtime.AgentRuntimeService
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.agent.runtime.GuiControlStatus
-import io.github.mangi.eta.agent.runtime.SearchSuggestionsPayload
 import io.github.mangi.eta.agent.runtime.archive.AgentLegacyConversationProjection
 
 /**
@@ -129,7 +130,6 @@ internal object AgentRuntimeWire {
     private const val KEY_GEMINI_ENDPOINT_MODE = "gemini_endpoint_mode"
     private const val KEY_VERTEX_PROJECT = "vertex_project"
     private const val KEY_VERTEX_LOCATION = "vertex_location"
-    private const val KEY_SUPPORTS_SEARCH_SUGGESTIONS = "supports_search_suggestions"
     private const val KEY_HOSTED_WEB_SEARCH_ENABLED = "hosted_web_search_enabled"
     private const val KEY_TERMINAL_TOOLS = "terminal_tools"
     private const val KEY_BROWSER_TOOLS = "browser_tools"
@@ -358,7 +358,6 @@ internal object AgentRuntimeWire {
         putString(KEY_VERTEX_PROJECT, request.config.vertexProject)
         putString(KEY_VERTEX_LOCATION, request.config.vertexLocation)
         putBoolean(KEY_HOSTED_WEB_SEARCH_ENABLED, request.config.hostedWebSearchEnabled)
-        putBoolean(KEY_SUPPORTS_SEARCH_SUGGESTIONS, request.config.supportsSearchSuggestions)
         putBoolean(KEY_TERMINAL_TOOLS, request.config.terminalTools)
         putBoolean(KEY_BROWSER_TOOLS, request.config.browserTools)
         putBoolean(KEY_DEVICE_DIRECT_TOOLS, request.config.deviceDirectTools)
@@ -506,7 +505,6 @@ internal object AgentRuntimeWire {
                 vertexLocation = bundle.getString(KEY_VERTEX_LOCATION).orEmpty().trim()
                     .ifBlank { io.github.mangi.eta.data.model.GeminiProviderSetting.DEFAULT_VERTEX_LOCATION },
                 hostedWebSearchEnabled = bundle.getBoolean(KEY_HOSTED_WEB_SEARCH_ENABLED, false),
-                supportsSearchSuggestions = bundle.getBoolean(KEY_SUPPORTS_SEARCH_SUGGESTIONS, false),
                 terminalTools = bundle.getBoolean(KEY_TERMINAL_TOOLS),
                 browserTools = if (bundle.containsKey(KEY_BROWSER_TOOLS)) {
                     bundle.getBoolean(KEY_BROWSER_TOOLS)
@@ -813,14 +811,9 @@ internal object AgentRuntimeWire {
                 putInt("content_chars", event.contentChars)
                 putString("replacement_content", event.replacementContent)
                 event.elapsedMs?.let { putLong("elapsed_ms", it) }
-            }
-
-            is AgentEvent.SearchSuggestions -> {
-                require(SearchSuggestionsPayload.isValidHtml(event.html)) { "SEARCH_SUGGESTIONS_INVALID_PAYLOAD" }
-                putString(KEY_TYPE, "search_suggestions")
-                putInt("round", event.round)
-                putInt("index", event.index)
-                putString("html", event.html)
+                if (event.sources.isNotEmpty()) {
+                    putString("sources_json", json.encodeToString(event.sources))
+                }
             }
 
             is AgentEvent.AssistantReceived -> {
@@ -1002,14 +995,8 @@ internal object AgentRuntimeWire {
             contentChars = bundle.getInt("content_chars"),
             replacementContent = bundle.getString("replacement_content"),
             elapsedMs = bundle.optionalLong("elapsed_ms"),
+            sources = bundle.getString("sources_json")?.let(::decodeCitationSources).orEmpty(),
         )
-
-        "search_suggestions" -> bundle.getString("html")
-            ?.takeIf(SearchSuggestionsPayload::isValidHtml)
-            ?.let { html ->
-                AgentEvent.SearchSuggestions(bundle.getInt("round"), bundle.getInt("index"), html)
-                    .takeIf { it.round >= 0 && it.index >= 0 }
-            }
 
         "assistant_received" -> AgentEvent.AssistantReceived(
             round = bundle.getInt("round"),
@@ -1150,5 +1137,11 @@ internal object AgentRuntimeWire {
     private fun decodeReasoningCapabilities(raw: String?): ModelReasoningCapabilities? =
         if (raw.isNullOrBlank()) null
         else runCatching { json.decodeFromString<ModelReasoningCapabilities>(raw) }.getOrNull()
+
+    private fun decodeCitationSources(raw: String?): List<CitationSource> =
+        if (raw.isNullOrBlank()) emptyList()
+        else runCatching {
+            CitationFormatter.merge(emptyList(), json.decodeFromString<List<CitationSource>>(raw))
+        }.getOrDefault(emptyList())
 
 }

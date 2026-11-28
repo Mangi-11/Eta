@@ -59,11 +59,7 @@ internal object GeminiInteractionsProvider : AgentProviderClient {
                 if (!response.isSuccessful) throw AgentModelFailure.http(
                     response.code, response.peekBody(16_384).string(), includeParameterDetails = true,
                 )
-                val previousAssistant = (request.messages.length() - 1 downTo 0).firstNotNullOfOrNull {
-                    request.messages.optJSONObject(it)?.takeIf { message -> message.optString("role") == "assistant" }
-                }
-                val pendingSuggestions = previousAssistant?.let(GeminiEphemeralState::pendingSuggestions) ?: org.json.JSONArray()
-                val assistant = GeminiInteractionsStream(onEvent, pendingSuggestions).read(response.body.byteStream(), runController)
+                val assistant = GeminiInteractionsStream(onEvent).read(response.body.byteStream(), runController)
                 onEvent(ProviderEvent.Completed(assistant.optString("finish_reason")))
                 return ProviderResponse(assistant)
             }

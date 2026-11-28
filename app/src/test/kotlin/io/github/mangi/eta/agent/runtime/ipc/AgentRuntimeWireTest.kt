@@ -28,7 +28,6 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import io.github.mangi.eta.agent.runtime.AgentRuntimeSession
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
-import io.github.mangi.eta.agent.runtime.SearchSuggestionsPayload
 import io.github.mangi.eta.agent.runtime.archive.recoveryProjection
 import io.github.mangi.eta.agent.runtime.archive.replayProjection
 
@@ -36,30 +35,23 @@ import io.github.mangi.eta.agent.runtime.archive.replayProjection
 @Config(sdk = [34, 36])
 class AgentRuntimeWireTest {
     @Test
-    fun searchSuggestionsCapabilityIsOptionalAndHtmlIsNeverDurable() {
-        val request = AgentRuntimeWire.RunRequest(
-            runId = "search", prompt = "测试", images = emptyList(),
-            config = AgentModelClient.ModelConfig(
-                baseUrl = "https://example.invalid", apiKey = "fixture", model = "fixture", systemPrompt = "",
-                supportsSearchSuggestions = true,
-            ),
+    fun legacySearchSuggestionsEventsAreIgnoredAndBlockSourcesRoundTrip() {
+        assertNull(AgentEventJsonCodec.decode("""{"type":"search_suggestions","round":2,"index":4,"html":"忽略"}"""))
+        val sources = listOf(
+            io.github.mangi.eta.agent.model.format.CitationSource("https://example.com/a", "来源 A"),
+            io.github.mangi.eta.agent.model.format.CitationSource("https://example.com/b", "来源 B"),
         )
-        val bundle = AgentRuntimeWire.toLegacyBundle(request)
-        assertTrue(AgentRuntimeWire.runRequestFromBundle(bundle).config.supportsSearchSuggestions)
-        bundle.remove("supports_search_suggestions")
-        assertFalse(AgentRuntimeWire.runRequestFromBundle(bundle).config.supportsSearchSuggestions)
-
-        val event = AgentEvent.SearchSuggestions(2, 4, "<div>搜索建议</div>")
-        assertEquals(event, AgentRuntimeWire.eventFromBundle(AgentRuntimeWire.eventToBundle(event)))
-        assertNull(event.recoveryProjection())
-        assertEquals(event, event.replayProjection())
-        assertThrows(IllegalArgumentException::class.java) { AgentEventJsonCodec.encode(event) }
-        assertNull(AgentEventJsonCodec.decode("""{"type":"search_suggestions","round":2,"index":4,"html":"不得恢复"}"""))
-        val oversized = AgentRuntimeWire.eventToBundle(event).apply {
-            putString("html", "中".repeat(SearchSuggestionsPayload.MAX_HTML_BYTES))
-        }
-        assertNull(AgentRuntimeWire.eventFromBundle(oversized))
-        assertFalse(event.toLogLine().contains("搜索建议"))
+        val blockEnd = AgentEvent.AssistantBlockEnd(
+            round = 1,
+            kind = AgentEvent.AssistantBlockKind.TEXT,
+            index = 0,
+            contentChars = 4,
+            sources = sources,
+        )
+        val decoded = AgentRuntimeWire.eventFromBundle(AgentRuntimeWire.eventToBundle(blockEnd)) as AgentEvent.AssistantBlockEnd
+        assertEquals(sources, decoded.sources)
+        val jsonDecoded = AgentEventJsonCodec.decode(AgentEventJsonCodec.encode(blockEnd)) as AgentEvent.AssistantBlockEnd
+        assertEquals(sources, jsonDecoded.sources)
     }
 
     @Test

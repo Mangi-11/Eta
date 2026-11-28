@@ -28,19 +28,6 @@ class AgentRunCheckpointStoreTest {
     }
 
     @Test
-    fun searchSuggestionsNeverReachCheckpointEvenThroughDirectAppend() {
-        val request = request("search-transient")
-        val recorder = AgentRunCheckpointRecorder.create(context, request)!!
-        val event = AgentEvent.SearchSuggestions(1, 0, "<div>短期搜索建议</div>")
-        recorder.accept(event)
-        AgentRunCheckpointStore.append(context, request.runId, 0, event)
-        recorder.accept(textDelta("正文与引用"))
-        recorder.seal()
-        val restored = AgentRunCheckpointStore.list(context).single()
-        assertEquals(listOf(textDelta("正文与引用")), restored.events)
-    }
-
-    @Test
     fun recorderCoalescesTextAndPreservesVisibleToolTrace() {
         var nowNanos = 0L
         val request = request("run-1")

@@ -228,8 +228,6 @@
   <string name="ui_misc_share">Share</string>
   <string name="ui_misc_share_failed">Share failed</string>
   <string name="ui_misc_continue_editing">Continue editing</string>
-  <string name="ui_misc_no_browser_for_link">No browser available to open this link</string>
-  <string name="ui_misc_cannot_open_link">Unable to open link</string>
   <string name="ui_misc_web_deepseek_key_required">Enter a DeepSeek API Key, or configure DeepSeek in Model Providers first</string>
   <string name="ui_misc_web_deepseek_url_invalid">DeepSeek Base URL must be a valid HTTP(S) address</string>
   <string name="ui_misc_web_custom_search_url_required">Enter a custom search endpoint URL</string>
@@ -249,4 +247,8 @@
   <string name="ui_misc_mcp_tools_enabled_header">%1$s · %2$d enabled</string>
   <string name="ui_misc_collapse_description">Collapse</string>
   <string name="ui_misc_expand_description">Expand</string>
+  <string name="chat_sources_pill">Sources · %1$d</string>
+  <string name="chat_sources_sheet_title">Sources (%1$d)</string>
+  <string name="chat_sources_open_desc">Open in browser</string>
+  <string name="chat_sources_open_failed">Unable to open link</string>
 </resources>

@@ -1,38 +1,46 @@
 package io.github.mangi.eta.agent.model.format
 
-internal data class CitationAnnotation(
-    val start: Int?,
-    val end: Int?,
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class CitationSource(
     val url: String,
-    val title: String,
+    val title: String = "",
 )
 
+/** 过滤非 HTTP(S) 链接并按首次出现顺序去重，生成供 UI 展示的结构化参考来源。 */
 internal object CitationFormatter {
-    fun apply(text: String, annotations: List<CitationAnnotation>): String {
-        val unique = annotations
-            .filter { it.url.startsWith("https://") || it.url.startsWith("http://") }
-            .distinctBy { it.url }
-        if (unique.isEmpty()) return text
+    const val MAX_SOURCES = 64
+    private const val MAX_URL_CHARS = 2048
+    private const val MAX_TITLE_CHARS = 240
+    private val WHITESPACE_REGEX = Regex("\\s+")
 
-        val valid = unique.withIndex().filter { (_, citation) ->
-            citation.end != null && citation.end in 0..text.length &&
-                citation.start != null && citation.start in 0..citation.end
-        }
-        val result = StringBuilder(text)
-        valid.sortedByDescending { it.value.end }.forEach { (index, citation) ->
-            result.insert(citation.end!!, " [[${index + 1}]](<${citation.url.escapeAngleUrl()}>)")
-        }
-        val invalid = unique.filterNot(valid.map { it.value }.toSet()::contains)
-        if (invalid.isNotEmpty()) {
-            result.append("\n\n来源：")
-            invalid.forEachIndexed { index, citation ->
-                val number = unique.indexOf(citation) + 1
-                val label = citation.title.ifBlank { "来源 ${index + 1}" }
-                result.append("\n- [$number] [$label](<${citation.url.escapeAngleUrl()}>)")
+    fun normalize(sources: Iterable<CitationSource>): List<CitationSource> {
+        val seen = LinkedHashMap<String, CitationSource>()
+        for (source in sources) {
+            if (seen.size >= MAX_SOURCES) break
+            val url = source.url.trim()
+            if (url.length > MAX_URL_CHARS || !isHttpUrl(url)) continue
+            val title = normalizeTitle(source.title)
+            val existing = seen[url]
+            if (existing == null) {
+                seen[url] = CitationSource(url = url, title = title)
+            } else if (existing.title.isBlank() && title.isNotBlank()) {
+                seen[url] = existing.copy(title = title)
             }
         }
-        return result.toString()
+        return seen.values.toList()
     }
 
-    private fun String.escapeAngleUrl(): String = replace(">", "%3E")
+    fun merge(first: List<CitationSource>, second: List<CitationSource>): List<CitationSource> {
+        if (first.isEmpty()) return normalize(second)
+        if (second.isEmpty()) return normalize(first)
+        return normalize(first + second)
+    }
+
+    private fun isHttpUrl(url: String): Boolean =
+        url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true)
+
+    private fun normalizeTitle(raw: String): String =
+        raw.replace(WHITESPACE_REGEX, " ").trim().take(MAX_TITLE_CHARS)
 }

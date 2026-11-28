@@ -18,32 +18,24 @@ import org.junit.Test
 
 class AgentRunMessageProjectorTest {
     @Test
-    fun searchSuggestionsBindToExactTextBlockAndDoNotPersistIntoAnotherRun() {
+    fun textBlockEndAttachesAndDeduplicatesStructuredSources() {
         val projector = AgentRunMessageProjector { 1_000L }
-        var messages = projector.appendTextDelta("run", 1, 0, "第一段", emptyList())
-        messages = projector.appendTextDelta("run", 1, 3, "带来源的回答", messages)
-        val event = AgentEvent.SearchSuggestions(1, 3, "<div>搜索建议</div>")
-        val attached = projector.applyEvent("run", event, messages)
-        assertTrue((attached[0] as AgentMessageUi).searchSuggestionsHtml.isEmpty())
-        assertEquals(listOf(event.html), (attached[1] as AgentMessageUi).searchSuggestionsHtml)
-        assertSame(attached, projector.applyEvent("run", event, attached))
-        assertSame(attached, projector.applyEvent("other", event, attached))
-        assertSame(attached, projector.applyEvent("run", event.copy(index = 7), attached))
-        val finalized = projector.finalizeRun("run", attached)
-        assertEquals(listOf(event.html), (finalized[1] as AgentMessageUi).searchSuggestionsHtml)
-        assertTrue(projector.resetForReplay("run", finalized).isEmpty())
-    }
-
-    @Test
-    fun searchSuggestionsEnforcePerRoundBudgetAcrossMultipleAnswerBlocks() {
-        val projector = AgentRunMessageProjector { 1_000L }
-        var messages = projector.appendTextDelta("run", 1, 0, "第一段", emptyList())
-        messages = projector.appendTextDelta("run", 1, 1, "第二段", messages)
-        repeat(5) { index ->
-            messages = projector.applyEvent("run", AgentEvent.SearchSuggestions(1, index % 2, "建议-$index"), messages)
-        }
-        assertEquals(5, messages.filterIsInstance<AgentMessageUi>().sumOf { it.searchSuggestionsHtml.size })
-        assertSame(messages, projector.applyEvent("run", AgentEvent.SearchSuggestions(1, 0, "第六个"), messages))
+        var messages = projector.appendTextDelta("run", 1, 0, "干净正文", emptyList())
+        val first = io.github.mangi.eta.agent.model.format.CitationSource("https://example.com/1", "来源一")
+        val second = io.github.mangi.eta.agent.model.format.CitationSource("https://example.com/2", "来源二")
+        messages = projector.applyEvent(
+            "run",
+            AgentEvent.AssistantBlockEnd(1, AgentEvent.AssistantBlockKind.TEXT, 0, contentChars = 4, sources = listOf(first)),
+            messages,
+        )
+        messages = projector.applyEvent(
+            "run",
+            AgentEvent.AssistantBlockEnd(1, AgentEvent.AssistantBlockKind.TEXT, 0, contentChars = 4, sources = listOf(first, second)),
+            messages,
+        )
+        val answer = messages.single() as AgentMessageUi
+        assertEquals("干净正文", answer.content)
+        assertEquals(listOf("https://example.com/1", "https://example.com/2"), answer.sources.map { it.url })
     }
 
     @Test

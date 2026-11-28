@@ -28,7 +28,7 @@ import androidx.room.migration.Migration
         ScheduledTaskEntity::class,
         ScheduledTaskRunEntity::class,
     ],
-    version = 30,
+    version = 31,
     exportSchema = false,
 )
 internal abstract class EtaDatabase : RoomDatabase() {
@@ -76,6 +76,7 @@ internal abstract class EtaDatabase : RoomDatabase() {
                         MIGRATION_27_28,
                         MIGRATION_28_29,
                         MIGRATION_29_30,
+                        MIGRATION_30_31,
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
@@ -218,6 +219,12 @@ internal abstract class EtaDatabase : RoomDatabase() {
         internal val MIGRATION_29_30 = Migration(29, 30) { database ->
             database.execSQL(
                 "ALTER TABLE scheduled_tasks ADD COLUMN show_running_notification INTEGER NOT NULL DEFAULT 0"
+            )
+        }
+
+        internal val MIGRATION_30_31 = Migration(30, 31) { database ->
+            database.execSQL(
+                "ALTER TABLE conversation_messages ADD COLUMN sources_json TEXT NOT NULL DEFAULT '[]'"
             )
         }
 

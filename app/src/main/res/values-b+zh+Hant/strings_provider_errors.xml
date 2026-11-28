@@ -36,7 +36,6 @@
     <string name="provider_err_gemini_tool_call_incomplete">Gemini 工具呼叫缺少可執行的完整終態。</string>
     <string name="provider_err_gemini_search_incomplete">Gemini 搜尋步驟未完整結束。</string>
     <string name="provider_err_gemini_unsupported_output">Gemini 回傳了目前不支援的輸出類型。</string>
-    <string name="provider_err_gemini_search_suggestions_limit">Gemini 搜尋建議超過顯示容量限制。</string>
     <string name="provider_err_gemini_stream_invalid">Gemini 串流回應格式無效或超過容量限制。</string>
 
     <string name="provider_err_not_responses_api">目前服務商未設定為 Responses API</string>

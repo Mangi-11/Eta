@@ -2210,7 +2210,7 @@ internal class AgentAppState(
                         rewriteTargetMessageId = rewriteTargetMessageId,
                         runId = runId,
                         prompt = prompt,
-                        config = config.copy(supportsSearchSuggestions = true),
+                        config = config,
                         images = modelImages,
                         history = history,
                         handoff = AgentRuntimeWire.EntryHandoff(

@@ -251,17 +251,6 @@ class GeminiInteractionsTest {
     }
 
     @Test
-    fun incompleteSearchAnswerKeepsReceivedSuggestionsWithItsPartialText() {
-        val events = mutableListOf<ProviderEvent>()
-        val failure = assertFailure("MODEL_OUTPUT_LIMIT", searchSteps() + start(2, """{"type":"model_output"}""") +
-            delta(2, """{"type":"text","text":"未完整的搜索答复"}""") + complete("incomplete"), events)
-        assertFalse(failure.retryable)
-        val suggestion = events.filterIsInstance<ProviderEvent.SearchSuggestions>().single()
-        assertEquals(2, suggestion.index)
-        assertTrue(events.indexOf(suggestion) > events.indexOfLast { it is ProviderEvent.BlockDelta })
-    }
-
-    @Test
     fun unknownEventsAreIgnoredButUnsupportedOutputAndMalformedEventsFail() {
         assertEquals("好", read(event(JSONObject().put("event_type", "future.event")) + textResponse("好")).getString("content"))
         assertFailure("GEMINI_UNSUPPORTED_OUTPUT", start(0, """{"type":"model_output"}""") + delta(0, """{"type":"audio","data":"redacted"}"""))
@@ -304,29 +293,41 @@ class GeminiInteractionsTest {
     }
 
     @Test
-    fun utf8CitationOffsetsKeepChineseAndEmojiBoundaries() {
-        val text = "中😀文"
-        assertEquals(text, GeminiCitationFormatter.apply(text, JSONArray()))
-        val annotation = JSONObject().put("type", "url_citation").put("url", "https://example.test/source")
-            .put("title", "来源").put("start_index", 0).put("end_index", 7)
-        val formatted = GeminiCitationFormatter.apply(text, JSONArray().put(annotation))
-        assertEquals("中😀 [[1]](<https://example.test/source>)文", formatted)
-        annotation.put("end_index", 5)
-        val fallback = GeminiCitationFormatter.apply(text, JSONArray().put(annotation))
-        assertTrue(fallback.startsWith("中😀文\n\n来源："))
-        annotation.put("end_index", 4_294_967_296L)
-        assertTrue(GeminiCitationFormatter.apply(text, JSONArray().put(annotation)).startsWith("中😀文\n\n来源："))
+    fun citationsExtractStructuredSourcesWithoutMutatingAnswerText() {
+        assertTrue(GeminiCitationFormatter.extract(JSONArray()).isEmpty())
+        val annotations = JSONArray()
+            .put(JSONObject().put("type", "url_citation").put("url", "https://example.test/a").put("title", "来源 A"))
+            .put(JSONObject().put("type", "url_citation").put("url", "https://example.test/a").put("title", "重复 A"))
+            .put(JSONObject().put("type", "url_citation").put("url", "https://example.test/b").put("title", "来源 B"))
+            .put(JSONObject().put("type", "url_citation").put("url", "javascript:alert(1)").put("title", "不安全"))
+        val extracted = GeminiCitationFormatter.extract(annotations)
+        assertEquals(2, extracted.size)
+        assertEquals("https://example.test/a", extracted[0].url)
+        assertEquals("来源 A", extracted[0].title)
+        assertEquals("https://example.test/b", extracted[1].url)
+        assertEquals("来源 B", extracted[1].title)
+
+        val events = mutableListOf<ProviderEvent>()
+        val response = read(
+            searchSteps() +
+                start(2, """{"type":"model_output"}""") +
+                delta(2, """{"type":"text","text":"查询结果"}""") +
+                delta(2, JSONObject().put("type", "text_annotation_delta").put("annotations", annotations)) +
+                stop(2) +
+                complete("completed"),
+            events,
+        )
+        assertEquals("查询结果", response.getString("content"))
+        val textEnd = events.filterIsInstance<ProviderEvent.BlockEnd>()
+            .single { it.kind == AssistantBlockKind.TEXT }
+        assertEquals(extracted, textEnd.sources)
     }
 
     @Test
-    fun searchSignaturesAndSuggestionsAreBoundToFollowingTextAfterBlockEnd() {
+    fun searchSignaturesAreKeptEphemeralAndExcludedFromDurableTranscript() {
         val events = mutableListOf<ProviderEvent>()
         val response = read(searchSteps() + start(2, """{"type":"model_output"}""") +
             delta(2, """{"type":"text","text":"查询结果"}""") + stop(2) + complete("completed"), events)
-        val suggestion = events.filterIsInstance<ProviderEvent.SearchSuggestions>().single()
-        assertEquals(2, suggestion.index)
-        assertEquals("<div>建议</div>", suggestion.html)
-        assertTrue(events.indexOf(suggestion) > events.indexOfLast { it is ProviderEvent.BlockEnd })
         assertEquals(1, events.filterIsInstance<ProviderEvent.HostedToolStarted>().size)
         assertTrue(events.filterIsInstance<ProviderEvent.HostedToolFinished>().single().success)
         assertEquals("result-signature", GeminiEphemeralState.steps(response)!!.getJSONObject(1).getString("signature"))
@@ -336,30 +337,8 @@ class GeminiInteractionsTest {
     }
 
     @Test
-    fun searchThenLocalToolDefersSuggestionsUntilNextAnswer() {
-        val firstEvents = mutableListOf<ProviderEvent>()
-        val first = read(searchSteps() + start(2, """{"type":"function_call","id":"local","name":"lookup","arguments":{}}""") +
-            stop(2) + complete("requires_action"), firstEvents)
-        assertTrue(firstEvents.none { it is ProviderEvent.SearchSuggestions })
-        assertEquals(1, GeminiEphemeralState.pendingSuggestions(first).length())
-        val copied = JSONObject()
-        GeminiEphemeralState.copyAssistantState(first, copied)
-        val secondEvents = mutableListOf<ProviderEvent>()
-        val second = GeminiInteractionsStream(secondEvents::add, GeminiEphemeralState.pendingSuggestions(copied))
-            .read(ByteArrayInputStream(textResponse("最终答案").toByteArray()), AgentRunController())
-        assertEquals(0, secondEvents.filterIsInstance<ProviderEvent.SearchSuggestions>().single().index)
-        assertEquals(0, GeminiEphemeralState.pendingSuggestions(second).length())
-    }
-
-    @Test
-    fun oversizedSuggestionsFailInsteadOfDisplayingTruncatedHtml() {
-        val html = "中".repeat(22_000)
-        assertFailure("GEMINI_SEARCH_SUGGESTIONS_LIMIT", searchSteps(html))
-    }
-
-    @Test
     fun bodyProtectsConversationAuthFlowAndToolChoiceButKeepsSchema() {
-        val cfg = config().copy(hostedWebSearchEnabled = true, supportsSearchSuggestions = true,
+        val cfg = config().copy(hostedWebSearchEnabled = true,
             extraBodyJson = """{"store":true,"previous_interaction_id":"forbidden","generation_config":{"thinking_level":"high","max_output_tokens":120}}""",
             customBody = listOf(CustomBody("stream", JsonPrimitive(false)), CustomBody("model", JsonPrimitive("wrong"))))
         val tools = JSONArray("""[{"type":"function","function":{"name":"lookup","parameters":{"type":"object","oneOf":[{"required":["query"]}],"properties":{"query":{"type":"string","minLength":2}}}}}]""")

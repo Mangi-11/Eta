@@ -16,30 +16,6 @@ import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 
 class AgentRuntimeRequestConfigResolverTest {
     @Test
-    fun onlyEtaProcessesWithSupportedEntryCanDeclareSearchPresentation() {
-        val sources = listOf(AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE,
-            AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE, "external", "unknown")
-        for (source in sources) for (isEta in listOf(false, true)) {
-            val original = request(source, modelConfig("fixture", ReasoningEffort.DEFAULT)
-                .copy(supportsSearchSuggestions = true))
-            val constrained = AgentRuntimeRequestConfigResolver.constrainPresentation(original, isEta)
-            assertEquals(isEta && source in sources.take(2), constrained.config.supportsSearchSuggestions)
-        }
-    }
-
-    @Test
-    fun voiceConfigResolutionPreservesOnlyTheEntryPresentationDeclaration() {
-        val local = modelConfig("fixture", ReasoningEffort.DEFAULT)
-        val original = request(AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE,
-            local.copy(supportsSearchSuggestions = true))
-        assertTrue(AgentRuntimeRequestConfigResolver.applyRuntimeConfig(original, local)
-            .config.supportsSearchSuggestions)
-        assertFalse(AgentRuntimeRequestConfigResolver.applyRuntimeConfig(
-            original.copy(config = local), local.copy(supportsSearchSuggestions = true),
-        ).config.supportsSearchSuggestions)
-    }
-
-    @Test
     fun oauthRequestUsesLocalConnectionAndPreservesSupportedTransientChoices() {
         val local = modelConfig("", ReasoningEffort.DEFAULT).copy(
             providerId = "account-provider",

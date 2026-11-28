@@ -543,7 +543,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                     runId = runId,
                     prompt = normalized,
                     assistantScreenContext = screen.text,
-                    config = config.copy(supportsSearchSuggestions = true),
+                    config = config,
                     images = runImages,
                     history = conversationHistory,
                     modelSessionId = conversationKey,

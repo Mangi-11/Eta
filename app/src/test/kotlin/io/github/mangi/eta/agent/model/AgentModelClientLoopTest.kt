@@ -36,6 +36,87 @@ import io.github.mangi.eta.agent.model.provider.openai.ResponsesRequestBuilder
 
 class AgentModelClientLoopTest {
     @Test
+    fun localWebToolsAttachDeduplicatedSourcesToFinalAnswer() {
+        val events = mutableListOf<AgentEvent>()
+        var step = 0
+        val provider = object : AgentProviderClient {
+            override val id: String = "scripted-web"
+            override val capabilities: ProviderCapabilities = ProviderCapabilities(
+                endpoint = EndpointKind.CHAT_COMPLETIONS,
+                streamingText = true,
+                streamingToolCalls = true,
+                imageInput = true,
+                toolResultImages = false,
+                strictTools = false,
+                parallelToolCalls = false,
+            )
+
+            override fun complete(
+                request: ProviderRequest,
+                runController: AgentRunController,
+                onEvent: (ProviderEvent) -> Unit,
+            ): ProviderResponse {
+                step += 1
+                return when (step) {
+                    1 -> ProviderResponse(
+                        assistant(
+                            finishReason = "tool_calls",
+                            toolCalls = listOf(toolCall("search-1", "web_search", """{"query":"test"}""")),
+                        ),
+                    )
+                    2 -> ProviderResponse(
+                        assistant(
+                            finishReason = "tool_calls",
+                            toolCalls = listOf(toolCall("fetch-1", "fetch_url", """{"url":"https://example.com/b"}""")),
+                        ),
+                    )
+                    else -> {
+                        onEvent(ProviderEvent.BlockStart(AssistantBlockKind.TEXT, 0))
+                        onEvent(ProviderEvent.BlockDelta(AssistantBlockKind.TEXT, 0, "整理完毕"))
+                        onEvent(ProviderEvent.BlockEnd(AssistantBlockKind.TEXT, 0, content = "整理完毕"))
+                        ProviderResponse(assistant(content = "整理完毕", finishReason = "stop"))
+                    }
+                }
+            }
+        }
+        AgentModelClient.complete(
+            modelConfig().copy(browserTools = true),
+            "帮我查一下",
+            AgentModelClient.ToolExecutor { call ->
+                when (call.name) {
+                    "web_search" -> AgentModelClient.ToolResult(
+                        JSONObject()
+                            .put("ok", true)
+                            .put(
+                                "results",
+                                JSONArray()
+                                    .put(JSONObject().put("title", "搜索结果 A").put("url", "https://example.com/a"))
+                                    .put(JSONObject().put("title", "搜索结果 B").put("url", "https://example.com/b")),
+                            )
+                            .toString(),
+                    )
+                    "fetch_url" -> AgentModelClient.ToolResult(
+                        JSONObject()
+                            .put("ok", true)
+                            .put("final_url", "https://example.com/b")
+                            .put("title", "正文 B")
+                            .toString(),
+                    )
+                    else -> error("unexpected tool ${call.name}")
+                }
+            },
+            onEvent = events::add,
+            provider = provider,
+        )
+        val attachedSources = events
+            .filterIsInstance<AgentEvent.AssistantBlockEnd>()
+            .filter { it.kind == AgentEvent.AssistantBlockKind.TEXT }
+            .flatMap { it.sources }
+        assertEquals(listOf("https://example.com/b", "https://example.com/a"), attachedSources.map { it.url })
+        assertEquals(listOf("正文 B", "搜索结果 A"), attachedSources.map { it.title })
+    }
+
+    @Test
     fun rootProbeStatesKeepThePrefixStableUntilGrantActuallyChanges() {
         var root = RootAccessState(isChecking = true)
         val calls = mutableListOf<String>()

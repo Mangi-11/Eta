@@ -1,6 +1,7 @@
 package io.github.mangi.eta.agent.runtime.ipc
 
 import io.github.mangi.eta.core.toSafeLogToken
+import io.github.mangi.eta.agent.model.format.CitationSource
 import io.github.mangi.eta.agent.runtime.AgentTokenUsage
 import io.github.mangi.eta.agent.runtime.GuiControlStatus
 
@@ -136,19 +137,12 @@ internal sealed interface AgentEvent {
         val contentChars: Int,
         val replacementContent: String? = null,
         val elapsedMs: Long? = null,
+        val sources: List<CitationSource> = emptyList(),
     ) : AgentEvent {
         override fun toLogLine(): String =
             "assistant_block_end round=$round, kind=$kind, index=$index, " +
-                "name=${name.toSafeLogToken()}, chars=$contentChars"
-    }
-
-    data class SearchSuggestions(
-        val round: Int,
-        val index: Int,
-        val html: String,
-    ) : AgentEvent {
-        override fun toLogLine(): String =
-            "search_suggestions round=$round, index=$index, chars=${html.length}"
+                "name=${name.toSafeLogToken()}, chars=$contentChars" +
+                if (sources.isNotEmpty()) ", sources=${sources.size}" else ""
     }
 
     data class AssistantReceived(

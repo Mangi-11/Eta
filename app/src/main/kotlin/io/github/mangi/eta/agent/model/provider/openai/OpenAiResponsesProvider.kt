@@ -10,8 +10,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import io.github.mangi.eta.agent.model.format.CitationAnnotation
 import io.github.mangi.eta.agent.model.format.CitationFormatter
+import io.github.mangi.eta.agent.model.format.CitationSource
 import io.github.mangi.eta.agent.model.provider.AgentHttpClient
 import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.agent.model.provider.AgentModelFailure
@@ -128,6 +128,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
         fun finishContentBlock(
             block: StreamingContentBlock,
             content: String = block.content.toString(),
+            sources: List<CitationSource> = emptyList(),
             force: Boolean = false,
         ) {
             if (block.ended && !force) return
@@ -138,6 +139,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
                     blockId = block.identity.itemId.ifBlank { null },
                     content = content,
                     replaceContent = force && content != block.content.toString(),
+                    sources = sources,
                 )
             )
             block.ended = true
@@ -400,7 +402,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
             }
             if (matchingBlocks.size == 1) {
                 val block = matchingBlocks.single()
-                if (block.ended && part.content == block.content.toString()) return
+                if (block.ended && part.content == block.content.toString() && part.sources.isEmpty()) return
                 if (!block.ended && part.rawContent.startsWith(block.content.toString())) {
                     val suffix = part.rawContent.substring(block.content.length)
                     if (suffix.isNotEmpty()) {
@@ -408,12 +410,15 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
                         onEvent(ProviderEvent.BlockDelta(block.kind, block.contentIndex, suffix))
                     }
                 }
-                finishContentBlock(block, content = part.content, force = true)
+                finishContentBlock(block, content = part.content, sources = part.sources, force = true)
                 return
             }
 
             if (matchingBlocks.isNotEmpty()) {
                 matchingBlocks.filter { !it.ended }.forEach(::finishContentBlock)
+                if (part.sources.isNotEmpty()) {
+                    finishContentBlock(matchingBlocks.last(), content = matchingBlocks.last().content.toString(), sources = part.sources, force = true)
+                }
                 return
             }
 
@@ -434,7 +439,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
                 block.content.append(part.content)
                 onEvent(ProviderEvent.BlockDelta(part.kind, block.contentIndex, part.content))
             }
-            finishContentBlock(block, content = part.content)
+            finishContentBlock(block, content = part.content, sources = part.sources)
         }
 
         finalResult.contentParts.forEach(::reconcileFinalPart)
@@ -511,7 +516,6 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
     private fun extractFinalOutput(output: JSONArray): FinalOutput {
         val text = StringBuilder()
         val reasoning = StringBuilder()
-        val annotations = mutableListOf<CitationAnnotation>()
         val calls = mutableListOf<FinalFunctionCall>()
         val contentParts = mutableListOf<FinalContentPart>()
         for (index in 0 until output.length()) {
@@ -524,24 +528,16 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
                         val part = content.optJSONObject(contentIndex) ?: continue
                         if (part.optString("type") != "output_text") continue
                         val partText = part.optString("text")
-                        val offset = text.length
                         text.append(partText)
-                        val localAnnotations = mutableListOf<CitationAnnotation>()
+                        val localSources = mutableListOf<CitationSource>()
                         val partAnnotations = part.optJSONArray("annotations") ?: JSONArray()
                         for (annotationIndex in 0 until partAnnotations.length()) {
                             val annotation = partAnnotations.optJSONObject(annotationIndex) ?: continue
                             val citation = annotation.optJSONObject("url_citation") ?: annotation
                             if (citation.optString("type") == "url_citation" || citation.has("url")) {
-                                val local = CitationAnnotation(
-                                    start = citation.optInt("start_index", -1).takeIf { it >= 0 },
-                                    end = citation.optInt("end_index", -1).takeIf { it >= 0 },
+                                localSources += CitationSource(
                                     url = citation.optString("url"),
                                     title = citation.optString("title"),
-                                )
-                                localAnnotations += local
-                                annotations += local.copy(
-                                    start = local.start?.plus(offset),
-                                    end = local.end?.plus(offset),
                                 )
                             }
                         }
@@ -554,7 +550,8 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
                                 partIndex = contentIndex,
                             ),
                             rawContent = partText,
-                            content = CitationFormatter.apply(partText, localAnnotations),
+                            content = partText,
+                            sources = CitationFormatter.normalize(localSources),
                         )
                     }
                 }
@@ -611,7 +608,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
             }
         }
         return FinalOutput(
-            text = CitationFormatter.apply(text.toString(), annotations),
+            text = text.toString(),
             rawText = text.toString(),
             reasoning = reasoning.toString(),
             toolCalls = calls,
@@ -779,6 +776,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
         val identity: ResponsesContentIdentity,
         val rawContent: String,
         val content: String,
+        val sources: List<CitationSource> = emptyList(),
     )
 
     private data class FinalFunctionCall(

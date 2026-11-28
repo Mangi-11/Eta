@@ -133,7 +133,6 @@ class VertexGenerateContentTest {
             reasoningCapabilities = capabilities,
             reasoningEffort = ReasoningEffort.XHIGH,
             hostedWebSearchEnabled = true,
-            supportsSearchSuggestions = true,
             customBody = listOf(
                 CustomBody(
                     "generationConfig",
@@ -251,7 +250,7 @@ class VertexGenerateContentTest {
     @Test
     fun agentLoopAttachesImagesToTheirCallsForOnlyTheNextRequest() {
         val sent = mutableListOf<JSONArray>()
-        val cfg = config().copy(hostedWebSearchEnabled = true, supportsSearchSuggestions = true)
+        val cfg = config().copy(hostedWebSearchEnabled = true)
         val provider = object : AgentProviderClient by VertexGenerateContentProvider {
             override fun complete(
                 request: ProviderRequest,

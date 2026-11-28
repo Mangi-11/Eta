@@ -130,7 +130,6 @@ private fun AgentOverlayState.projectEvent(event: AgentEvent): AgentOverlayState
         activeTools = emptyList(),
     )
 
-    is AgentEvent.SearchSuggestions,
     is AgentEvent.AssistantBlockEnd,
     is AgentEvent.AssistantReceived,
     is AgentEvent.ProviderResponseStarted,

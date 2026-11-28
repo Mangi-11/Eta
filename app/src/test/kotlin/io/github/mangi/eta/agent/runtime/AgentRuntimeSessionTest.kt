@@ -14,26 +14,6 @@ import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 
 class AgentRuntimeSessionTest {
     @Test
-    fun searchSuggestionsSurviveActiveReplayButStopAtCancellationAndBudget() {
-        val delivered = mutableListOf<AgentEvent>()
-        val session = AgentRuntimeSession("search", eventSink = delivered::add)
-        val event = AgentEvent.SearchSuggestions(1, 0, "<div>搜索建议</div>")
-        assertTrue(session.emit(event))
-        assertFalse(session.emit(event))
-        repeat(SearchSuggestionsPayload.MAX_FRAGMENTS - 1) { index ->
-            assertTrue(session.emit(event.copy(index = index + 1)))
-        }
-        assertFalse(session.emit(event.copy(index = 20)))
-        assertFalse(session.emit(event.copy(html = "x".repeat(SearchSuggestionsPayload.MAX_HTML_BYTES + 1))))
-        val replay = mutableListOf<AgentEvent>()
-        assertTrue(session.attach(replay::add, {}))
-        assertEquals(delivered, replay)
-        assertTrue(session.cancel("已停止"))
-        assertFalse(session.emit(event.copy(round = 2)))
-        assertFalse(session.attach({ error("取消后不能回放 HTML") }, {}))
-    }
-
-    @Test
     fun compactionDoesNotAcceptPendingTaskInstructions() {
         val session = AgentRuntimeSession("compact", operation = AgentRuntimeWire.OP_COMPACT)
         assertFalse(session.steer("继续执行设备操作"))

@@ -24,6 +24,7 @@ import io.github.mangi.eta.core.safeStackTrace
 import io.github.mangi.eta.ui.model.AgentChatHomeUiState
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
+import io.github.mangi.eta.ui.model.MessageSourceUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.SystemNoticeCode
 import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
@@ -337,7 +338,7 @@ internal object AgentConversationStore {
     fun unloadConversation(state: AgentChatHomeUiState): AgentChatHomeUiState = state.copy(
         messages = listOfNotNull(state.messages.lastOrNull()?.let { message -> when (message) {
             is UserMessageUi -> message.copy(content = message.content.take(256), images = emptyList())
-            is AgentMessageUi -> message.copy(content = message.content.take(256), searchSuggestionsHtml = emptyList())
+            is AgentMessageUi -> message.copy(content = message.content.take(256), sources = emptyList())
             is ThinkingMessageUi -> message.copy(content = message.content.take(256))
             is ToolActivityMessageUi -> message.copy(
                 argumentsSummary = message.argumentsSummary.take(256), command = message.command?.take(256),
@@ -476,6 +477,7 @@ internal object AgentConversationStore {
                         ttftSteps = usage?.ttftSteps,
                         decodeMs = usage?.decodeMs,
                         decodeTokens = usage?.decodeTokens,
+                        sourcesJson = sources.toSourcesJsonString(),
                     )
                 }
             }
@@ -567,6 +569,7 @@ internal object AgentConversationStore {
                     decodeMs = decodeMs,
                     decodeTokens = decodeTokens,
                 ).takeUnless { it.isEmpty },
+                sources = sourcesJson.toSourceList(),
             )
 
             TYPE_SYSTEM_NOTICE -> SystemNoticeCode.fromWireValue(content)?.let { code ->
@@ -648,6 +651,39 @@ internal object AgentConversationStore {
                 }
             }
         }.getOrDefault(emptyList())
+
+    private fun List<MessageSourceUi>.toSourcesJsonString(): String =
+        if (isEmpty()) {
+            "[]"
+        } else {
+            JSONArray().also { array ->
+                forEach { source ->
+                    array.put(
+                        org.json.JSONObject()
+                            .put("url", source.url)
+                            .put("title", source.title),
+                    )
+                }
+            }.toString()
+        }
+
+    private fun String.toSourceList(): List<MessageSourceUi> =
+        if (isBlank() || this == "[]") {
+            emptyList()
+        } else {
+            runCatching {
+                val array = JSONArray(this)
+                buildList {
+                    for (index in 0 until array.length()) {
+                        val item = array.optJSONObject(index) ?: continue
+                        val url = item.optString("url").trim()
+                        if (url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true)) {
+                            add(MessageSourceUi(url = url, title = item.optString("title").trim()))
+                        }
+                    }
+                }
+            }.getOrDefault(emptyList())
+        }
 
     private fun List<ConversationMessageEntity>.toLegacyHistory(): List<AgentModelClient.ConversationMessage> =
         mapNotNull { message ->

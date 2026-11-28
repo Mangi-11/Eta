@@ -23,8 +23,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import io.github.mangi.eta.agent.model.catalog.AgentWebToolCatalog
-import io.github.mangi.eta.agent.model.format.CitationAnnotation
 import io.github.mangi.eta.agent.model.format.CitationFormatter
+import io.github.mangi.eta.agent.model.format.CitationSource
 import io.github.mangi.eta.agent.model.provider.AgentModelClient
 import io.github.mangi.eta.agent.model.provider.AssistantBlockKind
 import io.github.mangi.eta.agent.model.provider.ProviderEvent
@@ -373,7 +373,12 @@ class OpenAiResponsesProviderTest {
 
             assertTrue(requestBody.get().contains("\"store\":false"))
             assertEquals("完整摘要", result.assistantMessage.getString("reasoning_content"))
-            assertTrue(result.assistantMessage.getString("content").contains("[[1]]"))
+            assertFalse(result.assistantMessage.getString("content").contains("[[1]]"))
+            val textSources = events.filterIsInstance<ProviderEvent.BlockEnd>()
+                .filter { it.kind == AssistantBlockKind.TEXT }
+                .flatMap { it.sources }
+            assertEquals(1, textSources.size)
+            assertEquals("https://example.com/source", textSources.single().url)
             assertEquals("call_1", result.assistantMessage.getJSONArray("tool_calls").getJSONObject(0).getString("id"))
             assertNotNull(ResponsesEphemeralState.outputItems(result.assistantMessage))
             assertEquals(1, events.filterIsInstance<ProviderEvent.HostedToolStarted>().size)
@@ -577,19 +582,20 @@ class OpenAiResponsesProviderTest {
     }
 
     @Test
-    fun citationsDeduplicateAndFallBackForInvalidOffsets() {
-        val formatted = CitationFormatter.apply(
-            "中文回答",
+    fun citationsExtractDeduplicatedHttpSourcesInOrder() {
+        val sources = CitationFormatter.normalize(
             listOf(
-                CitationAnnotation(0, 2, "https://example.com/a", "A"),
-                CitationAnnotation(0, 2, "https://example.com/a", "重复"),
-                CitationAnnotation(99, 120, "https://example.com/b", "B"),
+                CitationSource("https://example.com/a", ""),
+                CitationSource("https://example.com/a", "A 标题"),
+                CitationSource("https://example.com/b", "B 标题"),
+                CitationSource("file:///etc/passwd", "非法协议"),
             ),
         )
-        assertEquals(1, "https://example.com/a".toRegex().findAll(formatted).count())
-        assertTrue(formatted.contains("[[1]]"))
-        assertTrue(formatted.contains("来源："))
-        assertTrue(formatted.contains("https://example.com/b"))
+        assertEquals(2, sources.size)
+        assertEquals("https://example.com/a", sources[0].url)
+        assertEquals("A 标题", sources[0].title)
+        assertEquals("https://example.com/b", sources[1].url)
+        assertEquals("B 标题", sources[1].title)
     }
 
     private fun config(baseUrl: String) = AgentModelClient.ModelConfig(

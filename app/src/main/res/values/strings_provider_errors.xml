@@ -36,7 +36,6 @@
     <string name="provider_err_gemini_tool_call_incomplete">Gemini tool call is missing an executable terminal state.</string>
     <string name="provider_err_gemini_search_incomplete">Gemini search step did not finish completely.</string>
     <string name="provider_err_gemini_unsupported_output">Gemini returned an unsupported output type.</string>
-    <string name="provider_err_gemini_search_suggestions_limit">Gemini search suggestions exceeded the display capacity limit.</string>
     <string name="provider_err_gemini_stream_invalid">Gemini streaming response format is invalid or exceeds capacity limit.</string>
 
     <string name="provider_err_not_responses_api">Current provider is not configured for the Responses API.</string>

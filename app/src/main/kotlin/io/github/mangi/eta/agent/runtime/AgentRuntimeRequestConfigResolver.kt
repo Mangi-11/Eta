@@ -6,18 +6,6 @@ import io.github.mangi.eta.agent.runtime.archive.AgentExternalArchivePayload
 import io.github.mangi.eta.agent.runtime.ipc.AgentRuntimeWire
 
 internal object AgentRuntimeRequestConfigResolver {
-    fun constrainPresentation(
-        request: AgentRuntimeWire.RunRequest,
-        isEtaProcess: Boolean,
-    ): AgentRuntimeWire.RunRequest {
-        val supportedEntry = request.handoff?.source in setOf(
-            AgentRuntimeWire.AGENT_UI_HANDOFF_SOURCE,
-            AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE,
-        )
-        if (!request.config.supportsSearchSuggestions || isEtaProcess && supportedEntry) return request
-        return request.copy(config = request.config.copy(supportsSearchSuggestions = false))
-    }
-
     fun requiresRuntimeConfig(request: AgentRuntimeWire.RunRequest): Boolean =
         usesDefaultRuntimeConfig(request) || ProviderAuthModes.isOAuth(request.config.authMode)
 
@@ -56,7 +44,6 @@ internal object AgentRuntimeRequestConfigResolver {
             thinkingEnabled = effort.enablesReasoning,
             reasoningEffort = effort,
             autoCompactionEnabled = runtimeConfig.autoCompactionEnabled && entry.autoCompactionEnabled,
-            supportsSearchSuggestions = entry.supportsSearchSuggestions,
         )
         val handoff = request.handoff ?: return request.copy(config = config)
         val archivePayload = AgentExternalArchivePayload.from(handoff.payload)

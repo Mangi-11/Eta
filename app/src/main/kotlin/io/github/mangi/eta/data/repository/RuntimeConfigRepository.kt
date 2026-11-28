@@ -159,7 +159,6 @@ internal object RuntimeConfigRepository {
             subagentTools = false,
             hostedWebSearchEnabled = false,
             autoCompactionEnabled = false,
-            supportsSearchSuggestions = false,
             thinkingEnabled = effort.enablesReasoning,
             reasoningEffort = effort,
         )
@@ -208,7 +207,6 @@ internal object RuntimeConfigRepository {
             thinkingEnabled = effort.enablesReasoning,
             reasoningEffort = effort,
             autoCompactionEnabled = primaryConfig.autoCompactionEnabled,
-            supportsSearchSuggestions = false,
         )
     }
 

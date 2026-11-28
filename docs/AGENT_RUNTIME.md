@@ -145,9 +145,7 @@ Gemini 工具参数在 Provider 边界做组合分支兼容投影：`oneOf`、`a
 
 Gemini 的完整原生 steps、思考和搜索签名只在当前 run 内回放，不进入稳定会话或运行归档。签名工具链尚未完成时保持请求前缀并延后自动压缩，强制压缩明确失败。跨 run、跨 Provider 或压缩后，旧消息与工具记录作为明确标注的文本历史投影，不把缺少签名的旧工具交换重新构造成原生调用。AI Studio 的工具截图沿用完整工具批次后的单轮观察消息。思考配置按用户覆盖、远端元数据、本地已知默认值的顺序解析。AI Studio 的未知模型默认只使用 Default；模型编辑页允许手动勾选 Interactions 协议的 Minimal、Low、Medium、High、XHigh，服务端校验具体模型是否支持，请求失败会明确报告而不自动降级。关闭“配置思考档位”只恢复 Default，不发送关闭模型思考的参数；恢复自动会移除用户覆盖。工具混用能力仍独立确认，不由手动思考配置推断。原生模型目录支持分页并限制累计大小，已有兼容连接不会自动改为 Gemini。Gemini 4 Neon（`gemini-4-neon`）与 Gemini 4 Hydrogen（`gemini-4-hydrogen`）支持 Default、Low、Medium、High、XHigh，服务端默认 High，不能关闭思考；Gemini 4 Carbon（`gemini-4-carbon`）支持 Default、Low、Medium、High，服务端默认 Medium，不能关闭思考；上述模型均已加入内置预设，旧安装仅补入新增项，已有同 ID 模型不会被替换。请求通过 `generation_config.thinking_level` 指定档位，并使用 `thinking_summaries: "auto"` 请求摘要；`thought.summary` 与流式 `thought_summary` 用于展示，签名不作为文字展示，服务端也可能只返回签名而没有摘要。参数合同见 [Google 思考文档](https://ai.google.dev/gemini-api/docs/thinking)。
 
-Gemini Google Search 仅在用户开启、模型已确认支持、入口声明并通过 Runtime 校验可以展示建议时生效。Eta 聊天和原生助手浮窗支持该能力；旧客户端和其他入口保持本地搜索。搜索与函数混用使用 `validated`，能力目前属于预览。搜索调用与结果的完整签名回放留在模型层，引用按 UTF-8 字节位置转换；搜索建议附在对应回答下方，无正文的工具轮将建议延后到下一次回答。建议通过独立只读 WebView 展示，脚本、文件访问和网络子资源关闭，用户点击 HTTP(S) 链接交给外部浏览器。
-
-搜索建议使用 `SearchSuggestionsPayload` 的单片段、每轮数量与总字节预算，超限明确失败，不截断 HTML。活动 Runtime 的内存重连可回放建议；持久化事件、checkpoint、归档、会话存储、备份和导出均排除建议 HTML。进程恢复只保留回答与引用，不能恢复原建议。`store=false` 仅控制 Interactions 保存，不承诺关闭 Google Search 自身的数据处理与留存，详见 [官方说明](https://ai.google.dev/gemini-api/terms#grounding-with-google-search)。
+Gemini Google Search 在用户开启且模型已确认支持时生效。搜索与函数混用使用 `validated`，能力目前属于预览。搜索调用与结果的完整签名回放留在模型层；引用来源提取为结构化列表随回答展示在底部来源抽屉，不向正文插入角标。`store=false` 仅控制 Interactions 保存，不承诺关闭 Google Search 自身的数据处理与留存，详见 [官方说明](https://ai.google.dev/gemini-api/terms#grounding-with-google-search)。
 
 ### 模型等待与重试
 

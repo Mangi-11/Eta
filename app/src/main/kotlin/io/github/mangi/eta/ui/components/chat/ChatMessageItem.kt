@@ -925,8 +925,18 @@ private fun AgentMessageBlock(
             }
         }
 
-        message.searchSuggestionsHtml.forEach { html ->
-            SearchSuggestionsView(html = html, modifier = Modifier.padding(top = 8.dp))
+        AnimatedVisibility(
+            visible = !message.isStreaming &&
+                message.sources.isNotEmpty() &&
+                revealComplete,
+            enter = fadeIn(tween(160)) + expandVertically(tween(160), expandFrom = Alignment.Top),
+            exit = fadeOut(tween(120)) + shrinkVertically(tween(120), shrinkTowards = Alignment.Top),
+        ) {
+            MessageSourcesPill(
+                messageId = message.id,
+                sources = message.sources,
+                modifier = Modifier.padding(top = 12.dp, bottom = 2.dp),
+            )
         }
 
         // 回答显现完成后才出现操作行；淡入展开避免贴底滚动时整页突然跳动一行高度。

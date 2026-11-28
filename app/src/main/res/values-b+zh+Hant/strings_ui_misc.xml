@@ -218,8 +218,6 @@
   <string name="ui_misc_share">分享</string>
   <string name="ui_misc_share_failed">分享失敗</string>
   <string name="ui_misc_continue_editing">繼續編輯</string>
-  <string name="ui_misc_no_browser_for_link">沒有可開啟連結的瀏覽器</string>
-  <string name="ui_misc_cannot_open_link">目前無法開啟連結</string>
   <string name="ui_misc_web_deepseek_key_required">請填寫 DeepSeek API Key，或先在模型供應商中設定 DeepSeek</string>
   <string name="ui_misc_web_deepseek_url_invalid">DeepSeek Base URL 須為合法的 HTTP(S) 網址</string>
   <string name="ui_misc_web_custom_search_url_required">請填寫自訂搜尋介面網址</string>
@@ -239,4 +237,8 @@
   <string name="ui_misc_mcp_tools_enabled_header">%1$s · 已啟用 %2$d</string>
   <string name="ui_misc_collapse_description">收合說明</string>
   <string name="ui_misc_expand_description">展開說明</string>
+  <string name="chat_sources_pill">參考來源 · %1$d</string>
+  <string name="chat_sources_sheet_title">參考來源 (%1$d)</string>
+  <string name="chat_sources_open_desc">在瀏覽器中開啟</string>
+  <string name="chat_sources_open_failed">無法開啟該連結</string>
 </resources>

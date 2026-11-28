@@ -116,38 +116,22 @@ class GeminiRuntimeIntegrationTest {
     }
 
     @Test
-    fun searchReplacesLocalToolOnlyForSupportedModelAndPresentation() {
+    fun searchReplacesLocalToolOnlyForSupportedModel() {
         for (model in listOf("gemini-3.8-flash", "gemini-unknown")) {
-            for (presentation in listOf(false, true)) {
-                val configured = config.copy(model = model, hostedWebSearchEnabled = true,
-                    supportsSearchSuggestions = presentation)
-                val expected = model == "gemini-3.8-flash" && presentation
-                AgentModelClient.complete(configured, "查询", AgentModelClient.ToolExecutor { error("不应执行") },
-                    provider = provider { request, _ ->
-                        val names = (0 until request.tools.length()).map {
-                            request.tools.getJSONObject(it).getJSONObject("function").getString("name")
-                        }
-                        assertEquals(!expected, "web_search" in names)
-                        assertTrue("fetch_url" in names)
-                        assertTrue("browser_use" in names)
-                        assertEquals(expected, request.messages.toString().contains("托管的 google_search"))
-                        JSONObject().put("content", "完成").put("finish_reason", "stop")
-                    })
-            }
+            val configured = config.copy(model = model, hostedWebSearchEnabled = true)
+            val expected = model == "gemini-3.8-flash"
+            AgentModelClient.complete(configured, "查询", AgentModelClient.ToolExecutor { error("不应执行") },
+                provider = provider { request, _ ->
+                    val names = (0 until request.tools.length()).map {
+                        request.tools.getJSONObject(it).getJSONObject("function").getString("name")
+                    }
+                    assertEquals(!expected, "web_search" in names)
+                    assertTrue("fetch_url" in names)
+                    assertTrue("browser_use" in names)
+                    assertEquals(expected, request.messages.toString().contains("托管的 google_search"))
+                    JSONObject().put("content", "完成").put("finish_reason", "stop")
+                })
         }
-    }
-
-    @Test
-    fun searchSuggestionProviderEventKeepsRoundAndTextBlockIdentity() {
-        val events = mutableListOf<AgentEvent>()
-        AgentModelClient.complete(config, "查询", AgentModelClient.ToolExecutor { error("不应执行") },
-            provider = provider { _, emit ->
-                emit(ProviderEvent.SearchSuggestions(7, "<div>搜索建议</div>"))
-                JSONObject().put("content", "完成").put("finish_reason", "stop")
-            }, onEvent = events::add)
-        val event = events.filterIsInstance<AgentEvent.SearchSuggestions>().single()
-        assertEquals(1, event.round)
-        assertEquals(7, event.index)
     }
 
     private fun signedCall(): JSONObject = JSONObject().put("role", "assistant")

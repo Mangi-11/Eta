@@ -35,15 +35,19 @@ class AgentConversationPersistenceTest {
     }
 
     @Test
-    fun searchSuggestionsStayInLoadedConversationAndNeverReachMessageStorage() = runBlocking {
-        val message = AgentMessageUi("search-answer", "正文与引用", searchSuggestionsHtml = listOf("<div>短期建议</div>"))
-        val conversation = state("search").copy(messages = listOf(message))
-        AgentConversationPersistence().save(context, snapshot(mapOf("search" to conversation)))
-        val restored = AgentConversationStore.loadAllMessages(context, "search").filterIsInstance<AgentMessageUi>().single()
-        assertEquals(message.content, restored.content)
-        assertTrue(restored.searchSuggestionsHtml.isEmpty())
+    fun assistantMessageSourcesRoundTripThroughConversationStorage() = runBlocking {
+        val sources = listOf(
+            io.github.mangi.eta.ui.model.MessageSourceUi("https://example.com/a", "来源 A"),
+            io.github.mangi.eta.ui.model.MessageSourceUi("https://example.com/b", "来源 B"),
+        )
+        val message = AgentMessageUi("sourced-answer", "干净正文", sources = sources)
+        val conversation = state("sources").copy(messages = listOf(message))
+        AgentConversationPersistence().save(context, snapshot(mapOf("sources" to conversation)))
+        val restored = AgentConversationStore.loadAllMessages(context, "sources").filterIsInstance<AgentMessageUi>().single()
+        assertEquals("干净正文", restored.content)
+        assertEquals(sources, restored.sources)
         val unloaded = AgentConversationStore.unloadConversation(conversation)
-        assertTrue((unloaded.messages.single() as AgentMessageUi).searchSuggestionsHtml.isEmpty())
+        assertTrue((unloaded.messages.single() as AgentMessageUi).sources.isEmpty())
     }
 
     @Test

@@ -225,7 +225,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                         )
                         return
                     }
-                    ingestRunRequest(incoming, msg.replyTo, msg.sendingUid == android.os.Process.myUid())
+                    ingestRunRequest(incoming, msg.replyTo)
                 }
 
                 AgentRuntimeWire.MSG_CANCEL -> {
@@ -289,16 +289,13 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     private fun ingestRunRequest(
         incoming: AgentRuntimeWire.IncomingRunRequest,
         replyTo: Messenger?,
-        isEtaProcess: Boolean,
     ) {
         val run = admitRun(incoming.request, replyTo, incoming) ?: return
         thread(name = "agent-runtime-image-ingest") {
             val prepared = runCatching {
                 run.session.controller.throwIfCancelled()
                 run.awaitPredecessors()
-                val request = AgentRuntimeRequestConfigResolver.constrainPresentation(
-                    AgentRuntimeImageTransfer.materialize(incoming), isEtaProcess,
-                )
+                val request = AgentRuntimeImageTransfer.materialize(incoming)
                 if (!AgentRuntimeRequestConfigResolver.requiresRuntimeConfig(request)) {
                     request
                 } else {
