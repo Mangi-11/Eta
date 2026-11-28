@@ -8,6 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import io.github.mangi.eta.agent.model.provider.AgentModelClient
+import io.github.mangi.eta.agent.model.provider.openai.OpenAiRequestMessages
 import io.github.mangi.eta.agent.model.provider.openai.ResponsesEphemeralState
 
 class AgentConversationCodecTest {
@@ -129,5 +130,81 @@ class AgentConversationCodecTest {
         val encoded = AgentConversationCodec.encodeTranscriptForStorage(listOf(stable))
         assertFalse(encoded.contains("opaque-secret"))
         assertFalse(encoded.contains("_eta_responses_output_items"))
+    }
+
+    @Test
+    fun assistantHistoryOmitsBlankReasoningContent() {
+        val assistant = JSONObject()
+            .put("role", "assistant")
+            .put("content", "hello")
+            .put("reasoning_content", "")
+
+        val history = AgentConversationCodec.assistantHistoryMessage(assistant, emptyList())
+
+        assertFalse(history.has("reasoning_content"))
+    }
+
+    @Test
+    fun assistantHistoryOmitsNullReasoningContent() {
+        val assistant = JSONObject()
+            .put("role", "assistant")
+            .put("content", "hello")
+            .put("reasoning_content", JSONObject.NULL)
+
+        val history = AgentConversationCodec.assistantHistoryMessage(assistant, emptyList())
+
+        assertFalse(history.has("reasoning_content"))
+    }
+
+    @Test
+    fun assistantHistoryPreservesNonBlankReasoningContent() {
+        val assistant = JSONObject()
+            .put("role", "assistant")
+            .put("content", "hello")
+            .put("reasoning_content", "先分析")
+
+        val history = AgentConversationCodec.assistantHistoryMessage(assistant, emptyList())
+
+        assertEquals("先分析", history.getString("reasoning_content"))
+    }
+
+    private fun mistralMultiTurnHistory(reasoning: Any?): JSONArray {
+        val assistant = JSONObject()
+            .put("role", "assistant")
+            .put("content", "hello")
+        if (reasoning != null) assistant.put("reasoning_content", reasoning)
+        return JSONArray()
+            .put(JSONObject().put("role", "user").put("content", "hi"))
+            .put(AgentConversationCodec.assistantHistoryMessage(assistant, emptyList()))
+            .put(JSONObject().put("role", "user").put("content", "again"))
+    }
+
+    @Test
+    fun chatCompletionsRequestOmitsBlankReasoningContent() {
+        val request = OpenAiRequestMessages.forChatCompletions(mistralMultiTurnHistory(""))
+        assertFalse(request.getJSONObject(1).has("reasoning_content"))
+    }
+
+    @Test
+    fun chatCompletionsRequestDropsBlankReasoningFromRawHistory() {
+        val history = JSONArray()
+            .put(JSONObject().put("role", "user").put("content", "hi"))
+            .put(
+                JSONObject()
+                    .put("role", "assistant")
+                    .put("content", "hello")
+                    .put("reasoning_content", "")
+            )
+            .put(JSONObject().put("role", "user").put("content", "again"))
+
+        val request = OpenAiRequestMessages.forChatCompletions(history)
+
+        assertFalse(request.getJSONObject(1).has("reasoning_content"))
+    }
+
+    @Test
+    fun chatCompletionsRequestPreservesNonBlankReasoningContent() {
+        val request = OpenAiRequestMessages.forChatCompletions(mistralMultiTurnHistory("先分析"))
+        assertEquals("先分析", request.getJSONObject(1).getString("reasoning_content"))
     }
 }
